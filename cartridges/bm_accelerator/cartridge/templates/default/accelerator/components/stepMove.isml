@@ -1,0 +1,22 @@
+<section class="acc-step-panel">
+    <h2 class="acc-step-panel__title">
+        Step ${pdict.currentStep} &mdash; <span class="acc-highlight">${pdict.stepContent.titleSuffix}</span>
+    </h2>
+    <p class="acc-step-panel__intro">${pdict.stepContent.intro}</p>
+    <ul class="acc-phases">
+        <isloop items="${pdict.stepContent.phases}" var="phase">
+            <li class="acc-phases__item acc-phases__item--${phase.status}">
+                <div class="acc-phases__head">
+                    <span>${phase.name}</span>
+                    <span class="acc-phases__status">${phase.status}</span>
+                </div>
+                <div class="acc-progress">
+                    <div class="acc-progress__bar" style="width: ${phase.pct}%"></div>
+                </div>
+            </li>
+        </isloop>
+    </ul>
+    <div class="acc-callout acc-callout--info">
+        Demo mode: migration job is not executed. Configure real jobs in a follow-up integration cartridge.
+    </div>
+</section>

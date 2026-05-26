@@ -1,0 +1,17 @@
+{
+    "name": "Product list page",
+    "description": "A product list page.",
+    "attribute_definitions": [
+        {
+            "id": "categoryId",
+            "name": "Category",
+            "description": "Optional in BM: headless PLP resolves category from the route and page dynamic_lookup.",
+            "type": "category",
+            "required": false
+        }
+    ],
+    "supported_object_types": [
+        "category"
+    ],
+    "arch_type": "headless"
+}

@@ -1,0 +1,12 @@
+<header class="acc-header">
+    <div class="acc-header__brand">
+        <div class="acc-logo" aria-hidden="true">
+            <span class="acc-logo__mark">RC</span>
+            <span class="acc-logo__text">ROYAL CYBER</span>
+        </div>
+        <div class="acc-header__titles">
+            <h1 class="acc-header__title">${pdict.title}</h1>
+            <p class="acc-header__subtitle">${pdict.subtitle}</p>
+        </div>
+    </div>
+</header>

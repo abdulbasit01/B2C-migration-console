@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<extensions xmlns="http://www.demandware.com/xml/bmmodules/2007-12-11"
+            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+            xsi:schemaLocation="http://www.demandware.com/xml/bmmodules/2007-12-11 bmext.xsd">
+
+    <menuitem id="rc_accelerator_tools" site="true" position="99999">
+        <name xml:lang="x-default">B2B Migration</name>
+        <short_description xml:lang="x-default">Migration to Salesforce B2B Commerce</short_description>
+        <description xml:lang="x-default">Royal Cyber B2B Migration Console.</description>
+    </menuitem>
+
+    <menuaction id="rc_accelerator_console" menupath="rc_accelerator_tools" site="true" position="10">
+        <name xml:lang="x-default">Migration Console</name>
+        <short_description xml:lang="x-default">Platform tiles and migration wizard</short_description>
+        <description xml:lang="x-default">Open the migration dashboard.</description>
+        <exec pipeline="Accelerator" node="Start"/>
+        <sub-pipelines>
+            <pipeline name="Accelerator"/>
+        </sub-pipelines>
+    </menuaction>
+
+    <menuaction id="rc_accelerator_wizard" menupath="rc_accelerator_tools" site="true" position="20">
+        <name xml:lang="x-default">Start Migration Wizard</name>
+        <short_description xml:lang="x-default">Connect, fetch, map, move, and review</short_description>
+        <description xml:lang="x-default">Open the migration wizard.</description>
+        <exec pipeline="Accelerator" node="Wizard"/>
+        <sub-pipelines>
+            <pipeline name="Accelerator"/>
+        </sub-pipelines>
+    </menuaction>
+
+    <menuaction id="rc_accelerator_prefs_link" menupath="site-prefs" site="true" position="5">
+        <name xml:lang="x-default">B2B Migration Console</name>
+        <short_description xml:lang="x-default">Open migration console</short_description>
+        <description xml:lang="x-default">Shortcut under Site Preferences.</description>
+        <exec pipeline="Accelerator" node="Start"/>
+        <sub-pipelines>
+            <pipeline name="Accelerator"/>
+        </sub-pipelines>
+    </menuaction>
+
+</extensions>

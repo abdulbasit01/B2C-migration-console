@@ -1,0 +1,19 @@
+
+{
+  "name": "Home Page",
+  "description": "Main landing page with hero carousel and featured products",
+  "arch_type": "headless",
+  "route": "page/home",
+  "region_definitions": [
+    {
+      "id": "headerbanner",
+      "name": "Header Banner Region",
+      "max_components": 3
+    },
+    {
+      "id": "main",
+      "name": "Main Content Region",
+      "max_components": 5
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+<section class="acc-step-panel">
+    <h2 class="acc-step-panel__title">
+        Step ${pdict.currentStep} &mdash; <span class="acc-highlight">${pdict.stepContent.titleSuffix}</span>
+    </h2>
+    <p class="acc-step-panel__intro">${pdict.stepContent.intro}</p>
+    <div class="acc-grid acc-grid--2">
+        <isloop items="${pdict.stepContent.sections}" var="section">
+            <div class="acc-panel">
+                <h3 class="acc-panel__title">${section.title}</h3>
+                <ul class="acc-checklist">
+                    <isloop items="${section.items}" var="item">
+                        <li>
+                            <input type="checkbox" checked="checked" disabled="disabled" />
+                            <span>${item}</span>
+                        </li>
+                    </isloop>
+                </ul>
+            </div>
+        </isloop>
+    </div>
+    <p class="acc-note">${pdict.stepContent.summary}</p>
+</section>

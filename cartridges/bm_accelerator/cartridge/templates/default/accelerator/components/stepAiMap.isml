@@ -1,0 +1,31 @@
+<section class="acc-step-panel">
+    <h2 class="acc-step-panel__title">
+        Step ${pdict.currentStep} &mdash; <span class="acc-highlight">${pdict.stepContent.titleSuffix}</span>
+    </h2>
+    <p class="acc-step-panel__intro">${pdict.stepContent.intro}</p>
+    <table class="acc-table">
+        <thead>
+            <tr>
+                <th>Source field</th>
+                <th>Target (B2B Commerce)</th>
+                <th>AI confidence</th>
+            </tr>
+        </thead>
+        <tbody>
+            <isloop items="${pdict.stepContent.mappings}" var="row">
+                <tr>
+                    <td><code>${row.source}</code></td>
+                    <td><code>${row.target}</code></td>
+                    <td>
+                        <div class="acc-table__confidence">
+                            <div class="acc-progress acc-progress--sm">
+                                <div class="acc-progress__bar" style="width: ${row.confidence}%"></div>
+                            </div>
+                            <span>${row.confidence}%</span>
+                        </div>
+                    </td>
+                </tr>
+            </isloop>
+        </tbody>
+    </table>
+</section>

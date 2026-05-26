@@ -1,0 +1,27 @@
+<section class="acc-step-panel">
+    <h2 class="acc-step-panel__title">
+        Step ${pdict.currentStep} &mdash; Connect to <span class="acc-highlight">${pdict.platform.name}</span>
+    </h2>
+    <p class="acc-step-panel__intro">${pdict.platform.connectHint}</p>
+    <form class="acc-form" action="#" method="post" onsubmit="return false;">
+        <isloop items="${pdict.platform.connectFields}" var="field">
+            <div class="acc-form__group">
+                <label class="acc-form__label" for="field-${field.name}">
+                    ${field.label}
+                    <isif condition="${field.required}"><span class="acc-required">*</span></isif>
+                </label>
+                <input
+                    class="acc-form__input"
+                    id="field-${field.name}"
+                    name="${field.name}"
+                    type="${field.type}"
+                    value="${field.value}"
+                    <isif condition="${field.required}">required="required"</isif>
+                />
+            </div>
+        </isloop>
+        <button type="button" class="acc-btn acc-btn--secondary acc-form__test">
+            &#9889; ${Resource.msg('accelerator.wizard.testConnection', 'accelerator', null)}
+        </button>
+    </form>
+</section>

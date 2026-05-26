@@ -1,0 +1,35 @@
+<iscomment>Expects: platform, wizardUrl</iscomment>
+<article class="acc-card ${platform.status === 'ready' ? 'acc-card--ready' : 'acc-card--disabled'}">
+    <span class="acc-card__badge acc-card__badge--${platform.status}">
+        <isif condition="${platform.status === 'ready'}">
+            ${Resource.msg('accelerator.status.ready', 'accelerator', null)}
+        <iselse/>
+            ${Resource.msg('accelerator.status.soon', 'accelerator', null)}
+        </isif>
+    </span>
+    <div class="acc-card__icon ${platform.iconClass}" aria-hidden="true"></div>
+    <h3 class="acc-card__name">${platform.name}</h3>
+    <p class="acc-card__tagline">${platform.tagline}</p>
+    <isif condition="${platform.status === 'ready'}">
+        <div class="acc-card__confidence">
+            <div class="acc-card__confidence-head">
+                <span>${Resource.msg('accelerator.ai.confidence', 'accelerator', null)}</span>
+                <span>${platform.confidence}%</span>
+            </div>
+            <div class="acc-progress">
+                <div class="acc-progress__bar" style="width: ${platform.confidence}%"></div>
+            </div>
+        </div>
+    </isif>
+    <p class="acc-card__desc">${platform.description}</p>
+    <isif condition="${platform.status === 'ready'}">
+        <a class="acc-btn acc-btn--primary acc-card__cta"
+           href="${pdict.wizardUrl}?platform=${platform.id}&amp;step=1">
+            Start migration &rarr;
+        </a>
+    <iselse/>
+        <button type="button" class="acc-btn acc-btn--muted acc-card__cta" disabled="disabled">
+            Coming soon
+        </button>
+    </isif>
+</article>

@@ -1,0 +1,10 @@
+<nav class="acc-stepper" aria-label="Migration wizard progress">
+    <ol class="acc-stepper__list">
+        <isloop items="${pdict.wizardSteps}" var="step" status="loopStatus">
+            <li class="acc-stepper__item ${pdict.currentStep >= step.id ? 'acc-stepper__item--active' : ''} ${pdict.currentStep === step.id ? 'acc-stepper__item--current' : ''}">
+                <span class="acc-stepper__circle">${step.id}</span>
+                <span class="acc-stepper__label">${step.label}</span>
+            </li>
+        </isloop>
+    </ol>
+</nav>

@@ -1,0 +1,12 @@
+<section class="acc-advisor">
+    <div class="acc-advisor__icon" aria-hidden="true">&#9733;</div>
+    <div class="acc-advisor__body">
+        <h2 class="acc-advisor__title">${Resource.msg('accelerator.advisor.title', 'accelerator', null)}</h2>
+        <p class="acc-advisor__text">
+            Welcome to the B2B Migration Console. This tool guides you through moving catalog, customer, and order data
+            from platforms such as Shopify Plus, BigCommerce, commercetools, and more into Salesforce B2B Commerce.
+            Each path includes AI-assisted mapping, deduplication, and price-list translation.
+            <strong>Pick a source tile to begin.</strong>
+        </p>
+    </div>
+</section>

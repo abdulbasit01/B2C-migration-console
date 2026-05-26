@@ -1,0 +1,17 @@
+<section class="acc-step-panel">
+    <h2 class="acc-step-panel__title">
+        Step ${pdict.currentStep} &mdash; <span class="acc-highlight">${pdict.stepContent.titleSuffix}</span>
+    </h2>
+    <p class="acc-step-panel__intro">${pdict.stepContent.intro}</p>
+    <div class="acc-stats">
+        <isloop items="${pdict.stepContent.stats}" var="stat">
+            <div class="acc-stats__card">
+                <span class="acc-stats__value">${stat.value}</span>
+                <span class="acc-stats__label">${stat.label}</span>
+            </div>
+        </isloop>
+    </div>
+    <div class="acc-callout acc-callout--success">
+        Migration wizard completed (static demo). Return to the console to start another platform path.
+    </div>
+</section>

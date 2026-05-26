@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title>${pdict.title}</title>
+    <link rel="stylesheet" href="${pdict.cssUrl}"/>
+</head>
+<body class="acc-page">
+    <div class="acc-shell">
+        <isinclude template="accelerator/components/header"/>
+
+        <iscomment> <isinclude template="accelerator/components/advisorBanner"/> </iscomment>
+
+        <section class="acc-section">
+            <header class="acc-section__head">
+                <h2>${Resource.msg('accelerator.platforms.heading', 'accelerator', null)}</h2>
+                <p>${Resource.msg('accelerator.platforms.subheading', 'accelerator', null)}</p>
+            </header>
+            <div class="acc-cards">
+                <isloop items="${pdict.platforms}" var="platform">
+                    <isinclude template="accelerator/components/platformCard"/>
+                </isloop>
+            </div>
+        </section>
+
+        <iscomment> <button type="button" class="acc-fab" disabled="disabled" title="AI Migration Advisor (demo)">
+            AI Migration Advisor
+        </button> </iscomment>
+    </div>
+</body>
+</html>
