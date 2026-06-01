@@ -1,5 +1,5 @@
 <iscomment>Expects: platform, wizardUrl</iscomment>
-<article class="acc-card ${platform.status === 'ready' ? 'acc-card--ready' : 'acc-card--disabled'}">
+<article class="acc-card ${platform.status === 'ready' ? 'acc-card--ready' : 'acc-card--disabled'}${platform.featured ? ' acc-card--featured' : ''}">
     <span class="acc-card__badge acc-card__badge--${platform.status}">
         <isif condition="${platform.status === 'ready'}">
             ${Resource.msg('accelerator.status.ready', 'accelerator', null)}

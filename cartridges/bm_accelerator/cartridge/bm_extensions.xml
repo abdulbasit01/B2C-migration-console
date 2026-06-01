@@ -4,9 +4,9 @@
             xsi:schemaLocation="http://www.demandware.com/xml/bmmodules/2007-12-11 bmext.xsd">
 
     <menuitem id="rc_accelerator_tools" site="true" position="99999">
-        <name xml:lang="x-default">B2B Migration</name>
-        <short_description xml:lang="x-default">Migration to Salesforce B2B Commerce</short_description>
-        <description xml:lang="x-default">Royal Cyber B2B Migration Console.</description>
+        <name xml:lang="x-default">B2C Migration</name>
+        <short_description xml:lang="x-default">Migration to Salesforce B2C Commerce</short_description>
+        <description xml:lang="x-default">Royal Cyber B2C Migration Console.</description>
     </menuitem>
 
     <menuaction id="rc_accelerator_console" menupath="rc_accelerator_tools" site="true" position="10">
@@ -30,7 +30,7 @@
     </menuaction>
 
     <menuaction id="rc_accelerator_prefs_link" menupath="site-prefs" site="true" position="5">
-        <name xml:lang="x-default">B2B Migration Console</name>
+        <name xml:lang="x-default">B2C Migration Console</name>
         <short_description xml:lang="x-default">Open migration console</short_description>
         <description xml:lang="x-default">Shortcut under Site Preferences.</description>
         <exec pipeline="Accelerator" node="Start"/>

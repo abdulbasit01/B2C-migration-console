@@ -10,6 +10,24 @@ var WIZARD_STEPS = [
 
 var PLATFORMS = [
     {
+        id: 'commercetools',
+        name: 'commercetools',
+        tagline: 'API-first, Business Units, Headless',
+        status: 'ready',
+        confidence: 75,
+        featured: true,
+        description: 'Migrate customers, products, categories, orders, and price lists into Salesforce B2B Commerce, mapping catalogs/pricing models with moderate transformation and extensions.',
+        iconClass: 'platform-icon--commercetools',
+        connectHint: 'Enter your project credentials. We\'ll verify with a lightweight project settings call.',
+        connectFields: [
+            { name: 'projectKey', label: 'Project key', type: 'text', required: true, value: 'rc-b2b-migration-demo' },
+            { name: 'clientId', label: 'Client ID', type: 'text', required: true, value: 'ct_client_demo' },
+            { name: 'clientSecret', label: 'Client secret', type: 'password', required: true, value: 'ct_secret_demo' },
+            { name: 'apiUrl', label: 'API URL', type: 'text', required: true, value: 'https://api.us-central1.gcp.commercetools.com' },
+            { name: 'scopes', label: 'Scopes', type: 'text', required: false, value: 'manage_project:rc-b2b-migration-demo' }
+        ]
+    },
+    {
         id: 'shopify',
         name: 'Shopify Plus',
         tagline: 'B2B, Markets, Headless',
@@ -49,23 +67,6 @@ var PLATFORMS = [
         iconClass: 'platform-icon--salesforce',
         connectHint: '',
         connectFields: []
-    },
-    {
-        id: 'commercetools',
-        name: 'commercetools',
-        tagline: 'API-first, Business Units, Headless',
-        status: 'ready',
-        confidence: 75,
-        description: 'Migrate commercetools customers, products, categories, orders, and price lists into Salesforce B2B Commerce, mapping catalogs/pricing models with moderate transformation and extensions.',
-        iconClass: 'platform-icon--commercetools',
-        connectHint: 'Enter your commercetools project credentials. We\'ll verify with a lightweight project settings call.',
-        connectFields: [
-            { name: 'projectKey', label: 'Project key', type: 'text', required: true, value: 'rc-b2b-migration-demo' },
-            { name: 'clientId', label: 'Client ID', type: 'text', required: true, value: 'ct_client_demo' },
-            { name: 'clientSecret', label: 'Client secret', type: 'password', required: true, value: 'ct_secret_demo' },
-            { name: 'apiUrl', label: 'API URL', type: 'text', required: true, value: 'https://api.us-central1.gcp.commercetools.com' },
-            { name: 'scopes', label: 'Scopes', type: 'text', required: false, value: 'manage_project:rc-b2b-migration-demo' }
-        ]
     },
     {
         id: 'sap',
@@ -145,7 +146,17 @@ function getPlatform(platformId) {
  * @returns {Array}
  */
 function getPlatforms() {
-    return PLATFORMS;
+    var list = [];
+    var seen = {};
+    var i;
+    for (i = 0; i < PLATFORMS.length; i++) {
+        var platform = PLATFORMS[i];
+        if (!seen[platform.id]) {
+            seen[platform.id] = true;
+            list.push(platform);
+        }
+    }
+    return list;
 }
 
 /**
