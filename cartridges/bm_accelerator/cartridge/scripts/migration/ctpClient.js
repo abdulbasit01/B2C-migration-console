@@ -44,16 +44,11 @@ function getCTPToken() {
     var c = cfg.ctp;
     var credentials = toBase64(c.clientId + ':' + c.clientSecret);
     var body = 'grant_type=client_credentials&scope=' + encodeURIComponent(c.scopes);
-
     var res = httpPost(
         c.authUrl + '/oauth/token',
-        {
-            'Authorization': 'Basic ' + credentials,
-            'Content-Type': 'application/x-www-form-urlencoded'
-        },
+        { 'Authorization': 'Basic ' + credentials, 'Content-Type': 'application/x-www-form-urlencoded' },
         body
     );
-
     if (res.status !== 200 || !res.data.access_token) {
         throw new Error('CTP auth failed (' + res.status + '): ' + JSON.stringify(res.data));
     }
@@ -61,7 +56,8 @@ function getCTPToken() {
 }
 
 /**
- * Test CTP connection — returns { ok, project } or throws.
+ * Test CTP connection.
+ * @returns {Object} connection result
  */
 function testConnection() {
     var token = getCTPToken();
@@ -75,9 +71,9 @@ function testConnection() {
 
 /**
  * Get total count for a CTP endpoint.
- * @param {string} token
+ * @param {string} token - CTP access token
  * @param {string} endpoint - e.g. '/products'
- * @returns {number}
+ * @returns {number} total count
  */
 function getCount(token, endpoint) {
     var c = cfg.ctp;
@@ -87,10 +83,10 @@ function getCount(token, endpoint) {
 
 /**
  * Fetch all records from a CTP endpoint with pagination.
- * @param {string} token
- * @param {string} endpoint
- * @param {Object} extraParams
- * @returns {Array}
+ * @param {string} token - CTP access token
+ * @param {string} endpoint - API endpoint path
+ * @param {Object} extraParams - additional query params
+ * @returns {Array} all records
  */
 function fetchAll(token, endpoint, extraParams) {
     var c = cfg.ctp;
@@ -98,6 +94,7 @@ function fetchAll(token, endpoint, extraParams) {
     var offset = 0;
     var limit = 100;
     var total = null;
+    var results;
 
     do {
         var params = { limit: String(limit), offset: String(offset) };
@@ -107,9 +104,8 @@ function fetchAll(token, endpoint, extraParams) {
         var res = httpGet(c.apiUrl + '/' + c.projectKey + endpoint, token, params);
         if (res.status !== 200) break;
 
-        var results = res.data.results || [];
+        results = res.data.results || [];
         if (total === null) total = res.data.total || 0;
-
         for (var i = 0; i < results.length; i++) { all.push(results[i]); }
         offset += results.length;
     } while (offset < total && results.length > 0);
@@ -118,22 +114,54 @@ function fetchAll(token, endpoint, extraParams) {
 }
 
 /**
- * Get live entity counts from CTP — returns { products, categories, customers, inventory }.
+ * Get live schema counts from CTP (product types and custom types).
+ * @returns {Object} counts by schema source
  */
-function getEntityCounts() {
-    var token = getCTPToken();
+function getSchemaCounts() {
+    var token        = getCTPToken();
+    var c            = cfg.ctp;
+    var ptRes        = httpGet(c.apiUrl + '/' + c.projectKey + '/product-types', token, { limit: '500' });
+    var ctRes        = httpGet(c.apiUrl + '/' + c.projectKey + '/types', token, { limit: '500' });
+    var productTypes = (ptRes.status === 200 && ptRes.data.results) ? ptRes.data.results : [];
+    var customTypes  = (ctRes.status === 200 && ctRes.data.results) ? ctRes.data.results : [];
+
+    var productAttrCount = 0;
+    for (var i = 0; i < productTypes.length; i++) {
+        productAttrCount += (productTypes[i].attributes || []).length;
+    }
+
     return {
-        products:   getCount(token, '/products'),
-        categories: getCount(token, '/categories'),
-        customers:  getCount(token, '/customers'),
-        inventory:  getCount(token, '/inventory')
+        productTypes:      productTypes.length,
+        productAttributes: productAttrCount,
+        customTypes:       customTypes.length,
+        customFields:      customTypes.reduce(function (sum, t) { return sum + (t.fieldDefinitions || []).length; }, 0)
     };
 }
 
+/**
+ * Fetch all CTP ProductType definitions.
+ * @param {string} token - CTP access token
+ * @returns {Array} ProductType array
+ */
+function fetchProductTypes(token) {
+    return fetchAll(token, '/product-types', null);
+}
+
+/**
+ * Fetch all CTP Custom Type definitions.
+ * @param {string} token - CTP access token
+ * @returns {Array} Type array
+ */
+function fetchCustomTypes(token) {
+    return fetchAll(token, '/types', null);
+}
+
 module.exports = {
-    getCTPToken: getCTPToken,
-    testConnection: testConnection,
-    getCount: getCount,
-    fetchAll: fetchAll,
-    getEntityCounts: getEntityCounts
+    getCTPToken:      getCTPToken,
+    testConnection:   testConnection,
+    getCount:         getCount,
+    fetchAll:         fetchAll,
+    getSchemaCounts:  getSchemaCounts,
+    fetchProductTypes: fetchProductTypes,
+    fetchCustomTypes:  fetchCustomTypes
 };

@@ -85,44 +85,52 @@ var PLATFORMS = [
 
 var STEP_CONTENT = {
     fetch: {
-        titleSuffix: 'Fetch source data',
-        intro: 'Select entities to pull from the source platform. This is a preview — no live API calls are made.',
+        titleSuffix: 'Fetch source schema',
+        intro:       'Live schema counts from your commercetools project.',
         sections: [
-            { title: 'Catalog', items: ['Products (12,450)', 'Categories (186)', 'Product types (24)', 'Price lists (8)'] },
-            { title: 'Customers & orders', items: ['Business units (42)', 'Customers (3,210)', 'Orders (18,902)', 'Quotes (1,104)'] }
+            { title: 'Product Schema',  items: ['Product types', 'Product attributes'] },
+            { title: 'Custom Types',    items: ['Custom types', 'Custom fields'] }
         ],
-        summary: 'Estimated payload: ~2.4 GB · ~45 min fetch (demo)'
+        summary: 'Counts load live from CTP when you reach this step.'
     },
     aimap: {
-        titleSuffix: 'AI field mapping',
-        intro: 'Review AI-suggested mappings from source to Salesforce B2B Commerce. Adjust before import.',
+        titleSuffix: 'Schema field mapping',
+        intro:       'CTP attribute types → SFCC attribute value_type mappings used during migration.',
         mappings: [
-            { source: 'product.key',                     target: 'Product.ID',           confidence: 98 },
-            { source: 'product.masterData.current.name', target: 'Product.name',         confidence: 95 },
-            { source: 'category.key',                    target: 'Category.ID',          confidence: 97 },
-            { source: 'customer.email',                  target: 'Profile.email',        confidence: 99 },
-            { source: 'order.orderNumber',               target: 'Order.orderNo',        confidence: 96 },
-            { source: 'standalonePrice.value',           target: 'PriceBookEntry.price', confidence: 72 }
+            { source: 'ProductType.text',            target: 'Product → string',              confidence: 100 },
+            { source: 'ProductType.ltext',           target: 'Product → string',              confidence: 100 },
+            { source: 'ProductType.enum / lenum',    target: 'Product → string',              confidence: 100 },
+            { source: 'ProductType.number',          target: 'Product → double',              confidence: 100 },
+            { source: 'ProductType.boolean',         target: 'Product → boolean',             confidence: 100 },
+            { source: 'ProductType.date',            target: 'Product → date',                confidence: 100 },
+            { source: 'ProductType.datetime',        target: 'Product → datetime',            confidence: 100 },
+            { source: 'ProductType.money',           target: 'Product → double',              confidence: 95  },
+            { source: 'ProductType.reference',       target: 'Product → string',              confidence: 90  },
+            { source: 'CustomType(customer)',        target: 'Customer → (matched type)',     confidence: 98  },
+            { source: 'CustomType(order)',           target: 'Order → (matched type)',        confidence: 98  },
+            { source: 'CustomType(shopping-list)',   target: 'ProductList → (matched type)',  confidence: 97  },
+            { source: 'CustomType(inventory-entry)', target: 'ProductInventoryRecord → ...',  confidence: 97  },
+            { source: 'CustomType(cart-discount)',   target: 'Promotion → (matched type)',    confidence: 95  }
         ]
     },
     move: {
-        titleSuffix: 'Run migration',
-        intro: 'Execute the import job. Progress updates when the page refreshes.',
+        titleSuffix: 'Run schema migration',
+        intro:       'Creating SFCC attribute definitions from CTP schema. Existing attributes are skipped.',
         phases: [
-            { name: 'Validate mappings', status: 'done',    pct: 100 },
-            { name: 'Import catalog',    status: 'active',  pct: 62  },
-            { name: 'Import customers',  status: 'pending', pct: 0   },
-            { name: 'Import inventory',  status: 'pending', pct: 0   }
+            { name: 'Product',                status: 'pending', pct: 0 },
+            { name: 'Category + Customer',    status: 'pending', pct: 0 },
+            { name: 'Order + Inventory',      status: 'pending', pct: 0 },
+            { name: 'ProductList + Promotion', status: 'pending', pct: 0 }
         ]
     },
     view: {
-        titleSuffix: 'Migration summary',
-        intro: 'Review results and next steps.',
+        titleSuffix: 'Schema migration summary',
+        intro:       'Attribute definitions created in SFCC system objects.',
         stats: [
-            { label: 'Products imported',   value: '—' },
-            { label: 'Categories imported', value: '—' },
-            { label: 'Customers imported',  value: '—' },
-            { label: 'Inventory imported',  value: '—' }
+            { label: 'Product attributes',               value: '—' },
+            { label: 'Customer attributes',              value: '—' },
+            { label: 'Order attributes',                 value: '—' },
+            { label: 'ProductInventoryRecord attributes', value: '—' }
         ]
     }
 };

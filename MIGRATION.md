@@ -2,7 +2,11 @@
 
 ## What This Project Does
 
-This project is a **Salesforce Commerce Cloud (SFCC) B2C storefront** with a built-in **Migration Console** inside Business Manager (BM). The Migration Console lets you migrate data from **Commercetools (CTP)** directly into SFCC — products, categories, customers, and inventory — without any separate tools or servers.
+This project is a **Salesforce Commerce Cloud (SFCC) B2C storefront** with a built-in **Schema Migration Console** inside Business Manager (BM).
+
+**What it migrates:** Schema only — custom attribute definitions (metadata) are created in SFCC to match the field structure in Commercetools. No actual data (products, orders, customers) is moved.
+
+**Why schema migration:** CTP has ProductTypes and Custom Types with fields that do not exist in SFCC by default. Before any data import can happen, SFCC must have matching attribute definitions. This tool creates them automatically.
 
 ---
 
@@ -12,225 +16,293 @@ This project is a **Salesforce Commerce Cloud (SFCC) B2C storefront** with a bui
 B2C-migration-console/
 │
 ├── cartridges/
-│   ├── app_storefront_base/          # Core SFCC storefront (do not edit)
-│   ├── app_storefront_custom/        # Your custom storefront overrides
-│   ├── app_custom_headless/          # Headless API + Page Designer components
-│   ├── bm_app_storefront_base/       # Business Manager UI extensions
-│   ├── modules/                      # Shared SFCC server-side modules
+│   ├── app_storefront_base/        # Core SFCC storefront (do not edit)
+│   ├── app_storefront_custom/      # Your custom storefront overrides
+│   ├── app_custom_headless/        # Headless API + Page Designer components
+│   ├── bm_app_storefront_base/     # Business Manager UI extensions
+│   ├── modules/                    # Shared SFCC server-side modules
 │   │
-│   └── bm_accelerator/               # ← MIGRATION CONSOLE (main cartridge)
+│   └── bm_accelerator/             # ← MIGRATION CONSOLE
 │       └── cartridge/
 │           ├── controllers/
-│           │   └── Accelerator.js    # Wizard routes + migration logic entry point
+│           │   └── Accelerator.js         # Wizard routes + schema migration entry point
 │           │
 │           ├── scripts/
 │           │   ├── accelerator/
-│           │   │   └── migrationData.js   # Wizard UI data (steps, platforms, field labels)
+│           │   │   └── migrationData.js   # Wizard UI: steps, platforms, labels
 │           │   │
-│           │   └── migration/             # ← MIGRATION ENGINE
-│           │       ├── config.js          # CTP + SFCC credentials and settings
-│           │       ├── ctpClient.js       # All Commercetools API calls
-│           │       ├── sfccClient.js      # All SFCC OCAPI calls
-│           │       ├── transformers.js    # Convert CTP data format → SFCC format
-│           │       └── runner.js          # Runs the migration end-to-end
+│           │   └── migration/             # ← SCHEMA MIGRATION ENGINE
+│           │       ├── config.js          # AUTO-GENERATED from .env  (gitignored)
+│           │       ├── sfcc-credentials.js # AUTO-GENERATED from dw.json (gitignored)
+│           │       ├── typeMap.js         # CTP → SFCC type mappings (committed)
+│           │       ├── ctpClient.js       # CTP API calls (auth + schema fetch)
+│           │       ├── sfccClient.js      # SFCC OCAPI calls (auth + schema create)
+│           │       ├── transformers.js    # Convert CTP type defs → SFCC attr defs
+│           │       └── runner.js          # Orchestrates all 8 schema groups
 │           │
-│           └── templates/
-│               └── default/accelerator/
-│                   ├── dashboard.isml     # Platform selection screen
-│                   ├── wizard.isml        # Wizard shell (header + footer nav)
-│                   └── components/
-│                       ├── stepConnect.isml   # Step 1: Enter credentials
-│                       ├── stepFetch.isml     # Step 2: Live entity counts
-│                       ├── stepAiMap.isml     # Step 3: Field mapping review
-│                       ├── stepMove.isml      # Step 4: Run migration progress
-│                       └── stepView.isml      # Step 5: Results summary
+│           └── templates/default/accelerator/
+│               ├── dashboard.isml         # Platform selection screen
+│               ├── wizard.isml            # Wizard shell
+│               └── components/
+│                   ├── stepConnect.isml   # Step 1: CTP credentials
+│                   ├── stepFetch.isml     # Step 2: Live schema counts
+│                   ├── stepAiMap.isml     # Step 3: Type mapping review
+│                   ├── stepMove.isml      # Step 4: Schema migration progress
+│                   └── stepView.isml      # Step 5: Results summary
 │
-├── package.json     # SFCC build tools (webpack, sgmf-scripts, eslint, etc.)
+├── scripts/
+│   └── generate-migration-config.js  # dw.json + .env → config.js + sfcc-credentials.js
+│
+├── dw.json          # SFCC sandbox credentials (gitignored)
+├── .env             # CTP credentials (gitignored)
+├── .env.example     # Template for .env
+├── package.json     # Build + upload scripts
 └── MIGRATION.md     # This file
 ```
 
 ---
 
-## How the Migration Works
+## API Reference
 
-There is **no separate server** and **nothing to start**. When the BM user clicks through the wizard, the SFCC controller runs the migration directly using SFCC's built-in `dw.net.HTTPClient` to talk to both APIs.
+### Commercetools APIs Used — GET Schema
+
+All CTP calls use **OAuth2 `client_credentials`** grant. Token endpoint:
 
 ```
-Business Manager (browser)
-        │
-        ▼
-Accelerator.js controller  ← runs on SFCC cloud server
-        │
-        ├──► ctpClient.js  ──► Commercetools REST API
-        │         (fetch products, categories, customers, inventory)
-        │
-        ├──► transformers.js
-        │         (convert CTP data shape → SFCC data shape)
-        │
-        └──► sfccClient.js ──► SFCC OCAPI Data API v25_6
-                  (upsert products, categories, customers, inventory)
+POST {CTP_AUTH_URL}/oauth/token
+Authorization: Basic base64(clientId:clientSecret)
+Body: grant_type=client_credentials&scope={scopes}
+```
+
+| Purpose | Method | CTP Endpoint | Response fields used |
+|---------|--------|-------------|----------------------|
+| **Verify connection** | `GET` | `/{projectKey}` | `key`, `name` |
+| **Get schema counts** | `GET` | `/{projectKey}/product-types?limit=500` | `results[].attributes.length` |
+| **Get schema counts** | `GET` | `/{projectKey}/types?limit=500` | `results[].fieldDefinitions.length` |
+| **Fetch Product schema** | `GET` | `/{projectKey}/product-types` | `results[].attributes[]` → `name`, `type.name`, `label` |
+| **Fetch Custom schema** | `GET` | `/{projectKey}/types` | `results[].resourceTypeIds[]`, `fieldDefinitions[]` → `name`, `type.name`, `label` |
+
+**CTP `product-types` response shape used:**
+```json
+{
+  "results": [{
+    "attributes": [{
+      "name":  "color",
+      "type":  { "name": "text" },
+      "label": { "en": "Color" }
+    }]
+  }]
+}
+```
+
+**CTP `types` response shape used:**
+```json
+{
+  "results": [{
+    "resourceTypeIds": ["order", "customer"],
+    "fieldDefinitions": [{
+      "name":  "externalId",
+      "type":  { "name": "String" },
+      "label": { "en": "External ID" }
+    }]
+  }]
+}
 ```
 
 ---
 
-## The 5-Step Wizard
+### SFCC OCAPI APIs Used — CREATE Schema
 
-| Step | Screen | What Happens |
-|------|--------|-------------|
-| 1 | **Connect** | Shows your CTP credentials (pre-filled). User verifies they are correct. |
-| 2 | **Fetch** | Controller calls CTP API and shows **live counts**: Products (730), Categories (195), etc. |
-| 3 | **AI Map** | Shows the field mapping from CTP fields to SFCC fields with confidence scores. |
-| 4 | **Move** | Controller **runs the full migration**. Fetches all CTP data → transforms it → loads into SFCC via OCAPI. Shows progress phases when done. |
-| 5 | **View** | Shows the final results: how many records were imported successfully and how many failed. |
+All SFCC calls use **BM User Grant** token. Token endpoint:
+
+```
+POST {SFCC_BASE_URL}/dw/oauth2/access_token?client_id={bmClientId}
+Authorization: Basic base64(bmUsername:bmPassword:bmClientId)
+Body: grant_type=urn:demandware:params:oauth:grant-type:client-id:dwsid:dwsecuretoken
+```
+
+> `bmClientId` is always `aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa` (well-known SFCC client)
+
+| Purpose | Method | SFCC OCAPI Endpoint | When called |
+|---------|--------|--------------------|-------------|
+| **Check existing attrs** | `GET` | `/s/-/dw/data/{metaVersion}/system_object_definitions/{ObjectType}/attribute_definitions?count=200&start={n}` | Before creating — avoids duplicates |
+| **Create attribute** | `PUT` | `/s/-/dw/data/{metaVersion}/system_object_definitions/{ObjectType}/attribute_definitions/{attrId}` | For each missing attribute |
+
+**`metaVersion`** = `v25_6` (from `config.js`)
+
+**GET response shape checked:**
+```json
+{
+  "total": 45,
+  "data": [
+    { "id": "color" },
+    { "id": "size" }
+  ]
+}
+```
+
+**PUT request body sent:**
+```json
+{
+  "id":                 "color",
+  "value_type":         "string",
+  "mandatory":          false,
+  "searchable":         false,
+  "externally_defined": false,
+  "externally_managed": false,
+  "order_required":     false,
+  "display_name":       { "default": "Color" }
+}
+```
+
+**SFCC ObjectType values used:**
+
+| SFCC System Object | Maps from CTP |
+|-------------------|--------------|
+| `Product` | `/product-types` attributes |
+| `Category` | `/types` where resourceTypeId = `category` |
+| `Customer` | `/types` where resourceTypeId = `customer` |
+| `Order` | `/types` where resourceTypeId = `order`, `cart`, `line-item`, `payment` |
+| `ProductInventoryRecord` | `/types` where resourceTypeId = `inventory-entry` |
+| `ProductList` | `/types` where resourceTypeId = `shopping-list` |
+| `ProductListItem` | `/types` where resourceTypeId = `shopping-list-text-line-item` |
+| `Promotion` | `/types` where resourceTypeId = `cart-discount`, `discount-code` |
 
 ---
 
-## Migration Engine Files Explained
+## Type Mapping — `typeMap.js`
 
-### `config.js` — Credentials & Settings
-Holds all connection credentials. **This file is in `.gitignore` — never commit it.**
+All type conversions live in one file. No hardcoded types elsewhere.
 
-```
-CTP settings:  project key, client ID/secret, API URL
-SFCC settings: sandbox URL, BM username/password, catalog ID
-Migration:     batch size, dry run toggle
-```
+### CTP ProductType attribute types → SFCC `value_type`
 
-### `ctpClient.js` — Commercetools API
-- Gets an OAuth2 token from CTP using `client_credentials` grant
-- Fetches paginated data from any CTP endpoint (`/products`, `/categories`, `/customers`, `/inventory`)
-- `getEntityCounts()` — gets total record counts (used in Step 2)
-- `fetchAll()` — fetches all pages of records (used in Step 4)
+| CTP type | SFCC value_type |
+|----------|----------------|
+| `text` | `string` |
+| `ltext` | `string` |
+| `enum` | `string` |
+| `lenum` | `string` |
+| `number` | `double` |
+| `boolean` | `boolean` |
+| `date` | `date` |
+| `time` | `string` |
+| `datetime` | `datetime` |
+| `money` | `double` |
+| `reference` | `string` |
+| `set` | `set-of-string` |
+| `nested` | `string` |
 
-### `sfccClient.js` — SFCC OCAPI
-- Gets a BM User Grant token (3-part base64 credential: `username:password:clientId`)
-- `ensureAttributes()` — checks if custom attributes exist in SFCC; creates any that are missing
-- `upsertProduct()` — PUT to `/s/-/dw/data/v25_6/products/{id}`
-- `upsertCategory()` — PUT to `/s/-/dw/data/v25_6/catalogs/{id}/categories/{id}`
-- `upsertCustomer()` — searches by email, then PATCH (update) or POST (create new)
-- `upsertInventory()` — PUT to inventory list records
+### CTP Custom Type field types → SFCC `value_type`
 
-### `transformers.js` — Data Conversion
-Converts CTP data format to the shape SFCC expects:
+| CTP FieldType | SFCC value_type |
+|---------------|----------------|
+| `String` | `string` |
+| `LocalizedString` | `string` |
+| `Number` | `double` |
+| `Integer` | `int` |
+| `Boolean` | `boolean` |
+| `Date` | `date` |
+| `Time` | `string` |
+| `DateTime` | `datetime` |
+| `Money` | `double` |
+| `Enum` | `string` |
+| `LocalizedEnum` | `string` |
+| `Reference` | `string` |
+| `Set` | `set-of-string` |
 
-| CTP field | SFCC field |
-|-----------|------------|
-| `product.key` | `Product.id` |
-| `masterData.current.name` (localized object) | `Product.name.default` (string) |
-| `masterVariant.attributes[]` | `Product.c_attributeName` (custom attributes) |
-| `category.key` | `Category.id` |
-| `customer.email` | `Profile.email` |
-| `inventory.sku` | `InventoryRecord.product_id` |
+---
 
-CTP uses localized objects like `{ "en": "Blue Shirt", "en-US": "Blue Shirt" }`. The transformer picks the English value.
+## SFCC Objects Covered
 
-CTP custom attributes like `[{ name: "color", value: "blue" }]` become SFCC custom attributes `c_color = "blue"`.
-
-### `runner.js` — Orchestration
-Runs all four migration tasks in order:
-1. `migrateCategories()` — fetch all CTP categories → transform → upsert to SFCC
-2. `migrateProducts()` — fetch all CTP products → transform → ensure attributes exist → upsert to SFCC
-3. `migrateCustomers()` — fetch all CTP customers → transform → upsert to SFCC
-4. `migrateInventory()` — fetch all CTP inventory → transform → upsert to SFCC
-
-Returns `{ categories: { success: 195, failed: 0 }, products: { success: 730, failed: 2 }, ... }`
-
-### `Accelerator.js` — Controller (Entry Point)
-Handles two BM URL routes:
-- `Accelerator-Start` → renders the dashboard (platform selection)
-- `Accelerator-Wizard?platform=commercetools&step=N` → renders each wizard step
-
-On each step it enriches the template data:
-- Step 2: calls `ctpClient.getEntityCounts()` → real numbers in Fetch screen
-- Step 4: calls `runner.runAll()` → stores results in BM session
-- Step 5: reads results from BM session → shows in View screen
+| SFCC Object | CTP Schema Source |
+|-------------|-----------------|
+| Product | `/product-types` → `attributes[]` |
+| ProductActiveData | `/product-types` → `attributes[]` |
+| Category | `/types` (resourceTypeId: `category`) |
+| Customer / Profile | `/types` (resourceTypeId: `customer`) |
+| Order | `/types` (resourceTypeId: `order`, `cart`) |
+| OrderAddress | `/types` (resourceTypeId: `order`) |
+| OrderItem / ProductLineItem | `/types` (resourceTypeId: `line-item`) |
+| OrderPaymentInstrument | `/types` (resourceTypeId: `payment`) |
+| PaymentMethod / PaymentCard | `/types` (resourceTypeId: `payment`) |
+| PaymentTransaction | `/types` (resourceTypeId: `payment`) |
+| ProductInventoryList | `/types` (resourceTypeId: `inventory-entry`) |
+| ProductInventoryRecord | `/types` (resourceTypeId: `inventory-entry`) |
+| ProductList | `/types` (resourceTypeId: `shopping-list`) |
+| ProductListItem | `/types` (resourceTypeId: `shopping-list-text-line-item`) |
+| ProductListRegistrant | `/types` (resourceTypeId: `shopping-list`) |
+| ProductListItemPurchase | `/types` (resourceTypeId: `shopping-list`) |
+| Promotion / PriceAdjustment | `/types` (resourceTypeId: `cart-discount`, `discount-code`) |
+| PriceBook | `/types` (resourceTypeId: `standalone-price`) |
+| Library | ❌ No CTP equivalent — skipped |
+| OrganizationPreferences | ❌ No CTP equivalent — skipped |
 
 ---
 
 ## Setup
 
-### 1. Configure Credentials
-Edit `cartridges/bm_accelerator/cartridge/scripts/migration/config.js`:
-
-```js
-ctp: {
-    projectKey: 'your-ctp-project-key',
-    clientId:   'your-client-id',
-    clientSecret: 'your-client-secret',
-    authUrl:    'https://auth.us-central1.gcp.commercetools.com',
-    apiUrl:     'https://api.us-central1.gcp.commercetools.com',
-    scopes:     'manage_project:your-ctp-project-key'
-},
-sfcc: {
-    baseUrl:    'https://your-instance.dx.commercecloud.salesforce.com',
-    bmUsername: 'your-bm-username@company.com',
-    bmPassword: 'your-bm-password',
-    catalogId:  'your-catalog-id'
-}
-```
-
-### 2. Install & Build
+### Step 1: Fill `.env`
 ```bash
-npm install
-npm run build
+cp .env.example .env
+```
+```env
+CTP_PROJECT_KEY=your-project-key
+CTP_CLIENT_ID=your-client-id
+CTP_CLIENT_SECRET=your-client-secret
+CTP_AUTH_URL=https://auth.us-central1.gcp.commercetools.com
+CTP_API_URL=https://api.us-central1.gcp.commercetools.com
+SFCC_CATALOG_ID=storefront-catalog-m-en
+SFCC_VERSION=v25_6
+SFCC_META_VERSION=v25_6
 ```
 
-### 3. Upload Cartridges to SFCC Sandbox
-Create `dw.json` in the project root (never commit this file):
+### Step 2: Fill `dw.json`
 ```json
 {
-  "hostname": "your-instance.dx.commercecloud.salesforce.com",
-  "username": "your-bm-username@company.com",
-  "password": "your-bm-password",
-  "code-version": "version1"
+    "hostname": "your-instance.dx.commercecloud.salesforce.com",
+    "username": "your-bm-username@company.com",
+    "password": "your-bm-password",
+    "version": "version1",
+    "code-version": "version1"
 }
 ```
 
-Then upload:
+### Step 3: Install + Upload
 ```bash
+npm install
 npm run uploadCartridge
 ```
+Automatically: generates `config.js` + `sfcc-credentials.js`, then uploads all cartridges.
 
-For `bm_accelerator` specifically:
-```bash
-npx sgmf-scripts --uploadCartridge bm_accelerator
-```
+### Step 4: SFCC OCAPI Permissions
+**BM → Administration → Site Development → Open Commerce API Settings → Data**
 
-### 4. Enable in Business Manager
-1. Go to **BM → Administration → Sites → Manage Sites → Select your site → Settings**
-2. Add `bm_accelerator` to the **Cartridge Path** (before other cartridges)
-3. Go to **BM → Administration → Migration Console** — the wizard will appear
-
----
-
-## SFCC OCAPI Configuration
-
-The migration uses OCAPI Data API. Make sure your SFCC sandbox has these OCAPI permissions configured:
-
-Go to **BM → Administration → Site Development → Open Commerce API Settings → Data**
-
+Add for client `aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`:
 ```json
 {
   "client_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
   "resources": [
-    { "resource_id": "/products/**", "methods": ["get","put","patch"], "read_attributes": "(**)", "write_attributes": "(**)" },
-    { "resource_id": "/catalogs/**", "methods": ["get","put","patch"], "read_attributes": "(**)", "write_attributes": "(**)" },
-    { "resource_id": "/customers/**", "methods": ["get","put","patch","post"], "read_attributes": "(**)", "write_attributes": "(**)" },
-    { "resource_id": "/inventory_lists/**", "methods": ["get","put","patch"], "read_attributes": "(**)", "write_attributes": "(**)" },
-    { "resource_id": "/system_object_definitions/**", "methods": ["get","put"], "read_attributes": "(**)", "write_attributes": "(**)" },
-    { "resource_id": "/customer_search", "methods": ["post"], "read_attributes": "(**)", "write_attributes": "(**)" }
+    {
+      "resource_id": "/system_object_definitions/**",
+      "methods": ["get", "put"],
+      "read_attributes": "(**)",
+      "write_attributes": "(**)"
+    }
   ]
 }
 ```
 
+### Step 5: Add to Cartridge Path
+**BM → Administration → Sites → Manage Sites → your site → Settings**
+
+Add `bm_accelerator` to the Cartridge Path.
+
 ---
 
-## Important Notes
+## Notes
 
-**Custom Attributes:** CTP products often have custom fields that don't exist in SFCC by default. The migration automatically creates these as SFCC custom attributes before importing the data. No manual Business Manager setup needed.
+**Schema migration is safe to re-run.** Before creating each attribute, the tool checks existing definitions (`GET`). Attributes that already exist are skipped — nothing is overwritten.
 
-**Large Datasets:** SFCC controller requests have a timeout (~60 seconds). For very large catalogs (10,000+ products), the Step 4 migration may time out. In that case, split the migration into smaller runs using the CTP filter by product key, or migrate one entity type at a time.
+**`typeMap.js` is the only place with type values.** If a mapping needs to change, edit only this file. Transformers and runners have no hardcoded type strings.
 
-**Dry Run:** To test the migration without writing any data, set `dryRun: true` in `config.js`. The wizard will show what would have been imported without actually sending data to SFCC.
-
-**Re-running:** The migration is safe to re-run. Products and categories use PUT (upsert), so running twice updates existing records rather than creating duplicates. Customers are matched by email.
+**`config.js` and `sfcc-credentials.js` are never committed.** They are generated fresh on every `npm run uploadCartridge` from `dw.json` + `.env`.
