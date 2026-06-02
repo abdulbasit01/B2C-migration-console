@@ -6,8 +6,6 @@ var ISML          = require('dw/template/ISML');
 var URLUtils      = require('dw/web/URLUtils');
 var Resource      = require('dw/web/Resource');
 var migrationData = require('*/cartridge/scripts/accelerator/migrationData');
-var ctpClient     = require('*/cartridge/scripts/migration/ctpClient');
-var runner        = require('*/cartridge/scripts/migration/runner');
 
 /**
  * Format number with commas.
@@ -161,6 +159,7 @@ exports.Wizard = function () {
     // Step 2: Fetch — live CTP schema counts
     if (currentStep === 2 && platformId === 'commercetools') {
         try {
+            var ctpClient = require('*/cartridge/scripts/migration/ctpClient');
             var schemaCounts = ctpClient.getSchemaCounts();
             stepContent = buildFetchContent(schemaCounts);
         } catch (e) { /* fallback to default */ }
@@ -173,6 +172,7 @@ exports.Wizard = function () {
 
         if (!existingResults) {
             try {
+                var runner = require('*/cartridge/scripts/migration/runner');
                 var migrationResults = runner.runAll();
                 session.custom.schemaMigrationResults = JSON.stringify(migrationResults);
                 stepContent = buildMoveContent(migrationResults);

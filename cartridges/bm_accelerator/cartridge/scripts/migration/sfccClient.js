@@ -5,8 +5,8 @@
 var HTTPClient = require('dw/net/HTTPClient');
 var Encoding   = require('dw/crypto/Encoding');
 var Bytes      = require('dw/util/Bytes');
-var cfg        = require('*/cartridge/scripts/migration/config');
-var creds      = require('*/cartridge/scripts/migration/sfcc-credentials');
+var cfg        = require('*/cartridge/scripts/migration/configAccessor');
+var creds      = require('*/cartridge/scripts/migration/sfccCredentialsAccessor');
 
 /**
  * Build runtime SFCC settings — baseUrl from live request, credentials from generated files.

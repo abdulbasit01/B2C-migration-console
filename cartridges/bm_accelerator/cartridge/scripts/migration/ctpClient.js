@@ -3,7 +3,7 @@
 var HTTPClient = require('dw/net/HTTPClient');
 var Encoding = require('dw/crypto/Encoding');
 var Bytes = require('dw/util/Bytes');
-var cfg = require('*/cartridge/scripts/migration/config');
+var cfg = require('*/cartridge/scripts/migration/configAccessor');
 
 function toBase64(str) {
     return Encoding.toBase64(new Bytes(str, 'UTF-8'));

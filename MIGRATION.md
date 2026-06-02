@@ -32,8 +32,9 @@ B2C-migration-console/
 │           │   │   └── migrationData.js   # Wizard UI: steps, platforms, labels
 │           │   │
 │           │   └── migration/             # ← SCHEMA MIGRATION ENGINE
-│           │       ├── config.js          # AUTO-GENERATED from .env  (gitignored)
-│           │       ├── sfcc-credentials.js # AUTO-GENERATED from dw.json (gitignored)
+│           │       ├── config.js          # Stub in repo; overwritten by config:generate
+│           │       ├── config.defaults.js # Safe fallback values (committed)
+│           │       ├── sfcc-credentials.js # Stub; overwritten from dw.json
 │           │       ├── typeMap.js         # CTP → SFCC type mappings (committed)
 │           │       ├── ctpClient.js       # CTP API calls (auth + schema fetch)
 │           │       ├── sfccClient.js      # SFCC OCAPI calls (auth + schema create)
@@ -305,4 +306,4 @@ Add `bm_accelerator` to the Cartridge Path.
 
 **`typeMap.js` is the only place with type values.** If a mapping needs to change, edit only this file. Transformers and runners have no hardcoded type strings.
 
-**`config.js` and `sfcc-credentials.js` are never committed.** They are generated fresh on every `npm run uploadCartridge` from `dw.json` + `.env`.
+**`config.js` and `sfcc-credentials.js` ship as stubs** (pointing at defaults). Run `npm run config:generate` before upload to inject real CTP/BM credentials from `.env` + `dw.json`. Do not commit generated files that contain secrets.

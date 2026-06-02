@@ -1,7 +1,5 @@
 'use strict';
 
-var migCfg = require('*/cartridge/scripts/migration/config');
-
 var WIZARD_STEPS = [
     { id: 1, key: 'connect', label: 'Connect' },
     { id: 2, key: 'fetch', label: 'Fetch' },
@@ -18,15 +16,15 @@ var PLATFORMS = [
         status: 'ready',
         confidence: 75,
         featured: true,
-        description: 'Migrate commercetools customers, products, categories, and inventory into Salesforce B2C Commerce via OCAPI.',
+        description: 'Migrate commercetools customers, products, categories, orders, and price lists into Salesforce B2B Commerce, mapping catalogs/pricing models with moderate transformation and extensions.',
         iconClass: 'platform-icon--commercetools',
         connectHint: 'Credentials are pre-loaded from your project configuration.',
         connectFields: [
-            { name: 'projectKey',   label: 'Project key',   type: 'text',     required: true,  value: migCfg.ctp.projectKey },
-            { name: 'clientId',     label: 'Client ID',     type: 'text',     required: true,  value: migCfg.ctp.clientId },
-            { name: 'clientSecret', label: 'Client secret', type: 'password', required: true,  value: '••••••••' },
-            { name: 'apiUrl',       label: 'API URL',       type: 'text',     required: true,  value: migCfg.ctp.apiUrl },
-            { name: 'scopes',       label: 'Scopes',        type: 'text',     required: false, value: migCfg.ctp.scopes }
+            { name: 'projectKey',   label: 'Project key',   type: 'text',     required: true,  value: '' },
+            { name: 'clientId',     label: 'Client ID',     type: 'text',     required: true,  value: '' },
+            { name: 'clientSecret', label: 'Client secret', type: 'password', required: true,  value: '' },
+            { name: 'apiUrl',       label: 'API URL',       type: 'text',     required: true,  value: '' },
+            { name: 'scopes',       label: 'Scopes',        type: 'text',     required: false, value: '' }
         ]
     },
     {
@@ -136,13 +134,78 @@ var STEP_CONTENT = {
 };
 
 /**
+ * Merge generated CTP credentials into commercetools connect fields.
+ * @param {Object} platform - platform definition
+ * @returns {Object} platform clone with connect field values applied
+ */
+function withCtpCredentials(platform) {
+    if (!platform || platform.id !== 'commercetools') {
+        return platform;
+    }
+
+    var migCfg;
+    try {
+        migCfg = require('*/cartridge/scripts/migration/configAccessor');
+    } catch (e) {
+        return platform;
+    }
+
+    var ctp = migCfg.ctp || {};
+    var clone = {
+        id:            platform.id,
+        name:          platform.name,
+        tagline:       platform.tagline,
+        status:        platform.status,
+        confidence:    platform.confidence,
+        featured:      platform.featured,
+        description:   platform.description,
+        iconClass:     platform.iconClass,
+        connectHint:   platform.connectHint,
+        connectFields: []
+    };
+    var fields = platform.connectFields || [];
+    var i;
+
+    for (i = 0; i < fields.length; i++) {
+        var field = fields[i];
+        var value = field.value;
+
+        if (field.name === 'projectKey') {
+            value = ctp.projectKey || value;
+        } else if (field.name === 'clientId') {
+            value = ctp.clientId || value;
+        } else if (field.name === 'clientSecret' && ctp.clientSecret) {
+            value = '••••••••';
+        } else if (field.name === 'apiUrl') {
+            value = ctp.apiUrl || value;
+        } else if (field.name === 'scopes') {
+            value = ctp.scopes || value;
+        }
+
+        clone.connectFields.push({
+            name:     field.name,
+            label:    field.label,
+            type:     field.type,
+            required: field.required,
+            value:    value
+        });
+    }
+
+    return clone;
+}
+
+/**
  * @param {string} platformId - platform id
  * @returns {Object|null} platform object or null
  */
 function getPlatform(platformId) {
     var id = platformId || '';
-    for (var i = 0; i < PLATFORMS.length; i++) {
-        if (PLATFORMS[i].id === id) return PLATFORMS[i];
+    var i;
+
+    for (i = 0; i < PLATFORMS.length; i++) {
+        if (PLATFORMS[i].id === id) {
+            return withCtpCredentials(PLATFORMS[i]);
+        }
     }
     return null;
 }
@@ -151,7 +214,19 @@ function getPlatform(platformId) {
  * @returns {Array} all platforms
  */
 function getPlatforms() {
-    return PLATFORMS;
+    var list = [];
+    var seen = {};
+    var i;
+
+    for (i = 0; i < PLATFORMS.length; i++) {
+        var platform = PLATFORMS[i];
+        if (seen[platform.id]) {
+            continue;
+        }
+        seen[platform.id] = true;
+        list.push(withCtpCredentials(platform));
+    }
+    return list;
 }
 
 /**

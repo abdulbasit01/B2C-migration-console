@@ -73,7 +73,7 @@ const config = {
 
 fs.writeFileSync(
     path.join(SCRIPTS_DIR, 'config.js'),
-    '/* AUTO-GENERATED — do not edit. Run: npm run config:generate */\n\'use strict\';\n\nmodule.exports = ' + JSON.stringify(config, null, 4) + ';\n'
+    '/* AUTO-GENERATED — do not commit. Run: npm run config:generate */\n\'use strict\';\n\nmodule.exports = ' + JSON.stringify(config, null, 4) + ';\n'
 );
 
 // ── 4. Write sfcc-credentials.js (BM username/password from dw.json only) ───
@@ -84,7 +84,7 @@ const creds = {
 
 fs.writeFileSync(
     path.join(SCRIPTS_DIR, 'sfcc-credentials.js'),
-    '/* AUTO-GENERATED — do not edit. Run: npm run config:generate */\n\'use strict\';\n\nmodule.exports = ' + JSON.stringify(creds, null, 4) + ';\n'
+    '/* AUTO-GENERATED — do not commit. Run: npm run config:generate */\n\'use strict\';\n\nmodule.exports = ' + JSON.stringify(creds, null, 4) + ';\n'
 );
 
 // ── 5. Summary ───────────────────────────────────────────────────────────────
