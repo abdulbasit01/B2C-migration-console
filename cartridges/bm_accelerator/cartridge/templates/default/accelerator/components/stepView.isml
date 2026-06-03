@@ -59,7 +59,7 @@
 
 <script>
 (function () {
-    var EXISTING_URL = '${URLUtils.url("Accelerator-GetExistingAttrs")}';
+    var MIGRATED_URL = '${URLUtils.url("Accelerator-GetMigratedAttrs")}';
     var DELETE_URL   = '${URLUtils.url("Accelerator-DeleteTaskAttrs")}';
     var RESET_TASKS  = [<isloop items="${pdict.stepContent.stats}" var="s" status="ls">'${s.label}'<isif condition="${!ls.last}">, </isif></isloop>];
 
@@ -145,8 +145,9 @@
 
                 if (!open && !loaded) {
                     loaded = true;
+                    inner.innerHTML = '<span style="color:#888;font-size:12px;">Loading from CTP…</span>';
                     var xhr = new XMLHttpRequest();
-                    xhr.open('POST', EXISTING_URL, true);
+                    xhr.open('POST', MIGRATED_URL, true);
                     xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
                     xhr.onreadystatechange = function () {
                         if (xhr.readyState !== 4) return;
@@ -157,15 +158,21 @@
                             inner.innerHTML = '<span style="color:#c62828;font-size:12px;">Error: ' + (data.error || 'Could not load') + '</span>';
                             return;
                         }
-                        var ids = data.ids || [];
-                        if (!ids.length) {
-                            inner.innerHTML = '<span style="color:#888;font-size:12px;">No custom attributes found.</span>';
+                        var attrs = data.attrs || [];
+                        if (!attrs.length) {
+                            inner.innerHTML = '<span style="color:#888;font-size:12px;">No migrated attributes found.</span>';
                             return;
                         }
-                        var html = '';
-                        for (var j = 0; j < ids.length; j++) {
-                            html += '<span class="acc-attr-tag">' + ids[j] + '</span>';
+                        attrs.sort(function (a, b) {
+                            var ai = a.id.toLowerCase();
+                            var bi = b.id.toLowerCase();
+                            return ai < bi ? -1 : ai > bi ? 1 : 0;
+                        });
+                        var html = '<table class="acc-attr-table"><thead><tr><th>Attribute ID</th><th>SFCC Type</th></tr></thead><tbody>';
+                        for (var j = 0; j < attrs.length; j++) {
+                            html += '<tr><td><code>' + attrs[j].id + '</code></td><td><span class="acc-type-badge">' + attrs[j].sfccType + '</span></td></tr>';
                         }
+                        html += '</tbody></table>';
                         inner.innerHTML = html;
                     };
                     xhr.send('task=' + encodeURIComponent(task));

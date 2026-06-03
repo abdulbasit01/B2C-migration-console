@@ -248,10 +248,24 @@ function runBatch(task, offset, limit) {
     };
 }
 
+/**
+ * Return only the IDs (not full defs) for a given task — used for deletion.
+ * @param {string} task     - runner task name
+ * @param {string} ctpToken - CTP access token
+ * @returns {Array} attribute ID strings
+ */
+function getAttrIdsForTask(task, ctpToken) {
+    var defs = getAttrDefsForTask(task, ctpToken, null);
+    var ids  = [];
+    for (var i = 0; i < defs.length; i++) ids.push(defs[i].id);
+    return ids;
+}
+
 module.exports = {
     runAll:               runAll,
     runBatch:             runBatch,
     getAttrDefsForTask:   getAttrDefsForTask,
+    getAttrIdsForTask:    getAttrIdsForTask,
     migrateProductSchema: migrateProductSchema,
     migrateCustomTypeSchema: migrateCustomTypeSchema
 };

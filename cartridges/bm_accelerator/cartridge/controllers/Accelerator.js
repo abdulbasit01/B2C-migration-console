@@ -351,6 +351,39 @@ exports.GetExistingAttrs = function () {
 exports.GetExistingAttrs.public = true;
 
 /**
+ * Fetch CTP-originated attribute definitions for a task (name + SFCC value_type).
+ * Used by View step to show exactly what was migrated, with data types.
+ * Accepts: task=Product
+ * Returns JSON: { ok, task, attrs: [{ id, sfccType }] }
+ */
+exports.GetMigratedAttrs = function () {
+    response.setContentType('application/json');
+    var ALLOWED = { Product: 1, Category: 1, Customer: 1, Order: 1, ProductInventoryRecord: 1, ProductList: 1, ProductListItem: 1, Promotion: 1 };
+    var task    = request.httpParameterMap.task.stringValue || '';
+
+    if (!ALLOWED[task]) {
+        response.writer.print(JSON.stringify({ ok: false, error: 'Invalid task' }));
+        return;
+    }
+
+    try {
+        var runner2  = require('*/cartridge/scripts/migration/runner');
+        var ctpTok2  = ctpClient.getCTPToken();                       // 1 HTTP call
+        var defs2    = runner2.getAttrDefsForTask(task, ctpTok2);     // 2 HTTP calls
+
+        var attrs2 = [];
+        for (var i = 0; i < defs2.length; i++) {
+            attrs2.push({ id: defs2[i].id, sfccType: defs2[i].value_type });
+        }
+
+        response.writer.print(JSON.stringify({ ok: true, task: task, attrs: attrs2 }));
+    } catch (e) {
+        response.writer.print(JSON.stringify({ ok: false, error: e.message || String(e) }));
+    }
+};
+exports.GetMigratedAttrs.public = true;
+
+/**
  * Delete a batch of custom attributes for one task.
  * Accepts: task=Product&offset=0
  * Returns JSON: { ok, task, total, nextOffset, deleted, failed, done }
@@ -368,28 +401,34 @@ exports.DeleteTaskAttrs = function () {
     }
 
     try {
-        var sfccClient2 = require('*/cartridge/scripts/migration/sfccClient');
-        var sfccToken2  = sfccClient2.getSFCCToken();               // 1 HTTP call
-        var existing2   = sfccClient2.getExistingAttributeIds(sfccToken2, sfccObj); // 1+ HTTP calls
-        var ids2        = Object.keys(existing2);
-        var batch2      = ids2.slice(offset, offset + 10);
-        var deleted2    = 0;
-        var failed2     = 0;
+        var runner3     = require('*/cartridge/scripts/migration/runner');
+        var sfccClient3 = require('*/cartridge/scripts/migration/sfccClient');
+        var ctpToken3   = ctpClient.getCTPToken();                        // 1 HTTP call
+        var sfccToken3  = sfccClient3.getSFCCToken();                     // 1 HTTP call
+        var ctpIds      = runner3.getAttrIdsForTask(task, ctpToken3);     // 2 HTTP calls (fetchProductTypes + fetchCustomTypes)
 
-        for (var i = 0; i < batch2.length; i++) {
+        var batch3   = ctpIds.slice(offset, offset + 10);
+        var deleted3 = 0;
+        var failed3  = 0;
+
+        for (var i = 0; i < batch3.length; i++) {
             try {
-                sfccClient2.deleteAttributeDefinition(sfccToken2, sfccObj, batch2[i]); // 1 HTTP call each
-                deleted2++;
+                sfccClient3.deleteAttributeDefinition(sfccToken3, sfccObj, batch3[i]); // 1 HTTP call each
+                deleted3++;
             } catch (de) {
-                failed2++;
+                failed3++;
             }
         }
 
-        var nextOff2 = offset + batch2.length;
+        var nextOff3 = offset + batch3.length;
         response.writer.print(JSON.stringify({
-            ok: true, task: task, total: ids2.length,
-            nextOffset: nextOff2, deleted: deleted2, failed: failed2,
-            done: nextOff2 >= ids2.length
+            ok:         true,
+            task:       task,
+            total:      ctpIds.length,
+            nextOffset: nextOff3,
+            deleted:    deleted3,
+            failed:     failed3,
+            done:       nextOff3 >= ctpIds.length
         }));
     } catch (e) {
         response.writer.print(JSON.stringify({ ok: false, error: e.message || String(e) }));
@@ -593,7 +632,7 @@ exports.Wizard = function () {
         var sessionResults = null;
         try { sessionResults = JSON.parse(String(session.custom.schemaMigrationResults || 'null')); } catch (e) { /* no results */ }
         stepContent = buildViewContent(sessionResults);
-        try { session.custom.schemaMigrationResults = null; } catch (e) { /* clear session */ }
+        // Session NOT cleared — results persist until next migration overwrites them
     }
 
     ISML.renderTemplate('accelerator/wizard', {
