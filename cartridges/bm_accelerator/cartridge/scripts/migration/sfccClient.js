@@ -144,10 +144,31 @@ function migrateObjectSchema(token, objectType, attrDefs) {
     return result;
 }
 
+/**
+ * Delete a single custom attribute definition from an SFCC system object.
+ * @param {string} token      - SFCC access token
+ * @param {string} objectType - SFCC system object type
+ * @param {string} attrId     - attribute ID to delete
+ * @returns {boolean} true if deleted or not found
+ */
+function deleteAttributeDefinition(token, objectType, attrId) {
+    var client = new HTTPClient();
+    client.setTimeout(30000);
+    client.open('DELETE', metaUrl('/system_object_definitions/' + objectType + '/attribute_definitions/' + encodeURIComponent(attrId)));
+    client.setRequestHeader('Authorization', 'Bearer ' + token);
+    client.send();
+    var status = client.getStatusCode();
+    if (status >= 400 && status !== 404) {
+        throw new Error('Delete failed [' + objectType + '.' + attrId + '] (' + status + ')');
+    }
+    return true;
+}
+
 module.exports = {
     getSFCCToken:              getSFCCToken,
     getSFCCSettings:           getSFCCSettings,
     getExistingAttributeIds:   getExistingAttributeIds,
     createAttributeDefinition: createAttributeDefinition,
+    deleteAttributeDefinition: deleteAttributeDefinition,
     migrateObjectSchema:       migrateObjectSchema
 };

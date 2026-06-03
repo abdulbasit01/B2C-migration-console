@@ -3,29 +3,57 @@
         Step ${pdict.currentStep} &mdash; <span class="acc-highlight">${pdict.stepContent.titleSuffix}</span>
     </h2>
     <p class="acc-step-panel__intro">${pdict.stepContent.intro}</p>
-    <table class="acc-table">
-        <thead>
-            <tr>
-                <th>Source field</th>
-                <th>Target (B2B Commerce)</th>
-                <th>AI confidence</th>
-            </tr>
-        </thead>
-        <tbody>
-            <isloop items="${pdict.stepContent.mappings}" var="row">
-                <tr>
-                    <td><code>${row.source}</code></td>
-                    <td><code>${row.target}</code></td>
-                    <td>
-                        <div class="acc-table__confidence">
-                            <div class="acc-progress acc-progress--sm">
-                                <div class="acc-progress__bar" style="width: ${row.confidence}%"></div>
-                            </div>
-                            <span>${row.confidence}%</span>
-                        </div>
-                    </td>
-                </tr>
-            </isloop>
-        </tbody>
-    </table>
+
+    <isloop items="${pdict.stepContent.groups}" var="group">
+        <div class="acc-mapping-group">
+            <div class="acc-mapping-group__head">
+                <h3 class="acc-mapping-group__title">
+                    <span class="acc-mapping-group__icon">&#9776;</span>
+                    ${group.title}
+                    <span class="acc-mapping-group__total">${group.total} attrs</span>
+                </h3>
+                <div class="acc-mapping-group__badges">
+                    <isif condition="${group.existsCount > 0}">
+                        <span class="acc-badge acc-badge--exists">&#10003; ${group.existsCount} migrated</span>
+                    </isif>
+                    <isif condition="${group.newCount > 0}">
+                        <span class="acc-badge acc-badge--new">+ ${group.newCount} new</span>
+                    </isif>
+                </div>
+            </div>
+            <table class="acc-table acc-table--compact">
+                <thead>
+                    <tr>
+                        <th>Status</th>
+                        <th>Source field (CTP type)</th>
+                        <th>Target (SFCC)</th>
+                        <th>AI confidence</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <isloop items="${group.mappings}" var="row">
+                        <tr class="${row.exists ? 'acc-row--exists' : 'acc-row--new'}">
+                            <td>
+                                <isif condition="${row.exists}">
+                                    <span class="acc-badge acc-badge--exists">&#10003; migrated</span>
+                                <iselse/>
+                                    <span class="acc-badge acc-badge--new">+ new</span>
+                                </isif>
+                            </td>
+                            <td><code>${row.source}</code></td>
+                            <td><code>${row.target}</code></td>
+                            <td>
+                                <div class="acc-table__confidence">
+                                    <div class="acc-progress acc-progress--sm">
+                                        <div class="acc-progress__bar" style="width: ${row.confidence}%"></div>
+                                    </div>
+                                    <span>${row.confidence}%</span>
+                                </div>
+                            </td>
+                        </tr>
+                    </isloop>
+                </tbody>
+            </table>
+        </div>
+    </isloop>
 </section>
