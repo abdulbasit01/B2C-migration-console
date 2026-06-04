@@ -243,7 +243,17 @@ function getPlatforms() {
  * @returns {Array} all wizard steps
  */
 function getWizardSteps() {
-    return WIZARD_STEPS;
+    var steps = [];
+    var i;
+
+    for (i = 0; i < WIZARD_STEPS.length; i++) {
+        steps.push({
+            id:    parseInt(String(WIZARD_STEPS[i].id), 10),
+            key:   WIZARD_STEPS[i].key,
+            label: WIZARD_STEPS[i].label
+        });
+    }
+    return steps;
 }
 
 /**

@@ -33,7 +33,7 @@
         <footer class="acc-wizard-footer">
             <isif condition="${pdict.prevStep}">
                 <a class="acc-btn acc-btn--ghost"
-                   href="${pdict.wizardBaseUrl}&amp;step=${pdict.prevStep}">
+                   href="${pdict.wizardBaseUrl}&amp;step=${pdict.prevStepQuery}">
                     &larr; ${Resource.msg('accelerator.wizard.previous', 'accelerator', null)}
                 </a>
             <iselse/>
@@ -46,7 +46,7 @@
                 </a>
             <iselseif condition="${pdict.nextStep}"/>
                 <a class="acc-btn acc-btn--primary"
-                   href="${pdict.wizardBaseUrl}&amp;step=${pdict.nextStep}">
+                   href="${pdict.wizardBaseUrl}&amp;step=${pdict.nextStepQuery}">
                     ${pdict.nextStepLabel} &rarr;
                 </a>
             </isif>

@@ -1,6 +1,6 @@
 <section class="acc-step-panel">
     <h2 class="acc-step-panel__title">
-        Step ${pdict.currentStep} &mdash; Connect to <span class="acc-highlight">${pdict.platform.name}</span>
+        Step <isprint value="${pdict.currentStep}" formatter="#"/> &mdash; Connect to <span class="acc-highlight">${pdict.platform.name}</span>
     </h2>
     <p class="acc-step-panel__intro">${pdict.platform.connectHint}</p>
     <form class="acc-form" id="acc-connect-form" action="#" method="post" onsubmit="return false;">

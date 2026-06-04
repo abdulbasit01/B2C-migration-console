@@ -1,6 +1,6 @@
 <section class="acc-step-panel">
     <h2 class="acc-step-panel__title">
-        Step ${pdict.currentStep} &mdash; <span class="acc-highlight">${pdict.stepContent.titleSuffix}</span>
+        Step <isprint value="${pdict.currentStep}" formatter="#"/> &mdash; <span class="acc-highlight">${pdict.stepContent.titleSuffix}</span>
     </h2>
     <p class="acc-step-panel__intro">${pdict.stepContent.intro}</p>
 
@@ -16,15 +16,20 @@
                  data-task-id="${section.selectable ? section.taskId : ''}">
                 <div class="acc-panel__header">
                     <isif condition="${section.selectable}">
-                        <label class="acc-schema-check">
+                        <label class="acc-schema-check" style="display:inline-flex;align-items:center;gap:8px;">
                             <input type="checkbox"
-                                   class="acc-schema-checkbox"
-                                   data-task-id="${section.taskId}"
-                                   checked="checked" />
-                            <h3 class="acc-panel__title">${section.title}</h3>
+                                class="acc-schema-checkbox me-2"
+                                data-task-id="${section.taskId}"
+                                checked="checked" />
+                                
+                            <h3 class="acc-panel__title mb-0" style="margin-bottom: 0;">
+                                ${section.title}
+                            </h3>
                         </label>
                     <iselse/>
-                        <h3 class="acc-panel__title acc-panel__title--muted">${section.title}</h3>
+                        <h3 class="acc-panel__title acc-panel__title--muted" style="margin-bottom: 0;">
+                            ${section.title}
+                        </h3>
                     </isif>
                 </div>
                 <ul class="acc-checklist">
@@ -51,7 +56,7 @@
 
 <script>
 (function () {
-    var nextUrl = '${pdict.wizardBaseUrl}&step=${pdict.nextStep}';
+    var nextUrl = '${pdict.wizardBaseUrl}&step=${pdict.nextStepQuery}';
 
     function init() {
     var continueBtn    = document.querySelector('.acc-wizard-footer a.acc-btn--primary');

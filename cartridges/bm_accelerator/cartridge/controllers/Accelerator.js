@@ -22,6 +22,18 @@ function fmt(n) {
     return String(n || 0).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
 
+/**
+ * Integer step value for ISML URLs (avoids 1.0-style query params).
+ * @param {number|null} n - step number
+ * @returns {string|null} integer string or null
+ */
+function toStepQuery(n) {
+    if (n === null || n === undefined) {
+        return null;
+    }
+    return String(parseInt(String(n), 10));
+}
+
 /* CTP resourceTypeIds that belong to each runner task */
 var TASK_RESOURCES = {
     Product:                ['product', 'product-variant', 'product-price'],
@@ -549,7 +561,7 @@ exports.Wizard = function () {
         return;
     }
 
-    var currentStep = Math.min(Math.max(stepParam, 1), migrationData.maxStep);
+    var currentStep = parseInt(String(Math.min(Math.max(stepParam, 1), migrationData.maxStep)), 10);
     var wizardStep  = migrationData.getWizardStep(currentStep);
     var stepContent = migrationData.getStepContent(wizardStep.key);
     var prevStep    = currentStep > 1 ? currentStep - 1 : null;
@@ -645,6 +657,8 @@ exports.Wizard = function () {
         stepContent:   stepContent,
         prevStep:      prevStep,
         nextStep:      nextStep,
+        prevStepQuery: toStepQuery(prevStep),
+        nextStepQuery: toStepQuery(nextStep),
         nextStepLabel: migrationData.getNextStepLabel(currentStep),
         isLastStep:    currentStep >= migrationData.maxStep,
         dashboardUrl:  URLUtils.url('Accelerator-Start').toString(),
