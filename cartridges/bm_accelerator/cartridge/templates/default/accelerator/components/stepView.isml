@@ -3,15 +3,182 @@
         Step ${pdict.currentStep} &mdash; <span class="acc-highlight">${pdict.stepContent.titleSuffix}</span>
     </h2>
     <p class="acc-step-panel__intro">${pdict.stepContent.intro}</p>
-    <div class="acc-stats">
-        <isloop items="${pdict.stepContent.stats}" var="stat">
-            <div class="acc-stats__card">
-                <span class="acc-stats__value">${stat.value}</span>
-                <span class="acc-stats__label">${stat.label}</span>
+
+    <div class="acc-view-tasks">
+        <isloop items="${pdict.stepContent.stats}" var="stat" status="loopStatus">
+            <div class="acc-view-task">
+                <div class="acc-view-task__head">
+                    <div class="acc-view-task__meta">
+                        <span class="acc-view-task__name">${stat.label}</span>
+                        <span class="acc-view-task__count">${stat.value}</span>
+                        <span class="acc-view-task__sub">${stat.sub}</span>
+                    </div>
+                    <button type="button"
+                            class="acc-btn acc-btn--ghost acc-btn--sm acc-view-toggle"
+                            data-task="${stat.label}"
+                            data-target="acc-attrlist-${loopStatus.count}">
+                        Show migrated attributes &#9660;
+                    </button>
+                </div>
+                <div class="acc-attr-list" id="acc-attrlist-${loopStatus.count}" style="display:none;">
+                    <div class="acc-attr-list__inner" id="acc-attrinner-${loopStatus.count}">
+                        <span style="color:#888;font-size:12px;">Loading…</span>
+                    </div>
+                </div>
             </div>
         </isloop>
     </div>
-    <div class="acc-callout acc-callout--success">
-        Migration wizard completed (static demo). Return to the console to start another platform path.
+
+    <div class="acc-callout acc-callout--success" style="margin-top:20px;">
+        Migration complete. Attribute definitions are now available in SFCC Business Manager → Administration → System Object Types.
+    </div>
+
+    <div class="acc-reset-section">
+        <h4 class="acc-reset-section__title">Reset Migration (Testing Only)</h4>
+        <p class="acc-reset-section__hint">Deletes all custom attributes created on selected object types. Use only in sandbox environments.</p>
+        <div class="acc-reset-controls">
+            <button type="button" id="acc-reset-btn" class="acc-btn acc-btn--ghost" style="border-color:#e57373;color:#c62828;">
+                &#128465; Delete All Migrated Attributes
+            </button>
+            <span id="acc-reset-status" style="margin-left:12px;font-size:13px;"></span>
+        </div>
+        <ul class="acc-phases" id="acc-reset-phases" style="margin-top:14px;display:none;">
+            <isloop items="${pdict.stepContent.stats}" var="stat" status="ls">
+                <li class="acc-phases__item acc-phases__item--pending" id="acc-rphase-${stat.label}">
+                    <div class="acc-phases__head">
+                        <span>${stat.label}</span>
+                        <span class="acc-phases__status" id="acc-rstatus-${stat.label}">pending</span>
+                    </div>
+                    <p class="acc-phases__detail" id="acc-rdetail-${stat.label}"></p>
+                    <div class="acc-progress"><div class="acc-progress__bar" id="acc-rbar-${stat.label}" style="width:0%"></div></div>
+                </li>
+            </isloop>
+        </ul>
     </div>
 </section>
+
+<script>
+(function () {
+    var MIGRATED_URL = '${URLUtils.url("Accelerator-GetMigratedAttrs")}';
+    var DELETE_URL   = '${URLUtils.url("Accelerator-DeleteTaskAttrs")}';
+    var RESET_TASKS  = [<isloop items="${pdict.stepContent.stats}" var="s" status="ls">'${s.label}'<isif condition="${!ls.last}">, </isif></isloop>];
+
+    var resetBtn    = document.getElementById('acc-reset-btn');
+    var resetStatus = document.getElementById('acc-reset-status');
+    var resetPhases = document.getElementById('acc-reset-phases');
+
+    function setRPhase(task, state, detail, pct) {
+        var li  = document.getElementById('acc-rphase-' + task);
+        var st  = document.getElementById('acc-rstatus-' + task);
+        var det = document.getElementById('acc-rdetail-' + task);
+        var bar = document.getElementById('acc-rbar-' + task);
+        if (!li) return;
+        li.className  = 'acc-phases__item acc-phases__item--' + state;
+        if (st)  st.textContent  = state;
+        if (det) det.textContent = detail || '';
+        if (bar) bar.style.width = (pct || 0) + '%';
+    }
+
+    function deleteTask(task, offset, totalDeleted, onDone) {
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', DELETE_URL, true);
+        xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+        xhr.onreadystatechange = function () {
+            if (xhr.readyState !== 4) return;
+            var data;
+            try { data = JSON.parse(xhr.responseText); } catch (e) { data = { ok: false, error: 'Error' }; }
+            if (!data.ok) {
+                setRPhase(task, 'error', data.error || 'Failed', 0);
+                onDone(totalDeleted);
+                return;
+            }
+            var cum = totalDeleted + (data.deleted || 0);
+            var pct = data.total ? Math.round((data.nextOffset / data.total) * 100) : 100;
+            setRPhase(task, 'active', cum + ' / ' + data.total + ' deleted', pct);
+            if (!data.done) {
+                deleteTask(task, data.nextOffset, cum, onDone);
+            } else {
+                setRPhase(task, 'done', cum + ' attribute(s) deleted', 100);
+                onDone(cum);
+            }
+        };
+        xhr.send('task=' + encodeURIComponent(task) + '&offset=' + offset);
+        if (offset === 0) setRPhase(task, 'active', 'Deleting…', 0);
+    }
+
+    function runReset(index, grandTotal) {
+        if (index >= RESET_TASKS.length) {
+            resetBtn.disabled    = false;
+            resetBtn.textContent = '✔ Reset Complete';
+            resetStatus.style.color = '#2e7d32';
+            resetStatus.textContent = grandTotal + ' attribute(s) deleted. You can now re-run migration.';
+            return;
+        }
+        deleteTask(RESET_TASKS[index], 0, 0, function (count) {
+            runReset(index + 1, grandTotal + count);
+        });
+    }
+
+    if (resetBtn) {
+        resetBtn.addEventListener('click', function () {
+            if (!confirm('Delete all custom attributes from selected SFCC object types? This cannot be undone.')) return;
+            resetBtn.disabled    = true;
+            resetBtn.textContent = 'Deleting…';
+            resetStatus.textContent = '';
+            resetPhases.style.display = 'block';
+            runReset(0, 0);
+        });
+    }
+
+    var toggles = document.querySelectorAll('.acc-view-toggle');
+    for (var i = 0; i < toggles.length; i++) {
+        (function (btn) {
+            var loaded  = false;
+            var task    = btn.getAttribute('data-task');
+            var target  = document.getElementById(btn.getAttribute('data-target'));
+            var inner   = target ? target.querySelector('.acc-attr-list__inner') : null;
+
+            btn.addEventListener('click', function () {
+                var open = target.style.display !== 'none';
+                target.style.display = open ? 'none' : 'block';
+                btn.innerHTML = open ? 'Show migrated attributes &#9660;' : 'Hide attributes &#9650;';
+
+                if (!open && !loaded) {
+                    loaded = true;
+                    inner.innerHTML = '<span style="color:#888;font-size:12px;">Loading from CTP…</span>';
+                    var xhr = new XMLHttpRequest();
+                    xhr.open('POST', MIGRATED_URL, true);
+                    xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+                    xhr.onreadystatechange = function () {
+                        if (xhr.readyState !== 4) return;
+                        var data;
+                        try { data = JSON.parse(xhr.responseText); } catch (e) { data = { ok: false, error: 'Parse error' }; }
+                        if (!inner) return;
+                        if (!data.ok) {
+                            inner.innerHTML = '<span style="color:#c62828;font-size:12px;">Error: ' + (data.error || 'Could not load') + '</span>';
+                            return;
+                        }
+                        var attrs = data.attrs || [];
+                        if (!attrs.length) {
+                            inner.innerHTML = '<span style="color:#888;font-size:12px;">No migrated attributes found.</span>';
+                            return;
+                        }
+                        attrs.sort(function (a, b) {
+                            var ai = a.id.toLowerCase();
+                            var bi = b.id.toLowerCase();
+                            return ai < bi ? -1 : ai > bi ? 1 : 0;
+                        });
+                        var html = '<table class="acc-attr-table"><thead><tr><th>Attribute ID</th><th>SFCC Type</th></tr></thead><tbody>';
+                        for (var j = 0; j < attrs.length; j++) {
+                            html += '<tr><td><code>' + attrs[j].id + '</code></td><td><span class="acc-type-badge">' + attrs[j].sfccType + '</span></td></tr>';
+                        }
+                        html += '</tbody></table>';
+                        inner.innerHTML = html;
+                    };
+                    xhr.send('task=' + encodeURIComponent(task));
+                }
+            });
+        }(toggles[i]));
+    }
+}());
+</script>

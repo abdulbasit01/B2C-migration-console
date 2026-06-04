@@ -43,7 +43,10 @@ function httpGet(url, token, params) {
 function getCTPToken() {
     var c = cfg.ctp;
     var credentials = toBase64(c.clientId + ':' + c.clientSecret);
-    var body = 'grant_type=client_credentials&scope=' + encodeURIComponent(c.scopes);
+    var body = 'grant_type=client_credentials';
+    if (c.scopes) {
+        body += '&scope=' + encodeURIComponent(c.scopes);
+    }
     var res = httpPost(
         c.authUrl + '/oauth/token',
         { 'Authorization': 'Basic ' + credentials, 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -56,15 +59,36 @@ function getCTPToken() {
 }
 
 /**
- * Test CTP connection.
+ * Test CTP connection using config accessor credentials.
  * @returns {Object} connection result
  */
 function testConnection() {
-    var token = getCTPToken();
-    var c = cfg.ctp;
+    return testConnectionWith(cfg.ctp);
+}
+
+/**
+ * Test CTP connection with an explicit credential object.
+ * @param {Object} creds - { projectKey, clientId, clientSecret, apiUrl, authUrl, scopes }
+ * @returns {Object} { ok: true, project: { key, name } }
+ */
+function testConnectionWith(creds) {
+    var c = creds;
+    var credentials = toBase64(c.clientId + ':' + c.clientSecret);
+    var body = 'grant_type=client_credentials';
+    if (c.scopes) body += '&scope=' + encodeURIComponent(c.scopes);
+    var authUrl = c.authUrl || 'https://auth.us-central1.gcp.commercetools.com';
+    var tokenRes = httpPost(
+        authUrl + '/oauth/token',
+        { 'Authorization': 'Basic ' + credentials, 'Content-Type': 'application/x-www-form-urlencoded' },
+        body
+    );
+    if (tokenRes.status !== 200 || !tokenRes.data.access_token) {
+        throw new Error('Authentication failed (' + tokenRes.status + '): invalid credentials or scopes.');
+    }
+    var token = tokenRes.data.access_token;
     var res = httpGet(c.apiUrl + '/' + c.projectKey, token, null);
     if (res.status !== 200) {
-        throw new Error('CTP project fetch failed (' + res.status + ')');
+        throw new Error('Project not found (' + res.status + '): check project key and API URL.');
     }
     return { ok: true, project: { key: res.data.key, name: res.data.name || c.projectKey } };
 }
@@ -114,7 +138,7 @@ function fetchAll(token, endpoint, extraParams) {
 }
 
 /**
- * Get live schema counts from CTP (product types and custom types).
+ * Get live schema counts from CTP broken down by entity type.
  * @returns {Object} counts by schema source
  */
 function getSchemaCounts() {
@@ -130,11 +154,26 @@ function getSchemaCounts() {
         productAttrCount += (productTypes[i].attributes || []).length;
     }
 
+    // Break down custom types by resourceTypeId
+    var byResource = {};
+    for (var j = 0; j < customTypes.length; j++) {
+        var ct = customTypes[j];
+        var ids = ct.resourceTypeIds || [];
+        var fieldCount = (ct.fieldDefinitions || []).length;
+        for (var k = 0; k < ids.length; k++) {
+            var rid = ids[k];
+            if (!byResource[rid]) byResource[rid] = { types: 0, fields: 0 };
+            byResource[rid].types  += 1;
+            byResource[rid].fields += fieldCount;
+        }
+    }
+
     return {
         productTypes:      productTypes.length,
         productAttributes: productAttrCount,
         customTypes:       customTypes.length,
-        customFields:      customTypes.reduce(function (sum, t) { return sum + (t.fieldDefinitions || []).length; }, 0)
+        customFields:      customTypes.reduce(function (sum, t) { return sum + (t.fieldDefinitions || []).length; }, 0),
+        byResource:        byResource
     };
 }
 
@@ -157,11 +196,12 @@ function fetchCustomTypes(token) {
 }
 
 module.exports = {
-    getCTPToken:      getCTPToken,
-    testConnection:   testConnection,
-    getCount:         getCount,
-    fetchAll:         fetchAll,
-    getSchemaCounts:  getSchemaCounts,
-    fetchProductTypes: fetchProductTypes,
-    fetchCustomTypes:  fetchCustomTypes
+    getCTPToken:        getCTPToken,
+    testConnection:     testConnection,
+    testConnectionWith: testConnectionWith,
+    getCount:           getCount,
+    fetchAll:           fetchAll,
+    getSchemaCounts:    getSchemaCounts,
+    fetchProductTypes:  fetchProductTypes,
+    fetchCustomTypes:   fetchCustomTypes
 };

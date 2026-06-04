@@ -17,7 +17,8 @@ var PRODUCT_TYPE_MAP = {
     money:     'double',
     reference: 'string',
     nested:    'string',
-    set:       'set-of-string'
+    set:       'set_of_string',
+    'set-of-string': 'set_of_string'
 };
 
 /**
@@ -37,7 +38,7 @@ var CUSTOM_TYPE_MAP = {
     Enum:            'string',
     LocalizedEnum:   'string',
     Reference:       'string',
-    Set:             'set-of-string'
+    Set:             'set_of_string'
 };
 
 /**

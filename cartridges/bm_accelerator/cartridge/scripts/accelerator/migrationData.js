@@ -93,22 +93,32 @@ var STEP_CONTENT = {
     },
     aimap: {
         titleSuffix: 'Schema field mapping',
-        intro:       'CTP attribute types → SFCC attribute value_type mappings used during migration.',
-        mappings: [
-            { source: 'ProductType.text',            target: 'Product → string',              confidence: 100 },
-            { source: 'ProductType.ltext',           target: 'Product → string',              confidence: 100 },
-            { source: 'ProductType.enum / lenum',    target: 'Product → string',              confidence: 100 },
-            { source: 'ProductType.number',          target: 'Product → double',              confidence: 100 },
-            { source: 'ProductType.boolean',         target: 'Product → boolean',             confidence: 100 },
-            { source: 'ProductType.date',            target: 'Product → date',                confidence: 100 },
-            { source: 'ProductType.datetime',        target: 'Product → datetime',            confidence: 100 },
-            { source: 'ProductType.money',           target: 'Product → double',              confidence: 95  },
-            { source: 'ProductType.reference',       target: 'Product → string',              confidence: 90  },
-            { source: 'CustomType(customer)',        target: 'Customer → (matched type)',     confidence: 98  },
-            { source: 'CustomType(order)',           target: 'Order → (matched type)',        confidence: 98  },
-            { source: 'CustomType(shopping-list)',   target: 'ProductList → (matched type)',  confidence: 97  },
-            { source: 'CustomType(inventory-entry)', target: 'ProductInventoryRecord → ...',  confidence: 97  },
-            { source: 'CustomType(cart-discount)',   target: 'Promotion → (matched type)',    confidence: 95  }
+        intro:       'Connecting to commercetools to load live attribute mappings…',
+        groups: [
+            {
+                title: 'Product type mappings',
+                mappings: [
+                    { source: 'text / ltext',      target: 'Product → string',   confidence: 100 },
+                    { source: 'enum / lenum',       target: 'Product → string',   confidence: 98  },
+                    { source: 'number',             target: 'Product → double',   confidence: 100 },
+                    { source: 'boolean',            target: 'Product → boolean',  confidence: 100 },
+                    { source: 'date',               target: 'Product → date',     confidence: 100 },
+                    { source: 'datetime',           target: 'Product → datetime', confidence: 100 },
+                    { source: 'money',              target: 'Product → double',   confidence: 95  },
+                    { source: 'reference',          target: 'Product → string',   confidence: 90  },
+                    { source: 'set',                target: 'Product → set-of-string', confidence: 90 }
+                ]
+            },
+            {
+                title: 'Custom type mappings',
+                mappings: [
+                    { source: 'customer fields',         target: 'Customer → (matched type)',            confidence: 98 },
+                    { source: 'order fields',            target: 'Order → (matched type)',               confidence: 98 },
+                    { source: 'shopping-list fields',    target: 'ProductList → (matched type)',         confidence: 97 },
+                    { source: 'inventory-entry fields',  target: 'ProductInventoryRecord → (matched)',  confidence: 97 },
+                    { source: 'cart-discount fields',    target: 'Promotion → (matched type)',           confidence: 95 }
+                ]
+            }
         ]
     },
     move: {
@@ -161,7 +171,7 @@ function withCtpCredentials(platform) {
         description:   platform.description,
         iconClass:     platform.iconClass,
         connectHint:   platform.connectHint,
-        connectFields: []
+        connectFields: /** @type {Array} */ ([])
     };
     var fields = platform.connectFields || [];
     var i;
@@ -241,7 +251,7 @@ function getWizardSteps() {
  * @returns {Object} wizard step object
  */
 function getWizardStep(step) {
-    var stepNum = Math.min(Math.max(parseInt(step, 10) || 1, 1), WIZARD_STEPS.length);
+    var stepNum = Math.min(Math.max(parseInt(String(step), 10) || 1, 1), WIZARD_STEPS.length);
     return WIZARD_STEPS[stepNum - 1];
 }
 
@@ -259,7 +269,7 @@ function getStepContent(stepKey) {
  * @returns {string} label for next step button
  */
 function getNextStepLabel(currentStep) {
-    var stepNum = parseInt(currentStep, 10) || 1;
+    var stepNum = parseInt(String(currentStep), 10) || 1;
     if (stepNum >= WIZARD_STEPS.length) return 'Finish';
     return 'Continue to ' + WIZARD_STEPS[stepNum].label;
 }
