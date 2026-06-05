@@ -1,23 +1,29 @@
+/* AUTO-GENERATED — do not commit. Run: npm run config:generate */
 'use strict';
 
 module.exports = {
-    ctp: {
-        projectKey:   'mars-mms-dev-us',
-        clientId:     'gtAOv7COClhBWmOtS_X4gi6h',
-        clientSecret: 'b7w2znpzozAcaRuiFmdlc_gcwW-sYPO9',
-        authUrl:      'https://auth.us-central1.gcp.commercetools.com',
-        apiUrl:       'https://api.us-central1.gcp.commercetools.com',
-        scopes:       ''
+    "shopify": {
+        "storeUrl": "",
+        "accessToken": "",
+        "apiVersion": "2025-01"
     },
-    sfcc: {
-        bmClientId:      'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-        version:         'v25_6',
-        metaVersion:     'v25_6',
-        catalogId:       'storefront-catalog-m-en',
-        inventoryListId: 'migrated-inventory'
+    "ctp": {
+        "projectKey": "mars-mms-dev-us",
+        "clientId": "gtAOv7COClhBWmOtS_X4gi6h",
+        "clientSecret": "b7w2znpzozAcaRuiFmdlc_gcwW-sYPO9",
+        "authUrl": "https://auth.us-central1.gcp.commercetools.com",
+        "apiUrl": "https://api.us-central1.gcp.commercetools.com",
+        "scopes": "manage_project:mars-mms-dev-us"
     },
-    migration: {
-        batchSize: 20,
-        dryRun:    false
+    "sfcc": {
+        "bmClientId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "version": "v25_6",
+        "metaVersion": "v25_6",
+        "catalogId": "storefront-catalog-m-en",
+        "inventoryListId": "migrated-inventory"
+    },
+    "migration": {
+        "batchSize": 20,
+        "dryRun": false
     }
 };

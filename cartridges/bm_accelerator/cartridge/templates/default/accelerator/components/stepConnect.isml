@@ -4,6 +4,7 @@
     </h2>
     <p class="acc-step-panel__intro">${pdict.platform.connectHint}</p>
     <form class="acc-form" id="acc-connect-form" action="#" method="post" onsubmit="return false;">
+        <input type="hidden" name="platformId" value="${pdict.platform.id}" />
         <isloop items="${pdict.platform.connectFields}" var="field">
             <div class="acc-form__group">
                 <label class="acc-form__label" for="field-${field.name}">

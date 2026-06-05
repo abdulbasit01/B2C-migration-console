@@ -5,6 +5,11 @@
  * Run `npm run config:generate` (from code/app) after filling .env + dw.json.
  */
 module.exports = {
+    shopify: {
+        storeUrl:    '',
+        accessToken: '',
+        apiVersion:  '2025-01'
+    },
     ctp: {
         projectKey:   '',
         clientId:     '',
