@@ -2,22 +2,22 @@
 
 var WIZARD_STEPS = [
     { id: 1, key: 'connect', label: 'Connect' },
-    { id: 2, key: 'fetch', label: 'Fetch' },
-    { id: 3, key: 'aimap', label: 'AI Map' },
-    { id: 4, key: 'move', label: 'Move' },
-    { id: 5, key: 'view', label: 'View' }
+    { id: 2, key: 'fetch',   label: 'Fetch' },
+    { id: 3, key: 'aimap',  label: 'AI Map' },
+    { id: 4, key: 'move',   label: 'Move' },
+    { id: 5, key: 'view',   label: 'View' }
 ];
 
 var PLATFORMS = [
     {
-        id: 'commercetools',
-        name: 'commercetools',
-        tagline: 'API-first, Business Units, Headless',
-        status: 'ready',
-        confidence: 75,
-        featured: true,
+        id:          'commercetools',
+        name:        'commercetools',
+        tagline:     'API-first, Business Units, Headless',
+        status:      'ready',
+        confidence:  75,
+        featured:    true,
         description: 'Migrate commercetools customers, products, categories, orders, and price lists into Salesforce B2B Commerce, mapping catalogs/pricing models with moderate transformation and extensions.',
-        iconClass: 'platform-icon--commercetools',
+        iconClass:   'platform-icon--commercetools',
         connectHint: 'Credentials are pre-loaded from your project configuration.',
         connectFields: [
             { name: 'projectKey',   label: 'Project key',   type: 'text',     required: true,  value: '' },
@@ -28,13 +28,13 @@ var PLATFORMS = [
         ]
     },
     {
-        id: 'shopify',
-        name: 'Shopify Plus',
-        tagline: 'B2B, Markets, Headless',
-        status: 'ready',
-        confidence: 92,
+        id:          'shopify',
+        name:        'Shopify Plus',
+        tagline:     'B2B, Markets, Headless',
+        status:      'ready',
+        confidence:  92,
         description: 'Migrate Shopify Plus customers, products, collections, orders, and price lists into Salesforce B2B Commerce with high-confidence field mapping.',
-        iconClass: 'platform-icon--shopify',
+        iconClass:   'platform-icon--shopify',
         connectHint: 'Enter your Shopify store URL and Admin API access token.',
         connectFields: [
             { name: 'storeUrl',    label: 'Store URL',        type: 'text',     required: true,  value: 'https://your-store.myshopify.com' },
@@ -43,13 +43,13 @@ var PLATFORMS = [
         ]
     },
     {
-        id: 'bigcommerce',
-        name: 'BigCommerce',
-        tagline: 'B2B Edition, Multi-store',
-        status: 'ready',
-        confidence: 88,
+        id:          'bigcommerce',
+        name:        'BigCommerce',
+        tagline:     'B2B Edition, Multi-store',
+        status:      'ready',
+        confidence:  88,
         description: 'Migrate BigCommerce B2B customers, catalog, categories, orders, and contract pricing into Salesforce B2B Commerce.',
-        iconClass: 'platform-icon--bigcommerce',
+        iconClass:   'platform-icon--bigcommerce',
         connectHint: 'Provide your BigCommerce store hash and API credentials.',
         connectFields: [
             { name: 'storeHash',   label: 'Store hash',   type: 'text',     required: true, value: '' },
@@ -58,100 +58,51 @@ var PLATFORMS = [
         ]
     },
     {
-        id: 'sfcc',
-        name: 'Salesforce B2C',
-        tagline: 'SFRA, Page Designer',
-        status: 'soon',
-        confidence: 0,
+        id:          'sfcc',
+        name:        'Salesforce B2C',
+        tagline:     'SFRA, Page Designer',
+        status:      'soon',
+        confidence:  0,
         description: 'Cross-cloud migration from B2C Commerce to B2B Commerce (planned).',
-        iconClass: 'platform-icon--salesforce',
+        iconClass:   'platform-icon--salesforce',
         connectHint: '',
         connectFields: []
     },
     {
-        id: 'sap',
-        name: 'SAP Commerce',
-        tagline: 'B2B, OCC, Integrations',
-        status: 'soon',
-        confidence: 0,
+        id:          'sap',
+        name:        'SAP Commerce',
+        tagline:     'B2B, OCC, Integrations',
+        status:      'soon',
+        confidence:  0,
         description: 'SAP Commerce Cloud to Salesforce B2B Commerce migration path (planned).',
-        iconClass: 'platform-icon--sap',
+        iconClass:   'platform-icon--sap',
         connectHint: '',
         connectFields: []
     }
 ];
 
-var STEP_CONTENT = {
-    fetch: {
-        titleSuffix: 'Fetch source schema',
-        intro:       'Live schema counts from your commercetools project.',
-        sections: [
-            { title: 'Product Schema',  items: ['Product types', 'Product attributes'] },
-            { title: 'Custom Types',    items: ['Custom types', 'Custom fields'] }
-        ],
-        summary: 'Counts load live from CTP when you reach this step.'
-    },
-    aimap: {
-        titleSuffix: 'Schema field mapping',
-        intro:       'Connecting to commercetools to load live attribute mappings…',
-        groups: [
-            {
-                title: 'Product type mappings',
-                mappings: [
-                    { source: 'text / ltext',      target: 'Product → string',   confidence: 100 },
-                    { source: 'enum / lenum',       target: 'Product → string',   confidence: 98  },
-                    { source: 'number',             target: 'Product → double',   confidence: 100 },
-                    { source: 'boolean',            target: 'Product → boolean',  confidence: 100 },
-                    { source: 'date',               target: 'Product → date',     confidence: 100 },
-                    { source: 'datetime',           target: 'Product → datetime', confidence: 100 },
-                    { source: 'money',              target: 'Product → double',   confidence: 95  },
-                    { source: 'reference',          target: 'Product → string',   confidence: 90  },
-                    { source: 'set',                target: 'Product → set-of-string', confidence: 90 }
-                ]
-            },
-            {
-                title: 'Custom type mappings',
-                mappings: [
-                    { source: 'customer fields',         target: 'Customer → (matched type)',            confidence: 98 },
-                    { source: 'order fields',            target: 'Order → (matched type)',               confidence: 98 },
-                    { source: 'shopping-list fields',    target: 'ProductList → (matched type)',         confidence: 97 },
-                    { source: 'inventory-entry fields',  target: 'ProductInventoryRecord → (matched)',  confidence: 97 },
-                    { source: 'cart-discount fields',    target: 'Promotion → (matched type)',           confidence: 95 }
-                ]
-            }
-        ]
-    },
-    move: {
-        titleSuffix: 'Run schema migration',
-        intro:       'Creating SFCC attribute definitions from CTP schema. Existing attributes are skipped.',
-        phases: [
-            { name: 'Product',                status: 'pending', pct: 0 },
-            { name: 'Category + Customer',    status: 'pending', pct: 0 },
-            { name: 'Order + Inventory',      status: 'pending', pct: 0 },
-            { name: 'ProductList + Promotion', status: 'pending', pct: 0 }
-        ]
-    },
-    view: {
-        titleSuffix: 'Schema migration summary',
-        intro:       'Attribute definitions created in SFCC system objects.',
-        stats: [
-            { label: 'Product attributes',               value: '—' },
-            { label: 'Customer attributes',              value: '—' },
-            { label: 'Order attributes',                 value: '—' },
-            { label: 'ProductInventoryRecord attributes', value: '—' }
-        ]
-    }
-};
+// ─── Credential injection ─────────────────────────────────────────────────────
 
 /**
- * Merge generated CTP credentials into commercetools connect fields.
- * @param {Object} platform - platform definition
- * @returns {Object} platform clone with connect field values applied
+ * Clone a platform and pre-fill its connect fields with stored credentials.
+ * Delegates to the platform's connector (if registered) via injectCredentials().
+ * Adding a new platform only requires registering its connector — no changes here.
+ *
+ * @param {Object} platform
+ * @returns {Object} cloned platform (original is never mutated)
  */
-function withCtpCredentials(platform) {
-    if (!platform || platform.id !== 'commercetools') {
+function withCredentials(platform) {
+    if (!platform) return null;
+
+    var registry;
+    try {
+        registry = require('*/cartridge/scripts/migration/connectors/registry');
+    } catch (e) {
         return platform;
     }
+
+    var connector = registry.get(platform.id);
+    if (!connector || typeof connector.injectCredentials !== 'function') return platform;
 
     var migCfg;
     try {
@@ -160,8 +111,7 @@ function withCtpCredentials(platform) {
         return platform;
     }
 
-    var ctp = migCfg.ctp || {};
-    var clone = {
+    return {
         id:            platform.id,
         name:          platform.name,
         tagline:       platform.tagline,
@@ -171,113 +121,47 @@ function withCtpCredentials(platform) {
         description:   platform.description,
         iconClass:     platform.iconClass,
         connectHint:   platform.connectHint,
-        connectFields: /** @type {Array} */ ([])
+        connectFields: connector.injectCredentials(platform.connectFields, migCfg)
     };
-    var fields = platform.connectFields || [];
-    var i;
-
-    for (i = 0; i < fields.length; i++) {
-        var field = fields[i];
-        var value = field.value;
-
-        if (field.name === 'projectKey') {
-            value = ctp.projectKey || value;
-        } else if (field.name === 'clientId') {
-            value = ctp.clientId || value;
-        } else if (field.name === 'clientSecret' && ctp.clientSecret) {
-            value = '••••••••';
-        } else if (field.name === 'apiUrl') {
-            value = ctp.apiUrl || value;
-        } else if (field.name === 'scopes') {
-            value = ctp.scopes || value;
-        }
-
-        clone.connectFields.push({
-            name:     field.name,
-            label:    field.label,
-            type:     field.type,
-            required: field.required,
-            value:    value
-        });
-    }
-
-    return clone;
 }
 
-/**
- * @param {string} platformId - platform id
- * @returns {Object|null} platform object or null
- */
+// ─── Public API ───────────────────────────────────────────────────────────────
+
 function getPlatform(platformId) {
     var id = platformId || '';
-    var i;
-
-    for (i = 0; i < PLATFORMS.length; i++) {
-        if (PLATFORMS[i].id === id) {
-            return withCtpCredentials(PLATFORMS[i]);
-        }
+    for (var i = 0; i < PLATFORMS.length; i++) {
+        if (PLATFORMS[i].id === id) return withCredentials(PLATFORMS[i]);
     }
     return null;
 }
 
-/**
- * @returns {Array} all platforms
- */
 function getPlatforms() {
-    var list = [];
     var seen = {};
-    var i;
-
-    for (i = 0; i < PLATFORMS.length; i++) {
-        var platform = PLATFORMS[i];
-        if (seen[platform.id]) {
-            continue;
+    var list = [];
+    for (var i = 0; i < PLATFORMS.length; i++) {
+        var p = PLATFORMS[i];
+        if (!seen[p.id]) {
+            seen[p.id] = true;
+            list.push(withCredentials(p));
         }
-        seen[platform.id] = true;
-        list.push(withCtpCredentials(platform));
     }
     return list;
 }
 
-/**
- * @returns {Array} all wizard steps
- */
 function getWizardSteps() {
     var steps = [];
-    var i;
-
-    for (i = 0; i < WIZARD_STEPS.length; i++) {
-        steps.push({
-            id:    parseInt(String(WIZARD_STEPS[i].id), 10),
-            key:   WIZARD_STEPS[i].key,
-            label: WIZARD_STEPS[i].label
-        });
+    for (var i = 0; i < WIZARD_STEPS.length; i++) {
+        var s = WIZARD_STEPS[i];
+        steps.push({ id: parseInt(String(s.id), 10), key: s.key, label: s.label });
     }
     return steps;
 }
 
-/**
- * @param {number} step - step number 1-5
- * @returns {Object} wizard step object
- */
 function getWizardStep(step) {
     var stepNum = Math.min(Math.max(parseInt(String(step), 10) || 1, 1), WIZARD_STEPS.length);
     return WIZARD_STEPS[stepNum - 1];
 }
 
-/**
- * @param {string} stepKey - connect|fetch|aimap|move|view
- * @returns {Object|null} step content or null
- */
-function getStepContent(stepKey) {
-    if (stepKey === 'connect') return null;
-    return STEP_CONTENT[stepKey] || null;
-}
-
-/**
- * @param {number} currentStep - current step number
- * @returns {string} label for next step button
- */
 function getNextStepLabel(currentStep) {
     var stepNum = parseInt(String(currentStep), 10) || 1;
     if (stepNum >= WIZARD_STEPS.length) return 'Finish';
@@ -289,7 +173,6 @@ module.exports = {
     getPlatforms:     getPlatforms,
     getWizardSteps:   getWizardSteps,
     getWizardStep:    getWizardStep,
-    getStepContent:   getStepContent,
     getNextStepLabel: getNextStepLabel,
     maxStep:          WIZARD_STEPS.length
 };
