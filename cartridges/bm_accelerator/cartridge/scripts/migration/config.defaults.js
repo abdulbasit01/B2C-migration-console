@@ -6,9 +6,10 @@
  */
 module.exports = {
     shopify: {
-        storeUrl:    '',
-        accessToken: '',
-        apiVersion:  '2025-01'
+        storeUrl:     '',
+        clientId:     '',
+        clientSecret: '',
+        apiVersion:   '2025-01'
     },
     ctp: {
         projectKey:   '',

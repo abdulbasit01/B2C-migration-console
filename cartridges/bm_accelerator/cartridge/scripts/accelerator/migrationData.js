@@ -35,11 +35,12 @@ var PLATFORMS = [
         confidence:  92,
         description: 'Migrate Shopify Plus customers, products, collections, orders, and price lists into Salesforce B2B Commerce with high-confidence field mapping.',
         iconClass:   'platform-icon--shopify',
-        connectHint: 'Enter your Shopify store URL and Admin API access token.',
+        connectHint: 'Enter your Shopify store URL and Admin API credentials.',
         connectFields: [
-            { name: 'storeUrl',    label: 'Store URL',        type: 'text',     required: true,  value: 'https://your-store.myshopify.com' },
-            { name: 'accessToken', label: 'API access token', type: 'password', required: true,  value: '' },
-            { name: 'apiVersion',  label: 'API version',      type: 'text',     required: false, value: '2025-01' }
+            { name: 'storeUrl',      label: 'Store URL',    type: 'text',     required: true,  value: '', placeholder: 'https://your-store.myshopify.com' },
+            { name: 'clientId',      label: 'Client ID',    type: 'text',     required: true,  value: '', placeholder: '' },
+            { name: 'clientSecret',  label: 'Secret',       type: 'password', required: true,  value: '', placeholder: '' },
+            { name: 'apiVersion',    label: 'API version',  type: 'text',     required: false, value: '2025-01', placeholder: '' }
         ]
     },
     {

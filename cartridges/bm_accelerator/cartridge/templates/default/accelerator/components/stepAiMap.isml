@@ -4,6 +4,11 @@
     </h2>
     <p class="acc-step-panel__intro">${pdict.stepContent.intro}</p>
 
+    <isif condition="${pdict.stepContent.groups.length === 0}">
+        <div class="acc-callout acc-callout--error">
+            Please go back to Step 1 and enter valid Shopify credentials before continuing.
+        </div>
+    </isif>
     <isloop items="${pdict.stepContent.groups}" var="group">
         <div class="acc-mapping-group">
             <div class="acc-mapping-group__head">
