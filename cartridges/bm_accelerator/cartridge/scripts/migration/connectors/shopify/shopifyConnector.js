@@ -35,7 +35,41 @@ var TASK_OWNER_TYPES = {
     Order:    ['ORDER']
 };
 
+// ─── Token cache (per-request scope in SFCC — no persistent process memory) ──
+
+var _cachedToken    = null;
+var _tokenExpiresAt = 0;
+
+function fetchAccessToken(creds) {
+    if (_cachedToken && Date.now() < _tokenExpiresAt - 60000) return _cachedToken;
+
+    var store = (creds.storeUrl || '').replace(/\/$/, '');
+    var body  = 'grant_type=client_credentials'
+              + '&client_id='     + encodeURIComponent(creds.clientId)
+              + '&client_secret=' + encodeURIComponent(creds.clientSecret);
+
+    var res = http.post(
+        store + '/admin/oauth/access_token',
+        { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body
+    );
+
+    if (res.status !== 200 || !res.data || !res.data.access_token) {
+        throw new Error('Shopify token request failed (' + res.status + '): check Client ID and Secret.');
+    }
+
+    _cachedToken    = res.data.access_token;
+    _tokenExpiresAt = Date.now() + (res.data.expires_in || 3600) * 1000;
+    return _cachedToken;
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function validateCreds(creds) {
+    if (!creds || !creds.storeUrl || !creds.clientId || !creds.clientSecret) {
+        throw new Error('Shopify credentials are not configured. Please enter your Store URL, Client ID, and Secret in Step 1.');
+    }
+}
 
 function fmt(n) {
     return String(n || 0).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
@@ -48,7 +82,7 @@ function adminBase(creds) {
 }
 
 function authHeaders(creds) {
-    return { 'X-Shopify-Access-Token': creds.accessToken, 'Content-Type': 'application/json' };
+    return { 'X-Shopify-Access-Token': fetchAccessToken(creds), 'Content-Type': 'application/json' };
 }
 
 // ─── Metafield definitions via GraphQL ───────────────────────────────────────
@@ -65,8 +99,8 @@ function fetchMetafieldDefs(creds, ownerType) {
 // ─── Connection test ──────────────────────────────────────────────────────────
 
 function testConnectionWith(creds) {
-    if (!creds.storeUrl || !creds.accessToken) {
-        throw new Error('Store URL and access token are required.');
+    if (!creds.storeUrl || !creds.clientId || !creds.clientSecret) {
+        throw new Error('Store URL, Client ID, and Secret are required.');
     }
     var res = http.get(adminBase(creds) + '/shop.json', authHeaders(creds));
     if (res.status !== 200 || !res.data.shop) {
@@ -84,6 +118,7 @@ function testConnection() {
 
 function getSchemaCounts() {
     var c          = cfg.shopify;
+    validateCreds(c);
     var ownerTypes = Object.keys(typeMap.OWNER_TYPE_MAP);
     var byResource = {};
     var total      = 0;
@@ -190,6 +225,7 @@ function toGroup(title, mappings) {
 
 function buildAiMapContent(selectedTasks, existingByTask) {
     var c           = cfg.shopify;
+    validateCreds(c);
     var existing    = existingByTask || {};
     var groups      = [];
     var seen        = {};
@@ -272,10 +308,11 @@ function injectCredentials(fields) {
     for (var i = 0; i < fields.length; i++) {
         var field = fields[i];
         var value = field.value;
-        if (field.name === 'storeUrl')                          value = s.storeUrl   || value;
-        else if (field.name === 'accessToken' && s.accessToken) value = '••••••••';
-        else if (field.name === 'apiVersion')                   value = s.apiVersion || value;
-        out.push({ name: field.name, label: field.label, type: field.type, required: field.required, value: value });
+        if (field.name === 'storeUrl')                            value = s.storeUrl     || value;
+        else if (field.name === 'clientId')                       value = s.clientId     || value;
+        else if (field.name === 'clientSecret' && s.clientSecret) value = '••••••••';
+        else if (field.name === 'apiVersion')                     value = s.apiVersion   || value;
+        out.push({ name: field.name, label: field.label, type: field.type, required: field.required, value: value, placeholder: field.placeholder || '' });
     }
     return out;
 }

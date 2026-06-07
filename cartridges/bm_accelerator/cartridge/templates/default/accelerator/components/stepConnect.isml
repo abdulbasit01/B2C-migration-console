@@ -17,6 +17,7 @@
                     name="${field.name}"
                     type="${field.type}"
                     value="${field.value}"
+                    <isif condition="${!empty(field.placeholder)}">placeholder="${field.placeholder}"</isif>
                     <isif condition="${field.required}">required="required"</isif>
                 />
             </div>

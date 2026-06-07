@@ -99,21 +99,20 @@
             totalCreated = 0;
             totalFailed  = 0;
             for (var t in taskStats) {
-                totalCreated += Math.max(0, taskStats[t].created - taskStats[t].existingCount);
+                totalCreated += taskStats[t].created;
                 totalFailed  += taskStats[t].failed;
             }
 
             var pct = (data.total > 0) ? Math.round((data.nextOffset / data.total) * 100) : 100;
             var ts  = taskStats[task];
-            var genuineNew = Math.max(0, ts.created - ts.existingCount);
-            var inProgress = ts.existingCount + ' already in SFCC — ' + genuineNew + ' new, processing…';
+            var inProgress = ts.existingCount + ' already in SFCC — ' + ts.created + ' new, processing…';
             overallEl.textContent = 'New attributes created: ' + totalCreated + (totalFailed ? ', failed: ' + totalFailed : '');
 
             if (!data.done) {
                 setPhaseState(task, 'active', inProgress, pct);
                 runTask(task, data.nextOffset);
             } else {
-                var finalNew    = Math.max(0, ts.created - ts.existingCount);
+                var finalNew    = ts.created;
                 var finalState  = ts.failed > 0 && finalNew === 0 ? 'error'
                                 : ts.failed > 0 ? 'warning'
                                 : 'done';

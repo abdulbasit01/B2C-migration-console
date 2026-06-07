@@ -17,20 +17,36 @@ var SFCC_TASK_OBJECTS = runner.TASK_SFCC_OBJECT;
 
 // ─── Controller helpers ───────────────────────────────────────────────────────
 
+/**
+ * @param {number} n - number to format
+ * @returns {string} comma-formatted number string
+ */
 function fmt(n) {
     return String(n || 0).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
 
+/**
+ * @param {number} n - step number
+ * @returns {string|null} step as string, or null if absent
+ */
 function toStepQuery(n) {
     if (n === null || n === undefined) return null;
     return String(parseInt(String(n), 10));
 }
 
+/**
+ * @param {Object} obj - response payload
+ * @returns {void}
+ */
 function jsonResponse(obj) {
     response.setContentType('application/json');
     response.writer.print(JSON.stringify(obj));
 }
 
+/**
+ * @param {string} name - parameter name
+ * @returns {string} parameter value or empty string
+ */
 function getParam(name) {
     var p = request.httpParameterMap[name];
     return (p && p.submitted) ? String(p.stringValue || '') : '';
@@ -38,7 +54,7 @@ function getParam(name) {
 
 /**
  * Resolve the active platform from the request param, falling back to session.
- * Used by AJAX endpoints where the platform might be in the URL or the session.
+ * @returns {string} platform ID
  */
 function resolvePlatform() {
     return getParam('platform') || String(session.custom.migrationPlatformId || 'commercetools');
@@ -46,7 +62,8 @@ function resolvePlatform() {
 
 /**
  * Build the View step content from session results.
- * Platform-agnostic: every connector produces the same result shape.
+ * @param {Object} sessionResults - migration results keyed by task name
+ * @returns {Object} view step content
  */
 function buildViewContent(sessionResults) {
     var results = sessionResults || {};
@@ -104,9 +121,8 @@ exports.TestConnection = function () {
     var cfg    = require('*/cartridge/scripts/migration/configAccessor');
     var params = request.httpParameterMap;
     var creds  = {};
-    var fields = params.getParameterNames();
     // Pull all submitted form fields into creds (excludes platformId hidden field)
-    var fieldNames = ['projectKey', 'clientId', 'clientSecret', 'apiUrl', 'authUrl', 'scopes', 'storeUrl', 'accessToken', 'apiVersion', 'storeHash'];
+    var fieldNames = ['projectKey', 'clientId', 'clientSecret', 'apiUrl', 'authUrl', 'scopes', 'storeUrl', 'apiVersion', 'storeHash'];
     for (var fi = 0; fi < fieldNames.length; fi++) {
         var fn  = fieldNames[fi];
         var val = String((params[fn] && params[fn].stringValue) || '');
@@ -114,6 +130,11 @@ exports.TestConnection = function () {
     }
 
     // Masked fields (shown as ••••••••) fall back to stored config
+    /**
+     * @param {string} paramName - form field name
+     * @param {string} configValue - fallback value from config
+     * @returns {string} resolved secret value
+     */
     function resolveSecret(paramName, configValue) {
         var raw = creds[paramName] || '';
         return (raw && raw.indexOf('•') === -1) ? raw : (configValue || '');
@@ -123,11 +144,18 @@ exports.TestConnection = function () {
         creds.clientSecret = resolveSecret('clientSecret', cfg.ctp.clientSecret);
         creds.authUrl      = creds.authUrl || cfg.ctp.authUrl || 'https://auth.us-central1.gcp.commercetools.com';
     } else if (platformId === 'shopify') {
-        creds.accessToken = resolveSecret('accessToken', cfg.shopify.accessToken);
+        creds.clientSecret = resolveSecret('clientSecret', cfg.shopify.clientSecret);
     }
 
     try {
         var result = connector.testConnectionWith(creds);
+        // Persist Shopify credentials to session so Steps 2/3 can use them without config.js
+        if (platformId === 'shopify') {
+            session.custom.shopifyStoreUrl     = creds.storeUrl     || '';
+            session.custom.shopifyClientId     = creds.clientId     || '';
+            session.custom.shopifyClientSecret = creds.clientSecret || '';
+            session.custom.shopifyApiVersion   = creds.apiVersion   || '2025-01';
+        }
         jsonResponse({ ok: true, project: result.project });
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
@@ -288,7 +316,7 @@ exports.Wizard = function () {
 
     if (params.step && params.step.submitted) {
         var parsed = parseInt(String(params.step.stringValue || '1'), 10);
-        if (!isNaN(parsed) && parsed > 0) stepParam = parsed;
+        if (!Number.isNaN(parsed) && parsed > 0) stepParam = parsed;
     }
 
     var platform = migrationData.getPlatform(platformId);
@@ -345,7 +373,11 @@ exports.Wizard = function () {
             }
             stepContent = connector.buildAiMapContent(selectedTasks, existing3);
         } catch (e) {
-            // Keep null stepContent — ISML renders a static fallback
+            stepContent = {
+                titleSuffix: 'Schema field mapping',
+                intro:       'Could not load schema mapping: ' + (e.message || 'Unknown error') + '. Please verify credentials in Step 1.',
+                groups:      []
+            };
         }
     }
 
