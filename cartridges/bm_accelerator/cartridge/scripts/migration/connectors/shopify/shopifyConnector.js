@@ -5,16 +5,16 @@ var typeMap     = require('*/cartridge/scripts/migration/connectors/shopify/shop
 var transformer = require('*/cartridge/scripts/migration/connectors/shopify/shopifyTransformer');
 var cfg         = require('*/cartridge/scripts/migration/configAccessor');
 
-// ─── Standard Shopify fields (fixed schema, no API call needed) ───────────────
+// ─── Standard fields per task (fixed schema, no API call needed) ──────────────
 
 var STANDARD_PRODUCT_FIELDS = [
-    { key: 'title',        type: 'single_line_text_field',     label: 'Title' },
-    { key: 'body_html',    type: 'multi_line_text_field',      label: 'Description' },
-    { key: 'vendor',       type: 'single_line_text_field',     label: 'Vendor' },
-    { key: 'product_type', type: 'single_line_text_field',     label: 'Product Type' },
-    { key: 'handle',       type: 'single_line_text_field',     label: 'Handle' },
+    { key: 'title',        type: 'single_line_text_field',      label: 'Title' },
+    { key: 'body_html',    type: 'multi_line_text_field',       label: 'Description' },
+    { key: 'vendor',       type: 'single_line_text_field',      label: 'Vendor' },
+    { key: 'product_type', type: 'single_line_text_field',      label: 'Product Type' },
+    { key: 'handle',       type: 'single_line_text_field',      label: 'Handle' },
     { key: 'tags',         type: 'list.single_line_text_field', label: 'Tags' },
-    { key: 'status',       type: 'single_line_text_field',     label: 'Status' }
+    { key: 'status',       type: 'single_line_text_field',      label: 'Status' }
 ];
 
 var STANDARD_VARIANT_FIELDS = [
@@ -27,12 +27,83 @@ var STANDARD_VARIANT_FIELDS = [
     { key: 'variant_requires_shipping', type: 'boolean',                label: 'Requires Shipping' }
 ];
 
-// Owner types fetched per runner task
+var STANDARD_CATEGORY_FIELDS = [
+    { key: 'title',           type: 'single_line_text_field', label: 'Title' },
+    { key: 'body_html',       type: 'multi_line_text_field',  label: 'Description' },
+    { key: 'handle',          type: 'single_line_text_field', label: 'Handle' },
+    { key: 'sort_order',      type: 'single_line_text_field', label: 'Sort Order' },
+    { key: 'template_suffix', type: 'single_line_text_field', label: 'Template Suffix' }
+];
+
+var STANDARD_CUSTOMER_FIELDS = [
+    { key: 'email',             type: 'single_line_text_field',      label: 'Email' },
+    { key: 'first_name',        type: 'single_line_text_field',      label: 'First Name' },
+    { key: 'last_name',         type: 'single_line_text_field',      label: 'Last Name' },
+    { key: 'phone',             type: 'single_line_text_field',      label: 'Phone' },
+    { key: 'tags',              type: 'list.single_line_text_field', label: 'Tags' },
+    { key: 'note',              type: 'multi_line_text_field',       label: 'Note' },
+    { key: 'verified_email',    type: 'boolean',                     label: 'Verified Email' },
+    { key: 'accepts_marketing', type: 'boolean',                     label: 'Accepts Marketing' },
+    { key: 'orders_count',      type: 'number_integer',              label: 'Orders Count' },
+    { key: 'total_spent',       type: 'money',                       label: 'Total Spent' }
+];
+
+var STANDARD_ORDER_FIELDS = [
+    { key: 'order_number',       type: 'number_integer',              label: 'Order Number' },
+    { key: 'email',              type: 'single_line_text_field',      label: 'Email' },
+    { key: 'total_price',        type: 'money',                       label: 'Total Price' },
+    { key: 'subtotal_price',     type: 'money',                       label: 'Subtotal Price' },
+    { key: 'total_tax',          type: 'money',                       label: 'Total Tax' },
+    { key: 'financial_status',   type: 'single_line_text_field',      label: 'Financial Status' },
+    { key: 'fulfillment_status', type: 'single_line_text_field',      label: 'Fulfillment Status' },
+    { key: 'currency',           type: 'single_line_text_field',      label: 'Currency' },
+    { key: 'tags',               type: 'list.single_line_text_field', label: 'Tags' },
+    { key: 'note',               type: 'multi_line_text_field',       label: 'Note' }
+];
+
+var STANDARD_INVENTORY_FIELDS = [
+    { key: 'sku',                     type: 'single_line_text_field', label: 'SKU' },
+    { key: 'tracked',                 type: 'boolean',                label: 'Tracked' },
+    { key: 'requires_shipping',       type: 'boolean',                label: 'Requires Shipping' },
+    { key: 'country_of_origin',       type: 'single_line_text_field', label: 'Country of Origin' },
+    { key: 'cost',                    type: 'money',                  label: 'Cost' },
+    { key: 'province_code_of_origin', type: 'single_line_text_field', label: 'Province of Origin' }
+];
+
+var STANDARD_CUSTOMER_GROUP_FIELDS = [
+    { key: 'name',  type: 'single_line_text_field', label: 'Group Name' },
+    { key: 'query', type: 'multi_line_text_field',  label: 'Segment Query' }
+];
+
+// Standard fields lookup by task name
+var TASK_STANDARD_FIELDS = {
+    Product:                STANDARD_PRODUCT_FIELDS.concat(STANDARD_VARIANT_FIELDS),
+    Category:               STANDARD_CATEGORY_FIELDS,
+    Customer:               STANDARD_CUSTOMER_FIELDS,
+    Order:                  STANDARD_ORDER_FIELDS,
+    ProductInventoryRecord: STANDARD_INVENTORY_FIELDS,
+    CustomerGroup:          STANDARD_CUSTOMER_GROUP_FIELDS
+};
+
+// Shopify GraphQL metafield owner types per task (empty = standard fields only)
 var TASK_OWNER_TYPES = {
-    Product:  ['PRODUCT', 'VARIANT'],
-    Category: ['COLLECTION'],
-    Customer: ['CUSTOMER'],
-    Order:    ['ORDER']
+    Product:                ['PRODUCT', 'VARIANT'],
+    Category:               ['COLLECTION'],
+    Customer:               ['CUSTOMER'],
+    Order:                  ['ORDER'],
+    ProductInventoryRecord: [],
+    CustomerGroup:          []
+};
+
+var TASK_ORDER = ['Product', 'Category', 'Customer', 'Order', 'ProductInventoryRecord', 'CustomerGroup'];
+
+var TASK_TITLES = {
+    Product:                'Product',
+    Category:               'Category (Collection)',
+    Customer:               'Customer / Profile',
+    Order:                  'Order',
+    ProductInventoryRecord: 'Inventory Record',
+    CustomerGroup:          'Customer Group'
 };
 
 // ─── Token cache (per-request scope in SFCC — no persistent process memory) ──
@@ -123,6 +194,7 @@ function getSchemaCounts() {
     var byResource = {};
     var total      = 0;
 
+    // Count metafield definitions from Shopify GraphQL
     for (var i = 0; i < ownerTypes.length; i++) {
         var ownerType = ownerTypes[i];
         var sfccType  = typeMap.OWNER_TYPE_MAP[ownerType];
@@ -133,11 +205,16 @@ function getSchemaCounts() {
         }
     }
 
+    // Count all standard fields across all tasks
+    var standardTotal = 0;
+    for (var ti = 0; ti < TASK_ORDER.length; ti++) {
+        standardTotal += (TASK_STANDARD_FIELDS[TASK_ORDER[ti]] || []).length;
+    }
+
     return {
-        standardProductFields: STANDARD_PRODUCT_FIELDS.length,
-        standardVariantFields: STANDARD_VARIANT_FIELDS.length,
-        metafieldDefs:         total,
-        byResource:            byResource
+        standardTotal:        standardTotal,
+        metafieldDefs:        total,
+        byResource:           byResource
     };
 }
 
@@ -145,7 +222,8 @@ function getSchemaCounts() {
 
 function getAttrDefsForTask(task) {
     var c          = cfg.shopify;
-    var ownerTypes = TASK_OWNER_TYPES[task];
+    var stdFields  = TASK_STANDARD_FIELDS[task] || [];
+    var ownerTypes = TASK_OWNER_TYPES[task]     || [];
     var seen       = {};
     var defs       = [];
 
@@ -153,19 +231,14 @@ function getAttrDefsForTask(task) {
         if (!seen[def.id]) { seen[def.id] = true; defs.push(def); }
     }
 
-    if (task === 'Product') {
-        var stdFields = STANDARD_PRODUCT_FIELDS.concat(STANDARD_VARIANT_FIELDS);
-        for (var sf = 0; sf < stdFields.length; sf++) {
-            push(transformer.transformStandardField(stdFields[sf]));
-        }
+    for (var sf = 0; sf < stdFields.length; sf++) {
+        push(transformer.transformStandardField(stdFields[sf]));
     }
 
-    if (ownerTypes) {
-        for (var ot = 0; ot < ownerTypes.length; ot++) {
-            var metaDefs = fetchMetafieldDefs(c, ownerTypes[ot]);
-            for (var m = 0; m < metaDefs.length; m++) {
-                push(transformer.transformMetafieldDef(metaDefs[m]));
-            }
+    for (var ot = 0; ot < ownerTypes.length; ot++) {
+        var metaDefs = fetchMetafieldDefs(c, ownerTypes[ot]);
+        for (var m = 0; m < metaDefs.length; m++) {
+            push(transformer.transformMetafieldDef(metaDefs[m]));
         }
     }
 
@@ -182,29 +255,20 @@ function getAttrIdsForTask(task) {
 // ─── Fetch step content (Step 2) ──────────────────────────────────────────────
 
 function buildFetchContent(counts) {
-    var byResource  = counts.byResource || {};
-    var totalFields = (counts.standardProductFields || 0) + (counts.standardVariantFields || 0) + (counts.metafieldDefs || 0);
+    var byResource  = counts.byResource  || {};
     var sections    = [];
+    var totalFields = 0;
 
-    var productItems = [
-        'Standard product fields (' + fmt(counts.standardProductFields || 0) + ')',
-        'Standard variant fields (' + fmt(counts.standardVariantFields || 0) + ')'
-    ];
-    if (byResource.Product) productItems.push('Product metafield definitions (' + fmt(byResource.Product) + ')');
-    sections.push({ taskId: 'Product', title: 'Product', items: productItems, selectable: true });
+    for (var ti = 0; ti < TASK_ORDER.length; ti++) {
+        var task     = TASK_ORDER[ti];
+        var stdCount = (TASK_STANDARD_FIELDS[task] || []).length;
+        var mfCount  = byResource[task] || 0;
+        totalFields += stdCount + mfCount;
 
-    var OTHER_TASKS        = ['Category', 'Customer', 'Order'];
-    var TASK_SOURCE_LABELS = { Category: 'Collection', Customer: 'Customer', Order: 'Order' };
-    for (var i = 0; i < OTHER_TASKS.length; i++) {
-        var task = OTHER_TASKS[i];
-        if (byResource[task]) {
-            sections.push({
-                taskId:     task,
-                title:      task,
-                items:      [TASK_SOURCE_LABELS[task] + ' metafield definitions (' + fmt(byResource[task]) + ')'],
-                selectable: true
-            });
-        }
+        var items = ['Standard fields (' + fmt(stdCount) + ')'];
+        if (mfCount) items.push('Metafield definitions (' + fmt(mfCount) + ')');
+
+        sections.push({ taskId: task, title: TASK_TITLES[task], items: items, selectable: true });
     }
 
     return {
@@ -224,73 +288,57 @@ function toGroup(title, mappings) {
 }
 
 function buildAiMapContent(selectedTasks, existingByTask) {
-    var c           = cfg.shopify;
+    var c          = cfg.shopify;
     validateCreds(c);
-    var existing    = existingByTask || {};
-    var groups      = [];
-    var seen        = {};
-    var totalAttrs  = 0;
+    var existing   = existingByTask || {};
+    var groups     = [];
+    var totalAttrs = 0;
 
-    var showProduct     = !selectedTasks || selectedTasks.indexOf('Product') >= 0;
-    var productMappings = [];
+    for (var ti = 0; ti < TASK_ORDER.length; ti++) {
+        var task       = TASK_ORDER[ti];
+        if (selectedTasks && selectedTasks.indexOf(task) < 0) continue;
 
-    if (showProduct) {
-        var stdFields = STANDARD_PRODUCT_FIELDS.concat(STANDARD_VARIANT_FIELDS);
+        var mappings   = [];
+        var seen       = {};
+        var stdFields  = TASK_STANDARD_FIELDS[task] || [];
+        var ownerTypes = TASK_OWNER_TYPES[task]     || [];
+
+        // Standard fields
         for (var sf = 0; sf < stdFields.length; sf++) {
-            var std = stdFields[sf];
-            if (seen['Product__' + std.key]) continue;
-            seen['Product__' + std.key] = true;
+            var std  = stdFields[sf];
+            var sKey = task + '__' + std.key;
+            if (seen[sKey]) continue;
+            seen[sKey] = true;
             totalAttrs++;
-            productMappings.push({
+            mappings.push({
                 source:     std.key + ' (' + std.type + ')',
-                target:     'Product → ' + typeMap.resolveMetafieldType(std.type),
+                target:     task + ' → ' + typeMap.resolveMetafieldType(std.type),
                 confidence: typeMap.confidence(std.type),
-                exists:     !!(existing.Product && existing.Product[std.key])
+                exists:     !!(existing[task] && existing[task][std.key])
             });
         }
-    }
 
-    var ownerGroups  = ['PRODUCT', 'VARIANT', 'COLLECTION', 'CUSTOMER', 'ORDER'];
-    var customGroups = {};
-
-    for (var oi = 0; oi < ownerGroups.length; oi++) {
-        var ownerType = ownerGroups[oi];
-        var sfccType  = typeMap.OWNER_TYPE_MAP[ownerType];
-        if (!sfccType) continue;
-
-        if (selectedTasks && selectedTasks.indexOf(sfccType) < 0) continue;
-
-        var defs = fetchMetafieldDefs(c, ownerType);
-        totalAttrs += defs.length;
-        if (!customGroups[sfccType]) customGroups[sfccType] = [];
-
-        for (var di = 0; di < defs.length; di++) {
-            var def    = defs[di];
-            var mfId   = (def.namespace ? def.namespace + '__' + def.key : def.key).replace(/[^a-zA-Z0-9_]/g, '_');
-            var mfType = def.type && def.type.name ? def.type.name : 'single_line_text_field';
-            var mfKey  = sfccType + '__' + mfId;
-            if (seen[mfKey]) continue;
-            seen[mfKey] = true;
-            customGroups[sfccType].push({
-                source:     def.namespace + '.' + def.key + ' (' + mfType + ')',
-                target:     sfccType + ' → ' + typeMap.resolveMetafieldType(mfType),
-                confidence: typeMap.confidence(mfType),
-                exists:     !!(existing[sfccType] && existing[sfccType][mfId])
-            });
+        // Metafield definitions from Shopify GraphQL
+        for (var ot = 0; ot < ownerTypes.length; ot++) {
+            var defs = fetchMetafieldDefs(c, ownerTypes[ot]);
+            totalAttrs += defs.length;
+            for (var di = 0; di < defs.length; di++) {
+                var def    = defs[di];
+                var mfId   = (def.namespace ? def.namespace + '__' + def.key : def.key).replace(/[^a-zA-Z0-9_]/g, '_');
+                var mfType = def.type && def.type.name ? def.type.name : 'single_line_text_field';
+                var mfKey  = task + '__' + mfId;
+                if (seen[mfKey]) continue;
+                seen[mfKey] = true;
+                mappings.push({
+                    source:     def.namespace + '.' + def.key + ' (' + mfType + ')',
+                    target:     task + ' → ' + typeMap.resolveMetafieldType(mfType),
+                    confidence: typeMap.confidence(mfType),
+                    exists:     !!(existing[task] && existing[task][mfId])
+                });
+            }
         }
-    }
 
-    // Merge VARIANT metafields (also SFCC Product) into product group
-    if (customGroups.Product) {
-        for (var pm = 0; pm < customGroups.Product.length; pm++) productMappings.push(customGroups.Product[pm]);
-        delete customGroups.Product;
-    }
-    if (showProduct && productMappings.length) groups.push(toGroup('Product', productMappings));
-
-    var otherTypes = Object.keys(customGroups);
-    for (var ot = 0; ot < otherTypes.length; ot++) {
-        var oType = otherTypes[ot];
-        if (customGroups[oType].length) groups.push(toGroup(oType, customGroups[oType]));
+        if (mappings.length) groups.push(toGroup(TASK_TITLES[task], mappings));
     }
 
     return {
@@ -308,10 +356,10 @@ function injectCredentials(fields) {
     for (var i = 0; i < fields.length; i++) {
         var field = fields[i];
         var value = field.value;
-        if (field.name === 'storeUrl')                            value = s.storeUrl     || value;
-        else if (field.name === 'clientId')                       value = s.clientId     || value;
+        if (field.name === 'storeUrl')                            value = s.storeUrl   || value;
+        else if (field.name === 'clientId')                       value = s.clientId   || value;
         else if (field.name === 'clientSecret' && s.clientSecret) value = '••••••••';
-        else if (field.name === 'apiVersion')                     value = s.apiVersion   || value;
+        else if (field.name === 'apiVersion')                     value = s.apiVersion || value;
         out.push({ name: field.name, label: field.label, type: field.type, required: field.required, value: value, placeholder: field.placeholder || '' });
     }
     return out;
@@ -320,7 +368,7 @@ function injectCredentials(fields) {
 // ─── Default tasks ────────────────────────────────────────────────────────────
 
 function getDefaultTasks() {
-    return ['Product', 'Category', 'Customer', 'Order'];
+    return TASK_ORDER.slice();
 }
 
 // ─── Public interface ─────────────────────────────────────────────────────────

@@ -14,7 +14,8 @@ var TASK_SFCC_OBJECT = {
     ProductInventoryRecord: 'ProductInventoryRecord',
     ProductList:            'ProductList',
     ProductListItem:        'ProductListItem',
-    Promotion:              'Promotion'
+    Promotion:              'Promotion',
+    CustomerGroup:          'CustomerGroup'
 };
 
 /**
