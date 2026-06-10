@@ -30,9 +30,9 @@
                 <thead>
                     <tr>
                         <th>Status</th>
-                        <th>Source field (CTP type)</th>
-                        <th>Target (SFCC)</th>
-                        <th>AI confidence</th>
+                        <th>Source field</th>
+                        <th>Type supported</th>
+                        <th style="padding-left:28px">Target Attribute ID</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -47,14 +47,7 @@
                             </td>
                             <td><code>${row.source}</code></td>
                             <td><code>${row.target}</code></td>
-                            <td>
-                                <div class="acc-table__confidence">
-                                    <div class="acc-progress acc-progress--sm">
-                                        <div class="acc-progress__bar" style="width: ${row.confidence}%"></div>
-                                    </div>
-                                    <span>${row.confidence}%</span>
-                                </div>
-                            </td>
+                            <td style="padding-left:28px"><code>${row.attributeId}</code></td>
                         </tr>
                     </isloop>
                 </tbody>

@@ -265,7 +265,7 @@ function buildFetchContent(counts) {
         var mfCount  = byResource[task] || 0;
         totalFields += stdCount + mfCount;
 
-        var items = ['Standard fields (' + fmt(stdCount) + ')'];
+        var items = ['Standard fields'];
         if (mfCount) items.push('Metafield definitions (' + fmt(mfCount) + ')');
 
         sections.push({ taskId: task, title: TASK_TITLES[task], items: items, selectable: true });
@@ -311,10 +311,11 @@ function buildAiMapContent(selectedTasks, existingByTask) {
             seen[sKey] = true;
             totalAttrs++;
             mappings.push({
-                source:     std.key + ' (' + std.type + ')',
-                target:     task + ' → ' + typeMap.resolveMetafieldType(std.type),
-                confidence: typeMap.confidence(std.type),
-                exists:     !!(existing[task] && existing[task][std.key])
+                source:      std.key + ' (' + std.type + ')',
+                attributeId: std.key,
+                target:      typeMap.resolveMetafieldType(std.type),
+                confidence:  typeMap.confidence(std.type),
+                exists:      !!(existing[task] && existing[task][std.key])
             });
         }
 
@@ -330,10 +331,11 @@ function buildAiMapContent(selectedTasks, existingByTask) {
                 if (seen[mfKey]) continue;
                 seen[mfKey] = true;
                 mappings.push({
-                    source:     def.namespace + '.' + def.key + ' (' + mfType + ')',
-                    target:     task + ' → ' + typeMap.resolveMetafieldType(mfType),
-                    confidence: typeMap.confidence(mfType),
-                    exists:     !!(existing[task] && existing[task][mfId])
+                    source:      def.namespace + '.' + def.key + ' (' + mfType + ')',
+                    attributeId: mfId,
+                    target:      typeMap.resolveMetafieldType(mfType),
+                    confidence:  typeMap.confidence(mfType),
+                    exists:      !!(existing[task] && existing[task][mfId])
                 });
             }
         }

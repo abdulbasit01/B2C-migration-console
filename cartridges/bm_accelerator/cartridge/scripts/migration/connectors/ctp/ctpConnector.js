@@ -224,8 +224,8 @@ function buildFetchContent(counts) {
         var cfCount   = 0;
 
         if (task === 'Product') {
-            items.push('Product types (' + fmt(counts.productTypes) + ')');
-            items.push('Product attributes (' + fmt(counts.productAttributes) + ')');
+            items.push('Product types');
+            items.push('Product attributes');
         }
 
         for (var r = 0; r < resources.length; r++) {
@@ -235,8 +235,8 @@ function buildFetchContent(counts) {
         }
 
         if (ctCount > 0) {
-            items.push('Custom types (' + fmt(ctCount) + ')');
-            items.push('Custom fields (' + fmt(cfCount) + ')');
+            items.push('Custom types');
+            items.push('Custom fields');
         }
 
         if (items.length) {
@@ -289,8 +289,8 @@ function buildAiMapContent(selectedTasks, existingByTask) {
 
     for (var pi = 0; pi < productTypes.length; pi++) {
         var attrs = productTypes[pi].attributes || [];
-        totalAttrs += attrs.length;
         if (!showProduct) continue;
+        totalAttrs += attrs.length;
         for (var ai = 0; ai < attrs.length; ai++) {
             var attr    = attrs[ai];
             var key     = 'Product__' + attr.name;
@@ -298,10 +298,11 @@ function buildAiMapContent(selectedTasks, existingByTask) {
             seen[key]   = true;
             var ctpType = attr.type && attr.type.name ? attr.type.name : 'text';
             productMappings.push({
-                source:     attr.name + ' (' + ctpType + ')',
-                target:     'Product → ' + typeMap.resolveProductType(ctpType),
-                confidence: typeMap.confidence(ctpType),
-                exists:     !!(existing.Product && existing.Product[attr.name])
+                source:      attr.name + ' (' + ctpType + ')',
+                attributeId: attr.name,
+                target:      typeMap.resolveProductType(ctpType),
+                confidence:  typeMap.confidence(ctpType),
+                exists:      !!(existing.Product && existing.Product[attr.name])
             });
         }
     }
@@ -332,10 +333,11 @@ function buildAiMapContent(selectedTasks, existingByTask) {
             seen[fkey] = true;
             var fType  = field.type && field.type.name ? field.type.name : 'String';
             customGroups[sfccObj].push({
-                source:     field.name + ' (' + fType + ')',
-                target:     sfccObj + ' → ' + typeMap.resolveCustomFieldType(fType),
-                confidence: typeMap.confidence(fType),
-                exists:     !!(existing[sfccObj] && existing[sfccObj][field.name])
+                source:      field.name + ' (' + fType + ')',
+                attributeId: field.name,
+                target:      typeMap.resolveCustomFieldType(fType),
+                confidence:  typeMap.confidence(fType),
+                exists:      !!(existing[sfccObj] && existing[sfccObj][field.name])
             });
         }
     }
@@ -361,7 +363,7 @@ function buildAiMapContent(selectedTasks, existingByTask) {
 
     return {
         titleSuffix: 'Schema field mapping',
-        intro:       'Live CTP attribute → SFCC value_type mappings. ' + totalAttrs + ' total attributes across ' + groups.length + ' entity types.',
+        intro:       'Live CTP attribute → SFCC value_type mappings.',
         groups:      groups
     };
 }
