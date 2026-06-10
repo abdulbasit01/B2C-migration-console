@@ -47,7 +47,7 @@ var PLATFORMS = [
         id:          'bigcommerce',
         name:        'BigCommerce',
         tagline:     'B2B Edition, Multi-store',
-        status:      'ready',
+        status:      'soon',
         confidence:  88,
         description: 'Migrate BigCommerce B2B customers, catalog, categories, orders, and contract pricing into Salesforce B2B Commerce.',
         iconClass:   'platform-icon--bigcommerce',
@@ -57,17 +57,6 @@ var PLATFORMS = [
             { name: 'clientId',    label: 'Client ID',    type: 'text',     required: true, value: '' },
             { name: 'accessToken', label: 'Access token', type: 'password', required: true, value: '' }
         ]
-    },
-    {
-        id:          'sfcc',
-        name:        'Salesforce B2C',
-        tagline:     'SFRA, Page Designer',
-        status:      'soon',
-        confidence:  0,
-        description: 'Cross-cloud migration from B2C Commerce to B2B Commerce (planned).',
-        iconClass:   'platform-icon--salesforce',
-        connectHint: '',
-        connectFields: []
     },
     {
         id:          'sap',

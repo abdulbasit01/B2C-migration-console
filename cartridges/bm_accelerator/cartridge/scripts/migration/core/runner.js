@@ -35,15 +35,21 @@ function runBatch(connector, task, offset, limit) {
     var sfccObject = TASK_SFCC_OBJECT[task];
     if (!sfccObject) return { ok: false, error: 'Unknown task: ' + task };
 
-    var batchLimit = limit || 10;
-    var sfccToken  = sfccClient.getSFCCToken();        // 1 HTTP call
-    var allDefs    = connector.getAttrDefsForTask(task); // connector auth + schema fetch
-    var batch      = allDefs.slice(offset, offset + batchLimit);
-    var created    = 0;
-    var failed     = 0;
-    var errors     = [];
+    var batchLimit  = limit || 10;
+    var sfccToken   = sfccClient.getSFCCToken();          // 1 HTTP call
+    var allDefs     = connector.getAttrDefsForTask(task); // connector auth + schema fetch
+    var existingIds = sfccClient.getExistingAttributeIds(sfccToken, sfccObject); // 1 HTTP call
+    var batch       = allDefs.slice(offset, offset + batchLimit);
+    var created     = 0;
+    var skipped     = 0;
+    var failed      = 0;
+    var errors      = [];
 
     for (var i = 0; i < batch.length; i++) {
+        if (existingIds[batch[i].id]) {
+            skipped++;
+            continue;
+        }
         try {
             sfccClient.createAttributeDefinition(sfccToken, sfccObject, batch[i]); // 1 HTTP call each
             created++;
@@ -60,6 +66,7 @@ function runBatch(connector, task, offset, limit) {
         total:      allDefs.length,
         nextOffset: nextOffset,
         created:    created,
+        skipped:    skipped,
         failed:     failed,
         done:       nextOffset >= allDefs.length,
         errors:     errors

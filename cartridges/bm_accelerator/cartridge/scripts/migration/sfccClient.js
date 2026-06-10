@@ -101,6 +101,7 @@ function getExistingAttributeIds(token, objectType) {
     return ids;
 }
 
+
 /**
  * Create a single custom attribute definition on an SFCC system object.
  * @param {string} token - SFCC access token
