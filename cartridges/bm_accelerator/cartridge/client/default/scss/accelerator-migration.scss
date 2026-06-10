@@ -436,12 +436,6 @@ body.acc-page {
   background: var(--acc-blue-light);
 }
 
-.acc-stepper__item--current .acc-stepper__circle {
-  background: var(--acc-blue);
-  color: var(--acc-white);
-  border-color: var(--acc-blue);
-}
-
 .acc-stepper__circle {
   display: inline-flex;
   align-items: center;
@@ -459,6 +453,12 @@ body.acc-page {
 .acc-stepper__item--active .acc-stepper__circle {
   border-color: var(--acc-blue-light);
   color: var(--acc-blue);
+}
+
+.acc-stepper__item--current .acc-stepper__circle {
+  background: var(--acc-blue);
+  color: var(--acc-white);
+  border-color: var(--acc-blue);
 }
 
 .acc-stepper__label {

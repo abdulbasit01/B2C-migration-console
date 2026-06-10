@@ -4,7 +4,7 @@
  * Source (committed): cartridges/bm_accelerator/cartridge/client/default/scss/accelerator-migration.scss
  * Output (generated): cartridges/bm_accelerator/cartridge/static/default/css/accelerator-migration.css
  *
- * Run: npm run compile:accelerator-scss
+ * Run: npm run compile:scss
  */
 
 'use strict';

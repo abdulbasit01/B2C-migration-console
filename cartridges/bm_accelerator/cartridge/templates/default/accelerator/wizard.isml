@@ -34,7 +34,7 @@
             <isif condition="${pdict.prevStep}">
                 <a class="acc-btn acc-btn--ghost"
                    href="${pdict.wizardBaseUrl}&amp;step=${pdict.prevStepQuery}">
-                    &larr; ${Resource.msg('accelerator.wizard.previous', 'accelerator', null)}
+                    ${Resource.msg('accelerator.wizard.previous', 'accelerator', null)}
                 </a>
             <iselse/>
                 <span></span>
