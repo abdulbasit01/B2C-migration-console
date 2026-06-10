@@ -9,7 +9,9 @@
   "scripts": {
     "config:generate": "node scripts/generate-migration-config.js",
     "compile:accelerator-scss": "node scripts/compile-accelerator-scss.js",
-    "watch:accelerator-scss": "sass --watch cartridges/bm_accelerator/cartridge/client/default/scss/accelerator-migration.scss:cartridges/bm_accelerator/cartridge/static/default/css/accelerator-migration.css",
+    "watch:scss": "sass --watch cartridges/bm_accelerator/cartridge/client/default/scss/accelerator-migration.scss:cartridges/bm_accelerator/cartridge/static/default/css/accelerator-migration.css",
+    "watch:js": "sgmf-scripts --watch",
+    "dev": "npm run compile:accelerator-scss && npm run compile:scss && npm run compile:js",
     "test": "sgmf-scripts --test test/unit/**/*.js",
     "cover": "sgmf-scripts --cover 'test/unit'",
     "test:integration": "sgmf-scripts --integration 'test/integration/**/*.js'",

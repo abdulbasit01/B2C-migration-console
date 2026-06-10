@@ -6,7 +6,7 @@
 
     <div id="acc-move-status" style="display:none;" class="acc-callout acc-callout--info" style="margin-bottom:16px;"></div>
 
-    <ul class="acc-phases" id="acc-phase-list">
+    <ul class="acc-phases" id="acc-phase-list" style="display:none;">
         <isloop items="${pdict.stepContent.selectedTasks}" var="task">
             <li class="acc-phases__item acc-phases__item--pending" id="acc-phase-${task}">
                 <div class="acc-phases__head">
@@ -44,6 +44,8 @@
     var startBtn  = document.getElementById('acc-start-btn');
     var overallEl = document.getElementById('acc-move-overall');
     var statusBox = document.getElementById('acc-move-status');
+    var phaseList = document.getElementById('acc-phase-list');
+    var nextBtn   = document.getElementById('acc-next-btn');
 
     function setPhaseState(task, state, detail, pct) {
         var li     = document.getElementById('acc-phase-' + task);
@@ -158,6 +160,7 @@
             saveResults();
             startBtn.disabled    = false;
             startBtn.textContent = '✔ Migration Complete';
+            if (nextBtn) nextBtn.className = nextBtn.className.replace(/\s*acc-btn--disabled/g, '');
             statusBox.style.display = 'block';
             statusBox.className     = totalFailed > 0 ? 'acc-callout acc-callout--error' : 'acc-callout acc-callout--success';
             statusBox.textContent   = 'Migration finished — '
@@ -178,6 +181,7 @@
         startBtn.disabled    = true;
         startBtn.textContent = 'Running…';
         statusBox.style.display = 'none';
+        if (phaseList) phaseList.style.display = 'block';
         startTask(0);
     });
 }());

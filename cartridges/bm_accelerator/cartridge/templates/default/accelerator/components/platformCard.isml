@@ -12,13 +12,20 @@
     <p class="acc-card__tagline">${platform.tagline}</p>
     <p class="acc-card__desc">${platform.description}</p>
     <isif condition="${platform.status === 'ready'}">
-        <a class="acc-btn acc-btn--primary acc-card__cta"
-           href="${pdict.wizardUrl}?platform=${platform.id}&amp;step=1">
-            Start migration &rarr;
-        </a>
+        <div class="acc-card__actions">
+            <a class="acc-btn acc-btn--primary acc-card__cta"
+               href="${pdict.wizardUrl}?platform=${platform.id}&amp;step=1">
+                ${Resource.msg('accelerator.card.dataMigration', 'accelerator', null)}
+            </a>
+            <button type="button" class="acc-btn acc-btn--secondary acc-card__cta" disabled="disabled">
+                ${Resource.msg('accelerator.card.storefrontMigration', 'accelerator', null)}
+            </button>
+        </div>
     <iselse/>
-        <button type="button" class="acc-btn acc-btn--muted acc-card__cta" disabled="disabled">
-            Coming soon
-        </button>
+        <div class="acc-card__actions">
+            <button type="button" class="acc-btn acc-btn--muted acc-card__cta" disabled="disabled">
+                ${Resource.msg('accelerator.card.comingSoon', 'accelerator', null)}
+            </button>
+        </div>
     </isif>
 </article>

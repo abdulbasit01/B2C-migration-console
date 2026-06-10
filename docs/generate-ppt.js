@@ -184,7 +184,7 @@ sectionDivider('03  Migration Goals & Scope', 'What we set out to achieve');
 
     const goals = [
         { color: C.green,  icon: '⚡', title: 'Automate Schema Migration', desc: 'Zero manual attribute creation — tool reads source schema and creates SFCC attributes automatically' },
-        { color: C.blue,   icon: '🔌', title: 'Multi-Platform Support',    desc: 'Single tool that works with commercetools, Shopify Plus, and future platforms via a plug-in connector model' },
+        { color: C.blue,   icon: '🔌', title: 'Multi-Platform Support',    desc: 'Single tool that works with commercetools, Shopify, and future platforms via a plug-in connector model' },
         { color: C.purple, icon: '🗺', title: 'Intelligent Field Mapping',  desc: 'AI-assisted type mapping with confidence scores — highest confidence mappings applied automatically' },
         { color: C.accent, icon: '🔒', title: 'Safe & Idempotent',         desc: 'Existing attributes are detected and skipped — no overwrites, no duplicates, safe to re-run' },
     ];
@@ -217,7 +217,7 @@ sectionDivider('04  Migration Architecture', 'Detailed technical architecture');
     // Source platforms column
     box(s, 0.2, 1.1, 2.8, 0.5, C.gray,   'SOURCE PLATFORMS',        C.white, 10);
     box(s, 0.2, 1.65, 2.8, 0.9, C.green,  'commercetools\nCTP OAuth2',C.white, 11);
-    box(s, 0.2, 2.65, 2.8, 0.9, C.purple, 'Shopify Plus\nclient_credentials', C.white, 11);
+    box(s, 0.2, 2.65, 2.8, 0.9, C.purple, 'Shopify\nclient_credentials', C.white, 11);
     box(s, 0.2, 3.65, 2.8, 0.9, C.orange, 'BigCommerce\n(Coming Soon)', C.white, 11);
     box(s, 0.2, 4.65, 2.8, 0.9, C.gray,   'SAP Commerce\n(Planned)', C.white, 11);
 
@@ -294,7 +294,7 @@ sectionDivider('05  Platform Implementation', 'SFCC, commercetools & Shopify');
 // SLIDE 13 — Shopify Implementation
 // ═══════════════════════════════════════════════════════════════════════════════
 {
-    const s = contentSlide('Shopify Plus — Platform Implementation');
+    const s = contentSlide('Shopify — Platform Implementation');
 
     box(s, 0.3, 1.1, 4.2, 5.6, C.light, '', C.darkGray, 11);
     s.addText('OAuth Flow (client_credentials)', { x: 0.45, y: 1.15, w: 4.0, h: 0.4, fontSize: 12, bold: true, color: C.purple });
@@ -451,7 +451,7 @@ sectionDivider('08  Key Components', 'Responsibilities of each module');
         { name: 'configAccessor.js',  role: 'Config',       color: C.orange, desc: 'Merges config.defaults.js + config.js (gitignored) + session credentials entered in Step 1 into a single config object.' },
         { name: 'attrBuilder.js',     role: 'Builder',      color: C.accent, desc: 'Builds the SFCC OCAPI attribute payload format. Used by all connectors to produce consistent output.' },
         { name: 'ctpConnector.js',    role: 'CTP',          color: C.blue,   desc: 'commercetools connector. OAuth2 auth, paginated product-types + custom-types fetch, 8 object types supported.' },
-        { name: 'shopifyConnector.js',role: 'Shopify',      color: C.purple, desc: 'Shopify Plus connector. client_credentials OAuth, standard fields + GraphQL metafields, 6 object types.' },
+        { name: 'shopifyConnector.js',role: 'Shopify',      color: C.purple, desc: 'Shopify connector. client_credentials OAuth, standard fields + GraphQL metafields, 6 object types.' },
         { name: 'migrationData.js',   role: 'Data',         color: C.gray,   desc: 'Platform definitions, wizard step config, and connect form field definitions for all platforms.' },
     ];
 
@@ -578,7 +578,7 @@ sectionDivider('11  Demo Flow', 'Key use cases and walkthrough');
     const s = contentSlide('Demo Flow & Key Use Cases');
 
     const demoSteps = [
-        { step: '01', title: 'Dashboard', action: 'Open SFCC BM → B2C Migration Console. Select platform: Shopify Plus.', url: 'Accelerator-Start' },
+        { step: '01', title: 'Dashboard', action: 'Open SFCC BM → B2C Migration Console. Select platform: Shopify.', url: 'Accelerator-Start' },
         { step: '02', title: 'Connect',   action: 'Enter Store URL + Client ID + Secret. Click Test Connection → "Connected — My Store".', url: 'Accelerator-TestConnection' },
         { step: '03', title: 'Fetch',     action: 'Schema loads: Product (14 standard), Category (5), Customer (10), Order (10), Inventory (6), CustomerGroup (2). Select all.', url: 'Accelerator-GetSchema' },
         { step: '04', title: 'AI Map',    action: 'Review field mapping table. Green = high confidence. Each field shows source type → SFCC type mapping.', url: 'Accelerator-GetAiMap' },
@@ -647,7 +647,7 @@ sectionDivider('12  Future Enhancements', 'Roadmap and next steps');
     });
 
     box(s, 0.2, 6.3, 12.9, 0.85, C.navy, '', C.white, 11);
-    s.addText('Platform Status:  ✅ commercetools (Ready)  ✅ Shopify Plus (Ready)  🔜 BigCommerce  🔜 SAP Commerce  🔜 Salesforce B2C',
+    s.addText('Platform Status:  ✅ commercetools (Ready)  ✅ Shopify (Ready)  🔜 BigCommerce  🔜 SAP Commerce  🔜 Salesforce B2C',
         { x: 0.35, y: 6.5, w: 12.6, h: 0.5, fontSize: 12, color: C.accent, bold: true, align: 'center' });
 }
 

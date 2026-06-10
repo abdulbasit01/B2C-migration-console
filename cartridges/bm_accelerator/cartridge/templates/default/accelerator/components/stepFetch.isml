@@ -32,16 +32,9 @@
                         </h3>
                     </isif>
                 </div>
-                <ul class="acc-checklist">
+                <ul class="acc-checklist acc-checklist--plain">
                     <isloop items="${section.items}" var="item">
-                        <li>
-                            <isif condition="${section.selectable}">
-                                <span class="acc-tick">&#10003;</span>
-                            <iselse/>
-                                <span class="acc-tick acc-tick--info">&#8505;</span>
-                            </isif>
-                            <span>${item}</span>
-                        </li>
+                        <li><span>${item}</span></li>
                     </isloop>
                 </ul>
                 <isif condition="${!section.selectable}">

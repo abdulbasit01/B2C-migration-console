@@ -42,12 +42,13 @@
 
             <isif condition="${pdict.isLastStep}">
                 <a class="acc-btn acc-btn--primary" href="${pdict.dashboardUrl}">
-                    ${pdict.nextStepLabel} &rarr;
+                    ${pdict.nextStepLabel}
                 </a>
             <iselseif condition="${pdict.nextStep}"/>
-                <a class="acc-btn acc-btn--primary"
+                <a id="acc-next-btn"
+                   class="acc-btn acc-btn--primary${pdict.wizardStep.key === 'move' ? ' acc-btn--disabled' : ''}"
                    href="${pdict.wizardBaseUrl}&amp;step=${pdict.nextStepQuery}">
-                    ${pdict.nextStepLabel} &rarr;
+                    ${pdict.nextStepLabel}
                 </a>
             </isif>
         </footer>

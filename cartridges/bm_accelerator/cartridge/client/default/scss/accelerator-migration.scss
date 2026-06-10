@@ -333,6 +333,12 @@ body.acc-page {
   cursor: not-allowed;
 }
 
+.acc-btn--disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
 /* Advisor banner */
 .acc-advisor {
   display: flex;
@@ -566,6 +572,11 @@ body.acc-page {
   gap: 8px;
   padding: 4px 0;
   font-size: 13px;
+}
+
+.acc-checklist--plain li {
+  display: block;
+  gap: 0;
 }
 
 .acc-tick {
