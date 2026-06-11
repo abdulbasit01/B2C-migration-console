@@ -33,13 +33,16 @@
                         <th>Source field</th>
                         <th>Type supported SFCC</th>
                         <th style="padding-left:28px">Target Attribute ID</th>
+                        <th>Notes</th>
                     </tr>
                 </thead>
                 <tbody>
                     <isloop items="${group.mappings}" var="row">
-                        <tr class="${row.exists ? 'acc-row--exists' : 'acc-row--new'}">
+                        <tr class="${row.sfccNativeAction === 'skip' ? 'acc-row--skip' : (row.exists ? 'acc-row--exists' : 'acc-row--new')}">
                             <td>
-                                <isif condition="${row.exists}">
+                                <isif condition="${row.sfccNativeAction === 'skip'}">
+                                    <span class="acc-badge acc-badge--skip">&#8856; skipped</span>
+                                <iselseif condition="${row.exists}"/>
                                     <span class="acc-badge acc-badge--exists">&#10003; migrated</span>
                                 <iselse/>
                                     <span class="acc-badge acc-badge--new">+ new</span>
@@ -48,6 +51,14 @@
                             <td><code>${row.source}</code></td>
                             <td><code>${row.target}</code></td>
                             <td style="padding-left:28px"><code>${row.attributeId}</code></td>
+                            <td>
+                                <isif condition="${row.sfccNativeNote != null}">
+                                    <span class="acc-info-tip" aria-label="${row.sfccNativeNote}">
+                                        &#9432;
+                                        <span class="acc-info-tip__text">${row.sfccNativeNote}</span>
+                                    </span>
+                                </isif>
+                            </td>
                         </tr>
                     </isloop>
                 </tbody>
