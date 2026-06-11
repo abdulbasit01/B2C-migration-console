@@ -2,9 +2,9 @@
     <h2 class="acc-step-panel__title">
         Step <isprint value="${pdict.currentStep}" formatter="#"/> &mdash; <span class="acc-highlight">${pdict.stepContent.titleSuffix}</span>
     </h2>
-    <p class="acc-step-panel__intro">${pdict.stepContent.intro}</p>
+    <p class="acc-step-panel__intro"></p>
 
-    <div id="acc-move-status" style="display:none;" class="acc-callout acc-callout--info" style="margin-bottom:16px;"></div>
+    <div id="acc-move-status" class="acc-callout acc-callout--info" style="display:none;margin-bottom:20px;"></div>
 
     <ul class="acc-phases" id="acc-phase-list" style="display:none;">
         <isloop items="${pdict.stepContent.selectedTasks}" var="task">
@@ -45,7 +45,6 @@
     var overallEl = document.getElementById('acc-move-overall');
     var statusBox = document.getElementById('acc-move-status');
     var phaseList = document.getElementById('acc-phase-list');
-    var nextBtn   = document.getElementById('acc-next-btn');
 
     function setPhaseState(task, state, detail, pct) {
         var li     = document.getElementById('acc-phase-' + task);
@@ -160,6 +159,7 @@
             saveResults();
             startBtn.disabled    = false;
             startBtn.textContent = '✔ Migration Complete';
+            var nextBtn = document.getElementById('acc-next-btn');
             if (nextBtn) nextBtn.className = nextBtn.className.replace(/\s*acc-btn--disabled/g, '');
             statusBox.style.display = 'block';
             statusBox.className     = totalFailed > 0 ? 'acc-callout acc-callout--error' : 'acc-callout acc-callout--success';

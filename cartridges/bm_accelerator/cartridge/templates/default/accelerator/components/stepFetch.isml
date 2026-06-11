@@ -2,7 +2,7 @@
     <h2 class="acc-step-panel__title">
         Step <isprint value="${pdict.currentStep}" formatter="#"/> &mdash; <span class="acc-highlight">${pdict.stepContent.titleSuffix}</span>
     </h2>
-    <p class="acc-step-panel__intro">${pdict.stepContent.intro}</p>
+    <p class="acc-step-panel__intro"></p>
 
     <div class="acc-fetch-toolbar">
         <button type="button" id="acc-select-all" class="acc-btn acc-btn--ghost acc-btn--sm">Select all</button>
@@ -43,8 +43,6 @@
             </div>
         </isloop>
     </div>
-
-    <p class="acc-note">${pdict.stepContent.summary}</p>
 </section>
 
 <script>
