@@ -1,9 +1,10 @@
 'use strict';
 
-var http        = require('*/cartridge/scripts/migration/core/http');
-var typeMap     = require('*/cartridge/scripts/migration/connectors/shopify/shopifyTypeMap');
-var transformer = require('*/cartridge/scripts/migration/connectors/shopify/shopifyTransformer');
-var cfg         = require('*/cartridge/scripts/migration/configAccessor');
+var http           = require('*/cartridge/scripts/migration/core/http');
+var typeMap        = require('*/cartridge/scripts/migration/connectors/shopify/shopifyTypeMap');
+var transformer    = require('*/cartridge/scripts/migration/connectors/shopify/shopifyTransformer');
+var cfg            = require('*/cartridge/scripts/migration/configAccessor');
+var nativeFieldMap = require('*/cartridge/scripts/migration/config/nativeFieldMap');
 
 // ─── Standard fields per task (fixed schema, no API call needed) ──────────────
 
@@ -305,18 +306,25 @@ function buildAiMapContent(selectedTasks, existingByTask) {
 
         // Standard fields
         for (var sf = 0; sf < stdFields.length; sf++) {
-            var std  = stdFields[sf];
-            var sKey = task + '__' + std.key;
+            var std     = stdFields[sf];
+            var sKey    = task + '__' + std.key;
             if (seen[sKey]) continue;
             seen[sKey] = true;
             totalAttrs++;
-            mappings.push({
+            var stdRule   = nativeFieldMap.getRule('shopify', task, std.key);
+            var stdMapping = {
                 source:      std.key + ' (' + std.type + ')',
                 attributeId: std.key,
                 target:      typeMap.resolveMetafieldType(std.type),
                 confidence:  typeMap.confidence(std.type),
                 exists:      !!(existing[task] && existing[task][std.key])
-            });
+            };
+            if (stdRule) {
+                stdMapping.sfccNativeField  = stdRule.sfccField;
+                stdMapping.sfccNativeNote   = stdRule.note;
+                stdMapping.sfccNativeAction = stdRule.action;
+            }
+            mappings.push(stdMapping);
         }
 
         // Metafield definitions from Shopify GraphQL

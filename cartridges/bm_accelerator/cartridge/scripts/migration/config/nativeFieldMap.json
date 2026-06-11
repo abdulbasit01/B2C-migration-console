@@ -1,0 +1,18 @@
+{
+    "commercetools": {
+        "Product": {
+            "product-description": { "sfccField": "longDescription", "action": "skip" },
+            "description":         { "sfccField": "longDescription", "action": "skip" },
+            "name":                { "sfccField": "name",            "action": "skip" }
+        }
+    },
+    "shopify": {
+        "Product": {
+            "title":    { "sfccField": "name",            "action": "flag" },
+            "body_html": { "sfccField": "longDescription", "action": "flag" }
+        },
+        "Category": {
+            "title": { "sfccField": "displayName", "action": "flag" }
+        }
+    }
+}

@@ -1,11 +1,12 @@
 'use strict';
 
-var Encoding    = require('dw/crypto/Encoding');
-var Bytes       = require('dw/util/Bytes');
-var http        = require('*/cartridge/scripts/migration/core/http');
-var typeMap     = require('*/cartridge/scripts/migration/connectors/ctp/ctpTypeMap');
-var transformer = require('*/cartridge/scripts/migration/connectors/ctp/ctpTransformer');
-var cfg         = require('*/cartridge/scripts/migration/configAccessor');
+var Encoding       = require('dw/crypto/Encoding');
+var Bytes          = require('dw/util/Bytes');
+var http           = require('*/cartridge/scripts/migration/core/http');
+var typeMap        = require('*/cartridge/scripts/migration/connectors/ctp/ctpTypeMap');
+var transformer    = require('*/cartridge/scripts/migration/connectors/ctp/ctpTransformer');
+var cfg            = require('*/cartridge/scripts/migration/configAccessor');
+var nativeFieldMap = require('*/cartridge/scripts/migration/config/nativeFieldMap');
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -224,7 +225,6 @@ function buildFetchContent(counts) {
         var cfCount   = 0;
 
         if (task === 'Product') {
-            items.push('Product types');
             items.push('Product attributes');
         }
 
@@ -296,14 +296,21 @@ function buildAiMapContent(selectedTasks, existingByTask) {
             var key     = 'Product__' + attr.name;
             if (seen[key]) continue;
             seen[key]   = true;
-            var ctpType = attr.type && attr.type.name ? attr.type.name : 'text';
-            productMappings.push({
+            var ctpType  = attr.type && attr.type.name ? attr.type.name : 'text';
+            var rule     = nativeFieldMap.getRule('commercetools', 'Product', attr.name);
+            var mapping  = {
                 source:      attr.name + ' (' + ctpType + ')',
                 attributeId: attr.name,
                 target:      typeMap.resolveProductType(ctpType),
                 confidence:  typeMap.confidence(ctpType),
                 exists:      !!(existing.Product && existing.Product[attr.name])
-            });
+            };
+            if (rule) {
+                mapping.sfccNativeField  = rule.sfccField;
+                mapping.sfccNativeNote   = rule.note;
+                mapping.sfccNativeAction = rule.action;
+            }
+            productMappings.push(mapping);
         }
     }
 

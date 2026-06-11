@@ -1,6 +1,7 @@
 'use strict';
 
-var sfccClient = require('*/cartridge/scripts/migration/sfccClient');
+var sfccClient     = require('*/cartridge/scripts/migration/sfccClient');
+var nativeFieldMap = require('*/cartridge/scripts/migration/config/nativeFieldMap');
 
 /**
  * Maps runner task names to their SFCC system object equivalents.
@@ -46,6 +47,10 @@ function runBatch(connector, task, offset, limit) {
     var errors      = [];
 
     for (var i = 0; i < batch.length; i++) {
+        if (nativeFieldMap.isSkipped(connector.id, task, batch[i].id)) {
+            skipped++;
+            continue;
+        }
         if (existingIds[batch[i].id]) {
             skipped++;
             continue;
