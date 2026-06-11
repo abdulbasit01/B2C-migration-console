@@ -4,12 +4,13 @@
 
 /* eslint-disable no-var */
 
-var ISML          = require('dw/template/ISML');
-var URLUtils      = require('dw/web/URLUtils');
-var Resource      = require('dw/web/Resource');
-var migrationData = require('*/cartridge/scripts/accelerator/migrationData');
-var registry      = require('*/cartridge/scripts/migration/connectors/registry');
-var runner        = require('*/cartridge/scripts/migration/core/runner');
+var ISML           = require('dw/template/ISML');
+var URLUtils       = require('dw/web/URLUtils');
+var Resource       = require('dw/web/Resource');
+var migrationData  = require('*/cartridge/scripts/accelerator/migrationData');
+var registry       = require('*/cartridge/scripts/migration/connectors/registry');
+var runner         = require('*/cartridge/scripts/migration/core/runner');
+var nativeFieldMap = require('*/cartridge/scripts/migration/config/nativeFieldMap');
 
 // SFCC system object names, used to look up existing attributes in step 3.
 // Shared with core/runner.js#TASK_SFCC_OBJECT (imported here to avoid a second definition).
@@ -237,7 +238,9 @@ exports.GetMigratedAttrs = function () {
         var defs  = connector.getAttrDefsForTask(task);
         var attrs = [];
         for (var i = 0; i < defs.length; i++) {
-            attrs.push({ id: defs[i].id, sfccType: defs[i].value_type });
+            if (!nativeFieldMap.isSkipped(connector.id, task, defs[i].id)) {
+                attrs.push({ id: defs[i].id, sfccType: defs[i].value_type });
+            }
         }
         jsonResponse({ ok: true, task: task, attrs: attrs });
     } catch (e) {
