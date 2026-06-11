@@ -15,7 +15,6 @@
         <section class="acc-section">
             <header class="acc-section__head">
                 <h2>${Resource.msg('accelerator.platforms.heading', 'accelerator', null)}</h2>
-                <p>${Resource.msg('accelerator.platforms.subheading', 'accelerator', null)}</p>
             </header>
             <div class="acc-cards">
                 <isloop items="${pdict.platforms}" var="platform">

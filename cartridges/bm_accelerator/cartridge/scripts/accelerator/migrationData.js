@@ -16,7 +16,7 @@ var PLATFORMS = [
         status:      'ready',
         confidence:  75,
         featured:    true,
-        description: 'Migrate commercetools customers, products, categories, orders, and price lists into Salesforce B2B Commerce, mapping catalogs/pricing models with moderate transformation and extensions.',
+        description: 'Migrate commercetools customers, products, categories, orders, and price lists into Salesforce B2C Commerce, mapping catalogs/pricing models with moderate transformation and extensions.',
         iconClass:   'platform-icon--commercetools',
         connectHint: 'Credentials are pre-loaded from your project configuration.',
         connectFields: [
@@ -29,11 +29,11 @@ var PLATFORMS = [
     },
     {
         id:          'shopify',
-        name:        'Shopify Plus',
-        tagline:     'B2B, Markets, Headless',
+        name:        'Shopify',
+        tagline:     'B2C, Markets, Headless',
         status:      'ready',
         confidence:  92,
-        description: 'Migrate Shopify Plus customers, products, collections, orders, and price lists into Salesforce B2B Commerce with high-confidence field mapping.',
+        description: 'Migrate Shopify customers, products, collections, orders, and price lists into Salesforce B2C Commerce with high-confidence field mapping.',
         iconClass:   'platform-icon--shopify',
         connectHint: 'Enter your Shopify store URL and Admin API credentials.',
         connectFields: [
@@ -46,10 +46,10 @@ var PLATFORMS = [
     {
         id:          'bigcommerce',
         name:        'BigCommerce',
-        tagline:     'B2B Edition, Multi-store',
+        tagline:     'B2C Edition, Multi-store',
         status:      'soon',
         confidence:  88,
-        description: 'Migrate BigCommerce B2B customers, catalog, categories, orders, and contract pricing into Salesforce B2B Commerce.',
+        description: 'Migrate BigCommerce B2C customers, catalog, categories, orders, and contract pricing into Salesforce B2C Commerce.',
         iconClass:   'platform-icon--bigcommerce',
         connectHint: 'Provide your BigCommerce store hash and API credentials.',
         connectFields: [
@@ -61,10 +61,10 @@ var PLATFORMS = [
     {
         id:          'sap',
         name:        'SAP Commerce',
-        tagline:     'B2B, OCC, Integrations',
+        tagline:     'B2C, OCC, Integrations',
         status:      'soon',
         confidence:  0,
-        description: 'SAP Commerce Cloud to Salesforce B2B Commerce migration path (planned).',
+        description: 'SAP Commerce Cloud to Salesforce B2C Commerce migration path (planned).',
         iconClass:   'platform-icon--sap',
         connectHint: '',
         connectFields: []
@@ -152,10 +152,8 @@ function getWizardStep(step) {
     return WIZARD_STEPS[stepNum - 1];
 }
 
-function getNextStepLabel(currentStep) {
-    var stepNum = parseInt(String(currentStep), 10) || 1;
-    if (stepNum >= WIZARD_STEPS.length) return 'Finish';
-    return 'Continue to ' + WIZARD_STEPS[stepNum].label;
+function getNextStepLabel() {
+    return 'Continue';
 }
 
 module.exports = {

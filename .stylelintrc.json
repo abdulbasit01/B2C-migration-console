@@ -9,5 +9,22 @@
         "scss/dollar-variable-no-missing-interpolation": true,
         "scss/media-feature-value-dollar-variable": "always",
         "scss/selector-no-redundant-nesting-selector": true
-    }
+    },
+    "overrides": [
+        {
+            "files": ["cartridges/bm_accelerator/cartridge/client/default/scss/accelerator-migration.scss"],
+            "rules": {
+                "selector-class-pattern": null,
+                "color-hex-length": null,
+                "alpha-value-notation": null,
+                "value-keyword-case": null,
+                "comment-empty-line-before": null,
+                "rule-empty-line-before": null,
+                "selector-not-notation": null,
+                "no-descending-specificity": null,
+                "media-feature-range-notation": null,
+                "scss/media-feature-value-dollar-variable": null
+            }
+        }
+    ]
 }

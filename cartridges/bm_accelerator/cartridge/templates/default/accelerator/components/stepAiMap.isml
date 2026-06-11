@@ -2,7 +2,7 @@
     <h2 class="acc-step-panel__title">
         Step <isprint value="${pdict.currentStep}" formatter="#"/> &mdash; <span class="acc-highlight">${pdict.stepContent.titleSuffix}</span>
     </h2>
-    <p class="acc-step-panel__intro">${pdict.stepContent.intro}</p>
+    <p class="acc-step-panel__intro"></p>
 
     <isif condition="${pdict.stepContent.groups.length === 0}">
         <div class="acc-callout acc-callout--error">
@@ -15,14 +15,14 @@
                 <h3 class="acc-mapping-group__title">
                     <span class="acc-mapping-group__icon">&#9776;</span>
                     ${group.title}
-                    <span class="acc-mapping-group__total">${group.total} attrs</span>
+                    <span class="acc-mapping-group__total"><isprint value="${group.total}" formatter="#"/> attrs</span>
                 </h3>
                 <div class="acc-mapping-group__badges">
                     <isif condition="${group.existsCount > 0}">
-                        <span class="acc-badge acc-badge--exists">&#10003; ${group.existsCount} migrated</span>
+                        <span class="acc-badge acc-badge--exists">&#10003; <isprint value="${group.existsCount}" formatter="#"/> migrated</span>
                     </isif>
                     <isif condition="${group.newCount > 0}">
-                        <span class="acc-badge acc-badge--new">+ ${group.newCount} new</span>
+                        <span class="acc-badge acc-badge--new">+ <isprint value="${group.newCount}" formatter="#"/> new</span>
                     </isif>
                 </div>
             </div>
@@ -31,7 +31,7 @@
                     <tr>
                         <th>Status</th>
                         <th>Source field</th>
-                        <th>Type supported</th>
+                        <th>Type supported SFCC</th>
                         <th style="padding-left:28px">Target Attribute ID</th>
                     </tr>
                 </thead>

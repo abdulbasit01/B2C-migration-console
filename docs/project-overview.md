@@ -15,7 +15,7 @@ Think of it as a **data structure translator** — it takes the "shape" of data 
 │   Source Platform   │ ──────► │  Migration Console     │ ──────► │  SFCC Business   │
 │                     │  reads  │  (runs inside SFCC BM) │ creates │  Manager         │
 │  commercetools  OR  │         │                        │         │                  │
-│  Shopify Plus       │         │  5-step guided wizard  │         │  Custom fields   │
+│  Shopify            │         │  5-step guided wizard  │         │  Custom fields   │
 │  (more coming soon) │         │                        │         │  on Products,    │
 └─────────────────────┘         └────────────────────────┘         │  Orders, etc.    │
                                                                    └──────────────────┘
@@ -33,7 +33,7 @@ The user enters their login credentials for the source platform (commercetools o
 | Platform      | What you need                              |
 |---------------|--------------------------------------------|
 | commercetools | Project Key, Client ID, Secret, API URL    |
-| Shopify Plus  | Store URL, Client ID, Secret               |
+| Shopify   | Store URL, Client ID, Secret               |
 
 ### Step 2 — Fetch
 The tool connects to the source platform and counts all available field definitions. It shows a breakdown so the user can choose which data types to migrate (Products, Orders, Customers, etc.).
@@ -68,7 +68,7 @@ A final summary report showing:
 | Platform       | Status       | What gets migrated                                      |
 |----------------|--------------|---------------------------------------------------------|
 | commercetools  | Ready        | Products, Categories, Customers, Orders, Inventory, Lists, Promotions |
-| Shopify Plus   | Ready        | Products (14 standard fields + custom metafields), Customers, Orders |
+| Shopify    | Ready        | Products (14 standard fields + custom metafields), Customers, Orders |
 | BigCommerce    | Coming Soon  | —                                                       |
 | Salesforce B2C | Coming Soon  | —                                                       |
 | SAP Commerce   | Coming Soon  | —                                                       |

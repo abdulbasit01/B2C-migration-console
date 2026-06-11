@@ -2,7 +2,7 @@
     <h2 class="acc-step-panel__title">
         Step <isprint value="${pdict.currentStep}" formatter="#"/> &mdash; Connect to <span class="acc-highlight">${pdict.platform.name}</span>
     </h2>
-    <p class="acc-step-panel__intro">${pdict.platform.connectHint}</p>
+    <p class="acc-step-panel__intro"></p>
     <form class="acc-form" id="acc-connect-form" action="#" method="post" onsubmit="return false;">
         <input type="hidden" name="platformId" value="${pdict.platform.id}" />
         <isloop items="${pdict.platform.connectFields}" var="field">
@@ -22,53 +22,5 @@
                 />
             </div>
         </isloop>
-
-        <button type="button" id="acc-test-btn" class="acc-btn acc-btn--secondary acc-form__test">
-            &#9889; ${Resource.msg('accelerator.wizard.testConnection', 'accelerator', null)}
-        </button>
-        <span id="acc-test-result" style="margin-left:12px;font-size:0.9em;vertical-align:middle;"></span>
     </form>
 </section>
-
-<script>
-(function () {
-    var btn       = document.getElementById('acc-test-btn');
-    var resultEl  = document.getElementById('acc-test-result');
-    var testUrl   = '${URLUtils.url("Accelerator-TestConnection")}';
-
-    btn.addEventListener('click', function () {
-        resultEl.style.color = '#888';
-        resultEl.textContent = 'Testing…';
-        btn.disabled = true;
-
-        var form   = document.getElementById('acc-connect-form');
-        var inputs = form.querySelectorAll('input');
-        var params = [];
-        for (var i = 0; i < inputs.length; i++) {
-            params.push(encodeURIComponent(inputs[i].name) + '=' + encodeURIComponent(inputs[i].value));
-        }
-
-        var xhr = new XMLHttpRequest();
-        xhr.open('POST', testUrl, true);
-        xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
-        xhr.onreadystatechange = function () {
-            if (xhr.readyState !== 4) return;
-            btn.disabled = false;
-            try {
-                var data = JSON.parse(xhr.responseText);
-                if (data.ok) {
-                    resultEl.style.color = '#2e7d32';
-                    resultEl.textContent = '✔ Connected — project: ' + (data.project.name || data.project.key);
-                } else {
-                    resultEl.style.color = '#c62828';
-                    resultEl.textContent = '✖ ' + (data.error || 'Connection failed.');
-                }
-            } catch (e) {
-                resultEl.style.color = '#c62828';
-                resultEl.textContent = '✖ Unexpected response.';
-            }
-        };
-        xhr.send(params.join('&'));
-    });
-}());
-</script>
