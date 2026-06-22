@@ -66,10 +66,10 @@
         var form   = document.getElementById('prod-connect-form');
         var inputs = form.querySelectorAll('input[name]');
         var params = '';
-        for (var i = 0; i < inputs.length; i++) {
+        Array.prototype.forEach.call(inputs, function (input) {
             if (params) params += '&';
-            params += encodeURIComponent(inputs[i].name) + '=' + encodeURIComponent(inputs[i].value);
-        }
+            params += encodeURIComponent(input.name) + '=' + encodeURIComponent(input.value);
+        });
 
         post(TEST_URL, params, function (data) {
             testBtn.disabled    = false;
