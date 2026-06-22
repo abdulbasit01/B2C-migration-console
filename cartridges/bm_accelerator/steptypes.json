@@ -24,6 +24,31 @@
                     }
                 ]
             }
+        },
+        {
+            "@type-id": "custom.ImportCtpProducts",
+            "description": "Import CTP products from catalog XML files uploaded by migration tool (reads from /Impex/src/instance/ctp-product-migration/)",
+            "module": "bm_accelerator/cartridge/scripts/jobsteps/importCtpProducts",
+            "function": "execute",
+            "transactional": false,
+            "parameters": {
+                "parameter": [
+                    {
+                        "@name": "ImportDirectory",
+                        "@type": "String",
+                        "@required": "false",
+                        "description": "Sub-directory inside /Impex/src/instance/ containing the XML files (default: ctp-product-migration)",
+                        "default-value": "ctp-product-migration"
+                    },
+                    {
+                        "@name": "CatalogID",
+                        "@type": "String",
+                        "@required": "false",
+                        "description": "SFCC Catalog ID to import products into — used as fallback if config.json is absent",
+                        "default-value": ""
+                    }
+                ]
+            }
         }]
     }
 }

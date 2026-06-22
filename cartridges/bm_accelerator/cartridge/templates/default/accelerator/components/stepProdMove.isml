@@ -1,0 +1,273 @@
+<section class="acc-step-panel">
+    <h2 class="acc-step-panel__title">
+        Step <isprint value="${pdict.currentStep}" formatter="#"/> &mdash; <span class="acc-highlight">Move Products</span>
+    </h2>
+    <p class="acc-step-panel__intro">
+        Fetching products from CTP in batches of 500, building SFCC catalog XML, and uploading via WebDAV.
+    </p>
+
+    <div id="acc-move-status" class="acc-callout acc-callout--info" style="display:none;margin-bottom:20px;"></div>
+
+    <ul class="acc-phases" id="acc-phase-list" style="display:none;">
+        <li class="acc-phases__item acc-phases__item--pending" id="acc-phase-build">
+            <div class="acc-phases__head">
+                <span>Phase 1 &mdash; Build &amp; Upload XML Files</span>
+                <span class="acc-phases__status" id="acc-status-build">pending</span>
+            </div>
+            <p class="acc-phases__detail" id="acc-detail-build"></p>
+            <div class="acc-progress">
+                <div class="acc-progress__bar" id="acc-bar-build" style="width:0%"></div>
+            </div>
+        </li>
+        <li class="acc-phases__item acc-phases__item--pending" id="acc-phase-import">
+            <div class="acc-phases__head">
+                <span>Phase 2 &mdash; BM Import</span>
+                <span class="acc-phases__status" id="acc-status-import">pending</span>
+            </div>
+            <p class="acc-phases__detail" id="acc-detail-import">Waiting for Phase 1&hellip;</p>
+            <div id="prod-phase2-controls" style="display:none;margin-top:14px;">
+
+                <!-- Catalog Products Job (custom step) -->
+                <p style="font-size:13px;font-weight:600;margin:0 0 6px;">1. Catalog Products &mdash; trigger custom job:</p>
+                <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
+                    <label for="prod-job-id" style="font-size:13px;color:#54698d;white-space:nowrap;">Job ID:</label>
+                    <input id="prod-job-id" type="text" class="acc-form__input"
+                           value="CTP-Product-Import"
+                           style="width:220px;font-family:monospace;font-size:12px;"/>
+                    <button type="button" id="prod-trigger-btn" class="acc-btn acc-btn--secondary">
+                        &#9658; Trigger
+                    </button>
+                </div>
+                <div id="prod-job-status-msg" style="margin-bottom:14px;font-size:13px;color:#54698d;"></div>
+
+                <!-- Pricebook + Inventory — manual BM import -->
+                <div style="background:#f4f6f9;border:1px solid #dddbda;border-radius:4px;padding:14px 16px;font-size:13px;line-height:1.7;">
+                    <strong>2. Price Books</strong> &mdash; import manually in BM:<br/>
+                    <strong>Merchant Tools &rarr; Products and Catalogs &rarr; Import &amp; Export &rarr; Price Book Import</strong><br/>
+                    File location:
+                    <code style="background:#e0e5ee;padding:1px 5px;border-radius:3px;font-family:monospace;font-size:11px;">/Impex/src/instance/ctp-product-migration/pricebook-*.xml</code>
+                    <br/><br/>
+                    <strong>3. Inventory</strong> &mdash; import manually in BM:<br/>
+                    <strong>Merchant Tools &rarr; Products and Catalogs &rarr; Import &amp; Export &rarr; Inventory Import</strong><br/>
+                    File location:
+                    <code style="background:#e0e5ee;padding:1px 5px;border-radius:3px;font-family:monospace;font-size:11px;">/Impex/src/instance/ctp-product-migration/inventory-*.xml</code>
+                </div>
+            </div>
+        </li>
+    </ul>
+
+    <div class="acc-move-actions">
+        <button type="button" id="acc-start-btn" class="acc-btn acc-btn--primary">
+            &#9654; Start Migration
+        </button>
+        <span id="acc-move-overall" style="margin-left:14px;font-size:13px;color:#54698d;"></span>
+    </div>
+</section>
+
+<script>
+(function () {
+    var CATALOG_ID        = '${pdict.stepContent.catalogId}';
+    var PRICEBOOK_ID      = '${pdict.stepContent.pricebookId}';
+    var CURRENCY          = '${pdict.stepContent.currency}';
+    var INVENTORY_LIST_ID = '${pdict.stepContent.inventoryListId}';
+    var FULL_BATCH_URL    = '${pdict.stepContent.fullBatchUrl}';
+    var TRIGGER_JOB_URL   = '${pdict.stepContent.triggerJobUrl}';
+    var JOB_STATUS_URL    = '${pdict.stepContent.jobStatusUrl}';
+    var SAVE_RESULTS_URL  = '${pdict.stepContent.saveResultsUrl}';
+
+    var startBtn   = document.getElementById('acc-start-btn');
+    var overallEl  = document.getElementById('acc-move-overall');
+    var statusBox  = document.getElementById('acc-move-status');
+    var phaseList  = document.getElementById('acc-phase-list');
+    var nextBtn    = document.getElementById('acc-next-btn');
+
+    var built          = 0;
+    var failed         = 0;
+    var files          = 0;
+    var pricesBuilt    = 0;
+    var inventoryBuilt = 0;
+    var running        = false;
+
+    function post(url, params, onDone) {
+        var req = new XMLHttpRequest();
+        req.open('POST', url, true);
+        req.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+        req.onreadystatechange = function () {
+            if (req.readyState !== 4) return;
+            var data;
+            try { data = JSON.parse(req.responseText); } catch (e) { data = { ok: false, error: 'Parse error' }; }
+            onDone(data);
+        };
+        req.send(params);
+    }
+
+    function setPhase(id, state, detail, pct) {
+        var li  = document.getElementById('acc-phase-' + id);
+        var st  = document.getElementById('acc-status-' + id);
+        var det = document.getElementById('acc-detail-' + id);
+        var bar = document.getElementById('acc-bar-' + id);
+        if (!li) return;
+        li.className = 'acc-phases__item acc-phases__item--' + state;
+        if (st)  st.textContent  = state;
+        if (det && detail !== null) det.textContent = detail || '';
+        if (bar) bar.style.width = (pct || 0) + '%';
+    }
+
+    function saveResults(results) {
+        var req = new XMLHttpRequest();
+        req.open('POST', SAVE_RESULTS_URL, true);
+        req.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+        req.send('results=' + encodeURIComponent(JSON.stringify(results)));
+    }
+
+    function onPhase1Complete(success) {
+        running              = false;
+        startBtn.disabled    = false;
+        startBtn.textContent = success ? 'Phase 1 Done' : 'Build Failed';
+        statusBox.style.display = 'block';
+        statusBox.className     = success ? 'acc-callout acc-callout--success' : 'acc-callout acc-callout--warning';
+
+        if (success) {
+            statusBox.innerHTML = '<strong>Phase 1 complete.</strong> '
+                + files + ' batch(es) uploaded &mdash; '
+                + built + ' product(s), '
+                + pricesBuilt + ' price(s), '
+                + inventoryBuilt + ' inventory record(s). '
+                + 'Use Phase 2 below to trigger the import job.';
+            var p2ctrl = document.getElementById('prod-phase2-controls');
+            if (p2ctrl) p2ctrl.style.display = 'block';
+            setPhase('import', 'active', 'Enter Job ID below and click Trigger to import.', null);
+            if (nextBtn) {
+                nextBtn.className = nextBtn.className.replace(/\s*acc-btn--disabled/g, '');
+                nextBtn.href      = '${pdict.wizardBaseUrl}?step=${pdict.nextStep}';
+            }
+            saveResults({ filesUploaded: files, productsBuilt: built, pricesBuilt: pricesBuilt, inventoryBuilt: inventoryBuilt, failed: failed });
+        } else {
+            statusBox.textContent = 'XML build failed — check BM logs for details.';
+        }
+    }
+
+    function runBatch(offset, total) {
+        var pct = (total > 0) ? Math.round((offset / total) * 100) : 0;
+        setPhase('build', 'active',
+            offset + ' / ' + (total || '?') + ' processed… (' + files + ' batch(es) uploaded)', pct);
+
+        post(
+            FULL_BATCH_URL,
+            'offset='          + offset
+            + '&catalogId='        + encodeURIComponent(CATALOG_ID)
+            + '&pricebookId='      + encodeURIComponent(PRICEBOOK_ID)
+            + '&currency='         + encodeURIComponent(CURRENCY)
+            + '&inventoryListId='  + encodeURIComponent(INVENTORY_LIST_ID),
+            function (data) {
+                if (!data.ok) {
+                    setPhase('build', 'error', data.error || 'Failed', pct);
+                    onPhase1Complete(false);
+                    return;
+                }
+                built          += (data.built          || 0);
+                failed         += (data.failed         || 0);
+                pricesBuilt    += (data.pricesBuilt    || 0);
+                inventoryBuilt += (data.inventoryBuilt || 0);
+                files++;
+                overallEl.textContent = files + ' batch(es): '
+                    + built + ' product(s), '
+                    + pricesBuilt + ' price(s), '
+                    + inventoryBuilt + ' inventory record(s)'
+                    + (failed ? ' — ' + failed + ' failed' : '');
+
+                if (!data.done) {
+                    runBatch(data.nextOffset, data.total);
+                } else {
+                    var st = (failed > 0 && built === 0) ? 'error' : (failed > 0) ? 'warning' : 'done';
+                    setPhase('build', st,
+                        files + ' batch(es) uploaded — '
+                        + built + ' product(s), ' + pricesBuilt + ' price(s), ' + inventoryBuilt + ' inventory record(s)'
+                        + (failed ? ' — ' + failed + ' skipped' : ''), 100);
+                    setPhase('import', 'active', 'Files ready — run Import Products job in BM to finish.', null);
+                    onPhase1Complete(true);
+                }
+            }
+        );
+    }
+
+    function triggerJob() {
+        var jobId      = document.getElementById('prod-job-id').value.trim();
+        var triggerBtn = document.getElementById('prod-trigger-btn');
+        var jobMsg     = document.getElementById('prod-job-status-msg');
+        if (!jobId) return;
+        triggerBtn.disabled    = true;
+        triggerBtn.textContent = 'Triggering…';
+        jobMsg.textContent     = '';
+        post(TRIGGER_JOB_URL, 'jobId=' + encodeURIComponent(jobId), function (data) {
+            if (!data.ok) {
+                triggerBtn.disabled    = false;
+                triggerBtn.textContent = 'Retry';
+                jobMsg.textContent     = 'Error: ' + (data.error || 'Could not trigger job');
+                jobMsg.style.color     = '#c62828';
+                setPhase('import', 'error', 'Job trigger failed: ' + (data.error || 'unknown'), null);
+                return;
+            }
+            var execId = data.executionId || '';
+            jobMsg.textContent = 'Job started (execution: ' + execId + ') — polling every 5 s…';
+            setPhase('import', 'active', 'Job running (execution: ' + execId + ')', null);
+            pollJobStatus(jobId, execId);
+        });
+    }
+
+    function pollJobStatus(jobId, executionId) {
+        var jobMsg = document.getElementById('prod-job-status-msg');
+        post(
+            JOB_STATUS_URL,
+            'jobId=' + encodeURIComponent(jobId) + '&executionId=' + encodeURIComponent(executionId),
+            function (data) {
+                if (!data.ok) {
+                    if (jobMsg) { jobMsg.textContent = 'Status check failed: ' + (data.error || 'unknown'); jobMsg.style.color = '#c62828'; }
+                    setTimeout(function () { pollJobStatus(jobId, executionId); }, 10000);
+                    return;
+                }
+                var status  = data.status || 'unknown';
+                var durText = data.duration ? ' (' + data.duration + ' s)' : '';
+                if (jobMsg) jobMsg.textContent = 'Job status: ' + status + durText;
+                if (status === 'finished') {
+                    if (jobMsg) jobMsg.style.color = '#2e7d32';
+                    setPhase('import', 'done', 'Import complete' + durText, null);
+                    statusBox.innerHTML = '<strong>Migration complete!</strong> ' + files + ' XML file(s) imported via job <em>' + jobId + '</em>' + durText + '.';
+                    statusBox.className = 'acc-callout acc-callout--success';
+                } else if (status === 'failed' || status === 'aborted' || status === 'expired') {
+                    if (jobMsg) jobMsg.style.color = '#c62828';
+                    setPhase('import', 'error', 'Job ' + status + durText, null);
+                    var tb = document.getElementById('prod-trigger-btn');
+                    if (tb) { tb.disabled = false; tb.textContent = 'Retry Job'; }
+                } else {
+                    if (jobMsg) jobMsg.style.color = '#54698d';
+                    setTimeout(function () { pollJobStatus(jobId, executionId); }, 5000);
+                }
+            }
+        );
+    }
+
+    document.addEventListener('click', function (evt) {
+        if (evt.target && evt.target.id === 'prod-trigger-btn') triggerJob();
+    });
+
+    startBtn.addEventListener('click', function () {
+        if (running) return;
+        if (!CATALOG_ID) {
+            statusBox.style.display = 'block';
+            statusBox.className     = 'acc-callout acc-callout--error';
+            statusBox.textContent   = 'No Catalog ID found. Go back to Configure and enter one.';
+            return;
+        }
+        running   = true;
+        built = 0; failed = 0; files = 0; pricesBuilt = 0; inventoryBuilt = 0;
+        startBtn.disabled    = true;
+        startBtn.textContent = 'Building…';
+        statusBox.style.display = 'none';
+        phaseList.style.display = 'block';
+        setPhase('build',  'pending', '', 0);
+        setPhase('import', 'pending', null, 0);
+        runBatch(0, 0);
+    });
+}());
+</script>
