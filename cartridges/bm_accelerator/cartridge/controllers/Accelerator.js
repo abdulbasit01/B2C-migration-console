@@ -648,93 +648,19 @@ exports.FullMigrationJobStatus.public = true;
  * Produces SFCC catalog XML files uploaded via WebDAV, then triggers a BM import job.
  */
 exports.ProductWizard = function () {
-    var params    = request.httpParameterMap;
-    var stepParam = 1;
-
-    if (params.step && params.step.submitted) {
-        var parsed = parseInt(String(params.step.stringValue || '1'), 10);
-        if (!Number.isNaN(parsed) && parsed > 0) stepParam = parsed;
-    }
-
-    var currentStep = Math.min(Math.max(stepParam, 1), migrationData.maxProductStep);
-    var wizardStep  = migrationData.getProductWizardStep(currentStep);
-    var platform    = migrationData.getPlatform('commercetools');
-    var stepContent = null;
-    var prevStep    = currentStep > 1 ? currentStep - 1 : null;
-    var nextStep    = currentStep < migrationData.maxProductStep ? currentStep + 1 : null;
-
-    // Step 1: connect — pre-compute URL and field values; template hardcodes CTP fields
-    if (currentStep === 1) {
-        var ctpFields = platform.connectFields || [];
-        var ctpMap = {};
-        for (var cf = 0; cf < ctpFields.length; cf++) {
-            ctpMap[ctpFields[cf].name] = String(ctpFields[cf].value || '');
-        }
-        stepContent = {
-            testConnectionUrl: URLUtils.url('Accelerator-TestConnection').toString(),
-            projectKey:  ctpMap.projectKey  || '',
-            clientId:    ctpMap.clientId    || '',
-            clientSecret: ctpMap.clientSecret || '',
-            apiUrl:      ctpMap.apiUrl      || '',
-            scopes:      ctpMap.scopes      || ''
-        };
-    }
-
-    // Step 2: fetch product count from CTP
-    if (currentStep === 2) {
-        try {
-            var prodFetcher2 = require('*/cartridge/scripts/migration/productMigration/ctpProductFetcher');
-            stepContent = { total: prodFetcher2.getCount(), error: null };
-        } catch (e) {
-            stepContent = { total: 0, error: e.message || String(e) };
-        }
-    }
-
-    // Step 3: configure — read persisted values from session
-    if (currentStep === 3) {
-        stepContent = {
-            catalogId:       String(session.custom.prodWizardCatalogId       || ''),
-            pricebookId:     String(session.custom.prodWizardPricebookId     || 'list-prices'),
-            currency:        String(session.custom.prodWizardCurrency        || 'USD'),
-            inventoryListId: String(session.custom.prodWizardInventoryListId || 'default-inventory')
-        };
-    }
-
-    // Step 4: move — read config from session, build URLs for inline JS
-    if (currentStep === 4) {
-        stepContent = {
-            catalogId:       String(session.custom.prodWizardCatalogId       || ''),
-            pricebookId:     String(session.custom.prodWizardPricebookId     || 'list-prices'),
-            currency:        String(session.custom.prodWizardCurrency        || 'USD'),
-            inventoryListId: String(session.custom.prodWizardInventoryListId || 'default-inventory'),
-            fullBatchUrl:    URLUtils.url('Accelerator-FullProductMigrationBuildBatch').toString(),
-            triggerJobUrl:   URLUtils.url('Accelerator-FullMigrationTriggerJob').toString(),
-            jobStatusUrl:    URLUtils.url('Accelerator-FullMigrationJobStatus').toString(),
-            saveResultsUrl:  URLUtils.url('Accelerator-SaveProdWizardResults').toString()
-        };
-    }
-
-    // Step 5: view — parse results from session
-    if (currentStep === 5) {
-        var rawRes5 = String(session.custom.prodWizardResults || 'null');
-        var results5 = null;
-        try { results5 = JSON.parse(rawRes5); } catch (e) { /* no results yet */ }
-        stepContent = { results: results5 };
-    }
-
-    ISML.renderTemplate('accelerator/productWizard', {
-        title:        Resource.msg('accelerator.title', 'accelerator', null),
-        platform:     platform,
-        wizardSteps:  migrationData.getProductWizardSteps(),
-        currentStep:  currentStep,
-        wizardStep:   wizardStep,
-        stepContent:  stepContent,
-        prevStep:     prevStep,
-        nextStep:     nextStep,
-        isLastStep:   currentStep >= migrationData.maxProductStep,
-        dashboardUrl: URLUtils.url('Accelerator-Start').toString(),
-        wizardBaseUrl: URLUtils.url('Accelerator-ProductWizard').toString(),
-        cssUrl:       URLUtils.staticURL('/css/accelerator-migration.css').toString()
+    ISML.renderTemplate('accelerator/productMigration', {
+        title:          Resource.msg('accelerator.title', 'accelerator', null),
+        catalogId:      String(session.custom.prodWizardCatalogId       || ''),
+        pricebookId:    String(session.custom.prodWizardPricebookId     || 'list-prices'),
+        currency:       String(session.custom.prodWizardCurrency        || 'USD'),
+        inventoryListId: String(session.custom.prodWizardInventoryListId || 'default-inventory'),
+        countUrl:       URLUtils.url('Accelerator-ProductMigrationCount').toString(),
+        fullBatchUrl:   URLUtils.url('Accelerator-FullProductMigrationBuildBatch').toString(),
+        triggerJobUrl:  URLUtils.url('Accelerator-FullMigrationTriggerJob').toString(),
+        jobStatusUrl:   URLUtils.url('Accelerator-FullMigrationJobStatus').toString(),
+        saveConfigUrl:  URLUtils.url('Accelerator-SaveProdConfig').toString(),
+        dashboardUrl:   URLUtils.url('Accelerator-Start').toString(),
+        cssUrl:         URLUtils.staticURL('/css/accelerator-migration.css').toString()
     });
 };
 exports.ProductWizard.public = true;
