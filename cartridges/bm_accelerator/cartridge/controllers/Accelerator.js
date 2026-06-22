@@ -303,11 +303,12 @@ exports.SaveMigrationResults.public = true;
 
 exports.Start = function () {
     ISML.renderTemplate('accelerator/dashboard', {
-        title:      Resource.msg('accelerator.title', 'accelerator', null),
-        subtitle:   Resource.msg('accelerator.subtitle', 'accelerator', null),
-        platforms:  migrationData.getPlatforms(),
-        wizardUrl:  URLUtils.url('Accelerator-Wizard').toString(),
-        cssUrl:     URLUtils.staticURL('/css/accelerator-migration.css').toString()
+        title:                Resource.msg('accelerator.title', 'accelerator', null),
+        subtitle:             Resource.msg('accelerator.subtitle', 'accelerator', null),
+        platforms:            migrationData.getPlatforms(),
+        wizardUrl:            URLUtils.url('Accelerator-Wizard').toString(),
+        customerMigrationUrl: URLUtils.url('Accelerator-CustomerMigration').toString(),
+        cssUrl:               URLUtils.staticURL('/css/accelerator-migration.css').toString()
     });
 };
 exports.Start.public = true;
@@ -423,3 +424,218 @@ exports.Wizard = function () {
     });
 };
 exports.Wizard.public = true;
+
+// ─── Customer data migration ──────────────────────────────────────────────────
+
+/**
+ * Customer migration page — standalone, separate from the schema wizard.
+ */
+exports.CustomerMigration = function () {
+    var cfg2           = require('*/cartridge/scripts/migration/configAccessor');
+    var customerListId = (cfg2.sfcc && cfg2.sfcc.customerListId) ? cfg2.sfcc.customerListId : '';
+    ISML.renderTemplate('accelerator/customerMigration', {
+        title:          Resource.msg('accelerator.title', 'accelerator', null),
+        subtitle:       Resource.msg('accelerator.subtitle', 'accelerator', null),
+        customerListId: customerListId,
+        dashboardUrl:   URLUtils.url('Accelerator-Start').toString(),
+        cssUrl:         URLUtils.staticURL('/css/accelerator-migration.css').toString(),
+        countUrl:       URLUtils.url('Accelerator-CustomerMigrationCount').toString(),
+        profileUrl:     URLUtils.url('Accelerator-MigrateCustomerBatch').toString(),
+        addressUrl:     URLUtils.url('Accelerator-MigrateCustomerAddresses').toString(),
+        fullBatchUrl:   URLUtils.url('Accelerator-FullMigrationBuildBatch').toString(),
+        byIdUrl:        URLUtils.url('Accelerator-MigrateCustomerById').toString(),
+        triggerJobUrl:  URLUtils.url('Accelerator-FullMigrationTriggerJob').toString(),
+        jobStatusUrl:   URLUtils.url('Accelerator-FullMigrationJobStatus').toString()
+    });
+};
+exports.CustomerMigration.public = true;
+
+/**
+ * Return the total number of customers in the CTP project.
+ * GET/POST — no params required.
+ */
+exports.CustomerMigrationCount = function () {
+    try {
+        var ctpFetcher = require('*/cartridge/scripts/migration/customerMigration/ctpCustomerFetcher');
+        jsonResponse({ ok: true, total: ctpFetcher.getCount() });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.CustomerMigrationCount.public = true;
+
+/**
+ * Migrate one batch of customer profiles from CTP to SFCC.
+ * POST: offset=<n>&listId=<sfcc-customer-list-id>
+ * Response includes mappings[] for the caller to drive phase 2 (address migration).
+ */
+exports.MigrateCustomerBatch = function () {
+    var offset = parseInt(getParam('offset') || '0', 10);
+    var listId = getParam('listId');
+
+    if (!listId) {
+        jsonResponse({ ok: false, error: 'listId parameter is required' });
+        return;
+    }
+    try {
+        var custRunner = require('*/cartridge/scripts/migration/customerMigration/customerMigrationRunner');
+        jsonResponse(custRunner.runProfileBatch(offset, listId));
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.MigrateCustomerBatch.public = true;
+
+/**
+ * Migrate addresses for one already-created SFCC customer.
+ * POST: customerNo=<sfcc-no>&listId=<id>&addresses=<json-array>&offset=<n>
+ */
+exports.MigrateCustomerAddresses = function () {
+    var customerNo = getParam('customerNo');
+    var listId     = getParam('listId');
+    var offset     = parseInt(getParam('offset') || '0', 10);
+    var rawAddrs   = getParam('addresses');
+
+    if (!customerNo || !listId) {
+        jsonResponse({ ok: false, error: 'customerNo and listId are required' });
+        return;
+    }
+
+    var addresses = [];
+    try {
+        addresses = JSON.parse(rawAddrs || '[]');
+    } catch (e) {
+        jsonResponse({ ok: false, error: 'Invalid addresses JSON' });
+        return;
+    }
+
+    try {
+        var custRunner2 = require('*/cartridge/scripts/migration/customerMigration/customerMigrationRunner');
+        jsonResponse(custRunner2.runAddressBatch(customerNo, addresses, listId, offset));
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.MigrateCustomerAddresses.public = true;
+
+/**
+ * Full Migration — fetch one batch of 500 CTP customers, build SFCC import XML, upload via WebDAV.
+ * POST: offset=<n>&listId=<sfcc-customer-list-id>
+ */
+exports.FullMigrationBuildBatch = function () {
+    var offset = parseInt(getParam('offset') || '0', 10);
+    var listId = getParam('listId');
+
+    if (!listId) {
+        jsonResponse({ ok: false, error: 'listId is required' });
+        return;
+    }
+    try {
+        var fullRunner = require('*/cartridge/scripts/migration/customerMigration/fullMigrationRunner');
+        jsonResponse(fullRunner.runBatch(offset, listId));
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.FullMigrationBuildBatch.public = true;
+
+/**
+ * Partial Migration (ID mode) — migrate one specific customer by CTP customer ID.
+ * POST: ctpId=<ctp-uuid>&listId=<sfcc-customer-list-id>
+ */
+exports.MigrateCustomerById = function () {
+    var ctpId  = getParam('ctpId');
+    var listId = getParam('listId');
+
+    if (!ctpId || !listId) {
+        jsonResponse({ ok: false, error: 'ctpId and listId are required' });
+        return;
+    }
+    try {
+        var runner = require('*/cartridge/scripts/migration/customerMigration/customerMigrationRunner');
+        jsonResponse(runner.runProfileBatchById(ctpId, listId));
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.MigrateCustomerById.public = true;
+
+/**
+ * Full Migration — trigger the SFCC import job via OCAPI Data API (self-call).
+ * POST: jobId=<BM-job-id>
+ *
+ * Prerequisite: the OCAPI client configured in sfccClient must have the Jobs resource
+ * with POST method enabled in Administration → Global Preferences → Open Commerce API Settings.
+ */
+exports.FullMigrationTriggerJob = function () {
+    var jobId = getParam('jobId');
+    if (!jobId) {
+        jsonResponse({ ok: false, error: 'jobId is required' });
+        return;
+    }
+    try {
+        var sfccClient4 = require('*/cartridge/scripts/migration/sfccClient');
+        var token       = sfccClient4.getSFCCToken();
+        var HTTPClient4 = require('dw/net/HTTPClient');
+        var http4       = new HTTPClient4();
+        var url4        = 'https://' + request.httpHost
+                        + '/s/-/dw/data/v24_5/jobs/' + encodeURIComponent(jobId) + '/executions';
+        http4.open('POST', url4);
+        http4.setRequestHeader('Authorization', 'Bearer ' + token);
+        http4.setRequestHeader('Content-Type', 'application/json');
+        http4.send('{}');
+        var sc4 = http4.statusCode;
+        if (sc4 === 200 || sc4 === 201) {
+            var resp4 = {};
+            try { resp4 = JSON.parse(http4.text || '{}'); } catch (pe) {}
+            jsonResponse({ ok: true, executionId: String(resp4.id || ''), status: String(resp4.status || 'pending') });
+        } else {
+            jsonResponse({ ok: false, error: 'OCAPI trigger failed (HTTP ' + sc4 + '): ' + (http4.text || '') });
+        }
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.FullMigrationTriggerJob.public = true;
+
+/**
+ * Full Migration — poll the execution status of an import job.
+ * POST: jobId=<BM-job-id>&executionId=<execution-id>
+ */
+exports.FullMigrationJobStatus = function () {
+    var jobId5       = getParam('jobId');
+    var executionId5 = getParam('executionId');
+    if (!jobId5 || !executionId5) {
+        jsonResponse({ ok: false, error: 'jobId and executionId are required' });
+        return;
+    }
+    try {
+        var sfccClient5 = require('*/cartridge/scripts/migration/sfccClient');
+        var token5      = sfccClient5.getSFCCToken();
+        var HTTPClient5 = require('dw/net/HTTPClient');
+        var http5       = new HTTPClient5();
+        var url5        = 'https://' + request.httpHost
+                        + '/s/-/dw/data/v24_5/jobs/' + encodeURIComponent(jobId5)
+                        + '/executions/' + encodeURIComponent(executionId5);
+        http5.open('GET', url5);
+        http5.setRequestHeader('Authorization', 'Bearer ' + token5);
+        http5.send(null);
+        var sc5 = http5.statusCode;
+        if (sc5 === 200) {
+            var resp5 = {};
+            try { resp5 = JSON.parse(http5.text || '{}'); } catch (pe) {}
+            var dur5 = resp5.duration ? Math.round(resp5.duration / 1000) : null;
+            jsonResponse({
+                ok:       true,
+                status:   String(resp5.status || 'unknown'),
+                duration: dur5,
+                message:  resp5.end_time ? 'Completed at ' + resp5.end_time : null
+            });
+        } else {
+            jsonResponse({ ok: false, error: 'Status check failed (HTTP ' + sc5 + ')' });
+        }
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.FullMigrationJobStatus.public = true;
