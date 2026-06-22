@@ -663,6 +663,13 @@ exports.ProductWizard = function () {
     var prevStep    = currentStep > 1 ? currentStep - 1 : null;
     var nextStep    = currentStep < migrationData.maxProductStep ? currentStep + 1 : null;
 
+    // Step 1: connect — pre-compute URL so template avoids URLUtils calls with quoted args
+    if (currentStep === 1) {
+        stepContent = {
+            testConnectionUrl: URLUtils.url('Accelerator-TestConnection').toString()
+        };
+    }
+
     // Step 2: fetch product count from CTP
     if (currentStep === 2) {
         try {

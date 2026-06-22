@@ -35,8 +35,7 @@
 
 <script>
 (function () {
-    var TEST_URL = '${URLUtils.url("Accelerator-TestConnection")}';
-    var NEXT_URL = '${pdict.wizardBaseUrl}?step=${pdict.nextStep}';
+    var TEST_URL = '${pdict.stepContent.testConnectionUrl}';
 
     function post(url, params, onDone) {
         var req = new XMLHttpRequest();
@@ -55,7 +54,7 @@
     var statusEl = document.getElementById('prod-connect-status');
     var nextBtn  = document.getElementById('acc-next-btn');
 
-    if (nextBtn) nextBtn.href = NEXT_URL;
+    if (nextBtn) nextBtn.href = '${pdict.wizardBaseUrl}?step=${pdict.nextStep}';
 
     testBtn.addEventListener('click', function () {
         testBtn.disabled    = true;
