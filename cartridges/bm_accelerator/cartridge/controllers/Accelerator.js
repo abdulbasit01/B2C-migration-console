@@ -308,6 +308,7 @@ exports.Start = function () {
         platforms:            migrationData.getPlatforms(),
         wizardUrl:            URLUtils.url('Accelerator-Wizard').toString(),
         customerMigrationUrl: URLUtils.url('Accelerator-CustomerMigration').toString(),
+        productWizardUrl:     URLUtils.url('Accelerator-ProductWizard').toString(),
         cssUrl:               URLUtils.staticURL('/css/accelerator-migration.css').toString()
     });
 };
@@ -552,8 +553,8 @@ exports.MigrateCustomerById = function () {
         return;
     }
     try {
-        var runner = require('*/cartridge/scripts/migration/customerMigration/customerMigrationRunner');
-        jsonResponse(runner.runProfileBatchById(ctpId, listId));
+        var byIdRunner = require('*/cartridge/scripts/migration/customerMigration/customerMigrationRunner');
+        jsonResponse(byIdRunner.runProfileBatchById(ctpId, listId));
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
     }
@@ -587,7 +588,7 @@ exports.FullMigrationTriggerJob = function () {
         var sc4 = http4.statusCode;
         if (sc4 === 200 || sc4 === 201) {
             var resp4 = {};
-            try { resp4 = JSON.parse(http4.text || '{}'); } catch (pe) {}
+            try { resp4 = JSON.parse(http4.text || '{}'); } catch (pe) { resp4 = {}; }
             jsonResponse({ ok: true, executionId: String(resp4.id || ''), status: String(resp4.status || 'pending') });
         } else {
             jsonResponse({ ok: false, error: 'OCAPI trigger failed (HTTP ' + sc4 + '): ' + (http4.text || '') });
@@ -623,7 +624,7 @@ exports.FullMigrationJobStatus = function () {
         var sc5 = http5.statusCode;
         if (sc5 === 200) {
             var resp5 = {};
-            try { resp5 = JSON.parse(http5.text || '{}'); } catch (pe) {}
+            try { resp5 = JSON.parse(http5.text || '{}'); } catch (pe) { resp5 = {}; }
             var dur5 = resp5.duration ? Math.round(resp5.duration / 1000) : null;
             jsonResponse({
                 ok:       true,
@@ -639,3 +640,154 @@ exports.FullMigrationJobStatus = function () {
     }
 };
 exports.FullMigrationJobStatus.public = true;
+
+// ─── Product catalog migration wizard ─────────────────────────────────────────
+
+/**
+ * Product migration wizard — 5-step flow: Connect → Fetch → Configure → Move → View.
+ * Produces SFCC catalog XML files uploaded via WebDAV, then triggers a BM import job.
+ */
+exports.ProductWizard = function () {
+    var params    = request.httpParameterMap;
+    var stepParam = 1;
+
+    if (params.step && params.step.submitted) {
+        var parsed = parseInt(String(params.step.stringValue || '1'), 10);
+        if (!Number.isNaN(parsed) && parsed > 0) stepParam = parsed;
+    }
+
+    var currentStep = Math.min(Math.max(stepParam, 1), migrationData.maxProductStep);
+    var wizardStep  = migrationData.getProductWizardStep(currentStep);
+    var platform    = migrationData.getPlatform('commercetools');
+    var stepContent = null;
+    var prevStep    = currentStep > 1 ? currentStep - 1 : null;
+    var nextStep    = currentStep < migrationData.maxProductStep ? currentStep + 1 : null;
+
+    // Step 2: fetch product count from CTP
+    if (currentStep === 2) {
+        try {
+            var prodFetcher2 = require('*/cartridge/scripts/migration/productMigration/ctpProductFetcher');
+            stepContent = { total: prodFetcher2.getCount(), error: null };
+        } catch (e) {
+            stepContent = { total: 0, error: e.message || String(e) };
+        }
+    }
+
+    // Step 3: configure — read persisted values from session
+    if (currentStep === 3) {
+        stepContent = {
+            catalogId:       String(session.custom.prodWizardCatalogId       || ''),
+            pricebookId:     String(session.custom.prodWizardPricebookId     || 'list-prices'),
+            currency:        String(session.custom.prodWizardCurrency        || 'USD'),
+            inventoryListId: String(session.custom.prodWizardInventoryListId || 'default-inventory')
+        };
+    }
+
+    // Step 4: move — read config from session, build URLs for inline JS
+    if (currentStep === 4) {
+        stepContent = {
+            catalogId:       String(session.custom.prodWizardCatalogId       || ''),
+            pricebookId:     String(session.custom.prodWizardPricebookId     || 'list-prices'),
+            currency:        String(session.custom.prodWizardCurrency        || 'USD'),
+            inventoryListId: String(session.custom.prodWizardInventoryListId || 'default-inventory'),
+            fullBatchUrl:    URLUtils.url('Accelerator-FullProductMigrationBuildBatch').toString(),
+            triggerJobUrl:   URLUtils.url('Accelerator-FullMigrationTriggerJob').toString(),
+            jobStatusUrl:    URLUtils.url('Accelerator-FullMigrationJobStatus').toString(),
+            saveResultsUrl:  URLUtils.url('Accelerator-SaveProdWizardResults').toString()
+        };
+    }
+
+    // Step 5: view — parse results from session
+    if (currentStep === 5) {
+        var rawRes5 = String(session.custom.prodWizardResults || 'null');
+        var results5 = null;
+        try { results5 = JSON.parse(rawRes5); } catch (e) { /* no results yet */ }
+        stepContent = { results: results5 };
+    }
+
+    ISML.renderTemplate('accelerator/productWizard', {
+        title:        Resource.msg('accelerator.title', 'accelerator', null),
+        platform:     platform,
+        wizardSteps:  migrationData.getProductWizardSteps(),
+        currentStep:  currentStep,
+        wizardStep:   wizardStep,
+        stepContent:  stepContent,
+        prevStep:     prevStep,
+        nextStep:     nextStep,
+        isLastStep:   currentStep >= migrationData.maxProductStep,
+        dashboardUrl: URLUtils.url('Accelerator-Start').toString(),
+        wizardBaseUrl: URLUtils.url('Accelerator-ProductWizard').toString(),
+        cssUrl:       URLUtils.staticURL('/css/accelerator-migration.css').toString()
+    });
+};
+exports.ProductWizard.public = true;
+
+/**
+ * Save product wizard configuration (Step 3) to session.
+ * POST: catalogId=<id>&pricebookId=<id>&currency=<code>&inventoryListId=<id>
+ */
+exports.SaveProdConfig = function () {
+    var catalogId       = getParam('catalogId');
+    var pricebookId     = getParam('pricebookId')     || 'list-prices';
+    var currency        = getParam('currency')         || 'USD';
+    var inventoryListId = getParam('inventoryListId')  || 'default-inventory';
+
+    if (!catalogId) {
+        jsonResponse({ ok: false, error: 'catalogId is required' });
+        return;
+    }
+    session.custom.prodWizardCatalogId       = catalogId;
+    session.custom.prodWizardPricebookId     = pricebookId;
+    session.custom.prodWizardCurrency        = currency.toUpperCase();
+    session.custom.prodWizardInventoryListId = inventoryListId;
+    jsonResponse({ ok: true });
+};
+exports.SaveProdConfig.public = true;
+
+/**
+ * Save product wizard migration results (Step 4) to session for display in Step 5.
+ * POST: results=<json>
+ */
+exports.SaveProdWizardResults = function () {
+    var raw = getParam('results');
+    if (raw) session.custom.prodWizardResults = raw;
+    jsonResponse({ ok: true });
+};
+exports.SaveProdWizardResults.public = true;
+
+/**
+ * Return total number of products in the CTP project.
+ */
+exports.ProductMigrationCount = function () {
+    try {
+        var prodFetcher = require('*/cartridge/scripts/migration/productMigration/ctpProductFetcher');
+        jsonResponse({ ok: true, total: prodFetcher.getCount() });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.ProductMigrationCount.public = true;
+
+/**
+ * Full Product Migration — fetch one batch of 500 CTP products, build catalog + pricebook + inventory XML, upload via WebDAV.
+ * POST: offset=<n>&catalogId=<id>&pricebookId=<id>&currency=<code>&inventoryListId=<id>
+ */
+exports.FullProductMigrationBuildBatch = function () {
+    var offset          = parseInt(getParam('offset') || '0', 10);
+    var catalogId       = getParam('catalogId')       || String(session.custom.prodWizardCatalogId       || '');
+    var pricebookId     = getParam('pricebookId')     || String(session.custom.prodWizardPricebookId     || 'list-prices');
+    var currency        = getParam('currency')        || String(session.custom.prodWizardCurrency        || 'USD');
+    var inventoryListId = getParam('inventoryListId') || String(session.custom.prodWizardInventoryListId || 'default-inventory');
+
+    if (!catalogId) {
+        jsonResponse({ ok: false, error: 'catalogId is required' });
+        return;
+    }
+    try {
+        var prodRunner = require('*/cartridge/scripts/migration/productMigration/fullProductMigrationRunner');
+        jsonResponse(prodRunner.runBatch(offset, catalogId, pricebookId, currency, inventoryListId));
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.FullProductMigrationBuildBatch.public = true;

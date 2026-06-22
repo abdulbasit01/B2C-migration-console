@@ -8,6 +8,14 @@ var WIZARD_STEPS = [
     { id: 5, key: 'view',   label: 'View' }
 ];
 
+var PRODUCT_WIZARD_STEPS = [
+    { id: 1, key: 'prod-connect',   label: 'Connect' },
+    { id: 2, key: 'prod-fetch',     label: 'Fetch' },
+    { id: 3, key: 'prod-configure', label: 'Configure' },
+    { id: 4, key: 'prod-move',      label: 'Move' },
+    { id: 5, key: 'prod-view',      label: 'View' }
+];
+
 var PLATFORMS = [
     {
         id:          'commercetools',
@@ -156,11 +164,28 @@ function getNextStepLabel() {
     return 'Continue';
 }
 
+function getProductWizardSteps() {
+    var steps = [];
+    for (var i = 0; i < PRODUCT_WIZARD_STEPS.length; i++) {
+        var s = PRODUCT_WIZARD_STEPS[i];
+        steps.push({ id: parseInt(String(s.id), 10), key: s.key, label: s.label });
+    }
+    return steps;
+}
+
+function getProductWizardStep(step) {
+    var stepNum = Math.min(Math.max(parseInt(String(step), 10) || 1, 1), PRODUCT_WIZARD_STEPS.length);
+    return PRODUCT_WIZARD_STEPS[stepNum - 1];
+}
+
 module.exports = {
-    getPlatform:      getPlatform,
-    getPlatforms:     getPlatforms,
-    getWizardSteps:   getWizardSteps,
-    getWizardStep:    getWizardStep,
-    getNextStepLabel: getNextStepLabel,
-    maxStep:          WIZARD_STEPS.length
+    getPlatform:             getPlatform,
+    getPlatforms:            getPlatforms,
+    getWizardSteps:          getWizardSteps,
+    getWizardStep:           getWizardStep,
+    getNextStepLabel:        getNextStepLabel,
+    maxStep:                 WIZARD_STEPS.length,
+    getProductWizardSteps:   getProductWizardSteps,
+    getProductWizardStep:    getProductWizardStep,
+    maxProductStep:          PRODUCT_WIZARD_STEPS.length
 };
