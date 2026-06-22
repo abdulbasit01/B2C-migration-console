@@ -29,22 +29,6 @@
             font-size: 12px;
             margin-top: 4px;
         }
-        .acc-config-grid {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 16px;
-            margin: 24px 0 20px;
-        }
-        .acc-config-field {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
-        .acc-config-field label {
-            font-weight: 600;
-            font-size: 13px;
-            color: #16325c;
-        }
     </style>
 </head>
 <body class="acc-page">
@@ -60,64 +44,45 @@
         <header class="acc-section__head">
             <h2>Product Catalog Migration &mdash; <span class="acc-highlight">Commercetools &rarr; SFCC</span></h2>
             <p style="font-size:14px;color:#54698d;margin-top:6px;max-width:640px;">
-                Fetches products from Commercetools in batches of 500, builds SFCC catalog XML (products, pricebook, inventory),
-                and uploads via WebDAV. Then triggers a BM import job to load the data into SFCC.
+                Migrates products (with variants and images) from Commercetools to SFCC.
+                Products are fetched in batches of 500, built into SFCC catalog XML, and uploaded via WebDAV.
+                A BM import job then loads them into the catalog.
             </p>
         </header>
 
-        <!-- ── SFCC Config ── -->
-        <div class="acc-config-grid">
-            <div class="acc-config-field">
-                <label for="prod-catalog-id">Catalog ID <span style="color:#c62828;">*</span></label>
-                <input id="prod-catalog-id" type="text" class="acc-form__input"
-                       placeholder="e.g. storefront-catalog-en"
-                       value="${pdict.catalogId}"
-                       style="width:240px;"/>
-                <span id="prod-catalog-error" class="acc-field-error">Catalog ID is required.</span>
-            </div>
-            <div class="acc-config-field">
-                <label for="prod-pricebook-id">Pricebook ID</label>
-                <input id="prod-pricebook-id" type="text" class="acc-form__input"
-                       value="${pdict.pricebookId}"
-                       style="width:200px;"/>
-            </div>
-            <div class="acc-config-field">
-                <label for="prod-currency">Currency</label>
-                <input id="prod-currency" type="text" class="acc-form__input"
-                       value="${pdict.currency}"
-                       style="width:100px;"/>
-            </div>
-            <div class="acc-config-field">
-                <label for="prod-inventory-id">Inventory List ID</label>
-                <input id="prod-inventory-id" type="text" class="acc-form__input"
-                       value="${pdict.inventoryListId}"
-                       style="width:200px;"/>
-            </div>
-            <div class="acc-config-field" style="justify-content:flex-end;">
-                <label style="visibility:hidden;">-</label>
-                <div style="display:flex;align-items:center;gap:10px;">
-                    <button id="prod-check-btn" type="button" class="acc-btn acc-btn--ghost">Check Count</button>
-                    <span id="prod-count-badge" style="font-size:13px;color:#54698d;"></span>
+        <!-- ── Config row ── -->
+        <div style="margin:24px 0 16px;">
+            <div style="display:flex;align-items:flex-start;flex-wrap:wrap;gap:10px;">
+                <label for="prod-catalog-id" style="font-weight:600;font-size:14px;white-space:nowrap;padding-top:6px;">
+                    SFCC Catalog ID <span style="color:#c62828;">*</span>
+                </label>
+                <div>
+                    <input id="prod-catalog-id" type="text" class="acc-form__input"
+                           placeholder="e.g. storefront-catalog-en"
+                           value="${pdict.catalogId}"
+                           style="width:280px;"/>
+                    <span id="prod-catalog-error" class="acc-field-error">Catalog ID is required.</span>
                 </div>
+                <button id="prod-check-btn" type="button" class="acc-btn acc-btn--ghost">Check Count</button>
+                <span id="prod-count-badge" style="font-size:13px;color:#54698d;padding-top:6px;"></span>
             </div>
         </div>
 
         <!-- ── How it works ── -->
         <div class="acc-info-box">
             <strong>How Product Migration works:</strong><br/>
-            <strong>Phase 1</strong> fetches products from Commercetools in batches of 500, builds SFCC catalog XML,
-            pricebook XML, and inventory XML, and uploads each file to WebDAV at
-            <code>/Impex/src/instance/ctp-product-migration/</code>.<br/>
-            <strong>Phase 2</strong> triggers a BM job to import the catalog XML. Pricebook and inventory files
-            must be imported manually via <strong>BM &rarr; Merchant Tools &rarr; Products and Catalogs &rarr;
-            Import &amp; Export</strong>.
+            <strong>Phase 1</strong> fetches products from Commercetools in batches of 500, builds SFCC catalog XML
+            (products with variants, localised names/descriptions, and image references), and uploads each file to
+            WebDAV at <code>/Impex/src/instance/ctp-product-migration/</code>.<br/>
+            <strong>Phase 2</strong> triggers a BM catalog import job to load the XML into SFCC.
+            After import, products appear under <strong>BM &rarr; Merchant Tools &rarr; Products and Catalogs</strong>.
         </div>
 
         <!-- ── Phase progress bars ── -->
         <ul class="acc-phases" id="prod-phase-list" style="display:none;margin-bottom:24px;">
             <li class="acc-phases__item acc-phases__item--pending" id="prod-phase-build">
                 <div class="acc-phases__head">
-                    <span>Phase 1 &mdash; Build &amp; Upload XML Files</span>
+                    <span>Phase 1 &mdash; Build &amp; Upload Catalog XML</span>
                     <span class="acc-phases__status" id="prod-status-build">pending</span>
                 </div>
                 <p class="acc-phases__detail" id="prod-detail-build"></p>
@@ -134,8 +99,7 @@
                 <div id="prod-phase2-controls" style="display:none;margin-top:14px;">
                     <p style="font-size:13px;color:#54698d;margin:0 0 10px;">
                         XML files are ready in <code>/Impex/src/instance/ctp-product-migration/</code>.
-                        Enter the BM Job ID below and click <strong>Trigger</strong> to run the catalog import automatically.
-                        Pricebook and inventory must be imported manually via BM.
+                        Enter the BM Job ID below and click <strong>Trigger</strong> to run the catalog import.
                     </p>
                     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
                         <label for="prod-job-id" style="font-size:13px;font-weight:600;white-space:nowrap;">BM Job ID:</label>
@@ -167,16 +131,13 @@
 
 <script>
 (function () {
-    var COUNT_URL      = '${pdict.countUrl}';
-    var BATCH_URL      = '${pdict.fullBatchUrl}';
-    var TRIGGER_URL    = '${pdict.triggerJobUrl}';
-    var STATUS_URL     = '${pdict.jobStatusUrl}';
-    var SAVE_CFG_URL   = '${pdict.saveConfigUrl}';
+    var COUNT_URL    = '${pdict.countUrl}';
+    var BATCH_URL    = '${pdict.fullBatchUrl}';
+    var TRIGGER_URL  = '${pdict.triggerJobUrl}';
+    var STATUS_URL   = '${pdict.jobStatusUrl}';
+    var SAVE_CFG_URL = '${pdict.saveConfigUrl}';
 
     var catalogEl   = document.getElementById('prod-catalog-id');
-    var pricebookEl = document.getElementById('prod-pricebook-id');
-    var currencyEl  = document.getElementById('prod-currency');
-    var inventoryEl = document.getElementById('prod-inventory-id');
     var checkBtn    = document.getElementById('prod-check-btn');
     var countBadge  = document.getElementById('prod-count-badge');
     var startBtn    = document.getElementById('prod-start-btn');
@@ -184,12 +145,10 @@
     var statusBox   = document.getElementById('prod-move-status');
     var phaseList   = document.getElementById('prod-phase-list');
 
-    var built          = 0;
-    var failed         = 0;
-    var files          = 0;
-    var pricesBuilt    = 0;
-    var inventoryBuilt = 0;
-    var running        = false;
+    var built   = 0;
+    var failed  = 0;
+    var files   = 0;
+    var running = false;
 
     function post(url, params, onDone) {
         var req = new XMLHttpRequest();
@@ -249,10 +208,7 @@
     // ── Phase 1: batch loop ──────────────────────────────────────────────────
 
     function runBatch(offset, total) {
-        var catalogId   = catalogEl.value.trim();
-        var pricebookId = pricebookEl.value.trim() || 'list-prices';
-        var currency    = currencyEl.value.trim()  || 'USD';
-        var inventoryId = inventoryEl.value.trim() || 'default-inventory';
+        var catalogId = catalogEl.value.trim();
         var pct = (total > 0) ? Math.round((offset / total) * 100) : 0;
 
         setPhase('build', 'active',
@@ -260,27 +216,19 @@
 
         post(
             BATCH_URL,
-            'offset='         + offset
-            + '&catalogId='       + encodeURIComponent(catalogId)
-            + '&pricebookId='     + encodeURIComponent(pricebookId)
-            + '&currency='        + encodeURIComponent(currency)
-            + '&inventoryListId=' + encodeURIComponent(inventoryId),
+            'offset=' + offset + '&catalogId=' + encodeURIComponent(catalogId),
             function (data) {
                 if (!data.ok) {
                     setPhase('build', 'error', data.error || 'Failed', pct);
                     finalize(false);
                     return;
                 }
-                built          += (data.built          || 0);
-                failed         += (data.failed         || 0);
-                pricesBuilt    += (data.pricesBuilt    || 0);
-                inventoryBuilt += (data.inventoryBuilt || 0);
+                built  += (data.built  || 0);
+                failed += (data.failed || 0);
                 files++;
 
                 overallEl.textContent = files + ' file(s): '
-                    + built + ' product(s), '
-                    + pricesBuilt + ' price(s), '
-                    + inventoryBuilt + ' inventory record(s)'
+                    + built + ' product(s) built'
                     + (failed ? ' — ' + failed + ' failed' : '');
 
                 if (!data.done) {
@@ -288,8 +236,7 @@
                 } else {
                     var st = (failed > 0 && built === 0) ? 'error' : (failed > 0) ? 'warning' : 'done';
                     setPhase('build', st,
-                        files + ' file(s) uploaded — '
-                        + built + ' product(s), ' + pricesBuilt + ' price(s), ' + inventoryBuilt + ' inventory record(s)'
+                        files + ' file(s) uploaded — ' + built + ' product(s)'
                         + (failed ? ' — ' + failed + ' skipped' : ''), 100);
                     finalize(true);
                 }
@@ -309,8 +256,8 @@
 
         if (success) {
             statusBox.innerHTML = '<strong>Phase 1 complete.</strong> '
-                + files + ' batch(es) uploaded to <code>/Impex/src/instance/ctp-product-migration/</code>. '
-                + built + ' product(s), ' + pricesBuilt + ' price(s), ' + inventoryBuilt + ' inventory record(s). '
+                + files + ' XML file(s) uploaded to <code>/Impex/src/instance/ctp-product-migration/</code>. '
+                + built + ' product(s) built. '
                 + 'Use Phase 2 below to trigger the catalog import job.';
             var p2ctrl = document.getElementById('prod-phase2-controls');
             if (p2ctrl) p2ctrl.style.display = 'block';
@@ -402,7 +349,7 @@
         if (running) return;
 
         running = true;
-        built = 0; failed = 0; files = 0; pricesBuilt = 0; inventoryBuilt = 0;
+        built = 0; failed = 0; files = 0;
 
         startBtn.disabled    = true;
         startBtn.textContent = 'Building...';
@@ -413,19 +360,9 @@
         setPhase('build',  'pending', '', 0);
         setPhase('import', 'pending', null, 0);
 
-        // Save config to session first, then run batches
-        var pricebookId = pricebookEl.value.trim() || 'list-prices';
-        var currency    = currencyEl.value.trim()  || 'USD';
-        var inventoryId = inventoryEl.value.trim() || 'default-inventory';
-
-        post(
-            SAVE_CFG_URL,
-            'catalogId='       + encodeURIComponent(catalogId)
-            + '&pricebookId='  + encodeURIComponent(pricebookId)
-            + '&currency='     + encodeURIComponent(currency)
-            + '&inventoryListId=' + encodeURIComponent(inventoryId),
-            function () { runBatch(0, 0); }
-        );
+        post(SAVE_CFG_URL, 'catalogId=' + encodeURIComponent(catalogId), function () {
+            runBatch(0, 0);
+        });
     });
 
 }());

@@ -649,18 +649,15 @@ exports.FullMigrationJobStatus.public = true;
  */
 exports.ProductWizard = function () {
     ISML.renderTemplate('accelerator/productMigration', {
-        title:          Resource.msg('accelerator.title', 'accelerator', null),
-        catalogId:      String(session.custom.prodWizardCatalogId       || ''),
-        pricebookId:    String(session.custom.prodWizardPricebookId     || 'list-prices'),
-        currency:       String(session.custom.prodWizardCurrency        || 'USD'),
-        inventoryListId: String(session.custom.prodWizardInventoryListId || 'default-inventory'),
-        countUrl:       URLUtils.url('Accelerator-ProductMigrationCount').toString(),
-        fullBatchUrl:   URLUtils.url('Accelerator-FullProductMigrationBuildBatch').toString(),
-        triggerJobUrl:  URLUtils.url('Accelerator-FullMigrationTriggerJob').toString(),
-        jobStatusUrl:   URLUtils.url('Accelerator-FullMigrationJobStatus').toString(),
-        saveConfigUrl:  URLUtils.url('Accelerator-SaveProdConfig').toString(),
-        dashboardUrl:   URLUtils.url('Accelerator-Start').toString(),
-        cssUrl:         URLUtils.staticURL('/css/accelerator-migration.css').toString()
+        title:        Resource.msg('accelerator.title', 'accelerator', null),
+        catalogId:    String(session.custom.prodWizardCatalogId || ''),
+        countUrl:     URLUtils.url('Accelerator-ProductMigrationCount').toString(),
+        fullBatchUrl: URLUtils.url('Accelerator-FullProductMigrationBuildBatch').toString(),
+        triggerJobUrl: URLUtils.url('Accelerator-FullMigrationTriggerJob').toString(),
+        jobStatusUrl:  URLUtils.url('Accelerator-FullMigrationJobStatus').toString(),
+        saveConfigUrl: URLUtils.url('Accelerator-SaveProdConfig').toString(),
+        dashboardUrl:  URLUtils.url('Accelerator-Start').toString(),
+        cssUrl:        URLUtils.staticURL('/css/accelerator-migration.css').toString()
     });
 };
 exports.ProductWizard.public = true;
