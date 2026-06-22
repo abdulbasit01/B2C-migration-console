@@ -12,7 +12,7 @@
                         "@name": "ImportDirectory",
                         "@type": "String",
                         "@required": "false",
-                        "description": "Sub-directory  inside /Impex/src/instance/ containing the XML files (default: ctp-migration)",
+                        "description": "Sub-directory   inside /Impex/src/instance/ containing the XML files (default: ctp-migration)",
                         "default-value": "ctp-migration"
                     },
                     {
