@@ -3,23 +3,22 @@
         "script-module-step": [{
             "@type-id": "custom.ImportCtpCustomers",
             "description": "Import CTP customers from XML files uploaded by the migration tool (reads from /Impex/src/instance/ctp-migration/)",
-            "@module": "bm_accelerator/cartridge/scripts/jobsteps/importCtpCustomers",
-            "@function": "execute",
-            "@transactional": false,
-            "@timeout-in-seconds": 7200,
+            "module": "bm_accelerator/cartridge/scripts/jobsteps/importCtpCustomers",
+            "function": "execute",
+            "transactional": false,
             "parameters": {
                 "parameter": [
                     {
                         "@name": "ImportDirectory",
                         "@type": "String",
-                        "@required": false,
+                        "@required": "false",
                         "description": "Sub-directory inside /Impex/src/instance/ containing the XML files (default: ctp-migration)",
                         "default-value": "ctp-migration"
                     },
                     {
                         "@name": "CustomerListID",
                         "@type": "String",
-                        "@required": false,
+                        "@required": "false",
                         "description": "SFCC Customer List ID to import customers into — used as fallback if config.json is absent",
                         "default-value": ""
                     }
