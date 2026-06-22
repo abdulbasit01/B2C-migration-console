@@ -663,10 +663,20 @@ exports.ProductWizard = function () {
     var prevStep    = currentStep > 1 ? currentStep - 1 : null;
     var nextStep    = currentStep < migrationData.maxProductStep ? currentStep + 1 : null;
 
-    // Step 1: connect — pre-compute URL so template avoids URLUtils calls with quoted args
+    // Step 1: connect — pre-compute URL and field values; template hardcodes CTP fields
     if (currentStep === 1) {
+        var ctpFields = platform.connectFields || [];
+        var ctpMap = {};
+        for (var cf = 0; cf < ctpFields.length; cf++) {
+            ctpMap[ctpFields[cf].name] = String(ctpFields[cf].value || '');
+        }
         stepContent = {
-            testConnectionUrl: URLUtils.url('Accelerator-TestConnection').toString()
+            testConnectionUrl: URLUtils.url('Accelerator-TestConnection').toString(),
+            projectKey:  ctpMap.projectKey  || '',
+            clientId:    ctpMap.clientId    || '',
+            clientSecret: ctpMap.clientSecret || '',
+            apiUrl:      ctpMap.apiUrl      || '',
+            scopes:      ctpMap.scopes      || ''
         };
     }
 
