@@ -14,18 +14,23 @@ var FULL_CUSTOM_ATTRS = [
     { id: 'CTCustomerId',        display: 'CT Customer ID'      }
 ];
 
+var CTP_ATTR_GROUP_ID   = 'CTPMigration';
+var CTP_ATTR_GROUP_NAME = 'CTP Migration';
+
 function ensureAttributes() {
     try {
         var token = sfccClient.getSFCCToken();
+        try { sfccClient.ensureAttributeGroup(token, 'Profile', CTP_ATTR_GROUP_ID, CTP_ATTR_GROUP_NAME); } catch (ge) {}
         for (var i = 0; i < FULL_CUSTOM_ATTRS.length; i++) {
             var a = FULL_CUSTOM_ATTRS[i];
             try {
-                sfccClient.createAttributeDefinition(token, 'Customer', {
+                sfccClient.createAttributeDefinition(token, 'Profile', {
                     id: a.id, value_type: 'string', mandatory: false,
                     searchable: false, externally_defined: false,
                     externally_managed: false, order_required: false,
                     display_name: { 'default': a.display }
                 });
+                try { sfccClient.addAttributeToGroup(token, 'Profile', CTP_ATTR_GROUP_ID, a.id); } catch (age) {}
             } catch (e) { /* already exists — non-fatal */ }
         }
     } catch (te) { /* token failure — non-fatal, migration continues */ }

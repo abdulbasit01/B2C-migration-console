@@ -8,6 +8,14 @@ var typeMap     = require('*/cartridge/scripts/migration/connectors/ctp/ctpTypeM
 var sfccClient  = require('*/cartridge/scripts/migration/sfccClient');
 var attrBuilder = require('*/cartridge/scripts/migration/core/attrBuilder');
 
+// CTP built-in customer fields that have no standard SFCC equivalent.
+// Each entry maps the CTP field name to the SFCC custom attribute ID we create/populate.
+var CTP_BUILTIN_FIELDS = [
+    { name: 'vatId',      sfccId: 'ctp_vat_id',      label: 'VAT ID',      ctpType: 'String' },
+    { name: 'locale',     sfccId: 'ctp_locale',      label: 'Locale',      ctpType: 'String' },
+    { name: 'middleName', sfccId: 'ctp_middle_name', label: 'Middle Name', ctpType: 'String' }
+];
+
 function toBase64(str) {
     return Encoding.toBase64(new Bytes(str, 'UTF-8'));
 }
@@ -65,20 +73,26 @@ function getCtpCustomerFields() {
 }
 
 /**
- * Compare CTP customer custom fields against SFCC Customer attribute definitions.
+ * Compare CTP customer fields against SFCC Customer attribute definitions.
+ * Checks both CTP custom type fields (dynamic, from the Types API) and a
+ * predefined list of CTP built-in fields (vatId, locale, middleName) that have
+ * no standard SFCC equivalent and therefore require custom attribute definitions.
  * Returns fields present in CTP but missing in SFCC.
  * @returns {Array} [{ id, label, ctpType, sfccType }]
  */
 function checkMissingAttributes() {
-    var ctpFields = getCtpCustomerFields();
-    if (!ctpFields.length) return [];
-
+    // Customer profile custom attributes live on the 'Profile' system object, not 'Customer'.
     var sfccToken   = sfccClient.getSFCCToken();
-    var existingIds = sfccClient.getExistingAttributeIds(sfccToken, 'Customer');
+    var existingIds = sfccClient.getExistingAttributeIds(sfccToken, 'Profile');
+
+    // Ensure the attribute group exists on every check so attrs can be linked below.
+    try { sfccClient.ensureAttributeGroup(sfccToken, 'Profile', CTP_ATTR_GROUP_ID, CTP_ATTR_GROUP_NAME); } catch (ge) {}
 
     var missing = [];
     var seen    = {};
 
+    // 1. CTP custom type fields (dynamic — defined in CTP via the Types API)
+    var ctpFields = getCtpCustomerFields();
     for (var i = 0; i < ctpFields.length; i++) {
         var field = ctpFields[i];
         var id    = field.name;
@@ -91,13 +105,40 @@ function checkMissingAttributes() {
                 ctpType:  field.ctpType,
                 sfccType: typeMap.resolveCustomFieldType(field.ctpType)
             });
+        } else {
+            // Attr exists but may not be in the group yet (e.g. created before group logic was added).
+            try { sfccClient.addAttributeToGroup(sfccToken, 'Profile', CTP_ATTR_GROUP_ID, id); } catch (age) {}
         }
     }
+
+    // 2. CTP built-in fields — not in the Types API, checked against a static list.
+    for (var j = 0; j < CTP_BUILTIN_FIELDS.length; j++) {
+        var bf = CTP_BUILTIN_FIELDS[j];
+        if (seen[bf.sfccId]) continue;
+        seen[bf.sfccId] = true;
+        if (!existingIds[bf.sfccId]) {
+            missing.push({
+                id:       bf.sfccId,
+                label:    bf.label,
+                ctpType:  bf.ctpType,
+                sfccType: 'string'
+            });
+        } else {
+            // Attr exists but may not be in the group yet.
+            try { sfccClient.addAttributeToGroup(sfccToken, 'Profile', CTP_ATTR_GROUP_ID, bf.sfccId); } catch (age) {}
+        }
+    }
+
     return missing;
 }
 
+var CTP_ATTR_GROUP_ID   = 'CTPMigration';
+var CTP_ATTR_GROUP_NAME = 'CTP Migration';
+
 /**
- * Create the given attribute definitions on the SFCC Customer system object.
+ * Create the given attribute definitions on the SFCC Profile system object
+ * and assign each one to the "CTP Migration" attribute group so they appear
+ * in BM's customer detail page.
  * @param {Array} attrs - [{ id, label, sfccType }]
  * @returns {{ created: number, failed: number, errors: Array }}
  */
@@ -107,6 +148,11 @@ function createAttributes(attrs) {
     var failed    = 0;
     var errors    = [];
 
+    // Ensure the attribute group exists once before creating any attrs
+    try {
+        sfccClient.ensureAttributeGroup(sfccToken, 'Profile', CTP_ATTR_GROUP_ID, CTP_ATTR_GROUP_NAME);
+    } catch (ge) { /* non-fatal — attrs can still be created without a group */ }
+
     for (var i = 0; i < attrs.length; i++) {
         var attr = attrs[i];
         try {
@@ -115,7 +161,8 @@ function createAttributes(attrs) {
                 attr.sfccType || 'string',
                 attr.label    || attr.id
             );
-            sfccClient.createAttributeDefinition(sfccToken, 'Customer', def);
+            sfccClient.createAttributeDefinition(sfccToken, 'Profile', def);
+            sfccClient.addAttributeToGroup(sfccToken, 'Profile', CTP_ATTR_GROUP_ID, attr.id);
             created++;
         } catch (e) {
             failed++;

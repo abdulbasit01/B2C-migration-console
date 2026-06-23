@@ -19,11 +19,15 @@ var CTP_CUSTOM_ATTRS = [
     { id: 'CTCustomerId',        display: 'CT Customer ID'      }
 ];
 
+var CTP_ATTR_GROUP_ID   = 'CTPMigration';
+var CTP_ATTR_GROUP_NAME = 'CTP Migration';
+
 function ensureCtpAttributes(sfccToken) {
+    try { sfccClient.ensureAttributeGroup(sfccToken, 'Profile', CTP_ATTR_GROUP_ID, CTP_ATTR_GROUP_NAME); } catch (ge) {}
     for (var i = 0; i < CTP_CUSTOM_ATTRS.length; i++) {
         var attr = CTP_CUSTOM_ATTRS[i];
         try {
-            sfccClient.createAttributeDefinition(sfccToken, 'Customer', {
+            sfccClient.createAttributeDefinition(sfccToken, 'Profile', {
                 id:                 attr.id,
                 value_type:         'string',
                 mandatory:          false,
@@ -33,6 +37,7 @@ function ensureCtpAttributes(sfccToken) {
                 order_required:     false,
                 display_name:       { 'default': attr.display }
             });
+            try { sfccClient.addAttributeToGroup(sfccToken, 'Profile', CTP_ATTR_GROUP_ID, attr.id); } catch (age) {}
         } catch (e) {
             // Attribute already exists or creation failed — not fatal; migration continues
         }
