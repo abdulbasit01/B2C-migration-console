@@ -794,3 +794,369 @@ exports.Wizard = function () {
     });
 };
 exports.Wizard.public = true;
+
+// ─── Customer data migration ──────────────────────────────────────────────────
+
+/**
+ * Customer migration page — standalone, separate from the schema wizard.
+ */
+exports.CustomerMigration = function () {
+    var cfg2           = require('*/cartridge/scripts/migration/configAccessor');
+    var customerListId = (cfg2.sfcc && cfg2.sfcc.customerListId) ? cfg2.sfcc.customerListId : '';
+    ISML.renderTemplate('accelerator/customerMigration', {
+        title:          Resource.msg('accelerator.title', 'accelerator', null),
+        subtitle:       Resource.msg('accelerator.subtitle', 'accelerator', null),
+        customerListId: customerListId,
+        dashboardUrl:   URLUtils.url('Accelerator-Start').toString(),
+        cssUrl:         URLUtils.staticURL('/css/accelerator-migration.css').toString(),
+        countUrl:       URLUtils.url('Accelerator-CustomerMigrationCount').toString(),
+        profileUrl:     URLUtils.url('Accelerator-MigrateCustomerBatch').toString(),
+        addressUrl:     URLUtils.url('Accelerator-MigrateCustomerAddresses').toString(),
+        fullBatchUrl:   URLUtils.url('Accelerator-FullMigrationBuildBatch').toString(),
+        byIdUrl:        URLUtils.url('Accelerator-MigrateCustomerById').toString(),
+        triggerJobUrl:  URLUtils.url('Accelerator-FullMigrationTriggerJob').toString(),
+        jobStatusUrl:   URLUtils.url('Accelerator-FullMigrationJobStatus').toString()
+    });
+};
+exports.CustomerMigration.public = true;
+
+/**
+ * Return the total number of customers in the CTP project.
+ * GET/POST — no params required.
+ */
+exports.CustomerMigrationCount = function () {
+    try {
+        var ctpFetcher = require('*/cartridge/scripts/migration/customerMigration/ctpCustomerFetcher');
+        jsonResponse({ ok: true, total: ctpFetcher.getCount() });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.CustomerMigrationCount.public = true;
+
+/**
+ * Migrate one batch of customer profiles from CTP to SFCC.
+ * POST: offset=<n>&listId=<sfcc-customer-list-id>
+ * Response includes mappings[] for the caller to drive phase 2 (address migration).
+ */
+exports.MigrateCustomerBatch = function () {
+    var offset = parseInt(getParam('offset') || '0', 10);
+    var listId = getParam('listId');
+
+    if (!listId) {
+        jsonResponse({ ok: false, error: 'listId parameter is required' });
+        return;
+    }
+    try {
+        var custRunner = require('*/cartridge/scripts/migration/customerMigration/customerMigrationRunner');
+        jsonResponse(custRunner.runProfileBatch(offset, listId));
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.MigrateCustomerBatch.public = true;
+
+/**
+ * Migrate addresses for one already-created SFCC customer.
+ * POST: customerNo=<sfcc-no>&listId=<id>&addresses=<json-array>&offset=<n>
+ */
+exports.MigrateCustomerAddresses = function () {
+    var customerNo = getParam('customerNo');
+    var listId     = getParam('listId');
+    var offset     = parseInt(getParam('offset') || '0', 10);
+    var rawAddrs   = getParam('addresses');
+
+    if (!customerNo || !listId) {
+        jsonResponse({ ok: false, error: 'customerNo and listId are required' });
+        return;
+    }
+
+    var addresses = [];
+    try {
+        addresses = JSON.parse(rawAddrs || '[]');
+    } catch (e) {
+        jsonResponse({ ok: false, error: 'Invalid addresses JSON' });
+        return;
+    }
+
+    try {
+        var custRunner2 = require('*/cartridge/scripts/migration/customerMigration/customerMigrationRunner');
+        jsonResponse(custRunner2.runAddressBatch(customerNo, addresses, listId, offset));
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.MigrateCustomerAddresses.public = true;
+
+/**
+ * Full Migration — fetch one batch of 500 CTP customers, build SFCC import XML, upload via WebDAV.
+ * POST: offset=<n>&listId=<sfcc-customer-list-id>
+ */
+exports.FullMigrationBuildBatch = function () {
+    var offset = parseInt(getParam('offset') || '0', 10);
+    var listId = getParam('listId');
+
+    if (!listId) {
+        jsonResponse({ ok: false, error: 'listId is required' });
+        return;
+    }
+    try {
+        var fullRunner = require('*/cartridge/scripts/migration/customerMigration/fullMigrationRunner');
+        jsonResponse(fullRunner.runBatch(offset, listId));
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.FullMigrationBuildBatch.public = true;
+
+/**
+ * Partial Migration (ID mode) — migrate one specific customer by CTP customer ID.
+ * POST: ctpId=<ctp-uuid>&listId=<sfcc-customer-list-id>
+ */
+exports.MigrateCustomerById = function () {
+    var ctpId  = getParam('ctpId');
+    var listId = getParam('listId');
+
+    if (!ctpId || !listId) {
+        jsonResponse({ ok: false, error: 'ctpId and listId are required' });
+        return;
+    }
+    try {
+        var byIdRunner = require('*/cartridge/scripts/migration/customerMigration/customerMigrationRunner');
+        jsonResponse(byIdRunner.runProfileBatchById(ctpId, listId));
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.MigrateCustomerById.public = true;
+
+/**
+ * Full Migration — trigger the SFCC import job via OCAPI Data API (self-call).
+ * POST: jobId=<BM-job-id>
+ *
+ * Prerequisite: the OCAPI client configured in sfccClient must have the Jobs resource
+ * with POST method enabled in Administration → Global Preferences → Open Commerce API Settings.
+ */
+exports.FullMigrationTriggerJob = function () {
+    var jobId = getParam('jobId');
+    if (!jobId) {
+        jsonResponse({ ok: false, error: 'jobId is required' });
+        return;
+    }
+    try {
+        var sfccClient4 = require('*/cartridge/scripts/migration/sfccClient');
+        var token       = sfccClient4.getSFCCToken();
+        var HTTPClient4 = require('dw/net/HTTPClient');
+        var http4       = new HTTPClient4();
+        var url4        = 'https://' + request.httpHost
+                        + '/s/-/dw/data/v24_5/jobs/' + encodeURIComponent(jobId) + '/executions';
+        http4.open('POST', url4);
+        http4.setRequestHeader('Authorization', 'Bearer ' + token);
+        http4.setRequestHeader('Content-Type', 'application/json');
+        http4.send('{}');
+        var sc4 = http4.statusCode;
+        if (sc4 === 200 || sc4 === 201) {
+            var resp4 = {};
+            try { resp4 = JSON.parse(http4.text || '{}'); } catch (pe) { resp4 = {}; }
+            jsonResponse({ ok: true, executionId: String(resp4.id || ''), status: String(resp4.status || 'pending') });
+        } else {
+            jsonResponse({ ok: false, error: 'OCAPI trigger failed (HTTP ' + sc4 + '): ' + (http4.text || '') });
+        }
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.FullMigrationTriggerJob.public = true;
+
+/**
+ * Full Migration — poll the execution status of an import job.
+ * POST: jobId=<BM-job-id>&executionId=<execution-id>
+ */
+exports.FullMigrationJobStatus = function () {
+    var jobId5       = getParam('jobId');
+    var executionId5 = getParam('executionId');
+    if (!jobId5 || !executionId5) {
+        jsonResponse({ ok: false, error: 'jobId and executionId are required' });
+        return;
+    }
+    try {
+        var sfccClient5 = require('*/cartridge/scripts/migration/sfccClient');
+        var token5      = sfccClient5.getSFCCToken();
+        var HTTPClient5 = require('dw/net/HTTPClient');
+        var http5       = new HTTPClient5();
+        var url5        = 'https://' + request.httpHost
+                        + '/s/-/dw/data/v24_5/jobs/' + encodeURIComponent(jobId5)
+                        + '/executions/' + encodeURIComponent(executionId5);
+        http5.open('GET', url5);
+        http5.setRequestHeader('Authorization', 'Bearer ' + token5);
+        http5.send(null);
+        var sc5 = http5.statusCode;
+        if (sc5 === 200) {
+            var resp5 = {};
+            try { resp5 = JSON.parse(http5.text || '{}'); } catch (pe) { resp5 = {}; }
+            var dur5 = resp5.duration ? Math.round(resp5.duration / 1000) : null;
+            jsonResponse({
+                ok:       true,
+                status:   String(resp5.status || 'unknown'),
+                duration: dur5,
+                message:  resp5.end_time ? 'Completed at ' + resp5.end_time : null
+            });
+        } else {
+            jsonResponse({ ok: false, error: 'Status check failed (HTTP ' + sc5 + ')' });
+        }
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.FullMigrationJobStatus.public = true;
+
+// ─── Product catalog migration wizard ─────────────────────────────────────────
+
+/**
+ * Product migration wizard — 5-step flow: Connect → Fetch → Configure → Move → View.
+ * Produces SFCC catalog XML files uploaded via WebDAV, then triggers a BM import job.
+ */
+exports.ProductWizard = function () {
+    var params    = request.httpParameterMap;
+    var stepParam = 1;
+
+    if (params.step && params.step.submitted) {
+        var parsed = parseInt(String(params.step.stringValue || '1'), 10);
+        if (!Number.isNaN(parsed) && parsed > 0) stepParam = parsed;
+    }
+
+    var currentStep = Math.min(Math.max(stepParam, 1), migrationData.maxProductStep);
+    var wizardStep  = migrationData.getProductWizardStep(currentStep);
+    var platform    = migrationData.getPlatform('commercetools');
+    var stepContent = null;
+    var prevStep    = currentStep > 1 ? currentStep - 1 : null;
+    var nextStep    = currentStep < migrationData.maxProductStep ? currentStep + 1 : null;
+
+    // Step 2: fetch product count from CTP
+    if (currentStep === 2) {
+        try {
+            var prodFetcher2 = require('*/cartridge/scripts/migration/productMigration/ctpProductFetcher');
+            stepContent = { total: prodFetcher2.getCount(), error: null };
+        } catch (e) {
+            stepContent = { total: 0, error: e.message || String(e) };
+        }
+    }
+
+    // Step 3: configure — read persisted values from session
+    if (currentStep === 3) {
+        stepContent = {
+            catalogId:       String(session.custom.prodWizardCatalogId       || ''),
+            pricebookId:     String(session.custom.prodWizardPricebookId     || 'list-prices'),
+            currency:        String(session.custom.prodWizardCurrency        || 'USD'),
+            inventoryListId: String(session.custom.prodWizardInventoryListId || 'default-inventory')
+        };
+    }
+
+    // Step 4: move — read config from session, build URLs for inline JS
+    if (currentStep === 4) {
+        stepContent = {
+            catalogId:       String(session.custom.prodWizardCatalogId       || ''),
+            pricebookId:     String(session.custom.prodWizardPricebookId     || 'list-prices'),
+            currency:        String(session.custom.prodWizardCurrency        || 'USD'),
+            inventoryListId: String(session.custom.prodWizardInventoryListId || 'default-inventory'),
+            fullBatchUrl:    URLUtils.url('Accelerator-FullProductMigrationBuildBatch').toString(),
+            triggerJobUrl:   URLUtils.url('Accelerator-FullMigrationTriggerJob').toString(),
+            jobStatusUrl:    URLUtils.url('Accelerator-FullMigrationJobStatus').toString(),
+            saveResultsUrl:  URLUtils.url('Accelerator-SaveProdWizardResults').toString()
+        };
+    }
+
+    // Step 5: view — parse results from session
+    if (currentStep === 5) {
+        var rawRes5 = String(session.custom.prodWizardResults || 'null');
+        var results5 = null;
+        try { results5 = JSON.parse(rawRes5); } catch (e) { /* no results yet */ }
+        stepContent = { results: results5 };
+    }
+
+    ISML.renderTemplate('accelerator/productWizard', {
+        title:        Resource.msg('accelerator.title', 'accelerator', null),
+        platform:     platform,
+        wizardSteps:  migrationData.getProductWizardSteps(),
+        currentStep:  currentStep,
+        wizardStep:   wizardStep,
+        stepContent:  stepContent,
+        prevStep:     prevStep,
+        nextStep:     nextStep,
+        isLastStep:   currentStep >= migrationData.maxProductStep,
+        dashboardUrl: URLUtils.url('Accelerator-Start').toString(),
+        wizardBaseUrl: URLUtils.url('Accelerator-ProductWizard').toString(),
+        cssUrl:       URLUtils.staticURL('/css/accelerator-migration.css').toString()
+    });
+};
+exports.ProductWizard.public = true;
+
+/**
+ * Save product wizard configuration (Step 3) to session.
+ * POST: catalogId=<id>&pricebookId=<id>&currency=<code>&inventoryListId=<id>
+ */
+exports.SaveProdConfig = function () {
+    var catalogId       = getParam('catalogId');
+    var pricebookId     = getParam('pricebookId')     || 'list-prices';
+    var currency        = getParam('currency')         || 'USD';
+    var inventoryListId = getParam('inventoryListId')  || 'default-inventory';
+
+    if (!catalogId) {
+        jsonResponse({ ok: false, error: 'catalogId is required' });
+        return;
+    }
+    session.custom.prodWizardCatalogId       = catalogId;
+    session.custom.prodWizardPricebookId     = pricebookId;
+    session.custom.prodWizardCurrency        = currency.toUpperCase();
+    session.custom.prodWizardInventoryListId = inventoryListId;
+    jsonResponse({ ok: true });
+};
+exports.SaveProdConfig.public = true;
+
+/**
+ * Save product wizard migration results (Step 4) to session for display in Step 5.
+ * POST: results=<json>
+ */
+exports.SaveProdWizardResults = function () {
+    var raw = getParam('results');
+    if (raw) session.custom.prodWizardResults = raw;
+    jsonResponse({ ok: true });
+};
+exports.SaveProdWizardResults.public = true;
+
+/**
+ * Return total number of products in the CTP project.
+ */
+exports.ProductMigrationCount = function () {
+    try {
+        var prodFetcher = require('*/cartridge/scripts/migration/productMigration/ctpProductFetcher');
+        jsonResponse({ ok: true, total: prodFetcher.getCount() });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.ProductMigrationCount.public = true;
+
+/**
+ * Full Product Migration — fetch one batch of 500 CTP products, build catalog + pricebook + inventory XML, upload via WebDAV.
+ * POST: offset=<n>&catalogId=<id>&pricebookId=<id>&currency=<code>&inventoryListId=<id>
+ */
+exports.FullProductMigrationBuildBatch = function () {
+    var offset          = parseInt(getParam('offset') || '0', 10);
+    var catalogId       = getParam('catalogId')       || String(session.custom.prodWizardCatalogId       || '');
+    var pricebookId     = getParam('pricebookId')     || String(session.custom.prodWizardPricebookId     || 'list-prices');
+    var currency        = getParam('currency')        || String(session.custom.prodWizardCurrency        || 'USD');
+    var inventoryListId = getParam('inventoryListId') || String(session.custom.prodWizardInventoryListId || 'default-inventory');
+
+    if (!catalogId) {
+        jsonResponse({ ok: false, error: 'catalogId is required' });
+        return;
+    }
+    try {
+        var prodRunner = require('*/cartridge/scripts/migration/productMigration/fullProductMigrationRunner');
+        jsonResponse(prodRunner.runBatch(offset, catalogId, pricebookId, currency, inventoryListId));
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.FullProductMigrationBuildBatch.public = true;

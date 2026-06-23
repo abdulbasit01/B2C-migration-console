@@ -23,7 +23,8 @@ module.exports = {
         version:         'v25_6',
         metaVersion:     'v25_6',
         catalogId:       'storefront-catalog-m-en',
-        inventoryListId: 'migrated-inventory'
+        inventoryListId: 'migrated-inventory',
+        customerListId:  ''
     },
     migration: {
         batchSize: 20,

@@ -1,0 +1,55 @@
+<section class="acc-step-panel">
+    <h2 class="acc-step-panel__title">
+        Step <isprint value="${pdict.currentStep}" formatter="#"/> &mdash; <span class="acc-highlight">Migration Results</span>
+    </h2>
+    <p class="acc-step-panel__intro">
+        Your product migration has completed. Review the summary below.
+    </p>
+
+    <isif condition="${pdict.stepContent.results !== null}">
+        <div style="display:flex;gap:24px;flex-wrap:wrap;margin-bottom:24px;">
+            <div style="background:#f4f6f9;border:1px solid #dddbda;border-radius:6px;padding:16px 24px;text-align:center;">
+                <div style="font-size:28px;font-weight:700;color:#16325c;">${pdict.stepContent.results.filesUploaded}</div>
+                <div style="font-size:12px;color:#54698d;margin-top:4px;">Batches uploaded</div>
+            </div>
+            <div style="background:#f4f6f9;border:1px solid #dddbda;border-radius:6px;padding:16px 24px;text-align:center;">
+                <div style="font-size:28px;font-weight:700;color:#16325c;">${pdict.stepContent.results.productsBuilt}</div>
+                <div style="font-size:12px;color:#54698d;margin-top:4px;">Product records</div>
+            </div>
+            <div style="background:#f4f6f9;border:1px solid #dddbda;border-radius:6px;padding:16px 24px;text-align:center;">
+                <div style="font-size:28px;font-weight:700;color:#16325c;">${pdict.stepContent.results.pricesBuilt}</div>
+                <div style="font-size:12px;color:#54698d;margin-top:4px;">Price entries</div>
+            </div>
+            <div style="background:#f4f6f9;border:1px solid #dddbda;border-radius:6px;padding:16px 24px;text-align:center;">
+                <div style="font-size:28px;font-weight:700;color:#16325c;">${pdict.stepContent.results.inventoryBuilt}</div>
+                <div style="font-size:12px;color:#54698d;margin-top:4px;">Inventory records</div>
+            </div>
+            <isif condition="${pdict.stepContent.results.failed > 0}">
+                <div style="background:#fff3e0;border:1px solid #ffe0b2;border-radius:6px;padding:16px 24px;text-align:center;">
+                    <div style="font-size:28px;font-weight:700;color:#e65100;">${pdict.stepContent.results.failed}</div>
+                    <div style="font-size:12px;color:#54698d;margin-top:4px;">Records skipped</div>
+                </div>
+            </isif>
+        </div>
+
+        <div class="acc-callout acc-callout--success">
+            Phase 1 complete. Files uploaded to
+            <code style="background:#e0e5ee;padding:1px 5px;border-radius:3px;font-family:monospace;font-size:12px;">/Impex/src/instance/ctp-product-migration/</code>:<br/>
+            <strong>products-N.xml</strong> — catalog &amp; category assignments<br/>
+            <strong>pricebook-N.xml</strong> — variant prices<br/>
+            <strong>inventory-N.xml</strong> — stock levels<br/><br/>
+            Go back to Step 4 to trigger the BM import jobs, or run them manually via
+            <strong>Merchant Tools &rarr; Products and Catalogs &rarr; Import &amp; Export</strong>.
+        </div>
+    <iselse/>
+        <div class="acc-callout acc-callout--info">
+            No migration results found. Complete Step 4 (Move) to see the summary here.
+        </div>
+    </isif>
+
+    <div style="margin-top:24px;">
+        <a class="acc-btn acc-btn--ghost" href="${pdict.wizardBaseUrl}?step=4">
+            &larr; Back to Move
+        </a>
+    </div>
+</section>
