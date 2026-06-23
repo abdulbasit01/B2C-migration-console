@@ -16,8 +16,7 @@ module.exports = {
         clientId:     '',
         clientSecret: '',
         authUrl:      'https://auth.us-central1.gcp.commercetools.com',
-        apiUrl:       'https://api.us-central1.gcp.commercetools.com',
-        scopes:       ''
+        apiUrl:       'https://api.us-central1.gcp.commercetools.com'
     },
     sfcc: {
         bmClientId:      'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',

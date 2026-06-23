@@ -1,0 +1,8 @@
+<isif condition="${pdict.prevStep}">
+    <a class="acc-btn acc-btn--ghost"
+       href="${pdict.wizardBaseUrl}&amp;step=${pdict.prevStepQuery}">
+        ${Resource.msg('accelerator.wizard.previous', 'accelerator', null)}
+    </a>
+<iselse/>
+    <span></span>
+</isif>

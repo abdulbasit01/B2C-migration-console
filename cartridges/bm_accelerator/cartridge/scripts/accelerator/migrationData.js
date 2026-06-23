@@ -8,6 +8,62 @@ var WIZARD_STEPS = [
     { id: 5, key: 'view',   label: 'View' }
 ];
 
+var DATA_WIZARD_STEPS = [
+    { id: 1, key: 'connect',    label: 'Connect' },
+    { id: 2, key: 'selectType', label: 'Select Data' }
+];
+
+var ORDER_DATA_WIZARD_STEPS = [
+    { id: 1, key: 'connect',        label: 'Connect' },
+    { id: 2, key: 'selectType',     label: 'Select Data' },
+    { id: 3, key: 'orderConfigure', label: 'Configure' },
+    { id: 4, key: 'orderExport',    label: 'Export' },
+    { id: 5, key: 'orderReview',    label: 'Finish' }
+];
+
+var ORDER_EXPORT_PHASES = [
+    { id: 'fetch',    label: 'Fetch orders from commercetools' },
+    { id: 'map',      label: 'Map to canonical order model' },
+    { id: 'validate', label: 'Validate order data' },
+    { id: 'generate', label: 'Generate SFCC order XML' },
+    { id: 'package',  label: 'Package IMPEX files' }
+];
+
+var DATA_TYPES = [
+    {
+        id:          'order',
+        label:       'Orders',
+        description: 'Export orders from the source platform and generate SFCC IMPEX packages.',
+        status:      'ready',
+        iconClass:   'acc-data-type--order',
+        items:       ['Order header, status and payments', 'Line items and pricing', 'Billing and shipping addresses', 'SFCC IMPEX XML export']
+    },
+    {
+        id:          'customer',
+        label:       'Customers',
+        description: 'Migrate customer profiles, addresses, and account data into SFCC.',
+        status:      'soon',
+        iconClass:   'acc-data-type--customer',
+        items:       ['Customer profiles', 'Addresses', 'Customer groups']
+    },
+    {
+        id:          'product',
+        label:       'Products',
+        description: 'Migrate product catalog, variants, and attributes into SFCC.',
+        status:      'soon',
+        iconClass:   'acc-data-type--product',
+        items:       ['Product master data', 'Variants & SKUs', 'Custom attributes']
+    },
+    {
+        id:          'catalog',
+        label:       'Catalog',
+        description: 'Migrate categories, catalog structure, and assignments into SFCC.',
+        status:      'soon',
+        iconClass:   'acc-data-type--catalog',
+        items:       ['Category hierarchy', 'Catalog assignments', 'Navigation structure']
+    }
+];
+
 var PLATFORMS = [
     {
         id:          'commercetools',
@@ -23,8 +79,7 @@ var PLATFORMS = [
             { name: 'projectKey',   label: 'Project key',   type: 'text',     required: true,  value: '' },
             { name: 'clientId',     label: 'Client ID',     type: 'text',     required: true,  value: '' },
             { name: 'clientSecret', label: 'Client secret', type: 'password', required: true,  value: '' },
-            { name: 'apiUrl',       label: 'API URL',       type: 'text',     required: true,  value: '' },
-            { name: 'scopes',       label: 'Scopes',        type: 'text',     required: false, value: '' }
+            { name: 'apiUrl',       label: 'API URL',       type: 'text',     required: true,  value: '' }
         ]
     },
     {
@@ -156,11 +211,110 @@ function getNextStepLabel() {
     return 'Continue';
 }
 
+function getDataWizardSteps(dataTypeId) {
+    if (dataTypeId === 'order') {
+        return cloneSteps(ORDER_DATA_WIZARD_STEPS);
+    }
+    if (dataTypeId) {
+        return cloneSteps(DATA_WIZARD_STEPS).concat([
+            { id: 3, key: 'typePlaceholder', label: 'Migrate' }
+        ]);
+    }
+    return cloneSteps(DATA_WIZARD_STEPS);
+}
+
+function cloneSteps(steps) {
+    var out = [];
+    for (var i = 0; i < steps.length; i++) {
+        out.push({
+            id:    parseInt(String(steps[i].id), 10),
+            key:   steps[i].key,
+            label: steps[i].label
+        });
+    }
+    return out;
+}
+
+function getMaxDataStep(dataTypeId) {
+    return getDataWizardSteps(dataTypeId).length;
+}
+
+function getDataWizardStep(step, dataTypeId) {
+    var steps   = getDataWizardSteps(dataTypeId);
+    var stepNum = Math.min(Math.max(parseInt(String(step), 10) || 1, 1), steps.length);
+    return steps[stepNum - 1];
+}
+
+function getOrderExportPhases() {
+    var phases = [];
+    for (var i = 0; i < ORDER_EXPORT_PHASES.length; i++) {
+        phases.push(ORDER_EXPORT_PHASES[i]);
+    }
+    return phases;
+}
+
+function getDataTypes() {
+    var types = [];
+    for (var i = 0; i < DATA_TYPES.length; i++) {
+        types.push(DATA_TYPES[i]);
+    }
+    return types;
+}
+
+function getDataType(typeId) {
+    for (var i = 0; i < DATA_TYPES.length; i++) {
+        if (DATA_TYPES[i].id === typeId) return DATA_TYPES[i];
+    }
+    return null;
+}
+
+/**
+ * Build Step 2 content — panel layout matching schema Fetch step.
+ * @returns {Object} step content with sections for ISML
+ */
+function buildDataSelectContent() {
+    var readySections = [];
+    var soonSections  = [];
+    var readyCount    = 0;
+
+    for (var i = 0; i < DATA_TYPES.length; i++) {
+        var dt = DATA_TYPES[i];
+        var section = {
+            taskId:     dt.id,
+            title:      dt.label,
+            items:      dt.items || [dt.description],
+            selectable: dt.status === 'ready'
+        };
+        if (dt.status === 'ready') {
+            readySections.push(section);
+            readyCount++;
+        } else {
+            soonSections.push(section);
+        }
+    }
+
+    var sections = readySections.concat(soonSections);
+
+    return {
+        titleSuffix: 'Select data to migrate',
+        intro:       'Choose which data to export from the source platform. All ready types are selected by default.',
+        sections:    sections,
+        summary:     readyCount + ' data type(s) ready'
+    };
+}
+
 module.exports = {
-    getPlatform:      getPlatform,
-    getPlatforms:     getPlatforms,
-    getWizardSteps:   getWizardSteps,
-    getWizardStep:    getWizardStep,
-    getNextStepLabel: getNextStepLabel,
-    maxStep:          WIZARD_STEPS.length
+    getPlatform:         getPlatform,
+    getPlatforms:        getPlatforms,
+    getWizardSteps:      getWizardSteps,
+    getWizardStep:       getWizardStep,
+    getNextStepLabel:    getNextStepLabel,
+    maxStep:             WIZARD_STEPS.length,
+    getDataWizardSteps:     getDataWizardSteps,
+    getDataWizardStep:      getDataWizardStep,
+    getMaxDataStep:         getMaxDataStep,
+    getOrderExportPhases:   getOrderExportPhases,
+    getDataTypes:           getDataTypes,
+    getDataType:            getDataType,
+    buildDataSelectContent: buildDataSelectContent
 };
