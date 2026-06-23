@@ -71,15 +71,29 @@
                     SFCC Customer List ID <span style="color:#c62828;">*</span>
                 </label>
                 <div>
-                    <input id="acc-list-id" type="text" class="acc-form__input"
-                           placeholder="e.g. RefArch or SiteGenesis"
-                           value="${pdict.customerListId}"
-                           style="width:260px;"/>
+                    <select id="acc-list-id" class="acc-form__input" style="width:260px;">
+                        <option value="">Loading customer lists…</option>
+                    </select>
                     <span id="acc-list-id-error" class="acc-field-error">Customer List ID is required.</span>
                 </div>
                 <button id="acc-check-btn" type="button" class="acc-btn acc-btn--ghost">Check Count</button>
                 <span id="acc-count-badge" style="font-size:13px;color:#54698d;padding-top:6px;"></span>
             </div>
+        </div>
+
+        <!-- ── Attribute pre-flight ── -->
+        <div id="acc-attr-preflight" style="margin:0 0 28px;border:1px solid #dddbda;border-radius:4px;padding:16px 20px;">
+            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                <span style="font-weight:700;font-size:14px;color:#16325c;">Attribute Pre-flight Check</span>
+                <button id="acc-check-attrs-btn" type="button" class="acc-btn acc-btn--ghost">Check CTP Attributes</button>
+                <span id="acc-attr-check-msg" style="font-size:13px;color:#54698d;"></span>
+            </div>
+            <p style="font-size:13px;color:#54698d;margin:8px 0 0;">
+                Scans CTP customer custom-type field definitions and checks whether matching
+                attributes exist on the SFCC <strong>Customer</strong> system object.
+                Missing attributes can be created here before the migration runs.
+            </p>
+            <div id="acc-attr-results" style="display:none;margin-top:16px;"></div>
         </div>
 
         <!-- ── Mode tabs ── -->
@@ -178,29 +192,10 @@
                 </li>
                 <li class="acc-phases__item acc-phases__item--pending" id="full-phase-import">
                     <div class="acc-phases__head">
-                        <span>Phase 2 &mdash; Import Customers Job</span>
+                        <span>Phase 2 &mdash; Run Import Job in Business Manager</span>
                         <span class="acc-phases__status" id="full-status-import">pending</span>
                     </div>
                     <p class="acc-phases__detail" id="full-detail-import">Waiting for Phase 1&hellip;</p>
-                    <!-- Job trigger UI — revealed after Phase 1 completes -->
-                    <div id="full-phase2-controls" style="display:none;margin-top:14px;">
-                        <p style="font-size:13px;color:#54698d;margin:0 0 10px;">
-                            XML files are ready in <code>/Impex/src/instance/ctp-migration/</code>.
-                            Enter the BM Job ID below and click <strong>Trigger</strong> to run the import automatically,
-                            or run it manually via <strong>BM &rarr; Administration &rarr; Site Development &rarr;
-                            Import &amp; Export &rarr; Import Customers</strong>.
-                        </p>
-                        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-                            <label for="full-job-id" style="font-size:13px;font-weight:600;white-space:nowrap;">BM Job ID:</label>
-                            <input id="full-job-id" type="text" class="acc-form__input"
-                                   value="CTP-Customer-Import"
-                                   style="width:220px;font-family:monospace;font-size:12px;"/>
-                            <button type="button" id="full-trigger-btn" class="acc-btn acc-btn--secondary">
-                                &#9658; Trigger Import Job
-                            </button>
-                        </div>
-                        <div id="full-job-status-msg" style="margin-top:8px;font-size:13px;color:#54698d;"></div>
-                    </div>
                 </li>
             </ul>
 
@@ -227,8 +222,10 @@
     var ADDRESS_URL      = '${pdict.addressUrl}';
     var FULL_BATCH_URL   = '${pdict.fullBatchUrl}';
     var BY_ID_URL        = '${pdict.byIdUrl}';
-    var TRIGGER_JOB_URL  = '${pdict.triggerJobUrl}';
-    var JOB_STATUS_URL   = '${pdict.jobStatusUrl}';
+    var LISTS_URL        = '${pdict.customerListsUrl}';
+    var PRESET_LIST_ID   = '${pdict.customerListId}';
+    var CHECK_ATTRS_URL  = '${pdict.checkAttrsUrl}';
+    var CREATE_ATTRS_URL = '${pdict.createAttrsUrl}';
 
     var listIdEl   = document.getElementById('acc-list-id');
     var checkBtn   = document.getElementById('acc-check-btn');
@@ -271,8 +268,184 @@
         if (err) { err.textContent = ''; err.style.display = 'none'; }
     }
 
-    // Clear errors as the user types
-    listIdEl.addEventListener('input', function () { clearError('acc-list-id', 'acc-list-id-error'); });
+    // ── Load customer lists into dropdown on page init ───────────────────────
+
+    (function loadCustomerLists() {
+        var req = new XMLHttpRequest();
+        req.open('GET', LISTS_URL, true);
+        req.onreadystatechange = function () {
+            if (req.readyState !== 4) return;
+            var data;
+            try { data = JSON.parse(req.responseText); } catch (e) { data = { ok: false }; }
+
+            listIdEl.innerHTML = '';
+
+            if (!data.ok || !data.lists || !data.lists.length) {
+                var errOpt    = document.createElement('option');
+                errOpt.value  = '';
+                errOpt.textContent = data.ok
+                    ? '— No customer lists found —'
+                    : '— Failed to load lists (' + (data.error || 'unknown') + ') —';
+                listIdEl.appendChild(errOpt);
+                return;
+            }
+
+            var placeholder       = document.createElement('option');
+            placeholder.value     = '';
+            placeholder.textContent = '— Select a Customer List —';
+            listIdEl.appendChild(placeholder);
+
+            for (var i = 0; i < data.lists.length; i++) {
+                var opt         = document.createElement('option');
+                opt.value       = data.lists[i].id;
+                opt.textContent = data.lists[i].id;
+                if (data.lists[i].id === PRESET_LIST_ID) { opt.selected = true; }
+                listIdEl.appendChild(opt);
+            }
+        };
+        req.send(null);
+    }());
+
+    // Clear errors when selection changes
+    listIdEl.addEventListener('change', function () { clearError('acc-list-id', 'acc-list-id-error'); });
+
+    // ── Attribute pre-flight ─────────────────────────────────────────────────
+
+    var checkAttrsBtn  = document.getElementById('acc-check-attrs-btn');
+    var attrCheckMsg   = document.getElementById('acc-attr-check-msg');
+    var attrResults    = document.getElementById('acc-attr-results');
+    var pendingMissing = [];
+
+    function renderAttrResults(missing) {
+        attrResults.innerHTML = '';
+        attrResults.style.display = 'block';
+
+        if (!missing.length) {
+            attrResults.innerHTML = '<p style="color:#2e7d32;font-size:13px;margin:0;">'
+                + '&#10003; All CTP customer attributes already exist in SFCC — no action needed.</p>';
+            return;
+        }
+
+        var html = '<p style="font-size:13px;color:#54698d;margin:0 0 10px;">'
+            + missing.length + ' attribute(s) found in CTP but missing in SFCC. '
+            + 'Select the ones you want to create:</p>';
+
+        html += '<table style="width:100%;border-collapse:collapse;font-size:13px;">'
+            + '<thead><tr style="background:#f4f6f9;">'
+            + '<th style="padding:7px 10px;text-align:left;border:1px solid #dddbda;width:32px;">'
+            + '<input type="checkbox" id="acc-attr-select-all" checked/></th>'
+            + '<th style="padding:7px 10px;text-align:left;border:1px solid #dddbda;">Attribute ID</th>'
+            + '<th style="padding:7px 10px;text-align:left;border:1px solid #dddbda;">Label</th>'
+            + '<th style="padding:7px 10px;text-align:left;border:1px solid #dddbda;">CTP Type</th>'
+            + '<th style="padding:7px 10px;text-align:left;border:1px solid #dddbda;">SFCC Type</th>'
+            + '</tr></thead><tbody>';
+
+        for (var i = 0; i < missing.length; i++) {
+            var m = missing[i];
+            html += '<tr>'
+                + '<td style="padding:6px 10px;border:1px solid #dddbda;text-align:center;">'
+                + '<input type="checkbox" class="acc-attr-cb" data-idx="' + i + '" checked/></td>'
+                + '<td style="padding:6px 10px;border:1px solid #dddbda;font-family:monospace;">' + m.id + '</td>'
+                + '<td style="padding:6px 10px;border:1px solid #dddbda;">' + (m.label || m.id) + '</td>'
+                + '<td style="padding:6px 10px;border:1px solid #dddbda;color:#54698d;">' + m.ctpType + '</td>'
+                + '<td style="padding:6px 10px;border:1px solid #dddbda;color:#0070d2;">' + m.sfccType + '</td>'
+                + '</tr>';
+        }
+        html += '</tbody></table>';
+
+        html += '<div style="margin-top:12px;display:flex;align-items:center;gap:12px;">'
+            + '<button type="button" id="acc-create-attrs-btn" class="acc-btn acc-btn--primary">Create Selected Attributes</button>'
+            + '<span id="acc-create-attrs-msg" style="font-size:13px;color:#54698d;"></span>'
+            + '</div>';
+
+        attrResults.innerHTML = html;
+
+        // Select-all toggle
+        document.getElementById('acc-attr-select-all').addEventListener('change', function () {
+            var cbs = document.querySelectorAll('.acc-attr-cb');
+            for (var c = 0; c < cbs.length; c++) { cbs[c].checked = this.checked; }
+        });
+
+        document.getElementById('acc-create-attrs-btn').addEventListener('click', function () {
+            var selected = [];
+            var cbs = document.querySelectorAll('.acc-attr-cb');
+            for (var c = 0; c < cbs.length; c++) {
+                if (cbs[c].checked) {
+                    selected.push(pendingMissing[parseInt(cbs[c].getAttribute('data-idx'), 10)]);
+                }
+            }
+            if (!selected.length) {
+                document.getElementById('acc-create-attrs-msg').textContent = 'Select at least one attribute.';
+                return;
+            }
+            createSelectedAttributes(selected);
+        });
+    }
+
+    function createSelectedAttributes(selected) {
+        var btn = document.getElementById('acc-create-attrs-btn');
+        var msg = document.getElementById('acc-create-attrs-msg');
+        if (btn) { btn.disabled = true; btn.textContent = 'Creating…'; }
+        if (msg) { msg.textContent = ''; }
+
+        var req = new XMLHttpRequest();
+        req.open('POST', CREATE_ATTRS_URL, true);
+        req.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+        req.onreadystatechange = function () {
+            if (req.readyState !== 4) return;
+            var data;
+            try { data = JSON.parse(req.responseText); } catch (e) { data = { ok: false, error: 'Parse error' }; }
+
+            if (!data.ok) {
+                if (btn) { btn.disabled = false; btn.textContent = 'Retry'; }
+                if (msg) { msg.textContent = 'Error: ' + (data.error || 'Failed'); msg.style.color = '#c62828'; }
+                return;
+            }
+
+            var r    = data.result || {};
+            var text = r.created + ' created' + (r.failed ? ', ' + r.failed + ' failed' : '') + '.';
+            if (r.errors && r.errors.length) text += ' ' + r.errors[0];
+
+            if (btn) { btn.disabled = true; btn.textContent = '&#10003; Done'; }
+            if (msg) {
+                msg.textContent  = text;
+                msg.style.color  = r.failed ? '#c62828' : '#2e7d32';
+            }
+        };
+        req.send('attrs=' + encodeURIComponent(JSON.stringify(selected)));
+    }
+
+    checkAttrsBtn.addEventListener('click', function () {
+        checkAttrsBtn.disabled    = true;
+        checkAttrsBtn.textContent = 'Checking…';
+        attrCheckMsg.textContent  = '';
+        attrResults.style.display = 'none';
+
+        var req = new XMLHttpRequest();
+        req.open('GET', CHECK_ATTRS_URL, true);
+        req.onreadystatechange = function () {
+            if (req.readyState !== 4) return;
+            checkAttrsBtn.disabled    = false;
+            checkAttrsBtn.textContent = 'Re-check';
+
+            var data;
+            try { data = JSON.parse(req.responseText); } catch (e) { data = { ok: false, error: 'Parse error' }; }
+
+            if (!data.ok) {
+                attrCheckMsg.textContent = 'Error: ' + (data.error || 'Check failed');
+                attrCheckMsg.style.color = '#c62828';
+                return;
+            }
+
+            pendingMissing           = data.missing || [];
+            attrCheckMsg.textContent = pendingMissing.length
+                ? pendingMissing.length + ' missing attribute(s) found.'
+                : 'All attributes in sync.';
+            attrCheckMsg.style.color = pendingMissing.length ? '#e65100' : '#2e7d32';
+            renderAttrResults(pendingMissing);
+        };
+        req.send(null);
+    });
     document.getElementById('acc-ctp-ids').addEventListener('input', function () { clearError('acc-ctp-ids', 'acc-ctp-ids-error'); });
 
     // ── Shared helpers ───────────────────────────────────────────────────────
@@ -602,9 +775,6 @@
                         fullFiles + ' file(s) uploaded, ' + fullBuilt + ' customer(s) built'
                         + (fullFailed ? ', ' + fullFailed + ' skipped due to errors' : ''),
                         100);
-                    setPhase('full', 'import', 'active',
-                        'Files ready at /Impex/src/instance/ctp-migration/ — run Import Customers job in BM to finish.',
-                        null);
                     finalizeFull(true);
                 }
             }
@@ -623,93 +793,14 @@
 
         if (success) {
             fullStatusBox.innerHTML = '<strong>Phase 1 complete.</strong> '
-                + fullFiles + ' XML file(s) uploaded to <code>/Impex/src/instance/ctp-migration/</code>. '
-                + 'Use Phase 2 below to run the import job.';
-            // Reveal job trigger controls inside the Phase 2 progress item
-            var p2ctrl = document.getElementById('full-phase2-controls');
-            if (p2ctrl) { p2ctrl.style.display = 'block'; }
-            setPhase('full', 'import', 'active', 'Enter Job ID below and click Trigger to import.', null);
+                + fullFiles + ' XML file(s) uploaded to <code>/Impex/src/instance/ctp-migration/</code>.<br/>'
+                + 'Go to <strong>BM &rarr; Administration &rarr; Operations &rarr; Jobs</strong> and run your import job to complete the migration.';
+            setPhase('full', 'import', 'active',
+                'Run your import job in Business Manager to complete the migration.', null);
         } else {
             fullStatusBox.textContent = 'XML build failed — check BM logs for details.';
         }
     }
-
-    // ── Phase 2: job trigger and status polling ───────────────────────────────
-
-    function triggerJob() {
-        var jobId      = document.getElementById('full-job-id').value.trim();
-        var triggerBtn = document.getElementById('full-trigger-btn');
-        var jobMsg     = document.getElementById('full-job-status-msg');
-        if (!jobId || !triggerBtn) return;
-
-        triggerBtn.disabled    = true;
-        triggerBtn.textContent = 'Triggering...';
-        jobMsg.textContent     = '';
-        jobMsg.style.color     = '#54698d';
-
-        post(TRIGGER_JOB_URL, 'jobId=' + encodeURIComponent(jobId), function (data) {
-            if (!data.ok) {
-                triggerBtn.disabled    = false;
-                triggerBtn.textContent = 'Retry';
-                jobMsg.textContent     = 'Error: ' + (data.error || 'Could not trigger job');
-                jobMsg.style.color     = '#c62828';
-                setPhase('full', 'import', 'error', 'Job trigger failed: ' + (data.error || 'unknown'), null);
-                return;
-            }
-            var execId = data.executionId || '';
-            jobMsg.textContent = 'Job started (execution: ' + execId + ') — polling every 5 s...';
-            setPhase('full', 'import', 'active', 'Job running (execution: ' + execId + ')', null);
-            pollJobStatus(jobId, execId);
-        });
-    }
-
-    function pollJobStatus(jobId, executionId) {
-        var jobMsg = document.getElementById('full-job-status-msg');
-        post(
-            JOB_STATUS_URL,
-            'jobId=' + encodeURIComponent(jobId) + '&executionId=' + encodeURIComponent(executionId),
-            function (data) {
-                if (!data.ok) {
-                    if (jobMsg) {
-                        jobMsg.textContent = 'Status check failed: ' + (data.error || 'unknown');
-                        jobMsg.style.color = '#c62828';
-                    }
-                    // Retry anyway after 10 s — transient errors are common in long-running jobs
-                    setTimeout(function () { pollJobStatus(jobId, executionId); }, 10000);
-                    return;
-                }
-
-                var status   = data.status || 'unknown';
-                var durText  = data.duration ? ' (' + data.duration + ' s)' : '';
-                var msgText  = 'Job status: ' + status + durText;
-                if (jobMsg) { jobMsg.textContent = msgText; }
-
-                if (status === 'finished') {
-                    if (jobMsg) { jobMsg.style.color = '#2e7d32'; }
-                    setPhase('full', 'import', 'done', 'Import complete' + durText, null);
-                    fullStatusBox.innerHTML = '<strong>Migration complete!</strong> '
-                        + fullFiles + ' XML file(s) imported via job <em>' + jobId + '</em>' + durText + '.';
-                    fullStatusBox.className = 'acc-callout acc-callout--success';
-                } else if (status === 'failed' || status === 'aborted' || status === 'expired') {
-                    if (jobMsg) { jobMsg.style.color = '#c62828'; }
-                    setPhase('full', 'import', 'error', 'Job ' + status + durText, null);
-                    var trigBtn = document.getElementById('full-trigger-btn');
-                    if (trigBtn) { trigBtn.disabled = false; trigBtn.textContent = 'Retry Job'; }
-                } else {
-                    // pending / running / paused — keep polling
-                    if (jobMsg) { jobMsg.style.color = '#54698d'; }
-                    setTimeout(function () { pollJobStatus(jobId, executionId); }, 5000);
-                }
-            }
-        );
-    }
-
-    // Wire up trigger button (created in markup above, not yet in DOM when script loads — use delegation)
-    document.addEventListener('click', function (evt) {
-        if (evt.target && evt.target.id === 'full-trigger-btn') {
-            triggerJob();
-        }
-    });
 
     fullStartBtn.addEventListener('click', function () {
         var listId = listIdEl.value.trim();

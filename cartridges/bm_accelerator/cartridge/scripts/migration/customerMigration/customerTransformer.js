@@ -69,8 +69,11 @@ function transformCustomer(ctpCustomer) {
 
     // Store CTP identifiers as custom attributes for traceability after migration
     profile.c_ctp_customer_id = ctpCustomer.id;
-    if (ctpCustomer.customerNumber) profile.c_ctp_customer_number = ctpCustomer.customerNumber;
-    if (ctpCustomer.externalId)     profile.c_ctp_external_id     = ctpCustomer.externalId;
+    if (ctpCustomer.customerNumber) {
+        profile.c_ctp_customer_number = ctpCustomer.customerNumber;
+        profile.c_CTCustomerId        = ctpCustomer.customerNumber;
+    }
+    if (ctpCustomer.externalId) profile.c_ctp_external_id = ctpCustomer.externalId;
 
     // Map CTP custom fields → SFCC custom attributes (requires matching attr definitions in SFCC)
     if (ctpCustomer.custom && ctpCustomer.custom.fields) {

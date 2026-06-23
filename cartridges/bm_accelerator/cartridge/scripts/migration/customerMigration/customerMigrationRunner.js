@@ -15,7 +15,8 @@ var sfccClient  = require('*/cartridge/scripts/migration/sfccClient');
 var CTP_CUSTOM_ATTRS = [
     { id: 'ctp_customer_id',     display: 'CTP Customer ID'     },
     { id: 'ctp_customer_number', display: 'CTP Customer Number' },
-    { id: 'ctp_external_id',     display: 'CTP External ID'     }
+    { id: 'ctp_external_id',     display: 'CTP External ID'     },
+    { id: 'CTCustomerId',        display: 'CT Customer ID'      }
 ];
 
 function ensureCtpAttributes(sfccToken) {

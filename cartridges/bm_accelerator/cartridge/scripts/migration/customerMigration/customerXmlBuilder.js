@@ -60,6 +60,7 @@ function buildCustomerXml(ctpCustomer) {
     xml += '            <custom-attribute attribute-id="ctp_customer_id">' + xmlEsc(profile.c_ctp_customer_id) + '</custom-attribute>\n';
     if (profile.c_ctp_customer_number) {
         xml += '            <custom-attribute attribute-id="ctp_customer_number">' + xmlEsc(profile.c_ctp_customer_number) + '</custom-attribute>\n';
+        xml += '            <custom-attribute attribute-id="CTCustomerId">' + xmlEsc(profile.c_ctp_customer_number) + '</custom-attribute>\n';
     }
     if (profile.c_ctp_external_id) {
         xml += '            <custom-attribute attribute-id="ctp_external_id">' + xmlEsc(profile.c_ctp_external_id) + '</custom-attribute>\n';

@@ -442,13 +442,99 @@ exports.CustomerMigration = function () {
         countUrl:       URLUtils.url('Accelerator-CustomerMigrationCount').toString(),
         profileUrl:     URLUtils.url('Accelerator-MigrateCustomerBatch').toString(),
         addressUrl:     URLUtils.url('Accelerator-MigrateCustomerAddresses').toString(),
-        fullBatchUrl:   URLUtils.url('Accelerator-FullMigrationBuildBatch').toString(),
-        byIdUrl:        URLUtils.url('Accelerator-MigrateCustomerById').toString(),
-        triggerJobUrl:  URLUtils.url('Accelerator-FullMigrationTriggerJob').toString(),
-        jobStatusUrl:   URLUtils.url('Accelerator-FullMigrationJobStatus').toString()
+        fullBatchUrl:        URLUtils.url('Accelerator-FullMigrationBuildBatch').toString(),
+        byIdUrl:             URLUtils.url('Accelerator-MigrateCustomerById').toString(),
+        customerListsUrl:    URLUtils.url('Accelerator-GetCustomerLists').toString(),
+        checkAttrsUrl:       URLUtils.url('Accelerator-CheckCustomerAttributes').toString(),
+        createAttrsUrl:      URLUtils.url('Accelerator-CreateCustomerAttributes').toString()
     });
 };
 exports.CustomerMigration.public = true;
+
+/**
+ * Return all SFCC customer list IDs available on the instance.
+ * GET — no params required.
+ */
+exports.GetCustomerLists = function () {
+    try {
+        var sfccClientSites = require('*/cartridge/scripts/migration/sfccClient');
+        var token           = sfccClientSites.getSFCCToken();
+        var s               = sfccClientSites.getSFCCSettings();
+        var HTTPClientSites = require('dw/net/HTTPClient');
+        var client          = new HTTPClientSites();
+        var url             = s.baseUrl + '/s/-/dw/data/' + s.metaVersion
+                            + '/sites?client_id=' + encodeURIComponent(s.bmClientId);
+
+        client.setTimeout(15000);
+        client.open('GET', url);
+        client.setRequestHeader('Authorization', 'Bearer ' + token);
+        client.send('');
+
+        var sc   = client.getStatusCode();
+        var body = {};
+        try { body = JSON.parse(client.getText() || '{}'); } catch (pe) {}
+
+        if (sc !== 200) {
+            jsonResponse({ ok: false, error: 'HTTP ' + sc });
+            return;
+        }
+
+        var seen   = {};
+        var result = [];
+        var data   = body.data || [];
+        for (var i = 0; i < data.length; i++) {
+            var site   = data[i];
+            var listId = site.customer_list_id || site.id;
+            if (listId && !seen[listId]) {
+                seen[listId] = true;
+                result.push({ id: listId });
+            }
+        }
+        jsonResponse({ ok: true, lists: result });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.GetCustomerLists.public = true;
+
+/**
+ * Compare CTP customer custom fields against SFCC Customer attribute definitions.
+ * Returns attributes present in CTP but missing in SFCC.
+ * GET — no params required.
+ */
+exports.CheckCustomerAttributes = function () {
+    try {
+        var checker = require('*/cartridge/scripts/migration/customerMigration/customerAttrChecker');
+        jsonResponse({ ok: true, missing: checker.checkMissingAttributes() });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.CheckCustomerAttributes.public = true;
+
+/**
+ * Create selected attribute definitions on the SFCC Customer system object.
+ * POST: attrs=<json-array of {id, label, sfccType}>
+ */
+exports.CreateCustomerAttributes = function () {
+    var rawAttrs = getParam('attrs');
+    var attrs    = [];
+    try { attrs = JSON.parse(rawAttrs || '[]'); } catch (e) {
+        jsonResponse({ ok: false, error: 'Invalid attrs JSON' });
+        return;
+    }
+    if (!attrs.length) {
+        jsonResponse({ ok: false, error: 'No attributes provided' });
+        return;
+    }
+    try {
+        var checker2 = require('*/cartridge/scripts/migration/customerMigration/customerAttrChecker');
+        jsonResponse({ ok: true, result: checker2.createAttributes(attrs) });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.CreateCustomerAttributes.public = true;
 
 /**
  * Return the total number of customers in the CTP project.
