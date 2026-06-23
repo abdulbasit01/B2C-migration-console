@@ -1,0 +1,37 @@
+<section class="acc-step-panel">
+    <h2 class="acc-step-panel__title">
+        Step <isprint value="${pdict.currentStep}" formatter="#"/> &mdash;
+        ${Resource.msg('accelerator.datawizard.connect.title', 'accelerator', null)}
+        <span class="acc-highlight">${pdict.platform.name}</span>
+    </h2>
+    <p class="acc-step-panel__intro">${Resource.msg('accelerator.datawizard.connect.intro', 'accelerator', null)}</p>
+
+    <form class="acc-form" id="acc-data-connect-form" method="post" action="${pdict.continueUrl}">
+        <input type="hidden" name="platformId" value="${pdict.platform.id}" />
+        <isloop items="${pdict.platform.connectFields}" var="field">
+            <div class="acc-form__group">
+                <label class="acc-form__label" for="data-field-${field.name}">
+                    ${field.label}
+                    <isif condition="${field.required}"><span class="acc-required">*</span></isif>
+                </label>
+                <input
+                    class="acc-form__input"
+                    id="data-field-${field.name}"
+                    name="${field.name}"
+                    type="${field.type}"
+                    value="${field.value}"
+                    <isif condition="${!empty(field.placeholder)}">placeholder="${field.placeholder}"</isif>
+                    <isif condition="${field.required}">required="required"</isif>
+                />
+            </div>
+        </isloop>
+    </form>
+
+    <div class="acc-form__actions">
+        <button type="button" id="data-test-connection-btn" class="acc-btn acc-btn--primary">
+            ${Resource.msg('accelerator.datawizard.testConnection', 'accelerator', null)}
+        </button>
+    </div>
+
+    <div id="data-connection-status" class="acc-status acc-status--hidden" role="status"></div>
+</section>

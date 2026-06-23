@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title>${pdict.title}</title>
+    <link rel="stylesheet" href="${pdict.cssUrl}"/>
+</head>
+<body class="acc-page">
+    <div class="acc-shell">
+        <isinclude template="accelerator/components/header"/>
+
+        <nav class="acc-breadcrumb">
+            <a href="${pdict.dataSelectUrl}" class="acc-breadcrumb__link">${Resource.msg('accelerator.datawizard.flow.back', 'accelerator', null)}</a>
+            <span class="acc-breadcrumb__sep">/</span>
+            <span class="acc-breadcrumb__current">${Resource.msg('accelerator.ordermigration.heading', 'accelerator', null)}</span>
+        </nav>
+
+        <section class="acc-section">
+            <header class="acc-section__head">
+                <h2>${Resource.msg('accelerator.ordermigration.heading', 'accelerator', null)}</h2>
+                <p class="acc-section__intro">${Resource.msg('accelerator.ordermigration.intro', 'accelerator', null)}</p>
+            </header>
+
+            <form id="order-migration-form" class="acc-form" onsubmit="return false;">
+                <div class="acc-form__row">
+                    <label class="acc-form__label" for="years">${Resource.msg('accelerator.ordermigration.years', 'accelerator', null)}</label>
+                    <select id="years" name="years" class="acc-form__input">
+                        <option value="1">1 ${Resource.msg('accelerator.ordermigration.year', 'accelerator', null)}</option>
+                        <option value="2">2 ${Resource.msg('accelerator.ordermigration.years.plural', 'accelerator', null)}</option>
+                        <option value="3">3 ${Resource.msg('accelerator.ordermigration.years.plural', 'accelerator', null)}</option>
+                    </select>
+                </div>
+
+                <div class="acc-form__row">
+                    <label class="acc-form__label" for="maxCount">${Resource.msg('accelerator.ordermigration.maxcount', 'accelerator', null)}</label>
+                    <input type="number" id="maxCount" name="maxCount" class="acc-form__input" min="1" placeholder="${Resource.msg('accelerator.ordermigration.maxcount.placeholder', 'accelerator', null)}"/>
+                </div>
+
+                <div class="acc-form__actions">
+                    <button type="button" id="export-btn" class="acc-btn acc-btn--primary">${Resource.msg('accelerator.ordermigration.export', 'accelerator', null)}</button>
+                </div>
+            </form>
+
+            <div id="export-status" class="acc-status acc-status--hidden" role="status"></div>
+
+            <div id="export-report" class="acc-report acc-report--hidden">
+                <h3 class="acc-report__title">${Resource.msg('accelerator.ordermigration.report', 'accelerator', null)}</h3>
+                <dl class="acc-report__stats">
+                    <div class="acc-report__stat">
+                        <dt>${Resource.msg('accelerator.ordermigration.processed', 'accelerator', null)}</dt>
+                        <dd id="stat-processed">0</dd>
+                    </div>
+                    <div class="acc-report__stat">
+                        <dt>${Resource.msg('accelerator.ordermigration.validated', 'accelerator', null)}</dt>
+                        <dd id="stat-validated">0</dd>
+                    </div>
+                    <div class="acc-report__stat">
+                        <dt>${Resource.msg('accelerator.ordermigration.failed', 'accelerator', null)}</dt>
+                        <dd id="stat-failed">0</dd>
+                    </div>
+                    <div class="acc-report__stat">
+                        <dt>${Resource.msg('accelerator.ordermigration.xmlfiles', 'accelerator', null)}</dt>
+                        <dd id="stat-xmlfiles">0</dd>
+                    </div>
+                </dl>
+
+                <div id="download-links" class="acc-downloads">
+                    <h4 class="acc-downloads__title">${Resource.msg('accelerator.ordermigration.downloads', 'accelerator', null)}</h4>
+                    <ul id="download-list" class="acc-downloads__list"></ul>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        (function () {
+            var exportUrl   = '${pdict.exportUrl}';
+            var downloadUrl = '${pdict.downloadUrl}';
+            var exportBtn   = document.getElementById('export-btn');
+            var statusEl    = document.getElementById('export-status');
+            var reportEl    = document.getElementById('export-report');
+            var downloadList = document.getElementById('download-list');
+
+            function showStatus(msg, isError) {
+                statusEl.textContent = msg;
+                statusEl.className = 'acc-status' + (isError ? ' acc-status--error' : ' acc-status--info');
+                statusEl.classList.remove('acc-status--hidden');
+            }
+
+            function fmt(n) {
+                return String(n || 0).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+            }
+
+            exportBtn.addEventListener('click', function () {
+                var years    = document.getElementById('years').value;
+                var maxCount = document.getElementById('maxCount').value;
+                exportBtn.disabled = true;
+                showStatus('Exporting orders from commercetools…', false);
+                reportEl.classList.add('acc-report--hidden');
+
+                var body = 'years=' + encodeURIComponent(years);
+                if (maxCount) body += '&maxCount=' + encodeURIComponent(maxCount);
+
+                fetch(exportUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: body
+                })
+                .then(function (res) { return res.json(); })
+                .then(function (data) {
+                    exportBtn.disabled = false;
+                    if (!data.ok) {
+                        showStatus('Export failed: ' + (data.error || 'Unknown error'), true);
+                        return;
+                    }
+                    showStatus('Export complete.', false);
+                    document.getElementById('stat-processed').textContent = fmt(data.report.ordersProcessed);
+                    document.getElementById('stat-validated').textContent = fmt(data.report.ordersValidated);
+                    document.getElementById('stat-failed').textContent    = fmt(data.report.ordersFailed);
+                    document.getElementById('stat-xmlfiles').textContent  = fmt(data.report.xmlFilesGenerated);
+                    reportEl.classList.remove('acc-report--hidden');
+
+                    downloadList.innerHTML = '';
+                    var files = data.downloadFiles || [];
+                    for (var i = 0; i < files.length; i++) {
+                        var f = files[i];
+                        var li = document.createElement('li');
+                        var a  = document.createElement('a');
+                        a.href = downloadUrl + '?path=' + encodeURIComponent(f.relativePath);
+                        a.textContent = f.name + (f.isZip ? ' (ZIP)' : '');
+                        a.className = 'acc-downloads__link';
+                        a.setAttribute('download', '');
+                        li.appendChild(a);
+                        downloadList.appendChild(li);
+                    }
+                })
+                .catch(function (err) {
+                    exportBtn.disabled = false;
+                    showStatus('Export failed: ' + err.message, true);
+                });
+            });
+        })();
+    </script>
+</body>
+</html>

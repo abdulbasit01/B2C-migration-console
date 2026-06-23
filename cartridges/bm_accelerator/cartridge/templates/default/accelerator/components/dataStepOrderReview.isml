@@ -1,0 +1,49 @@
+<section class="acc-step-panel">
+    <h2 class="acc-step-panel__title">
+        Step <isprint value="${pdict.currentStep}" formatter="#"/> &mdash;
+        <span class="acc-highlight">${Resource.msg('accelerator.ordermigration.review.title', 'accelerator', null)}</span>
+    </h2>
+    <p class="acc-step-panel__intro">${Resource.msg('accelerator.ordermigration.review.intro', 'accelerator', null)}</p>
+
+    <isif condition="${!empty(pdict.orderReport)}">
+        <div class="acc-report">
+            <h3 class="acc-report__title">${Resource.msg('accelerator.ordermigration.report', 'accelerator', null)}</h3>
+            <dl class="acc-report__stats acc-report__stats--enriched">
+                <div class="acc-report__stat acc-report__stat--card">
+                    <dt>${Resource.msg('accelerator.ordermigration.processed', 'accelerator', null)}</dt>
+                    <dd><isprint value="${pdict.orderReport.ordersProcessed}" formatter="#,##0"/></dd>
+                </div>
+                <div class="acc-report__stat acc-report__stat--card acc-report__stat--success">
+                    <dt>${Resource.msg('accelerator.ordermigration.validated', 'accelerator', null)}</dt>
+                    <dd><isprint value="${pdict.orderReport.ordersValidated}" formatter="#,##0"/></dd>
+                </div>
+                <div class="acc-report__stat acc-report__stat--card acc-report__stat--danger">
+                    <dt>${Resource.msg('accelerator.ordermigration.failed', 'accelerator', null)}</dt>
+                    <dd><isprint value="${pdict.orderReport.ordersFailed}" formatter="#,##0"/></dd>
+                </div>
+                <div class="acc-report__stat acc-report__stat--card">
+                    <dt>${Resource.msg('accelerator.ordermigration.xmlfiles', 'accelerator', null)}</dt>
+                    <dd><isprint value="${pdict.orderReport.xmlFilesGenerated}" formatter="#,##0"/></dd>
+                </div>
+            </dl>
+
+            <isif condition="${!empty(pdict.bmImpexUrl)}">
+                <div class="acc-bm-links">
+                    <h4 class="acc-bm-links__title">${Resource.msg('accelerator.ordermigration.nextSteps', 'accelerator', null)}</h4>
+                    <div class="acc-bm-links__actions">
+                        <a class="acc-btn acc-btn--secondary" href="${pdict.bmImpexUrl}" target="_blank" rel="noopener noreferrer">
+                            ${Resource.msg('accelerator.ordermigration.openImpex', 'accelerator', null)}
+                        </a>
+                    </div>
+                </div>
+            </isif>
+        </div>
+    <iselse/>
+        <div class="acc-callout acc-callout--info">
+            ${Resource.msg('accelerator.ordermigration.review.empty', 'accelerator', null)}
+        </div>
+        <a class="acc-btn acc-btn--primary" href="${pdict.wizardBaseUrl}&amp;step=4">
+            ${Resource.msg('accelerator.ordermigration.export', 'accelerator', null)}
+        </a>
+    </isif>
+</section>

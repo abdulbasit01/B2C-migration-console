@@ -1,6 +1,6 @@
 'use strict';
 
-/* global request, response, session */
+/* global request, response, session, Packages */
 
 /* eslint-disable no-var */
 
@@ -62,6 +62,53 @@ function resolvePlatform() {
 }
 
 /**
+ * @returns {boolean} whether data migration connection was verified in this session
+ */
+function isDataMigrationConnected() {
+    var flag = session.custom.dataMigrationConnected;
+    return flag === true || flag === 'true';
+}
+
+/**
+ * Build connector credentials from submitted form params.
+ * @param {string} platformId - source platform identifier
+ * @returns {Object} credentials object for the connector
+ */
+function buildConnectionCreds(platformId) {
+    var cfg    = require('*/cartridge/scripts/migration/configAccessor');
+    var params = request.httpParameterMap;
+    var creds  = {};
+    var fieldNames = ['projectKey', 'clientId', 'clientSecret', 'apiUrl', 'authUrl', 'storeUrl', 'apiVersion', 'storeHash'];
+
+    for (var fi = 0; fi < fieldNames.length; fi++) {
+        var fn  = fieldNames[fi];
+        var val = String((params[fn] && params[fn].stringValue) || '');
+        if (val) creds[fn] = val;
+    }
+
+    /**
+     * @param {string} paramName - form field name
+     * @param {string} configValue - fallback value from config
+     * @returns {string} resolved secret value
+     */
+    function resolveSecret(paramName, configValue) {
+        var raw = creds[paramName] || '';
+        return (raw && raw.indexOf('•') === -1) ? raw : (configValue || '');
+    }
+
+    if (platformId === 'commercetools') {
+        creds.clientSecret = resolveSecret('clientSecret', cfg.ctp.clientSecret);
+        creds.authUrl      = creds.authUrl || cfg.ctp.authUrl || 'https://auth.us-central1.gcp.commercetools.com';
+        creds.apiUrl       = creds.apiUrl  || cfg.ctp.apiUrl  || 'https://api.us-central1.gcp.commercetools.com';
+        creds.projectKey   = creds.projectKey || cfg.ctp.projectKey || '';
+    } else if (platformId === 'shopify') {
+        creds.clientSecret = resolveSecret('clientSecret', cfg.shopify.clientSecret);
+    }
+
+    return creds;
+}
+
+/**
  * Build the View step content from session results.
  * @param {Object} sessionResults - migration results keyed by task name
  * @returns {Object} view step content
@@ -119,34 +166,7 @@ exports.TestConnection = function () {
     }
 
     // Build creds object from submitted form fields
-    var cfg    = require('*/cartridge/scripts/migration/configAccessor');
-    var params = request.httpParameterMap;
-    var creds  = {};
-    // Pull all submitted form fields into creds (excludes platformId hidden field)
-    var fieldNames = ['projectKey', 'clientId', 'clientSecret', 'apiUrl', 'authUrl', 'scopes', 'storeUrl', 'apiVersion', 'storeHash'];
-    for (var fi = 0; fi < fieldNames.length; fi++) {
-        var fn  = fieldNames[fi];
-        var val = String((params[fn] && params[fn].stringValue) || '');
-        if (val) creds[fn] = val;
-    }
-
-    // Masked fields (shown as ••••••••) fall back to stored config
-    /**
-     * @param {string} paramName - form field name
-     * @param {string} configValue - fallback value from config
-     * @returns {string} resolved secret value
-     */
-    function resolveSecret(paramName, configValue) {
-        var raw = creds[paramName] || '';
-        return (raw && raw.indexOf('•') === -1) ? raw : (configValue || '');
-    }
-
-    if (platformId === 'commercetools') {
-        creds.clientSecret = resolveSecret('clientSecret', cfg.ctp.clientSecret);
-        creds.authUrl      = creds.authUrl || cfg.ctp.authUrl || 'https://auth.us-central1.gcp.commercetools.com';
-    } else if (platformId === 'shopify') {
-        creds.clientSecret = resolveSecret('clientSecret', cfg.shopify.clientSecret);
-    }
+    var creds = buildConnectionCreds(platformId);
 
     try {
         var result = connector.testConnectionWith(creds);
@@ -156,6 +176,10 @@ exports.TestConnection = function () {
             session.custom.shopifyClientId     = creds.clientId     || '';
             session.custom.shopifyClientSecret = creds.clientSecret || '';
             session.custom.shopifyApiVersion   = creds.apiVersion   || '2025-01';
+        }
+        if (getParam('mode') === 'data') {
+            session.custom.dataMigrationConnected = 'true';
+            session.custom.migrationPlatformId    = platformId;
         }
         jsonResponse({ ok: true, project: result.project });
     } catch (e) {
@@ -303,16 +327,361 @@ exports.SaveMigrationResults.public = true;
 
 exports.Start = function () {
     ISML.renderTemplate('accelerator/dashboard', {
-        title:                Resource.msg('accelerator.title', 'accelerator', null),
-        subtitle:             Resource.msg('accelerator.subtitle', 'accelerator', null),
-        platforms:            migrationData.getPlatforms(),
-        wizardUrl:            URLUtils.url('Accelerator-Wizard').toString(),
-        customerMigrationUrl: URLUtils.url('Accelerator-CustomerMigration').toString(),
-        productWizardUrl:     URLUtils.url('Accelerator-ProductWizard').toString(),
-        cssUrl:               URLUtils.staticURL('/css/accelerator-migration.css').toString()
+        title:         Resource.msg('accelerator.title', 'accelerator', null),
+        subtitle:      Resource.msg('accelerator.subtitle', 'accelerator', null),
+        platforms:     migrationData.getPlatforms(),
+        wizardUrl:     URLUtils.url('Accelerator-Wizard').toString(),
+        dataWizardUrl: URLUtils.url('Accelerator-DataWizard').toString(),
+        cssUrl:        URLUtils.staticURL('/css/accelerator-migration.css').toString()
     });
 };
 exports.Start.public = true;
+
+/**
+ * Order Migration — redirect into the data wizard order flow.
+ */
+exports.OrderMigration = function () {
+    var platformId = getParam('platform') || String(session.custom.migrationPlatformId || 'commercetools');
+
+    if (!isDataMigrationConnected()) {
+        response.redirect(URLUtils.url('Accelerator-DataWizard', 'platform', platformId, 'step', '1'));
+        return;
+    }
+
+    session.custom.selectedDataType = 'order';
+    response.redirect(URLUtils.url('Accelerator-DataWizard', 'platform', platformId, 'step', '3'));
+};
+exports.OrderMigration.public = true;
+
+/**
+ * Export orders from commercetools and generate IMPEX package.
+ * POST: years=1|2|3&maxCount=optional
+ */
+exports.ExportOrders = function () {
+    var years    = parseInt(getParam('years') || String(session.custom.orderExportYears || '1'), 10);
+    var maxRaw   = getParam('maxCount') || String(session.custom.orderExportMaxCount || '');
+    var maxCount = maxRaw ? parseInt(maxRaw, 10) : null;
+
+    if ([1, 2, 3].indexOf(years) < 0) {
+        jsonResponse({ ok: false, error: 'Years must be 1, 2, or 3' });
+        return;
+    }
+
+    try {
+        var runner2 = require('*/cartridge/scripts/migration/orders/orderMigrationRunner');
+        var report  = runner2.run({ years: years, maxCount: maxCount });
+
+        session.custom.orderMigrationReport = JSON.stringify({
+            ordersProcessed:   report.ordersProcessed,
+            ordersValidated:   report.ordersValidated,
+            ordersFailed:      report.ordersFailed,
+            xmlFilesGenerated: report.xmlFilesGenerated,
+            runId:             report.runId
+        });
+
+        jsonResponse({
+            ok:     true,
+            report: {
+                ordersProcessed:   report.ordersProcessed,
+                ordersValidated:   report.ordersValidated,
+                ordersFailed:      report.ordersFailed,
+                xmlFilesGenerated: report.xmlFilesGenerated
+            },
+            runId: report.runId
+        });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.ExportOrders.public = true;
+
+/**
+ * Download a generated migration file from IMPEX/src/migration/.
+ * GET: path=src/migration/{runId}/src/orders/orders_001.xml
+ */
+exports.DownloadMigrationFile = function () {
+    var File = require('dw/io/File');
+    var relPath = getParam('path');
+
+    if (!relPath || relPath.indexOf('..') >= 0 || relPath.indexOf('src/migration/') !== 0) {
+        response.setStatus(400);
+        response.writer.print('Invalid path');
+        return;
+    }
+
+    var file = new File(File.IMPEX + File.SEPARATOR + relPath);
+    if (!file.exists() || !file.isFile()) {
+        response.setStatus(404);
+        response.writer.print('File not found');
+        return;
+    }
+
+    var fileName = file.getName();
+    var isZip    = fileName.indexOf('.zip') === fileName.length - 4;
+    response.setContentType(isZip ? 'application/zip' : 'application/xml');
+    response.setHttpHeader('Content-Disposition', 'attachment; filename="' + fileName + '"');
+
+    var fis = new Packages.java.io.FileInputStream(file.fullPath);
+    try {
+        Packages.org.apache.commons.io.IOUtils.copy(fis, response.base.getOutputStream());
+    } finally {
+        fis.close();
+    }
+};
+exports.DownloadMigrationFile.public = true;
+
+/**
+ * Data migration wizard — connect, select type, then type-specific steps.
+ */
+exports.DataWizard = function () {
+    var params       = request.httpParameterMap;
+    var platformId   = String((params.platform && params.platform.stringValue) || 'commercetools');
+    var stepParam    = 1;
+    var typeParam    = getParam('type');
+
+    if (params.step && params.step.submitted) {
+        var parsed = parseInt(String(params.step.stringValue || '1'), 10);
+        if (parsed > 0) stepParam = parsed;
+    }
+
+    if (typeParam) {
+        session.custom.selectedDataType = typeParam;
+    } else if (stepParam <= 2) {
+        delete session.custom.selectedDataType;
+    }
+
+    var platform = migrationData.getPlatform(platformId);
+    if (!platform || platform.status !== 'ready') {
+        response.redirect(URLUtils.url('Accelerator-Start'));
+        return;
+    }
+
+    var dataTypeId  = String(session.custom.selectedDataType || typeParam || '');
+    var maxStep     = migrationData.getMaxDataStep(dataTypeId);
+    var currentStep = parseInt(String(Math.min(Math.max(stepParam, 1), maxStep)), 10);
+    var wizardStep  = migrationData.getDataWizardStep(currentStep, dataTypeId);
+    var prevStep    = currentStep > 1 ? currentStep - 1 : null;
+    var nextStep    = currentStep < maxStep ? currentStep + 1 : null;
+
+    session.custom.migrationPlatformId = platformId;
+
+    if (currentStep > 1 && !isDataMigrationConnected()) {
+        response.redirect(URLUtils.url('Accelerator-DataWizard', 'platform', platformId, 'step', '1'));
+        return;
+    }
+
+    if (currentStep > 2 && !dataTypeId) {
+        response.redirect(URLUtils.url('Accelerator-DataWizard', 'platform', platformId, 'step', '2'));
+        return;
+    }
+
+    if (currentStep > 2 && dataTypeId !== 'order' && wizardStep.key !== 'typePlaceholder') {
+        response.redirect(URLUtils.url('Accelerator-DataWizard', 'platform', platformId, 'step', '3'));
+        return;
+    }
+
+    var orderReport = null;
+    var bmImpexUrl  = '';
+    if (wizardStep.key === 'orderReview') {
+        try {
+            orderReport = JSON.parse(String(session.custom.orderMigrationReport || 'null'));
+            if (orderReport) {
+                var bmLinks  = require('*/cartridge/scripts/accelerator/bmLinks');
+                var impexGen = require('*/cartridge/scripts/migration/orders/generators/impexGenerator');
+                if (orderReport.runId) {
+                    var ordersFolder = impexGen.MIGRATION_BASE + '/' + orderReport.runId + '/'
+                        + impexGen.IMPEX_SRC + '/' + impexGen.ORDERS_SUBDIR;
+                    bmImpexUrl = bmLinks.getImpexFolderUrl(ordersFolder);
+                } else {
+                    bmImpexUrl = bmLinks.getImpexFolderUrl(impexGen.MIGRATION_BASE);
+                }
+            }
+        } catch (e) { /* no report yet */ }
+    }
+
+    var stepContent = null;
+    if (wizardStep.key === 'selectType') {
+        stepContent = migrationData.buildDataSelectContent();
+    }
+
+    var exportPhaseIds = [];
+    var phasesForCfg   = migrationData.getOrderExportPhases();
+    for (var pi = 0; pi < phasesForCfg.length; pi++) {
+        exportPhaseIds.push(phasesForCfg[pi].id);
+    }
+
+    var dataWizardMsgs = {
+        connectionFailed:       Resource.msg('accelerator.datawizard.connectionFailed', 'accelerator', null),
+        connectionSuccess:      Resource.msg('accelerator.datawizard.connectionSuccess', 'accelerator', null),
+        selectTypeCountSuffix:  Resource.msg('accelerator.datawizard.selectType.countSuffix', 'accelerator', null),
+        selectTypeNoneSelected: Resource.msg('accelerator.datawizard.selectType.noneSelected', 'accelerator', null),
+        exportRunning:          Resource.msg('accelerator.ordermigration.export.running', 'accelerator', null),
+        exportFailed:           Resource.msg('accelerator.ordermigration.export.failed', 'accelerator', null),
+        exportComplete:         Resource.msg('accelerator.ordermigration.export.complete', 'accelerator', null)
+    };
+
+    var wizardBaseUrl = URLUtils.url('Accelerator-DataWizard', 'platform', platform.id).toString();
+    var exportPhaseCsv = exportPhaseIds.join(',');
+
+    var dataWizardPages = {
+        connect:        'accelerator/dataWizardConnect',
+        selectType:     'accelerator/dataWizardSelectType',
+        orderConfigure: 'accelerator/dataWizardOrderConfigure',
+        orderExport:    'accelerator/dataWizardOrderExport',
+        orderReview:    'accelerator/dataWizardOrderReview',
+        typePlaceholder:'accelerator/dataWizardTypePlaceholder'
+    };
+
+    var diagParam = getParam('diag');
+    var pageTemplate = dataWizardPages[wizardStep.key] || dataWizardPages.typePlaceholder;
+    if (diagParam === 'shell') {
+        pageTemplate = 'accelerator/dataWizardDiag';
+    }
+
+    ISML.renderTemplate(pageTemplate, {
+        title:               Resource.msg('accelerator.datawizard.title', 'accelerator', null),
+        subtitle:            Resource.msg('accelerator.subtitle', 'accelerator', null),
+        platform:            platform,
+        dataTypeId:          dataTypeId,
+        dataType:            migrationData.getDataType(dataTypeId),
+        wizardSteps:         migrationData.getDataWizardSteps(dataTypeId),
+        exportPhases:        migrationData.getOrderExportPhases(),
+        currentStep:         currentStep,
+        wizardStep:          wizardStep,
+        wizardStepKey:       String(wizardStep.key),
+        exportPhaseCsv:      exportPhaseCsv,
+        stepContent:         stepContent,
+        msgConnectionFailed:      dataWizardMsgs.connectionFailed,
+        msgConnectionSuccess:     dataWizardMsgs.connectionSuccess,
+        msgSelectTypeCountSuffix: dataWizardMsgs.selectTypeCountSuffix,
+        msgSelectTypeNoneSelected: dataWizardMsgs.selectTypeNoneSelected,
+        msgExportRunning:         dataWizardMsgs.exportRunning,
+        msgExportFailed:          dataWizardMsgs.exportFailed,
+        msgExportComplete:        dataWizardMsgs.exportComplete,
+        orderReport:         orderReport,
+        bmImpexUrl:          bmImpexUrl,
+        orderYears:          String(session.custom.orderExportYears || '1'),
+        orderMaxCount:       String(session.custom.orderExportMaxCount || ''),
+        prevStep:            prevStep,
+        nextStep:            nextStep,
+        prevStepQuery:       toStepQuery(prevStep),
+        nextStepQuery:       toStepQuery(nextStep),
+        isLastStep:          currentStep >= maxStep,
+        dashboardUrl:        URLUtils.url('Accelerator-Start').toString(),
+        wizardBaseUrl:       wizardBaseUrl,
+        continueUrl:         URLUtils.url('Accelerator-DataWizardContinue').toString(),
+        orderConfigUrl:      URLUtils.url('Accelerator-DataWizardSaveOrderConfig').toString(),
+        testConnectionUrl:   URLUtils.url('Accelerator-TestConnection').toString(),
+        exportUrl:           URLUtils.url('Accelerator-ExportOrders').toString(),
+        downloadUrl:         URLUtils.url('Accelerator-DownloadMigrationFile').toString(),
+        dataWizardJsUrl:     URLUtils.staticURL('/js/data-wizard.js').toString(),
+        cssUrl:              URLUtils.staticURL('/css/accelerator-migration.css').toString()
+    });
+};
+exports.DataWizard.public = true;
+
+/**
+ * Validate connection on Continue (form POST) and advance to data type selection.
+ */
+exports.DataWizardContinue = function () {
+    var platformId = getParam('platformId') || getParam('platform') || 'commercetools';
+    var connector  = registry.get(platformId);
+    var stepOneUrl = URLUtils.url('Accelerator-DataWizard', 'platform', platformId, 'step', '1');
+    var stepTwoUrl = URLUtils.url('Accelerator-DataWizard', 'platform', platformId, 'step', '2');
+
+    if (!connector) {
+        response.redirect(stepOneUrl);
+        return;
+    }
+
+    try {
+        connector.testConnectionWith(buildConnectionCreds(platformId));
+        session.custom.dataMigrationConnected = 'true';
+        session.custom.migrationPlatformId    = platformId;
+
+        if (platformId === 'shopify') {
+            var creds = buildConnectionCreds(platformId);
+            session.custom.shopifyStoreUrl     = creds.storeUrl     || '';
+            session.custom.shopifyClientId     = creds.clientId     || '';
+            session.custom.shopifyClientSecret = creds.clientSecret || '';
+            session.custom.shopifyApiVersion   = creds.apiVersion   || '2025-01';
+        }
+
+        response.redirect(stepTwoUrl);
+    } catch (e) {
+        session.custom.dataMigrationConnected = 'false';
+        response.redirect(stepOneUrl);
+    }
+};
+exports.DataWizardContinue.public = true;
+
+/**
+ * Select a data type and advance into its migration steps.
+ */
+exports.DataWizardSelectType = function () {
+    var platformId = getParam('platform') || String(session.custom.migrationPlatformId || 'commercetools');
+    var typeId     = getParam('type');
+
+    if (!isDataMigrationConnected()) {
+        response.redirect(URLUtils.url('Accelerator-DataWizard', 'platform', platformId, 'step', '1'));
+        return;
+    }
+
+    if (!migrationData.getDataType(typeId)) {
+        response.redirect(URLUtils.url('Accelerator-DataWizard', 'platform', platformId, 'step', '2'));
+        return;
+    }
+
+    session.custom.selectedDataType = typeId;
+    response.redirect(URLUtils.url('Accelerator-DataWizard', 'platform', platformId, 'step', '3'));
+};
+exports.DataWizardSelectType.public = true;
+
+/**
+ * Save order export configuration and advance to export step.
+ */
+exports.DataWizardSaveOrderConfig = function () {
+    var platformId = getParam('platformId') || getParam('platform') || String(session.custom.migrationPlatformId || 'commercetools');
+    var years      = parseInt(getParam('years') || '1', 10);
+    var maxRaw     = getParam('maxCount');
+    var stepThree  = URLUtils.url('Accelerator-DataWizard', 'platform', platformId, 'step', '3');
+    var stepFour   = URLUtils.url('Accelerator-DataWizard', 'platform', platformId, 'step', '4');
+
+    if (session.custom.selectedDataType !== 'order') {
+        response.redirect(stepThree);
+        return;
+    }
+
+    if ([1, 2, 3].indexOf(years) < 0) {
+        response.redirect(stepThree);
+        return;
+    }
+
+    session.custom.orderExportYears    = String(years);
+    session.custom.orderExportMaxCount = maxRaw ? String(parseInt(maxRaw, 10)) : '';
+    response.redirect(stepFour);
+};
+exports.DataWizardSaveOrderConfig.public = true;
+
+/**
+ * Placeholder for data migration flows not yet implemented.
+ */
+exports.DataMigrationFlow = function () {
+    var platformId = getParam('platform') || String(session.custom.migrationPlatformId || 'commercetools');
+    var typeId     = getParam('type');
+
+    if (!isDataMigrationConnected()) {
+        response.redirect(URLUtils.url('Accelerator-DataWizard', 'platform', platformId, 'step', '1'));
+        return;
+    }
+
+    if (typeId) {
+        session.custom.selectedDataType = typeId;
+    }
+
+    response.redirect(URLUtils.url('Accelerator-DataWizard', 'platform', platformId, 'step', '3'));
+};
+exports.DataMigrationFlow.public = true;
 
 exports.Wizard = function () {
     var params     = request.httpParameterMap;

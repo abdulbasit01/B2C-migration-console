@@ -1,0 +1,25 @@
+<section class="acc-step-panel">
+    <h2 class="acc-step-panel__title">
+        Step <isprint value="${pdict.currentStep}" formatter="#"/> &mdash;
+        <span class="acc-highlight">
+            <isif condition="${!empty(pdict.dataType)}">
+                ${pdict.dataType.label}
+            <iselse/>
+                ${Resource.msg('accelerator.datawizard.flow.soon', 'accelerator', null)}
+            </isif>
+        </span>
+    </h2>
+
+    <div class="acc-placeholder acc-placeholder--inline">
+        <isif condition="${!empty(pdict.dataType)}">
+            <div class="acc-placeholder__icon" aria-hidden="true">${pdict.dataType.label}</div>
+            <h3>${pdict.dataType.label} — ${Resource.msg('accelerator.datawizard.flow.soon', 'accelerator', null)}</h3>
+        <iselse/>
+            <h3>${Resource.msg('accelerator.datawizard.flow.soon', 'accelerator', null)}</h3>
+        </isif>
+        <p>${Resource.msg('accelerator.datawizard.flow.soon.intro', 'accelerator', null)}</p>
+        <a class="acc-btn acc-btn--ghost" href="${pdict.wizardBaseUrl}&amp;step=2">
+            ${Resource.msg('accelerator.datawizard.flow.back', 'accelerator', null)}
+        </a>
+    </div>
+</section>

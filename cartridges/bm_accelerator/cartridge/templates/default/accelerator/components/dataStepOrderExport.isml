@@ -1,0 +1,57 @@
+<section class="acc-step-panel">
+    <h2 class="acc-step-panel__title">
+        Step <isprint value="${pdict.currentStep}" formatter="#"/> &mdash;
+        <span class="acc-highlight">${Resource.msg('accelerator.ordermigration.export.title', 'accelerator', null)}</span>
+    </h2>
+    <p class="acc-step-panel__intro">${Resource.msg('accelerator.ordermigration.export.intro', 'accelerator', null)}</p>
+
+    <div class="acc-export-summary">
+        <div class="acc-export-summary__item">
+            <span class="acc-export-summary__label">${Resource.msg('accelerator.ordermigration.years', 'accelerator', null)}</span>
+            <span class="acc-export-summary__value">
+                ${pdict.orderYears}
+                <isif condition="${pdict.orderYears == '1'}">
+                    ${Resource.msg('accelerator.ordermigration.year', 'accelerator', null)}
+                <iselse/>
+                    ${Resource.msg('accelerator.ordermigration.years.plural', 'accelerator', null)}
+                </isif>
+            </span>
+        </div>
+        <div class="acc-export-summary__item">
+            <span class="acc-export-summary__label">${Resource.msg('accelerator.ordermigration.maxcount', 'accelerator', null)}</span>
+            <span class="acc-export-summary__value">
+                <isif condition="${!empty(pdict.orderMaxCount)}">
+                    ${pdict.orderMaxCount}
+                <iselse/>
+                    ${Resource.msg('accelerator.ordermigration.maxcount.placeholder', 'accelerator', null)}
+                </isif>
+            </span>
+        </div>
+    </div>
+
+    <div id="order-export-status" class="acc-callout acc-callout--info acc-hidden" role="status"></div>
+
+    <ul class="acc-phases" id="order-export-phases">
+        <isloop items="${pdict.exportPhases}" var="phase">
+            <li class="acc-phases__item acc-phases__item--pending" id="order-phase-${phase.id}">
+                <div class="acc-phases__head">
+                    <span>${phase.label}</span>
+                    <span class="acc-phases__status" id="order-status-${phase.id}">pending</span>
+                </div>
+                <div class="acc-progress">
+                    <div class="acc-progress__bar" id="order-bar-${phase.id}" style="width:0%"></div>
+                </div>
+            </li>
+        </isloop>
+    </ul>
+
+    <div class="acc-move-actions">
+        <button type="button" id="order-export-btn" class="acc-btn acc-btn--primary acc-btn--lg">
+            &#9654; ${Resource.msg('accelerator.ordermigration.export', 'accelerator', null)}
+        </button>
+        <a id="order-review-link" class="acc-btn acc-btn--secondary acc-hidden"
+           href="${pdict.wizardBaseUrl}&amp;step=5">
+            ${Resource.msg('accelerator.ordermigration.viewResults', 'accelerator', null)} &rarr;
+        </a>
+    </div>
+</section>
