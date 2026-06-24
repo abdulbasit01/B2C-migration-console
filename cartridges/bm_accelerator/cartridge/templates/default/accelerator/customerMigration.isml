@@ -280,6 +280,14 @@
                         <span class="acc-phases__status" id="full-status-import">pending</span>
                     </div>
                     <p class="acc-phases__detail" id="full-detail-import">Waiting for Phase 1&hellip;</p>
+                    <div style="margin-top:10px;">
+                        <a href="${pdict.jobsUrl}"
+                           target="_blank"
+                           class="acc-btn acc-btn--primary"
+                           style="text-decoration:none;font-size:13px;display:inline-block;padding:7px 16px;">
+                            &#x2192; Open BM Jobs
+                        </a>
+                    </div>
                 </li>
             </ul>
 
@@ -1034,19 +1042,14 @@
         fullStartBtn.disabled    = false;
         fullStartBtn.textContent = success ? 'Phase 1 Done' : 'Build Failed';
 
-        fullStatusBox.style.display = 'block';
-        fullStatusBox.className     = success
-            ? 'acc-callout acc-callout--success'
-            : 'acc-callout acc-callout--warning';
-
         if (success) {
-            fullStatusBox.innerHTML = '<strong>Phase 1 complete.</strong> '
-                + fullFiles + ' XML file(s) uploaded to <code>/Impex/src/instance/ctp-migration/</code>.<br/>'
-                + 'Go to <strong>BM &rarr; Administration &rarr; Operations &rarr; Jobs</strong> and run your import job to complete the migration.';
+            fullStatusBox.style.display = 'none';
             setPhase('full', 'import', 'active',
                 'Run your import job in Business Manager to complete the migration.', null);
         } else {
-            fullStatusBox.textContent = 'XML build failed ? check BM logs for details.';
+            fullStatusBox.style.display = 'block';
+            fullStatusBox.className     = 'acc-callout acc-callout--warning';
+            fullStatusBox.textContent   = 'XML build failed - check BM logs for details.';
         }
     }
 

@@ -432,7 +432,13 @@ exports.Wizard.public = true;
  */
 exports.CustomerMigration = function () {
     var cfg2           = require('*/cartridge/scripts/migration/configAccessor');
+    var Site           = require('dw/system/Site');
     var customerListId = (cfg2.sfcc && cfg2.sfcc.customerListId) ? cfg2.sfcc.customerListId : '';
+    var siteId         = Site.getCurrent().getID();
+    var jobsUrl        = 'https://' + request.httpHost
+                       + '/on/demandware.store/Sites-Site/default;site=' + siteId
+                       + '/ViewApplication-BM?SelectedMenuItem=jobschedules'
+                       + '#/?job#editor!id!CTCustomer!config!CTCustomer!domain!Sites';
     ISML.renderTemplate('accelerator/customerMigration', {
         title:          Resource.msg('accelerator.title', 'accelerator', null),
         subtitle:       Resource.msg('accelerator.subtitle', 'accelerator', null),
@@ -446,7 +452,8 @@ exports.CustomerMigration = function () {
         byIdUrl:             URLUtils.url('Accelerator-MigrateCustomerById').toString(),
         customerListsUrl:    URLUtils.url('Accelerator-GetCustomerLists').toString(),
         checkAttrsUrl:       URLUtils.url('Accelerator-CheckCustomerAttributes').toString(),
-        createAttrsUrl:      URLUtils.url('Accelerator-CreateCustomerAttributes').toString()
+        createAttrsUrl:      URLUtils.url('Accelerator-CreateCustomerAttributes').toString(),
+        jobsUrl:             jobsUrl
     });
 };
 exports.CustomerMigration.public = true;
