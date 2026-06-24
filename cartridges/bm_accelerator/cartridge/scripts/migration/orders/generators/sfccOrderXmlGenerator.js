@@ -1,9 +1,12 @@
 'use strict';
 
-var localizedString = require('*/cartridge/scripts/migration/orders/localizedString').localizedString;
+var localizedString     = require('*/cartridge/scripts/migration/orders/localizedString').localizedString;
+var orderShippingStatus = require('*/cartridge/scripts/migration/orders/orderShippingStatus');
+var orderTotals         = require('*/cartridge/scripts/migration/orders/orderTotalsCalculator');
+var orderXmlValidator   = require('*/cartridge/scripts/migration/orders/validators/orderXmlValidator');
 
 var XML_HEADER = '<?xml version="1.0" encoding="UTF-8"?>\n';
-var NS_ORDER   = 'http://www.demandware.com/xml/impex/order/2007-03-31';
+var NS_ORDER   = orderXmlValidator.NS_ORDER;
 
 /**
  * Escape XML special characters.
@@ -31,32 +34,80 @@ function fmtMoney(n) {
 }
 
 /**
- * Build XML for a canonical address.
- * @param {string} tagName - e.g. billing-address
- * @param {Object} addr
+ * Format tax rate for XML (up to 4 decimal places).
+ * @param {number} rate
  * @returns {string}
  */
-function addressXml(tagName, addr) {
+function fmtTaxRate(rate) {
+    var val = parseFloat(rate) || 0;
+    return val.toFixed(4);
+}
+
+/**
+ * Normalize order date to SFCC export style.
+ * @param {string} dateStr
+ * @returns {string}
+ */
+function formatOrderDate(dateStr) {
+    if (!dateStr) return '';
+    var d = new Date(dateStr);
+    if (isNaN(d.getTime())) return String(dateStr);
+    return d.toISOString().replace(/\.\d{3}Z$/, '.000Z');
+}
+
+/**
+ * Build XML for an address block (order.xsd Address sequence).
+ * @param {string} tagName
+ * @param {Object} addr
+ * @param {string} indent
+ * @returns {string}
+ */
+function addressXml(tagName, addr, indent) {
     if (!addr) return '';
-    var lines = [
-        '        <' + tagName + '>',
-        '            <first-name>' + escapeXml(addr.firstName) + '</first-name>',
-        '            <last-name>' + escapeXml(addr.lastName) + '</last-name>',
-        '            <address1>' + escapeXml(addr.address1) + '</address1>',
-        '            <city>' + escapeXml(addr.city) + '</city>',
-        '            <postal-code>' + escapeXml(addr.postalCode) + '</postal-code>',
-        '            <state-code>' + escapeXml(addr.stateCode) + '</state-code>',
-        '            <country-code>' + escapeXml(addr.countryCode) + '</country-code>',
-        '            <phone>' + escapeXml(addr.phone) + '</phone>'
-    ];
-    if (addr.company) {
-        lines.splice(4, 0, '            <company-name>' + escapeXml(addr.company) + '</company-name>');
-    }
+
+    var pad = indent || '        ';
+    var inner = pad + '    ';
+    var address1 = String(addr.address1 || '');
     if (addr.address2) {
-        lines.splice(5, 0, '            <address2>' + escapeXml(addr.address2) + '</address2>');
+        address1 = (address1 + ' ' + String(addr.address2)).trim();
     }
-    lines.push('        </' + tagName + '>');
+
+    var lines = [
+        pad + '<' + tagName + '>',
+        inner + '<first-name>' + escapeXml(addr.firstName) + '</first-name>',
+        inner + '<last-name>' + escapeXml(addr.lastName) + '</last-name>'
+    ];
+
+    if (addr.company) {
+        lines.push(inner + '<company-name>' + escapeXml(addr.company) + '</company-name>');
+    }
+
+    lines.push(inner + '<address1>' + escapeXml(address1) + '</address1>');
+    lines.push(inner + '<city>' + escapeXml(addr.city) + '</city>');
+    lines.push(inner + '<postal-code>' + escapeXml(addr.postalCode) + '</postal-code>');
+    lines.push(inner + '<state-code>' + escapeXml(addr.stateCode) + '</state-code>');
+    lines.push(inner + '<country-code>' + escapeXml(addr.countryCode) + '</country-code>');
+    lines.push(inner + '<phone>' + escapeXml(addr.phone) + '</phone>');
+    lines.push(pad + '</' + tagName + '>');
     return lines.join('\n');
+}
+
+/**
+ * Shared line-item amount fields in XSD order.
+ * @param {Object} li
+ * @param {string} indent
+ * @param {string} lineitemText
+ * @returns {string[]}
+ */
+function lineItemAmountLines(li, indent, lineitemText) {
+    return [
+        indent + '<net-price>' + fmtMoney(li.netPrice) + '</net-price>',
+        indent + '<tax>' + fmtMoney(li.taxAmount) + '</tax>',
+        indent + '<gross-price>' + fmtMoney(li.grossPrice) + '</gross-price>',
+        indent + '<base-price>' + fmtMoney(li.basePrice !== undefined ? li.basePrice : li.unitPrice) + '</base-price>',
+        indent + '<lineitem-text>' + escapeXml(lineitemText) + '</lineitem-text>',
+        indent + '<tax-basis>' + fmtMoney(li.taxBasis) + '</tax-basis>'
+    ];
 }
 
 function lineItemDisplayName(li) {
@@ -64,28 +115,83 @@ function lineItemDisplayName(li) {
 }
 
 /**
- * Build product line items XML.
+ * Render a net/tax/gross totals group.
+ * @param {string} tag
+ * @param {Object} amounts
+ * @param {string} indent
+ * @returns {string}
+ */
+function totalsGroupXml(tag, amounts, indent) {
+    var inner = indent + '    ';
+    return [
+        indent + '<' + tag + '>',
+        inner + '<net-price>' + fmtMoney(amounts.net) + '</net-price>',
+        inner + '<tax>' + fmtMoney(amounts.tax) + '</tax>',
+        inner + '<gross-price>' + fmtMoney(amounts.gross) + '</gross-price>',
+        indent + '</' + tag + '>'
+    ].join('\n');
+}
+
+/**
+ * @param {Object} totals
+ * @param {string} indent
+ * @param {boolean} shipmentLevel
+ * @returns {string}
+ */
+function totalsBlockXml(totals, indent, shipmentLevel) {
+    var parts = [indent + '<totals>'];
+    parts.push(totalsGroupXml('merchandize-total', totals.merchandise, indent + '    '));
+    parts.push(totalsGroupXml('adjusted-merchandize-total', totals.merchandise, indent + '    '));
+    parts.push(totalsGroupXml('shipping-total', totals.shipping, indent + '    '));
+    parts.push(totalsGroupXml('adjusted-shipping-total', totals.shipping, indent + '    '));
+    if (shipmentLevel) {
+        parts.push(totalsGroupXml('shipment-total', totals.shipment, indent + '    '));
+    } else {
+        parts.push(totalsGroupXml('order-total', totals.order, indent + '    '));
+    }
+    parts.push(indent + '</totals>');
+    return parts.join('\n');
+}
+
+/**
+ * @param {Object} order
+ * @returns {string}
+ */
+function customerXml(order) {
+    var customer = order.customer || {};
+    var parts = [
+        '        <customer>',
+        '            <customer-no>' + escapeXml(customer.id || customer.email) + '</customer-no>',
+        '            <customer-name>' + escapeXml((customer.firstName + ' ' + customer.lastName).trim()) + '</customer-name>',
+        '            <customer-email>' + escapeXml(customer.email) + '</customer-email>',
+        addressXml('billing-address', order.billingAddress, '            '),
+        '        </customer>'
+    ];
+    return parts.join('\n');
+}
+
+/**
  * @param {Object[]} lineItems
  * @returns {string}
  */
-function lineItemsXml(lineItems) {
+function productLineItemsXml(lineItems) {
     var parts = ['        <product-lineitems>'];
     for (var i = 0; i < lineItems.length; i++) {
         var li = lineItems[i];
         var displayName = lineItemDisplayName(li);
+        var qty = parseFloat(li.quantity) || 1;
+        var indent = '                ';
         parts.push('            <product-lineitem>');
-        parts.push('                <net-price>' + fmtMoney(li.netPrice) + '</net-price>');
-        parts.push('                <tax>' + fmtMoney(li.taxAmount) + '</tax>');
-        parts.push('                <gross-price>' + fmtMoney(li.grossPrice) + '</gross-price>');
-        parts.push('                <base-price>' + fmtMoney(li.unitPrice) + '</base-price>');
-        parts.push('                <lineitem-text>' + escapeXml(displayName) + '</lineitem-text>');
-        parts.push('                <position>' + (i + 1) + '</position>');
-        parts.push('                <product-id>' + escapeXml(li.sku) + '</product-id>');
-        parts.push('                <product-name>' + escapeXml(displayName) + '</product-name>');
-        parts.push('                <quantity>');
-        parts.push('                    <unit></unit>');
-        parts.push('                    <value>' + (li.quantity || 1) + '.0</value>');
-        parts.push('                </quantity>');
+        var amountLines = lineItemAmountLines(li, indent, displayName);
+        for (var a = 0; a < amountLines.length; a++) {
+            parts.push(amountLines[a]);
+        }
+        parts.push(indent + '<position>' + (i + 1) + '</position>');
+        parts.push(indent + '<product-id>' + escapeXml(li.sku) + '</product-id>');
+        parts.push(indent + '<product-name>' + escapeXml(displayName) + '</product-name>');
+        parts.push(indent + '<quantity unit="">' + qty.toFixed(1) + '</quantity>');
+        parts.push(indent + '<tax-rate>' + fmtTaxRate(li.taxRate) + '</tax-rate>');
+        parts.push(indent + '<shipment-id>' + escapeXml(li.shipmentId) + '</shipment-id>');
         parts.push('            </product-lineitem>');
     }
     parts.push('        </product-lineitems>');
@@ -93,58 +199,49 @@ function lineItemsXml(lineItems) {
 }
 
 /**
- * Build totals XML block.
- * @param {Object} order
+ * @param {Object[]} shippingLineItems
  * @returns {string}
  */
-function totalsXml(order) {
-    var merch = fmtMoney(order.merchandiseTotal);
-    var ship  = fmtMoney(order.shippingTotal);
-    var tax   = fmtMoney(order.taxTotal);
-    var total = fmtMoney(order.orderTotal);
-    return [
-        '        <totals>',
-        '            <merchandize-total>',
-        '                <net-price>' + merch + '</net-price>',
-        '                <tax>' + tax + '</tax>',
-        '                <gross-price>' + total + '</gross-price>',
-        '            </merchandize-total>',
-        '            <adjusted-merchandize-total>',
-        '                <net-price>' + merch + '</net-price>',
-        '                <tax>' + tax + '</tax>',
-        '                <gross-price>' + total + '</gross-price>',
-        '            </adjusted-merchandize-total>',
-        '            <shipping-total>',
-        '                <net-price>' + ship + '</net-price>',
-        '                <tax>0.00</tax>',
-        '                <gross-price>' + ship + '</gross-price>',
-        '            </shipping-total>',
-        '            <order-total>',
-        '                <net-price>' + merch + '</net-price>',
-        '                <tax>' + tax + '</tax>',
-        '                <gross-price>' + total + '</gross-price>',
-        '            </order-total>',
-        '        </totals>'
-    ].join('\n');
+function shippingLineItemsXml(shippingLineItems) {
+    var parts = ['        <shipping-lineitems>'];
+    for (var i = 0; i < shippingLineItems.length; i++) {
+        var li = shippingLineItems[i];
+        var text = li.lineitemText || 'Shipping';
+        var indent = '                ';
+        parts.push('            <shipping-lineitem>');
+        var amountLines = lineItemAmountLines(li, indent, text);
+        for (var a = 0; a < amountLines.length; a++) {
+            parts.push(amountLines[a]);
+        }
+        parts.push(indent + '<item-id>' + escapeXml(li.itemId || 'STANDARD_SHIPPING') + '</item-id>');
+        parts.push(indent + '<shipment-id>' + escapeXml(li.shipmentId) + '</shipment-id>');
+        parts.push(indent + '<tax-rate>' + fmtTaxRate(li.taxRate) + '</tax-rate>');
+        parts.push('            </shipping-lineitem>');
+    }
+    parts.push('        </shipping-lineitems>');
+    return parts.join('\n');
 }
 
 /**
- * Build shipments XML block.
  * @param {Object[]} shipments
- * @param {string} orderNumber
  * @returns {string}
  */
-function shipmentsXml(shipments, orderNumber) {
-    if (!shipments || !shipments.length) return '';
+function shipmentsXml(shipments) {
     var parts = ['        <shipments>'];
     for (var i = 0; i < shipments.length; i++) {
         var s = shipments[i];
-        parts.push('            <shipment shipment-id="' + escapeXml(s.id || orderNumber) + '">');
+        var shipmentId = escapeXml(s.shipmentId || s.id);
+        var shippingStatus = orderShippingStatus.mapShipmentShippingStatus(s.status);
+        parts.push('            <shipment shipment-id="' + shipmentId + '">');
         parts.push('                <status>');
-        parts.push('                    <shipping-status>' + escapeXml(s.status || 'NOT_SHIPPED') + '</shipping-status>');
+        parts.push('                    <shipping-status>' + shippingStatus + '</shipping-status>');
         parts.push('                </status>');
         if (s.shippingMethod) {
             parts.push('                <shipping-method>' + escapeXml(s.shippingMethod) + '</shipping-method>');
+        }
+        parts.push(addressXml('shipping-address', s.shippingAddress, '                '));
+        if (s.totals) {
+            parts.push(totalsBlockXml(s.totals, '                ', true));
         }
         parts.push('            </shipment>');
     }
@@ -153,37 +250,84 @@ function shipmentsXml(shipments, orderNumber) {
 }
 
 /**
+ * @param {Object[]} payments
+ * @returns {string}
+ */
+function paymentsXml(payments) {
+    if (!payments || !payments.length) return '';
+    var parts = ['        <payments>'];
+    for (var i = 0; i < payments.length; i++) {
+        var p = payments[i];
+        parts.push('            <payment>');
+        if (p.method) {
+            parts.push('                <custom-method>');
+            parts.push('                    <method-name>' + escapeXml(p.method) + '</method-name>');
+            parts.push('                </custom-method>');
+        }
+        if (p.amount !== undefined && p.amount !== null) {
+            parts.push('                <amount>' + fmtMoney(p.amount) + '</amount>');
+        }
+        if (p.transactionId) {
+            parts.push('                <transaction-id>' + escapeXml(p.transactionId) + '</transaction-id>');
+        }
+        parts.push('            </payment>');
+    }
+    parts.push('        </payments>');
+    return parts.join('\n');
+}
+
+/**
+ * @param {Object} order
+ * @returns {Object}
+ */
+function prepareOrder(order) {
+    return orderTotals.reconcileOrder(order);
+}
+
+/**
  * Generate inner <order> XML block (no wrapper).
  * @param {Object} order - CanonicalOrder
  * @returns {string}
  */
 function generateOrderInnerXml(order) {
-    var orderNo = escapeXml(order.orderNumber);
+    var prepared = prepareOrder(order);
+    var orderNo = escapeXml(prepared.orderNumber);
     var parts   = [
         '    <order order-no="' + orderNo + '">',
-        '        <order-date>' + escapeXml(order.createdAt) + '</order-date>',
+        '        <order-date>' + escapeXml(formatOrderDate(prepared.createdAt)) + '</order-date>',
         '        <created-by>migration</created-by>',
         '        <original-order-no>' + orderNo + '</original-order-no>',
-        '        <currency>' + escapeXml(order.currency) + '</currency>',
-        '        <customer>',
-        '            <customer-no>' + escapeXml(order.customer.id || order.customer.email) + '</customer-no>',
-        '            <customer-name>' + escapeXml((order.customer.firstName + ' ' + order.customer.lastName).trim()) + '</customer-name>',
-        '            <customer-email>' + escapeXml(order.customer.email) + '</customer-email>',
-        '        </customer>',
+        '        <currency>' + escapeXml(prepared.currency) + '</currency>',
+        '        <customer-locale>' + escapeXml(prepared.customerLocale || 'en_US') + '</customer-locale>',
+        '        <taxation>' + escapeXml(prepared.taxation || 'net') + '</taxation>',
+        customerXml(prepared),
         '        <status>',
-        '            <order-status>' + escapeXml(order.status || 'NEW') + '</order-status>',
-        '            <shipping-status>NOT_SHIPPED</shipping-status>',
+        '            <order-status>' + escapeXml(prepared.status || 'NEW') + '</order-status>',
+        '            <shipping-status>' + orderShippingStatus.mapOrderShippingStatus(prepared.shipments[0] && prepared.shipments[0].status) + '</shipping-status>',
         '            <confirmation-status>CONFIRMED</confirmation-status>',
-        '            <payment-status>' + escapeXml(order.paymentStatus || 'NOT_PAID') + '</payment-status>',
+        '            <payment-status>' + escapeXml(prepared.paymentStatus || 'NOT_PAID') + '</payment-status>',
         '        </status>',
         '        <current-order-no>' + orderNo + '</current-order-no>',
-        lineItemsXml(order.lineItems),
-        totalsXml(order),
-        shipmentsXml(order.shipments, order.orderNumber),
-        addressXml('billing-address', order.billingAddress),
-        addressXml('shipping-address', order.shippingAddress || order.billingAddress),
-        '    </order>'
+        productLineItemsXml(prepared.lineItems),
+        shippingLineItemsXml(prepared.shippingLineItems),
+        shipmentsXml(prepared.shipments),
+        totalsBlockXml(prepared.totals, '        ', false)
     ];
+    var paymentsBlock = paymentsXml(prepared.payments);
+    if (paymentsBlock) {
+        parts.push(paymentsBlock);
+    }
+
+    if (prepared.customAttributes && prepared.customAttributes.length) {
+        parts.push('        <custom-attributes>');
+        for (var c = 0; c < prepared.customAttributes.length; c++) {
+            var attr = prepared.customAttributes[c];
+            parts.push('            <custom-attribute attribute-id="' + escapeXml(attr.id) + '">' + escapeXml(attr.value) + '</custom-attribute>');
+        }
+        parts.push('        </custom-attributes>');
+    }
+
+    parts.push('    </order>');
     return parts.join('\n');
 }
 
@@ -193,12 +337,14 @@ function generateOrderInnerXml(order) {
  * @returns {string}
  */
 function generateOrderXml(order) {
-    return [
+    var xml = [
         XML_HEADER,
         '<orders xmlns="' + NS_ORDER + '">',
         generateOrderInnerXml(order),
         '</orders>'
     ].join('\n');
+    orderXmlValidator.assertValidOrderXml(xml);
+    return xml;
 }
 
 /**
@@ -226,12 +372,15 @@ function generateChunkedXml(orders, chunkSize) {
         }
         parts.push('</orders>');
 
+        var xml = parts.join('\n');
+        orderXmlValidator.assertValidOrderXml(xml);
+
         var padded = String(fileIndex);
         while (padded.length < 3) padded = '0' + padded;
 
         chunks.push({
             fileName: 'orders_' + padded + '.xml',
-            content:  parts.join('\n')
+            content:  xml
         });
         fileIndex++;
     }
@@ -240,10 +389,13 @@ function generateChunkedXml(orders, chunkSize) {
 }
 
 module.exports = {
-    escapeXml:            escapeXml,
-    fmtMoney:             fmtMoney,
+    NS_ORDER:              NS_ORDER,
+    escapeXml:             escapeXml,
+    fmtMoney:              fmtMoney,
+    formatOrderDate:       formatOrderDate,
+    prepareOrder:          prepareOrder,
     generateOrderInnerXml: generateOrderInnerXml,
-    generateOrderXml:     generateOrderXml,
-    generateChunkedXml:   generateChunkedXml,
-    DEFAULT_CHUNK_SIZE:   5000
+    generateOrderXml:      generateOrderXml,
+    generateChunkedXml:    generateChunkedXml,
+    DEFAULT_CHUNK_SIZE:    5000
 };
