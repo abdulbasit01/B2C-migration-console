@@ -43,6 +43,66 @@
             font-size: 12px;
             margin-top: 4px;
         }
+        /* ---- Attribute pre-flight table ---- */
+        .cm-attr-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        .cm-attr-table thead tr {
+            background: #f4f6f9;
+            border-bottom: 2px solid #dddbda;
+        }
+        .cm-attr-table th {
+            padding: 9px 14px;
+            text-align: left;
+            font-size: 11px;
+            font-weight: 700;
+            color: #54698d;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            white-space: nowrap;
+        }
+        .cm-attr-table td {
+            padding: 9px 14px;
+            border-bottom: 1px solid #f0f2f8;
+            color: #3e3e3c;
+            vertical-align: middle;
+        }
+        .cm-attr-table tbody tr:last-child td { border-bottom: none; }
+        .cm-attr-table tbody tr:hover { background: #f8f9fb; }
+        .cm-attr-table td code {
+            background: #eaf0fb;
+            padding: 2px 7px;
+            border-radius: 3px;
+            font-family: monospace;
+            font-size: 12px;
+            color: #16325c;
+            font-weight: 600;
+        }
+        /* ---- Buttons used in dynamically-rendered attr results ---- */
+        .cm-btn {
+            padding: 7px 16px;
+            font-size: 13px;
+            font-weight: 600;
+            border-radius: 4px;
+            cursor: pointer;
+            border: 1px solid transparent;
+            display: inline-block;
+            line-height: 1.4;
+            white-space: nowrap;
+        }
+        .cm-btn--primary {
+            background: #0070d2;
+            color: #fff;
+            border-color: #005fb2;
+        }
+        .cm-btn--primary:hover { background: #005fb2; }
+        .cm-btn--primary:disabled {
+            background: #97c3ea;
+            border-color: #97c3ea;
+            cursor: default;
+        }
     </style>
 </head>
 <body class="acc-page">
@@ -82,18 +142,20 @@
         </div>
 
         <!-- -- Attribute pre-flight -- -->
-        <div id="acc-attr-preflight" style="margin:0 0 28px;border:1px solid #dddbda;border-radius:4px;padding:16px 20px;">
-            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-                <span style="font-weight:700;font-size:14px;color:#16325c;">Attribute Pre-flight Check</span>
+        <div id="acc-attr-preflight" style="margin:0 0 28px;border:1px solid #dddbda;border-radius:6px;overflow:hidden;">
+            <div style="background:#f4f6f9;border-bottom:1px solid #dddbda;padding:11px 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                <span style="font-weight:700;font-size:14px;color:#16325c;">&#x26A1; Attribute Pre-flight Check</span>
                 <button id="acc-check-attrs-btn" type="button" class="acc-btn acc-btn--ghost">Check CTP Attributes</button>
-                <span id="acc-attr-check-msg" style="font-size:13px;color:#54698d;"></span>
+                <span id="acc-attr-check-msg" style="font-size:13px;color:#54698d;font-weight:600;"></span>
             </div>
-            <p style="font-size:13px;color:#54698d;margin:8px 0 0;">
-                Scans CTP customer custom-type field definitions and checks whether matching
-                attributes exist on the SFCC <strong>Customer</strong> system object.
-                Missing attributes can be created here before the migration runs.
-            </p>
-            <div id="acc-attr-results" style="display:none;margin-top:16px;"></div>
+            <div style="padding:14px 20px;">
+                <p style="font-size:13px;color:#54698d;margin:0;">
+                    Scans CTP customer custom-type field definitions and checks whether matching
+                    attributes exist on the SFCC <strong>Customer</strong> system object.
+                    Missing attributes can be created here before the migration runs.
+                </p>
+                <div id="acc-attr-results" style="display:none;margin-top:14px;"></div>
+            </div>
         </div>
 
         <!-- -- Mode tabs -- -->
@@ -352,7 +414,8 @@
             + missing.length + ' attribute(s) found in CTP but missing in SFCC. '
             + 'Select the ones you want to create:</p>';
 
-        html += '<table class="cm-attr-table">'
+        html += '<div style="border:1px solid #e0e5ee;border-radius:4px;overflow:hidden;">'
+            + '<table class="cm-attr-table">'
             + '<thead><tr>'
             + '<th style="width:36px;"><input type="checkbox" id="acc-attr-select-all" checked/></th>'
             + '<th>Attribute ID</th>'
@@ -371,7 +434,7 @@
                 + '<td style="color:#0070d2;font-weight:600;">' + m.sfccType + '</td>'
                 + '</tr>';
         }
-        html += '</tbody></table>';
+        html += '</tbody></table></div>';
 
         html += '<div style="margin-top:14px;display:flex;align-items:center;gap:12px;">'
             + '<button type="button" id="acc-create-attrs-btn" class="cm-btn cm-btn--primary">&#10003; Create Selected Attributes</button>'
@@ -719,7 +782,8 @@
         modalMissing  = missing;
         modalCallback = onContinue;
 
-        var html = '<table class="cm-attr-table">'
+        var html = '<div style="border:1px solid #e0e5ee;border-radius:4px;overflow:hidden;margin-bottom:4px;">'
+            + '<table class="cm-attr-table">'
             + '<thead><tr>'
             + '<th>Attribute ID</th>'
             + '<th>Label</th>'
@@ -735,7 +799,7 @@
                 + '<td style="color:#0070d2;font-weight:600;">' + m.sfccType + '</td>'
                 + '</tr>';
         }
-        html += '</tbody></table>';
+        html += '</tbody></table></div>';
         modalAttrList.innerHTML    = html;
         modalStatus.textContent    = '';
         modalStatus.style.color    = '#54698d';
