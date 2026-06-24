@@ -63,8 +63,7 @@ const config = {
         clientId:     env.CTP_CLIENT_ID,
         clientSecret: env.CTP_CLIENT_SECRET,
         authUrl:      env.CTP_AUTH_URL || 'https://auth.us-central1.gcp.commercetools.com',
-        apiUrl:       env.CTP_API_URL  || 'https://api.us-central1.gcp.commercetools.com',
-        scopes:       env.CTP_SCOPES   || ('manage_project:' + env.CTP_PROJECT_KEY)
+        apiUrl:       env.CTP_API_URL  || 'https://api.us-central1.gcp.commercetools.com'
     },
     sfcc: {
         bmClientId:      env.SFCC_BM_CLIENT_ID     || 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',

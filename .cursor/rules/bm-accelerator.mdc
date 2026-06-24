@@ -1,0 +1,37 @@
+---
+description: B2C Migration Console (bm_accelerator) — architecture, wizards, deploy
+alwaysApply: true
+---
+
+# bm_accelerator Migration Console
+
+## Layout
+- Controller: `cartridges/bm_accelerator/cartridge/controllers/Accelerator.js`
+- Wizard data: `cartridges/bm_accelerator/cartridge/scripts/accelerator/migrationData.js`
+- Order pipeline: `cartridges/bm_accelerator/cartridge/scripts/migration/orders/`
+- Templates: `cartridges/bm_accelerator/cartridge/templates/default/accelerator/`
+- Resources: `cartridges/bm_accelerator/cartridge/templates/resources/accelerator.properties`
+- Config: `config.js` + `sfcc-credentials.js` generated from `.env` + `dw.json` (never commit secrets)
+
+## Two wizards
+| Flow | Pipeline | Steps |
+|------|----------|-------|
+| Schema | `Accelerator-Wizard` | Connect → Fetch → AI Map → Move → View |
+| Data | `Accelerator-DataWizard` | Connect → Select Data → (order: Configure → Export → Download) |
+
+Data type `order` is implemented; customer/product/catalog are placeholders (`typePlaceholder` step).
+
+## Session keys
+`dataMigrationConnected`, `selectedDataType`, `orderExportYears`, `orderExportMaxCount`, `orderMigrationReport`
+
+## Deploy
+```bash
+npm run upload:accelerator
+```
+
+## Conventions
+- No `scopes` field anywhere
+- Use `encodeURIComponent()` in controllers (not `StringUtils.encodeURIComponent`)
+- Binary downloads: `Packages.java.io.FileInputStream` + `IOUtils.copy` to `response.base.getOutputStream()`
+- `getDataWizardSteps('')` → 2 steps (`DATA_WIZARD_STEPS`); `getDataWizardSteps('order')` → 5 steps
+- Clear `selectedDataType` when returning to data wizard steps 1–2

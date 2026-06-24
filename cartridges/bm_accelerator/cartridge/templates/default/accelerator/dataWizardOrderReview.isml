@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title>${pdict.title} - ${pdict.platform.name}</title>
+    <link rel="stylesheet" href="${pdict.cssUrl}"/>
+</head>
+<body class="acc-page acc-page--wizard">
+    <div class="acc-shell">
+        <isinclude template="accelerator/components/dataWizardChrome"/>
+
+        <main class="acc-wizard-card">
+            <isinclude template="accelerator/components/dataStepOrderReview"/>
+        </main>
+
+        <footer class="acc-wizard-footer">
+            <isinclude template="accelerator/components/dataWizardNavPrev"/>
+            <a class="acc-btn acc-btn--primary" href="${pdict.dashboardUrl}">
+                ${Resource.msg('accelerator.datawizard.finish', 'accelerator', null)}
+            </a>
+        </footer>
+    </div>
+</body>
+</html>

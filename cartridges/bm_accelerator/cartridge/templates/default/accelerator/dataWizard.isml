@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title>${pdict.title} — ${pdict.platform.name}</title>
+    <link rel="stylesheet" href="${pdict.cssUrl}"/>
+</head>
+<body class="acc-page acc-page--wizard">
+    <div class="acc-shell">
+        <isinclude template="accelerator/components/header"/>
+
+        <a class="acc-back" href="${pdict.dashboardUrl}">
+            &larr; ${Resource.msg('accelerator.datawizard.back', 'accelerator', null)}
+        </a>
+
+        <isif condition="${!empty(pdict.dataType)}">
+            <div class="acc-data-context">
+                <span class="acc-data-context__label">${Resource.msg('accelerator.datawizard.migrating', 'accelerator', null)}</span>
+                <span class="acc-data-context__value">${pdict.dataType.label}</span>
+            </div>
+        </isif>
+
+        <isinclude template="accelerator/components/stepper"/>
+
+        <main class="acc-wizard-card">
+            <isif condition="${pdict.wizardStepKey == 'connect'}">
+                <isinclude template="accelerator/components/dataStepConnect"/>
+            <iselseif condition="${pdict.wizardStepKey == 'selectType'}"/>
+                <isinclude template="accelerator/components/dataStepSelectType"/>
+            <iselseif condition="${pdict.wizardStepKey == 'orderConfigure'}"/>
+                <isinclude template="accelerator/components/dataStepOrderConfigure"/>
+            <iselseif condition="${pdict.wizardStepKey == 'orderExport'}"/>
+                <isinclude template="accelerator/components/dataStepOrderExport"/>
+            <iselseif condition="${pdict.wizardStepKey == 'orderReview'}"/>
+                <isinclude template="accelerator/components/dataStepOrderReview"/>
+            <iselse/>
+                <isinclude template="accelerator/components/dataStepTypePlaceholder"/>
+            </isif>
+        </main>
+
+        <footer class="acc-wizard-footer">
+            <isif condition="${pdict.prevStep}">
+                <a class="acc-btn acc-btn--ghost"
+                   href="${pdict.wizardBaseUrl}&amp;step=${pdict.prevStepQuery}">
+                    ${Resource.msg('accelerator.wizard.previous', 'accelerator', null)}
+                </a>
+            <iselse/>
+                <span></span>
+            </isif>
+
+            <isif condition="${pdict.wizardStepKey == 'connect'}">
+                <span id="data-wizard-continue-wrap" class="acc-hidden">
+                    <button type="submit" form="acc-data-connect-form" id="data-wizard-continue"
+                            class="acc-btn acc-btn--primary" disabled="disabled">
+                        ${Resource.msg('accelerator.wizard.continue', 'accelerator', null)}
+                    </button>
+                </span>
+            <iselseif condition="${pdict.wizardStepKey == 'orderConfigure'}"/>
+                <button type="submit" form="acc-order-config-form" class="acc-btn acc-btn--primary">
+                    ${Resource.msg('accelerator.wizard.continue', 'accelerator', null)}
+                </button>
+            <iselseif condition="${pdict.wizardStepKey == 'selectType'}"/>
+                <a id="data-type-continue" class="acc-btn acc-btn--primary" href="#">
+                    ${Resource.msg('accelerator.wizard.continue', 'accelerator', null)}
+                </a>
+            <iselseif condition="${pdict.isLastStep}"/>
+                <a class="acc-btn acc-btn--primary" href="${pdict.dashboardUrl}">
+                    ${Resource.msg('accelerator.datawizard.finish', 'accelerator', null)}
+                </a>
+            </isif>
+        </footer>
+    </div>
+</body>
+</html>
