@@ -2,6 +2,7 @@
 
 var canonicalOrder = require('*/cartridge/scripts/migration/orders/canonicalOrder');
 var localizedString = require('*/cartridge/scripts/migration/orders/localizedString').localizedString;
+var orderShippingStatus = require('*/cartridge/scripts/migration/orders/orderShippingStatus');
 
 /**
  * Resolve a line item display name from commercetools order data.
@@ -15,6 +16,73 @@ function lineItemName(li, variant) {
         || localizedString(li.productSlug, '')
         || localizedString(variant.title, '')
         || fallback;
+}
+
+/**
+ * Map commercetools locale to SFCC customer-locale.
+ * @param {string} locale
+ * @returns {string}
+ */
+function mapCustomerLocale(locale) {
+    if (!locale) return 'en_US';
+    return String(locale).replace(/-/g, '_');
+}
+
+/**
+ * Map commercetools tax mode to SFCC taxation value.
+ * @param {Object} ctOrder
+ * @returns {string}
+ */
+function mapTaxation(ctOrder) {
+    if (ctOrder.taxedPrice && ctOrder.taxedPrice.totalTax && ctOrder.taxedPrice.totalTax.centAmount) {
+        return 'net';
+    }
+    if (ctOrder.taxMode === 'Gross') return 'gross';
+    return 'net';
+}
+
+/**
+ * Map commercetools payment info.
+ * @param {Object} ctOrder
+ * @returns {Object[]}
+ */
+function mapPayments(ctOrder) {
+    var payments = [];
+    var info = ctOrder.paymentInfo && ctOrder.paymentInfo.payments;
+    if (info && info.length) {
+        for (var i = 0; i < info.length; i++) {
+            var p = info[i];
+            var obj = p.obj || p;
+            payments.push({
+                method:        obj.paymentMethodInfo && obj.paymentMethodInfo.method || obj.paymentMethod || 'CARD',
+                amount:        obj.amountPlanned ? moneyToDecimal(obj.amountPlanned) : null,
+                transactionId: obj.id || ''
+            });
+        }
+    }
+    return payments;
+}
+
+/**
+ * Map custom fields from commercetools order.
+ * @param {Object} ctOrder
+ * @returns {Object[]}
+ */
+function mapCustomAttributes(ctOrder) {
+    var attrs = [];
+    var custom = ctOrder.custom;
+    if (!custom || !custom.fields) return attrs;
+    var fields = custom.fields;
+    var keys = Object.keys(fields);
+    for (var i = 0; i < keys.length; i++) {
+        var key = keys[i];
+        var val = fields[key];
+        attrs.push({
+            id:    key,
+            value: typeof val === 'object' ? localizedString(val, '') : String(val)
+        });
+    }
+    return attrs;
 }
 
 /**
@@ -159,19 +227,34 @@ function mapDiscounts(ctOrder) {
 function mapShipments(ctOrder) {
     var shipments = [];
     var shipping  = ctOrder.shippingInfo;
+    var shipTaxed = shipping && shipping.taxedPrice ? shipping.taxedPrice : null;
+    var shipNet   = shipTaxed && shipTaxed.totalNet
+        ? moneyToDecimal(shipTaxed.totalNet)
+        : (shipping && shipping.price ? moneyToDecimal(shipping.price) : 0);
+    var shipTax   = shipTaxed && shipTaxed.totalTax ? moneyToDecimal(shipTaxed.totalTax) : 0;
+    var shipGross = shipTaxed && shipTaxed.totalGross
+        ? moneyToDecimal(shipTaxed.totalGross)
+        : shipNet + shipTax;
+
     if (shipping) {
         shipments.push({
-            id:             shipping.shippingMethodName || 'default',
-            status:         ctOrder.shipmentState || '',
-            shippingMethod: shipping.shippingMethodName || '',
-            shippingAddress: mapAddress(ctOrder.shippingAddress)
+            shipmentId:      '000001',
+            status:          orderShippingStatus.mapShippingStatus(ctOrder.shipmentState),
+            shippingMethod:  shipping.shippingMethodName || 'STANDARD_SHIPPING',
+            shippingAddress: mapAddress(ctOrder.shippingAddress),
+            shippingNet:     shipNet,
+            shippingTax:     shipTax,
+            shippingGross:   shipGross
         });
     } else if (ctOrder.shippingAddress) {
         shipments.push({
-            id:              'default',
-            status:          ctOrder.shipmentState || '',
-            shippingMethod:  '',
-            shippingAddress: mapAddress(ctOrder.shippingAddress)
+            shipmentId:      '000001',
+            status:          orderShippingStatus.mapShippingStatus(ctOrder.shipmentState),
+            shippingMethod:  'STANDARD_SHIPPING',
+            shippingAddress: mapAddress(ctOrder.shippingAddress),
+            shippingNet:     0,
+            shippingTax:     0,
+            shippingGross:   0
         });
     }
     return shipments;
@@ -222,6 +305,8 @@ function mapOrder(ctOrder) {
     order.orderNumber     = ctOrder.orderNumber || ctOrder.id || '';
     order.currency        = currency;
     order.createdAt       = ctOrder.createdAt || '';
+    order.customerLocale  = mapCustomerLocale(ctOrder.locale);
+    order.taxation        = mapTaxation(ctOrder);
     order.customer        = mapCustomer(ctOrder);
     order.billingAddress  = mapAddress(ctOrder.billingAddress);
     order.shippingAddress = mapAddress(ctOrder.shippingAddress);
@@ -229,6 +314,8 @@ function mapOrder(ctOrder) {
     order.taxes           = mapTaxes(ctOrder);
     order.discounts       = mapDiscounts(ctOrder);
     order.shipments       = mapShipments(ctOrder);
+    order.payments        = mapPayments(ctOrder);
+    order.customAttributes = mapCustomAttributes(ctOrder);
     order.status          = mapOrderStatus(ctOrder.orderState);
     order.paymentStatus   = mapPaymentStatus(ctOrder.paymentState);
 
