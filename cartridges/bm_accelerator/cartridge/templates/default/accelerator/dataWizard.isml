@@ -50,12 +50,9 @@
             </isif>
 
             <isif condition="${pdict.wizardStepKey == 'connect'}">
-                <span id="data-wizard-continue-wrap" class="acc-hidden">
-                    <button type="submit" form="acc-data-connect-form" id="data-wizard-continue"
-                            class="acc-btn acc-btn--primary" disabled="disabled">
-                        ${Resource.msg('accelerator.wizard.continue', 'accelerator', null)}
-                    </button>
-                </span>
+                <button type="button" id="data-wizard-continue" class="acc-btn acc-btn--primary">
+                    ${Resource.msg('accelerator.wizard.continue', 'accelerator', null)}
+                </button>
             <iselseif condition="${pdict.wizardStepKey == 'orderConfigure'}"/>
                 <button type="submit" form="acc-order-config-form" class="acc-btn acc-btn--primary">
                     ${Resource.msg('accelerator.wizard.continue', 'accelerator', null)}

@@ -297,7 +297,7 @@ function buildDataSelectContent() {
 
     return {
         titleSuffix: 'Select data to migrate',
-        intro:       'Choose which data to export from the source platform. All ready types are selected by default.',
+        intro:       'Choose one data type to migrate. Each type follows its own migration flow.',
         sections:    sections,
         summary:     readyCount + ' data type(s) ready'
     };
