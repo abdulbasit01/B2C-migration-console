@@ -1,9 +1,18 @@
 {
     "commercetools": {
         "Product": {
-            "product-description": { "sfccField": "longDescription", "action": "skip" },
-            "description":         { "sfccField": "longDescription", "action": "skip" },
-            "name":                { "sfccField": "name",            "action": "skip" }
+            "product-description": { "sfccField": "longDescription",   "action": "skip" },
+            "description":         { "sfccField": "longDescription",   "action": "skip" },
+            "name":                { "sfccField": "name",              "action": "skip" },
+            "shortDescription":    { "sfccField": "shortDescription",  "action": "skip" },
+            "longDescription":     { "sfccField": "longDescription",   "action": "skip" },
+            "color-code":          { "sfccField": "ctp_color_code",    "action": "custom_attr" },
+            "finish-code":         { "sfccField": "ctp_finish_code",   "action": "custom_attr" },
+            "brand":               { "sfccField": "brand",             "action": "skip" },
+            "manufacturer":        { "sfccField": "manufacturer-name", "action": "skip" },
+            "manufacturerSku":     { "sfccField": "manufacturer-sku",  "action": "skip" },
+            "ean":                 { "sfccField": "ean",               "action": "skip" },
+            "upc":                 { "sfccField": "upc",               "action": "skip" }
         }
     },
     "shopify": {

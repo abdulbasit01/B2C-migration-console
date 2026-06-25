@@ -23,17 +23,32 @@
             </div>
         </section>
 
-
         <section class="acc-section" style="margin-top:0;padding-top:0;">
             <header class="acc-section__head">
-                <h2>Product Catalog Migration</h2>
+                <h2>Data Migration</h2>
             </header>
             <div class="acc-cards">
                 <article class="acc-card acc-card--ready">
                     <span class="acc-card__badge acc-card__badge--ready">Ready</span>
                     <div class="acc-card__icon platform-icon--commercetools" aria-hidden="true"></div>
-                    <h3 class="acc-card__name">Commercetools &rarr; SFCC</h3>
-                    <p class="acc-card__tagline">Import product catalog &amp; variants</p>
+                    <h3 class="acc-card__name">Customer Data Migration</h3>
+                    <p class="acc-card__tagline">Commercetools &rarr; SFCC</p>
+                    <p class="acc-card__desc">
+                        Migrate customer profiles, address books, and custom attributes
+                        from your CTP project into an SFCC customer list.
+                    </p>
+                    <div class="acc-card__actions">
+                        <a class="acc-btn acc-btn--primary acc-card__cta"
+                           href="${pdict.customerMigrationUrl}">
+                            Migrate Customers
+                        </a>
+                    </div>
+                </article>
+                <article class="acc-card acc-card--ready">
+                    <span class="acc-card__badge acc-card__badge--ready">Ready</span>
+                    <div class="acc-card__icon platform-icon--commercetools" aria-hidden="true"></div>
+                    <h3 class="acc-card__name">Product Catalog Migration</h3>
+                    <p class="acc-card__tagline">Commercetools &rarr; SFCC</p>
                     <p class="acc-card__desc">
                         Migrate product records, variants, images, and custom attributes
                         from your CTP project into an SFCC catalog via XML/WebDAV import.
@@ -42,6 +57,22 @@
                         <a class="acc-btn acc-btn--primary acc-card__cta"
                            href="${pdict.productWizardUrl}">
                             Migrate Products
+                        </a>
+                    </div>
+                </article>
+                <article class="acc-card acc-card--ready">
+                    <span class="acc-card__badge acc-card__badge--ready">Ready</span>
+                    <div class="acc-card__icon platform-icon--commercetools" aria-hidden="true"></div>
+                    <h3 class="acc-card__name">Category Migration</h3>
+                    <p class="acc-card__tagline">Commercetools &rarr; SFCC</p>
+                    <p class="acc-card__desc">
+                        Migrate category tree and metadata from your CTP project
+                        into the SFCC catalog category structure.
+                    </p>
+                    <div class="acc-card__actions">
+                        <a class="acc-btn acc-btn--primary acc-card__cta"
+                           href="${pdict.categoryMigrationUrl}">
+                            Migrate Categories
                         </a>
                     </div>
                 </article>
