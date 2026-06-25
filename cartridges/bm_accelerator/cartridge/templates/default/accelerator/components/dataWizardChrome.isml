@@ -1,0 +1,14 @@
+<isinclude template="accelerator/components/header"/>
+
+<a class="acc-back" href="${pdict.dashboardUrl}">
+    &larr; ${Resource.msg('accelerator.datawizard.back', 'accelerator', null)}
+</a>
+
+<isif condition="${!empty(pdict.dataType)}">
+    <div class="acc-data-context">
+        <span class="acc-data-context__label">${Resource.msg('accelerator.datawizard.migrating', 'accelerator', null)}</span>
+        <span class="acc-data-context__value">${pdict.dataType.label}</span>
+    </div>
+</isif>
+
+<isinclude template="accelerator/components/stepper"/>

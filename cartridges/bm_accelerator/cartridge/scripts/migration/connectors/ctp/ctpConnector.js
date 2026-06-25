@@ -23,7 +23,6 @@ function fmt(n) {
 function getToken(creds) {
     var c    = creds || cfg.ctp;
     var body = 'grant_type=client_credentials';
-    if (c.scopes) body += '&scope=' + encodeURIComponent(c.scopes);
 
     var res = http.post(
         c.authUrl + '/oauth/token',
@@ -387,7 +386,6 @@ function injectCredentials(fields) {
         else if (field.name === 'clientId')                       value = c.clientId     || value;
         else if (field.name === 'clientSecret' && c.clientSecret) value = '••••••••';
         else if (field.name === 'apiUrl')                         value = c.apiUrl       || value;
-        else if (field.name === 'scopes')                         value = c.scopes       || value;
         out.push({ name: field.name, label: field.label, type: field.type, required: field.required, value: value });
     }
     return out;

@@ -9,8 +9,14 @@
         <description xml:lang="x-default">Royal Cyber B2C Migration Console.</description>
     </menuitem>
 
-    <menuaction id="rc_accelerator_console" menupath="rc_accelerator_tools" site="true" position="10">
+    <menuitem id="rc_accelerator_migration_console" site="true" position="10">
         <name xml:lang="x-default">Migration Console</name>
+        <short_description xml:lang="x-default">Schema and data migration tools</short_description>
+        <description xml:lang="x-default">Migration console sub-menu.</description>
+    </menuitem>
+
+    <menuaction id="rc_accelerator_console" menupath="rc_accelerator_migration_console" site="true" position="10">
+        <name xml:lang="x-default">Dashboard</name>
         <short_description xml:lang="x-default">Platform tiles and migration wizard</short_description>
         <description xml:lang="x-default">Open the migration dashboard.</description>
         <exec pipeline="Accelerator" node="Start"/>
@@ -19,11 +25,21 @@
         </sub-pipelines>
     </menuaction>
 
+    <menuaction id="rc_accelerator_order_migration" menupath="rc_accelerator_migration_console" site="true" position="20">
+        <name xml:lang="x-default">Order Migration</name>
+        <short_description xml:lang="x-default">Export commercetools orders to SFCC IMPEX</short_description>
+        <description xml:lang="x-default">Export orders from commercetools and generate an SFCC IMPEX package.</description>
+        <exec pipeline="Accelerator" node="OrderMigration"/>
+        <sub-pipelines>
+            <pipeline name="Accelerator"/>
+        </sub-pipelines>
+    </menuaction>
+
     <menuaction id="rc_accelerator_wizard" menupath="rc_accelerator_tools" site="true" position="20">
         <name xml:lang="x-default">Start Migration Wizard</name>
-        <short_description xml:lang="x-default">Connect, fetch, map, move, and review</short_description>
-        <description xml:lang="x-default">Open the migration wizard.</description>
-        <exec pipeline="Accelerator" node="Wizard"/>
+        <short_description xml:lang="x-default">Open the migration dashboard</short_description>
+        <description xml:lang="x-default">Open the migration console dashboard.</description>
+        <exec pipeline="Accelerator" node="Start"/>
         <sub-pipelines>
             <pipeline name="Accelerator"/>
         </sub-pipelines>
