@@ -327,12 +327,15 @@ exports.SaveMigrationResults.public = true;
 
 exports.Start = function () {
     ISML.renderTemplate('accelerator/dashboard', {
-        title:         Resource.msg('accelerator.title', 'accelerator', null),
-        subtitle:      Resource.msg('accelerator.subtitle', 'accelerator', null),
-        platforms:     migrationData.getPlatforms(),
-        wizardUrl:     URLUtils.url('Accelerator-Wizard').toString(),
-        dataWizardUrl: URLUtils.url('Accelerator-DataWizard').toString(),
-        cssUrl:        URLUtils.staticURL('/css/accelerator-migration.css').toString()
+        title:                Resource.msg('accelerator.title', 'accelerator', null),
+        subtitle:             Resource.msg('accelerator.subtitle', 'accelerator', null),
+        platforms:            migrationData.getPlatforms(),
+        wizardUrl:            URLUtils.url('Accelerator-Wizard').toString(),
+        dataWizardUrl:        URLUtils.url('Accelerator-DataWizard').toString(),
+        customerMigrationUrl: URLUtils.url('Accelerator-CustomerMigration').toString(),
+        productWizardUrl:     URLUtils.url('Accelerator-ProductWizard').toString(),
+        categoryMigrationUrl: URLUtils.url('Accelerator-CategoryMigration').toString(),
+        cssUrl:               URLUtils.staticURL('/css/accelerator-migration.css').toString()
     });
 };
 exports.Start.public = true;
@@ -1133,15 +1136,15 @@ exports.FullMigrationJobStatus.public = true;
  */
 exports.ProductWizard = function () {
     ISML.renderTemplate('accelerator/productMigration', {
-        title:        Resource.msg('accelerator.title', 'accelerator', null),
-        catalogId:    String(session.custom.prodWizardCatalogId || ''),
-        countUrl:     URLUtils.url('Accelerator-ProductMigrationCount').toString(),
-        fullBatchUrl: URLUtils.url('Accelerator-FullProductMigrationBuildBatch').toString(),
-        triggerJobUrl: URLUtils.url('Accelerator-FullMigrationTriggerJob').toString(),
-        jobStatusUrl:  URLUtils.url('Accelerator-FullMigrationJobStatus').toString(),
-        saveConfigUrl: URLUtils.url('Accelerator-SaveProdConfig').toString(),
-        dashboardUrl:  URLUtils.url('Accelerator-Start').toString(),
-        cssUrl:        URLUtils.staticURL('/css/accelerator-migration.css').toString()
+        title:          'Product Data Migration',
+        countUrl:       URLUtils.url('Accelerator-ProductMigrationCount').toString(),
+        partialUrl:     URLUtils.url('Accelerator-MigrateProductById').toString(),
+        fullBatchUrl:   URLUtils.url('Accelerator-FullProductMigrationBuildBatch').toString(),
+        checkAttrsUrl:  URLUtils.url('Accelerator-CheckProductAttributes').toString(),
+        createAttrsUrl: URLUtils.url('Accelerator-CreateProductAttributes').toString(),
+        deleteAttrUrl:  URLUtils.url('Accelerator-DeleteProductAttribute').toString(),
+        dashboardUrl:   URLUtils.url('Accelerator-Start').toString(),
+        cssUrl:         URLUtils.staticURL('/css/accelerator-migration.css').toString()
     });
 };
 exports.ProductWizard.public = true;
@@ -1193,25 +1196,184 @@ exports.ProductMigrationCount = function () {
 exports.ProductMigrationCount.public = true;
 
 /**
- * Full Product Migration — fetch one batch of 500 CTP products, build catalog + pricebook + inventory XML, upload via WebDAV.
- * POST: offset=<n>&catalogId=<id>&pricebookId=<id>&currency=<code>&inventoryListId=<id>
+ * Full Product Migration — fetch one batch of CTP products, build catalog XML, upload via WebDAV.
+ * POST: offset=<n>
+ * catalogId is read from config.js (sfcc.catalogId).
  */
 exports.FullProductMigrationBuildBatch = function () {
-    var offset          = parseInt(getParam('offset') || '0', 10);
-    var catalogId       = getParam('catalogId')       || String(session.custom.prodWizardCatalogId       || '');
-    var pricebookId     = getParam('pricebookId')     || String(session.custom.prodWizardPricebookId     || 'list-prices');
-    var currency        = getParam('currency')        || String(session.custom.prodWizardCurrency        || 'USD');
-    var inventoryListId = getParam('inventoryListId') || String(session.custom.prodWizardInventoryListId || 'default-inventory');
+    var offset    = parseInt(getParam('offset') || '0', 10);
+    var migCfg    = require('*/cartridge/scripts/migration/configAccessor');
+    var catalogId = (migCfg.sfcc && migCfg.sfcc.catalogId) ? String(migCfg.sfcc.catalogId) : '';
 
     if (!catalogId) {
-        jsonResponse({ ok: false, error: 'catalogId is required' });
+        jsonResponse({ ok: false, error: 'sfcc.catalogId is not configured in config.js' });
         return;
     }
     try {
         var prodRunner = require('*/cartridge/scripts/migration/productMigration/fullProductMigrationRunner');
-        jsonResponse(prodRunner.runBatch(offset, catalogId, pricebookId, currency, inventoryListId));
+        jsonResponse(prodRunner.runBatch(offset, catalogId));
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
     }
 };
 exports.FullProductMigrationBuildBatch.public = true;
+
+/**
+ * Partial Product Migration — fetch one CTP product by ID, build XML, upload via WebDAV.
+ * POST: ctpId=<ctp-product-id>
+ */
+exports.MigrateProductById = function () {
+    var ctpId = getParam('ctpId');
+    if (!ctpId) {
+        jsonResponse({ ok: false, error: 'ctpId is required' });
+        return;
+    }
+    var migCfg    = require('*/cartridge/scripts/migration/configAccessor');
+    var catalogId = (migCfg.sfcc && migCfg.sfcc.catalogId) ? String(migCfg.sfcc.catalogId) : '';
+    if (!catalogId) {
+        jsonResponse({ ok: false, error: 'sfcc.catalogId is not configured in config.js' });
+        return;
+    }
+    try {
+        var prodRunner = require('*/cartridge/scripts/migration/productMigration/fullProductMigrationRunner');
+        jsonResponse(prodRunner.runById(ctpId, catalogId));
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.MigrateProductById.public = true;
+
+/**
+ * Compare CTP product type attributes against SFCC Product attribute definitions.
+ * Returns attributes present in CTP but missing in SFCC.
+ * GET — no params required.
+ */
+exports.CheckProductAttributes = function () {
+    try {
+        var checker = require('*/cartridge/scripts/migration/productMigration/productAttrChecker');
+        jsonResponse({ ok: true, missing: checker.checkMissingAttributes() });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.CheckProductAttributes.public = true;
+
+/**
+ * Create selected attribute definitions on the SFCC Product system object.
+ * POST: attrs=<json-array of {id, label, sfccType}>
+ */
+exports.CreateProductAttributes = function () {
+    var rawAttrs = getParam('attrs');
+    var attrs    = [];
+    try { attrs = JSON.parse(rawAttrs || '[]'); } catch (e) {
+        jsonResponse({ ok: false, error: 'Invalid attrs JSON' });
+        return;
+    }
+    if (!attrs.length) {
+        jsonResponse({ ok: false, error: 'No attributes provided' });
+        return;
+    }
+    try {
+        var checker2 = require('*/cartridge/scripts/migration/productMigration/productAttrChecker');
+        jsonResponse({ ok: true, result: checker2.createAttributes(attrs) });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.CreateProductAttributes.public = true;
+
+/**
+ * Delete a single custom attribute definition from the SFCC Product system object.
+ * POST: attrId=<attribute-id>
+ */
+exports.DeleteProductAttribute = function () {
+    var attrId = getParam('attrId');
+    if (!attrId) {
+        jsonResponse({ ok: false, error: 'attrId is required' });
+        return;
+    }
+    try {
+        var sfcc2 = require('*/cartridge/scripts/migration/sfccClient');
+        var tok   = sfcc2.getSFCCToken();
+        sfcc2.deleteAttributeDefinition(tok, 'Product', attrId);
+        jsonResponse({ ok: true });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.DeleteProductAttribute.public = true;
+
+// ─── Category migration ───────────────────────────────────────────────────────
+
+/**
+ * Category migration page — renders the category migration UI.
+ */
+exports.CategoryMigration = function () {
+    ISML.renderTemplate('accelerator/categoryMigration', {
+        title:          'Category Migration',
+        checkAttrsUrl:  URLUtils.url('Accelerator-CheckCategoryAttributes').toString(),
+        createAttrsUrl: URLUtils.url('Accelerator-CreateCategoryAttributes').toString(),
+        migrateUrl:     URLUtils.url('Accelerator-RunCategoryMigration').toString(),
+        dashboardUrl:   URLUtils.url('Accelerator-Start').toString(),
+        cssUrl:         URLUtils.staticURL('/css/accelerator-migration.css').toString()
+    });
+};
+exports.CategoryMigration.public = true;
+
+/**
+ * Check status of required custom attribute definitions on the SFCC Category system object.
+ * Returns each attr with an `exists` flag.
+ * GET — no params required.
+ */
+exports.CheckCategoryAttributes = function () {
+    try {
+        var catAttrs = require('*/cartridge/scripts/catalog/createCategoryAttributes');
+        jsonResponse({ ok: true, attrs: catAttrs.checkAttributes() });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.CheckCategoryAttributes.public = true;
+
+/**
+ * Alias used by the attribute status widget (same as CheckCategoryAttributes).
+ * GET — no params required.
+ */
+exports.CheckAttributeStatus = function () {
+    try {
+        var catAttrs2 = require('*/cartridge/scripts/catalog/createCategoryAttributes');
+        jsonResponse({ ok: true, attrs: catAttrs2.checkAttributes() });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.CheckAttributeStatus.public = true;
+
+/**
+ * Create selected category attribute definitions on the SFCC Category system object.
+ * POST: attrs=<json-array of {id, label, sfccType}>
+ */
+exports.CreateCategoryAttributes = function () {
+    var rawAttrs = getParam('attrs');
+    var attrs    = [];
+    try { attrs = JSON.parse(rawAttrs || '[]'); } catch (e) {
+        jsonResponse({ ok: false, error: 'Invalid attrs JSON' });
+        return;
+    }
+    try {
+        var catAttrs3 = require('*/cartridge/scripts/catalog/createCategoryAttributes');
+        jsonResponse({ ok: true, result: catAttrs3.createMissingAttributes() });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.CreateCategoryAttributes.public = true;
+
+/**
+ * Run category migration — stub endpoint for future implementation.
+ * POST — no params required.
+ */
+exports.RunCategoryMigration = function () {
+    jsonResponse({ ok: false, error: 'Category migration runner not yet implemented.' });
+};
+exports.RunCategoryMigration.public = true;
