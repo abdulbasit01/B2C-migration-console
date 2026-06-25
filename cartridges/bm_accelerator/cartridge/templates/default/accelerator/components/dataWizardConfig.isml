@@ -2,6 +2,7 @@
     <input type="hidden" id="acc-dw-step" value="${pdict.wizardStepKey}" />
     <input type="hidden" id="acc-dw-test-url" value="${pdict.testConnectionUrl}" />
     <input type="hidden" id="acc-dw-wizard-base" value="${pdict.wizardBaseUrl}" />
+    <input type="hidden" id="acc-dw-step-two-url" value="${pdict.wizardBaseUrl}&amp;step=2" />
     <input type="hidden" id="acc-dw-export-url" value="${pdict.exportUrl}" />
     <input type="hidden" id="acc-dw-order-years" value="${pdict.orderYears}" />
     <input type="hidden" id="acc-dw-order-max-count" value="${pdict.orderMaxCount}" />
