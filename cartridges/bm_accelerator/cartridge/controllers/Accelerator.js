@@ -327,18 +327,35 @@ exports.SaveMigrationResults.public = true;
 
 exports.Start = function () {
     ISML.renderTemplate('accelerator/dashboard', {
-        title:                Resource.msg('accelerator.title', 'accelerator', null),
-        subtitle:             Resource.msg('accelerator.subtitle', 'accelerator', null),
-        platforms:            migrationData.getPlatforms(),
-        wizardUrl:            URLUtils.url('Accelerator-Wizard').toString(),
-        dataWizardUrl:        URLUtils.url('Accelerator-DataWizard').toString(),
-        customerMigrationUrl: URLUtils.url('Accelerator-CustomerMigration').toString(),
-        productWizardUrl:     URLUtils.url('Accelerator-ProductWizard').toString(),
-        categoryMigrationUrl: URLUtils.url('Accelerator-CategoryMigration').toString(),
-        cssUrl:               URLUtils.staticURL('/css/accelerator-migration.css').toString()
+        title:                     Resource.msg('accelerator.title', 'accelerator', null),
+        subtitle:                  Resource.msg('accelerator.subtitle', 'accelerator', null),
+        platforms:                 migrationData.getPlatforms(),
+        wizardUrl:                 URLUtils.url('Accelerator-Wizard').toString(),
+        dataWizardUrl:             URLUtils.url('Accelerator-DataWizard').toString(),
+        dataMigrationDashboardUrl: URLUtils.url('Accelerator-DataMigrationDashboard').toString(),
+        customerMigrationUrl:      URLUtils.url('Accelerator-CustomerMigration').toString(),
+        productWizardUrl:          URLUtils.url('Accelerator-ProductWizard').toString(),
+        categoryMigrationUrl:      URLUtils.url('Accelerator-CategoryMigration').toString(),
+        cssUrl:                    URLUtils.staticURL('/css/accelerator-migration.css').toString()
     });
 };
 exports.Start.public = true;
+
+/**
+ * Inner data migration dashboard — 4-card selection (Orders, Customers, Products, Catalog).
+ * Reached by clicking "Start Data Migration" on any platform tile.
+ */
+exports.DataMigrationDashboard = function () {
+    ISML.renderTemplate('accelerator/dataMigrationDashboard', {
+        title:                Resource.msg('accelerator.title', 'accelerator', null),
+        subtitle:             Resource.msg('accelerator.subtitle', 'accelerator', null),
+        cssUrl:               URLUtils.staticURL('/css/accelerator-migration.css').toString(),
+        dashboardUrl:         URLUtils.url('Accelerator-Start').toString(),
+        orderMigrationUrl:    URLUtils.url('Accelerator-OrderMigration').toString(),
+        customerMigrationUrl: URLUtils.url('Accelerator-CustomerMigration').toString()
+    });
+};
+exports.DataMigrationDashboard.public = true;
 
 /**
  * Order Migration — redirect into the data wizard order flow.
