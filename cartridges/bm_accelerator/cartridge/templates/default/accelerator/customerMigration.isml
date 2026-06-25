@@ -121,6 +121,26 @@
             border-color: #97c3ea;
             cursor: default;
         }
+        .cm-btn--revert {
+            background: #fff;
+            color: #c62828;
+            border: 1px solid #f0b4b4;
+            padding: 4px 12px;
+            font-size: 12px;
+            font-weight: 600;
+            border-radius: 4px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .cm-btn--revert:hover { background: #fdecea; border-color: #c62828; }
+        .cm-btn--revert:disabled {
+            opacity: 1;
+            cursor: default;
+            color: #c8c8c8;
+            border-color: #e8e8e8;
+            background: #fafafa;
+            pointer-events: none;
+        }
     </style>
 </head>
 <body class="acc-page">
@@ -336,6 +356,7 @@
     var PRESET_LIST_ID   = '${pdict.customerListId}';
     var CHECK_ATTRS_URL  = '${pdict.checkAttrsUrl}';
     var CREATE_ATTRS_URL = '${pdict.createAttrsUrl}';
+    var DELETE_ATTR_URL  = '${pdict.deleteAttrUrl}';
 
     var listIdEl   = document.getElementById('acc-list-id');
     var checkBtn   = document.getElementById('acc-check-btn');
@@ -448,16 +469,18 @@
             + '<th>Label</th>'
             + '<th>CTP Type</th>'
             + '<th>SFCC Type</th>'
+            + '<th style="width:90px;">Action</th>'
             + '</tr></thead><tbody>';
 
         for (var i = 0; i < missing.length; i++) {
             var m = missing[i];
-            html += '<tr>'
+            html += '<tr id="acc-attr-row-' + i + '">'
                 + '<td style="text-align:center;"><input type="checkbox" class="acc-attr-cb" data-idx="' + i + '" checked/></td>'
                 + '<td><input type="text" class="cm-attr-id-input" data-idx="' + i + '" value="' + m.id + '" title="Edit attribute ID"/></td>'
                 + '<td>' + (m.label || m.id) + '</td>'
                 + '<td style="color:#8a9ab8;">' + m.ctpType + '</td>'
                 + '<td style="color:#0070d2;font-weight:600;">' + m.sfccType + '</td>'
+                + '<td><button type="button" class="cm-btn--revert acc-attr-revert-btn" data-idx="' + i + '" disabled title="Create the attribute first to enable revert">Revert</button></td>'
                 + '</tr>';
         }
         html += '</tbody></table></div>';
@@ -475,8 +498,51 @@
             for (var c = 0; c < cbs.length; c++) { cbs[c].checked = this.checked; }
         });
 
+        // Revert buttons — delete the attribute from SFCC Profile
+        var revertBtns = document.querySelectorAll('.acc-attr-revert-btn');
+        for (var rb = 0; rb < revertBtns.length; rb++) {
+            revertBtns[rb].addEventListener('click', function () {
+                var btn  = this;
+                var idx  = parseInt(btn.getAttribute('data-idx'), 10);
+                var idInput = document.querySelector('.cm-attr-id-input[data-idx="' + idx + '"]');
+                var attrId  = idInput ? idInput.value.trim() : (pendingMissing[idx] || {}).id;
+                if (!attrId) return;
+
+                btn.disabled    = true;
+                btn.textContent = 'Reverting...';
+
+                var req = new XMLHttpRequest();
+                req.open('POST', DELETE_ATTR_URL, true);
+                req.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+                req.onreadystatechange = function () {
+                    if (req.readyState !== 4) return;
+                    var data;
+                    try { data = JSON.parse(req.responseText); } catch (e) { data = { ok: false, error: 'Parse error' }; }
+
+                    if (data.ok) {
+                        btn.textContent      = 'Reverted';
+                        btn.style.color      = '#2e7d32';
+                        btn.style.borderColor = '#a5d6a7';
+                        btn.style.background  = '#e8f5e9';
+                        var row = document.getElementById('acc-attr-row-' + idx);
+                        if (row) { row.style.opacity = '0.5'; }
+                    } else {
+                        btn.disabled    = false;
+                        btn.textContent = 'Revert';
+                        var msgEl = document.getElementById('acc-create-attrs-msg');
+                        if (msgEl) {
+                            msgEl.textContent = 'Revert failed (' + attrId + '): ' + (data.error || 'Unknown error');
+                            msgEl.style.color = '#c62828';
+                        }
+                    }
+                };
+                req.send('attrId=' + encodeURIComponent(attrId));
+            });
+        }
+
         document.getElementById('acc-create-attrs-btn').addEventListener('click', function () {
-            var selected = [];
+            var selected         = [];
+            var selectedIndices  = [];
             var cbs = document.querySelectorAll('.acc-attr-cb');
             for (var c = 0; c < cbs.length; c++) {
                 if (cbs[c].checked) {
@@ -485,17 +551,18 @@
                     var idInput = document.querySelector('.cm-attr-id-input[data-idx="' + idx + '"]');
                     var editedId = (idInput && idInput.value.trim()) ? idInput.value.trim() : orig.id;
                     selected.push({ id: editedId, label: orig.label, ctpType: orig.ctpType, sfccType: orig.sfccType });
+                    selectedIndices.push(idx);
                 }
             }
             if (!selected.length) {
                 document.getElementById('acc-create-attrs-msg').textContent = 'Select at least one attribute.';
                 return;
             }
-            createSelectedAttributes(selected);
+            createSelectedAttributes(selected, selectedIndices);
         });
     }
 
-    function createSelectedAttributes(selected) {
+    function createSelectedAttributes(selected, selectedIndices) {
         var btn = document.getElementById('acc-create-attrs-btn');
         var msg = document.getElementById('acc-create-attrs-msg');
         if (btn) { btn.disabled = true; btn.textContent = 'Creating...'; }
@@ -519,10 +586,20 @@
             var text = r.created + ' created' + (r.failed ? ', ' + r.failed + ' failed' : '') + '.';
             if (r.errors && r.errors.length) text += ' ' + r.errors[0];
 
-            if (btn) { btn.disabled = true; btn.textContent = '&#10003; Done'; }
+            if (btn) { btn.disabled = true; btn.textContent = '✓ Done'; }
             if (msg) {
-                msg.textContent  = text;
-                msg.style.color  = r.failed ? '#c62828' : '#2e7d32';
+                msg.textContent = text;
+                msg.style.color = r.failed ? '#c62828' : '#2e7d32';
+            }
+
+            // Enable Revert buttons for every row that was just created
+            var indices = selectedIndices || [];
+            for (var ri = 0; ri < indices.length; ri++) {
+                var revertBtn = document.querySelector('.acc-attr-revert-btn[data-idx="' + indices[ri] + '"]');
+                if (revertBtn) {
+                    revertBtn.disabled = false;
+                    revertBtn.title    = '';
+                }
             }
         };
         req.send('attrs=' + encodeURIComponent(JSON.stringify(selected)));

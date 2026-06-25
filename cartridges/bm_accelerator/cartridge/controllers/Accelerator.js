@@ -453,6 +453,7 @@ exports.CustomerMigration = function () {
         customerListsUrl:    URLUtils.url('Accelerator-GetCustomerLists').toString(),
         checkAttrsUrl:       URLUtils.url('Accelerator-CheckCustomerAttributes').toString(),
         createAttrsUrl:      URLUtils.url('Accelerator-CreateCustomerAttributes').toString(),
+        deleteAttrUrl:       URLUtils.url('Accelerator-DeleteCustomerAttribute').toString(),
         jobsUrl:             jobsUrl
     });
 };
@@ -542,6 +543,27 @@ exports.CreateCustomerAttributes = function () {
     }
 };
 exports.CreateCustomerAttributes.public = true;
+
+/**
+ * Delete a single custom attribute definition from the SFCC Profile system object.
+ * POST: attrId=<attribute-id>
+ */
+exports.DeleteCustomerAttribute = function () {
+    var attrId = getParam('attrId');
+    if (!attrId) {
+        jsonResponse({ ok: false, error: 'attrId is required' });
+        return;
+    }
+    try {
+        var sfccClientDel = require('*/cartridge/scripts/migration/sfccClient');
+        var tokenDel      = sfccClientDel.getSFCCToken();
+        sfccClientDel.deleteAttributeDefinition(tokenDel, 'Profile', attrId);
+        jsonResponse({ ok: true });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.DeleteCustomerAttribute.public = true;
 
 /**
  * Return the total number of customers in the CTP project.
