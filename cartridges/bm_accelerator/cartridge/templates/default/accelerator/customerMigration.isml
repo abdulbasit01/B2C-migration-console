@@ -43,6 +43,104 @@
             font-size: 12px;
             margin-top: 4px;
         }
+        /* ---- Attribute pre-flight table ---- */
+        .cm-attr-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        .cm-attr-table thead tr {
+            background: #f4f6f9;
+            border-bottom: 2px solid #dddbda;
+        }
+        .cm-attr-table th {
+            padding: 9px 14px;
+            text-align: left;
+            font-size: 11px;
+            font-weight: 700;
+            color: #54698d;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            white-space: nowrap;
+        }
+        .cm-attr-table td {
+            padding: 9px 14px;
+            border-bottom: 1px solid #f0f2f8;
+            color: #3e3e3c;
+            vertical-align: middle;
+        }
+        .cm-attr-table tbody tr:last-child td { border-bottom: none; }
+        .cm-attr-table tbody tr:hover { background: #f8f9fb; }
+        .cm-attr-table td code {
+            background: #eaf0fb;
+            padding: 2px 7px;
+            border-radius: 3px;
+            font-family: monospace;
+            font-size: 12px;
+            color: #16325c;
+            font-weight: 600;
+        }
+        .cm-attr-id-input {
+            background: #eaf0fb;
+            border: 1px solid #c8d6f0;
+            border-radius: 3px;
+            font-family: monospace;
+            font-size: 12px;
+            color: #16325c;
+            font-weight: 600;
+            padding: 3px 8px;
+            width: 190px;
+            outline: none;
+            box-sizing: border-box;
+        }
+        .cm-attr-id-input:focus {
+            border-color: #0070d2;
+            background: #fff;
+            box-shadow: 0 0 0 2px rgba(0,112,210,.15);
+        }
+        /* ---- Buttons used in dynamically-rendered attr results ---- */
+        .cm-btn {
+            padding: 7px 16px;
+            font-size: 13px;
+            font-weight: 600;
+            border-radius: 4px;
+            cursor: pointer;
+            border: 1px solid transparent;
+            display: inline-block;
+            line-height: 1.4;
+            white-space: nowrap;
+        }
+        .cm-btn--primary {
+            background: #0070d2;
+            color: #fff;
+            border-color: #005fb2;
+        }
+        .cm-btn--primary:hover { background: #005fb2; }
+        .cm-btn--primary:disabled {
+            background: #97c3ea;
+            border-color: #97c3ea;
+            cursor: default;
+        }
+        .cm-btn--revert {
+            background: #fff;
+            color: #c62828;
+            border: 1px solid #f0b4b4;
+            padding: 4px 12px;
+            font-size: 12px;
+            font-weight: 600;
+            border-radius: 4px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .cm-btn--revert:hover { background: #fdecea; border-color: #c62828; }
+        .cm-btn--revert:disabled {
+            opacity: 1;
+            cursor: default;
+            color: #c8c8c8;
+            border-color: #e8e8e8;
+            background: #fafafa;
+            pointer-events: none;
+        }
     </style>
 </head>
 <body class="acc-page">
@@ -64,17 +162,16 @@
             </p>
         </header>
 
-        <!-- ── Config row ── -->
+        <!-- -- Config row -- -->
         <div style="margin:24px 0 16px;">
             <div style="display:flex;align-items:flex-start;flex-wrap:wrap;gap:10px;">
                 <label for="acc-list-id" style="font-weight:600;font-size:14px;white-space:nowrap;padding-top:6px;">
                     SFCC Customer List ID <span style="color:#c62828;">*</span>
                 </label>
                 <div>
-                    <input id="acc-list-id" type="text" class="acc-form__input"
-                           placeholder="e.g. RefArch or SiteGenesis"
-                           value="${pdict.customerListId}"
-                           style="width:260px;"/>
+                    <select id="acc-list-id" class="acc-form__input" style="width:260px;">
+                        <option value="">Loading customer lists...</option>
+                    </select>
                     <span id="acc-list-id-error" class="acc-field-error">Customer List ID is required.</span>
                 </div>
                 <button id="acc-check-btn" type="button" class="acc-btn acc-btn--ghost">Check Count</button>
@@ -82,15 +179,32 @@
             </div>
         </div>
 
-        <!-- ── Mode tabs ── -->
+        <!-- -- Attribute pre-flight -- -->
+        <div id="acc-attr-preflight" style="margin:0 0 28px;border:1px solid #dddbda;border-radius:6px;overflow:hidden;">
+            <div style="background:#f4f6f9;border-bottom:1px solid #dddbda;padding:11px 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                <span style="font-weight:700;font-size:14px;color:#16325c;">&#x26A1; Attribute Pre-flight Check</span>
+                <button id="acc-check-attrs-btn" type="button" class="acc-btn acc-btn--ghost">Check CTP Attributes</button>
+                <span id="acc-attr-check-msg" style="font-size:13px;color:#54698d;font-weight:600;"></span>
+            </div>
+            <div style="padding:14px 20px;">
+                <p style="font-size:13px;color:#54698d;margin:0;">
+                    Scans CTP customer custom-type field definitions and checks whether matching
+                    attributes exist on the SFCC <strong>Customer</strong> system object.
+                    Missing attributes can be created here before the migration runs.
+                </p>
+                <div id="acc-attr-results" style="display:none;margin-top:14px;"></div>
+            </div>
+        </div>
+
+        <!-- -- Mode tabs -- -->
         <div style="display:flex;gap:0;border-bottom:2px solid #dddbda;margin-bottom:24px;">
             <button id="tab-partial" class="acc-tab acc-tab--active" type="button">Partial Migration</button>
             <button id="tab-full"    class="acc-tab"                 type="button">Full Migration (XML/WebDAV)</button>
         </div>
 
-        <!-- ══════════════════════════════════════════════════════════════
+        <!-- --------------------------------------------------------------
              PANEL: PARTIAL MIGRATION
-        ══════════════════════════════════════════════════════════════ -->
+        -------------------------------------------------------------- -->
         <div id="panel-partial">
 
             <p style="font-size:13px;color:#54698d;margin:0 0 16px;">
@@ -101,14 +215,18 @@
             <!-- ID filter -->
             <div style="margin-bottom:20px;">
                 <label for="acc-ctp-ids" style="font-weight:600;font-size:14px;display:block;margin-bottom:6px;">
-                    CTP Customer IDs <span style="color:#c62828;">*</span>
+                    Commercetools Customer UUID(s) <span style="color:#c62828;">*</span>
                     <span style="font-weight:400;color:#54698d;font-size:13px;">(comma-separated)</span>
                 </label>
                 <textarea id="acc-ctp-ids" class="acc-form__input"
                           rows="3"
-                          placeholder="e.g. a1b2c3d4-..., e5f6g7h8-..."
+                          placeholder="e.g. a1b2c3d4-e5f6-7890-abcd-ef1234567890, ..."
                           style="width:100%;max-width:680px;resize:vertical;font-family:monospace;font-size:12px;"></textarea>
                 <span id="acc-ctp-ids-error" class="acc-field-error"></span>
+                <p style="font-size:12px;color:#54698d;margin:5px 0 0;">
+                    Enter the UUID(s) from the Commercetools platform (format: <code style="background:#f0f0f0;padding:1px 4px;border-radius:3px;">xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx</code>).
+                    This is <strong>not</strong> the SFCC customer number shown in Business Manager.
+                </p>
             </div>
 
             <!-- Phase progress bars -->
@@ -148,9 +266,9 @@
 
         </div><!-- /panel-partial -->
 
-        <!-- ══════════════════════════════════════════════════════════════
+        <!-- --------------------------------------------------------------
              PANEL: FULL MIGRATION
-        ══════════════════════════════════════════════════════════════ -->
+        -------------------------------------------------------------- -->
         <div id="panel-full" style="display:none;">
 
             <div class="acc-info-box">
@@ -178,28 +296,17 @@
                 </li>
                 <li class="acc-phases__item acc-phases__item--pending" id="full-phase-import">
                     <div class="acc-phases__head">
-                        <span>Phase 2 &mdash; Import Customers Job</span>
+                        <span>Phase 2 &mdash; Run Import Job in Business Manager</span>
                         <span class="acc-phases__status" id="full-status-import">pending</span>
                     </div>
                     <p class="acc-phases__detail" id="full-detail-import">Waiting for Phase 1&hellip;</p>
-                    <!-- Job trigger UI — revealed after Phase 1 completes -->
-                    <div id="full-phase2-controls" style="display:none;margin-top:14px;">
-                        <p style="font-size:13px;color:#54698d;margin:0 0 10px;">
-                            XML files are ready in <code>/Impex/src/instance/ctp-migration/</code>.
-                            Enter the BM Job ID below and click <strong>Trigger</strong> to run the import automatically,
-                            or run it manually via <strong>BM &rarr; Administration &rarr; Site Development &rarr;
-                            Import &amp; Export &rarr; Import Customers</strong>.
-                        </p>
-                        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-                            <label for="full-job-id" style="font-size:13px;font-weight:600;white-space:nowrap;">BM Job ID:</label>
-                            <input id="full-job-id" type="text" class="acc-form__input"
-                                   value="CTP-Customer-Import"
-                                   style="width:220px;font-family:monospace;font-size:12px;"/>
-                            <button type="button" id="full-trigger-btn" class="acc-btn acc-btn--secondary">
-                                &#9658; Trigger Import Job
-                            </button>
-                        </div>
-                        <div id="full-job-status-msg" style="margin-top:8px;font-size:13px;color:#54698d;"></div>
+                    <div style="margin-top:10px;">
+                        <a href="${pdict.jobsUrl}"
+                           target="_blank"
+                           class="acc-btn acc-btn--primary"
+                           style="text-decoration:none;font-size:13px;display:inline-block;padding:7px 16px;">
+                            &#x2192; Open BM Jobs
+                        </a>
                     </div>
                 </li>
             </ul>
@@ -220,6 +327,24 @@
     </section>
 </div>
 
+
+<!-- Attribute pre-flight modal -->
+<div id="acc-preflight-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center;">
+    <div style="background:#fff;border-radius:6px;padding:28px 32px;max-width:620px;width:90%;max-height:82vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.3);">
+        <h3 style="margin:0 0 6px;color:#16325c;font-size:16px;">Missing CTP Attributes in SFCC</h3>
+        <p style="font-size:13px;color:#54698d;margin:0 0 16px;">
+            The following CTP customer attributes do not exist on the SFCC <strong>Profile</strong> system object.
+            Create them now so their values are stored during migration, or skip to migrate without them.
+        </p>
+        <div id="acc-modal-attr-list"></div>
+        <p id="acc-modal-status" style="font-size:12px;margin:12px 0 0;min-height:16px;"></p>
+        <div style="margin-top:16px;display:flex;gap:12px;justify-content:flex-end;flex-wrap:wrap;">
+            <button id="acc-modal-skip"   type="button" class="acc-btn acc-btn--ghost">Skip &amp; Migrate</button>
+            <button id="acc-modal-create" type="button" class="acc-btn acc-btn--primary">Create Attributes &amp; Migrate</button>
+        </div>
+    </div>
+</div>
+
 <script>
 (function () {
     var COUNT_URL        = '${pdict.countUrl}';
@@ -227,14 +352,17 @@
     var ADDRESS_URL      = '${pdict.addressUrl}';
     var FULL_BATCH_URL   = '${pdict.fullBatchUrl}';
     var BY_ID_URL        = '${pdict.byIdUrl}';
-    var TRIGGER_JOB_URL  = '${pdict.triggerJobUrl}';
-    var JOB_STATUS_URL   = '${pdict.jobStatusUrl}';
+    var LISTS_URL        = '${pdict.customerListsUrl}';
+    var PRESET_LIST_ID   = '${pdict.customerListId}';
+    var CHECK_ATTRS_URL  = '${pdict.checkAttrsUrl}';
+    var CREATE_ATTRS_URL = '${pdict.createAttrsUrl}';
+    var DELETE_ATTR_URL  = '${pdict.deleteAttrUrl}';
 
     var listIdEl   = document.getElementById('acc-list-id');
     var checkBtn   = document.getElementById('acc-check-btn');
     var countBadge = document.getElementById('acc-count-badge');
 
-    // ── Tab switching ────────────────────────────────────────────────────────
+    // -- Tab switching --------------------------------------------------------
 
     var tabPartial  = document.getElementById('tab-partial');
     var tabFull     = document.getElementById('tab-full');
@@ -255,7 +383,7 @@
         panelPartial.style.display = 'none';
     });
 
-    // ── Inline field validation ──────────────────────────────────────────────
+    // -- Inline field validation ----------------------------------------------
 
     function showError(inputId, errorId, msg) {
         var el  = document.getElementById(inputId);
@@ -271,11 +399,246 @@
         if (err) { err.textContent = ''; err.style.display = 'none'; }
     }
 
-    // Clear errors as the user types
-    listIdEl.addEventListener('input', function () { clearError('acc-list-id', 'acc-list-id-error'); });
+    // -- Load customer lists into dropdown on page init -----------------------
+
+    (function loadCustomerLists() {
+        var req = new XMLHttpRequest();
+        req.open('GET', LISTS_URL, true);
+        req.onreadystatechange = function () {
+            if (req.readyState !== 4) return;
+            var data;
+            try { data = JSON.parse(req.responseText); } catch (e) { data = { ok: false }; }
+
+            listIdEl.innerHTML = '';
+
+            if (!data.ok || !data.lists || !data.lists.length) {
+                var errOpt    = document.createElement('option');
+                errOpt.value  = '';
+                errOpt.textContent = data.ok
+                    ? '? No customer lists found ?'
+                    : '? Failed to load lists (' + (data.error || 'unknown') + ') ?';
+                listIdEl.appendChild(errOpt);
+                return;
+            }
+
+            var placeholder       = document.createElement('option');
+            placeholder.value     = '';
+            placeholder.textContent = ' Select a Customer List ?';
+            listIdEl.appendChild(placeholder);
+
+            for (var i = 0; i < data.lists.length; i++) {
+                var opt         = document.createElement('option');
+                opt.value       = data.lists[i].id;
+                opt.textContent = data.lists[i].id;
+                if (data.lists[i].id === PRESET_LIST_ID) { opt.selected = true; }
+                listIdEl.appendChild(opt);
+            }
+        };
+        req.send(null);
+    }());
+
+    // Clear errors when selection changes
+    listIdEl.addEventListener('change', function () { clearError('acc-list-id', 'acc-list-id-error'); });
+
+    // -- Attribute pre-flight -------------------------------------------------
+
+    var checkAttrsBtn  = document.getElementById('acc-check-attrs-btn');
+    var attrCheckMsg   = document.getElementById('acc-attr-check-msg');
+    var attrResults    = document.getElementById('acc-attr-results');
+    var pendingMissing = [];
+
+    function renderAttrResults(missing) {
+        attrResults.innerHTML = '';
+        attrResults.style.display = 'block';
+
+        if (!missing.length) {
+            attrResults.innerHTML = '<p style="color:#2e7d32;font-size:13px;margin:0;">'
+                + '&#10003; All CTP customer attributes already exist in SFCC ? no action needed.</p>';
+            return;
+        }
+
+        var html = '<p style="font-size:13px;color:#54698d;margin:0 0 10px;">'
+            + missing.length + ' attribute(s) found in CTP but missing in SFCC. '
+            + 'Select the ones you want to create:</p>';
+
+        html += '<div style="border:1px solid #e0e5ee;border-radius:4px;overflow:hidden;">'
+            + '<table class="cm-attr-table">'
+            + '<thead><tr>'
+            + '<th style="width:36px;"><input type="checkbox" id="acc-attr-select-all" checked/></th>'
+            + '<th>Attribute ID</th>'
+            + '<th>Label</th>'
+            + '<th>CTP Type</th>'
+            + '<th>SFCC Type</th>'
+            + '<th style="width:90px;">Action</th>'
+            + '</tr></thead><tbody>';
+
+        for (var i = 0; i < missing.length; i++) {
+            var m = missing[i];
+            html += '<tr id="acc-attr-row-' + i + '">'
+                + '<td style="text-align:center;"><input type="checkbox" class="acc-attr-cb" data-idx="' + i + '" checked/></td>'
+                + '<td><input type="text" class="cm-attr-id-input" data-idx="' + i + '" value="' + m.id + '" title="Edit attribute ID"/></td>'
+                + '<td>' + (m.label || m.id) + '</td>'
+                + '<td style="color:#8a9ab8;">' + m.ctpType + '</td>'
+                + '<td style="color:#0070d2;font-weight:600;">' + m.sfccType + '</td>'
+                + '<td><button type="button" class="cm-btn--revert acc-attr-revert-btn" data-idx="' + i + '" disabled title="Create the attribute first to enable revert">Revert</button></td>'
+                + '</tr>';
+        }
+        html += '</tbody></table></div>';
+
+        html += '<div style="margin-top:14px;display:flex;align-items:center;gap:12px;">'
+            + '<button type="button" id="acc-create-attrs-btn" class="cm-btn cm-btn--primary">&#10003; Create Selected Attributes</button>'
+            + '<span id="acc-create-attrs-msg" style="font-size:13px;color:#54698d;"></span>'
+            + '</div>';
+
+        attrResults.innerHTML = html;
+
+        // Select-all toggle
+        document.getElementById('acc-attr-select-all').addEventListener('change', function () {
+            var cbs = document.querySelectorAll('.acc-attr-cb');
+            for (var c = 0; c < cbs.length; c++) { cbs[c].checked = this.checked; }
+        });
+
+        // Revert buttons — delete the attribute from SFCC Profile
+        var revertBtns = document.querySelectorAll('.acc-attr-revert-btn');
+        for (var rb = 0; rb < revertBtns.length; rb++) {
+            revertBtns[rb].addEventListener('click', function () {
+                var btn  = this;
+                var idx  = parseInt(btn.getAttribute('data-idx'), 10);
+                var idInput = document.querySelector('.cm-attr-id-input[data-idx="' + idx + '"]');
+                var attrId  = idInput ? idInput.value.trim() : (pendingMissing[idx] || {}).id;
+                if (!attrId) return;
+
+                btn.disabled    = true;
+                btn.textContent = 'Reverting...';
+
+                var req = new XMLHttpRequest();
+                req.open('POST', DELETE_ATTR_URL, true);
+                req.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+                req.onreadystatechange = function () {
+                    if (req.readyState !== 4) return;
+                    var data;
+                    try { data = JSON.parse(req.responseText); } catch (e) { data = { ok: false, error: 'Parse error' }; }
+
+                    if (data.ok) {
+                        btn.textContent      = 'Reverted';
+                        btn.style.color      = '#2e7d32';
+                        btn.style.borderColor = '#a5d6a7';
+                        btn.style.background  = '#e8f5e9';
+                        var row = document.getElementById('acc-attr-row-' + idx);
+                        if (row) { row.style.opacity = '0.5'; }
+                    } else {
+                        btn.disabled    = false;
+                        btn.textContent = 'Revert';
+                        var msgEl = document.getElementById('acc-create-attrs-msg');
+                        if (msgEl) {
+                            msgEl.textContent = 'Revert failed (' + attrId + '): ' + (data.error || 'Unknown error');
+                            msgEl.style.color = '#c62828';
+                        }
+                    }
+                };
+                req.send('attrId=' + encodeURIComponent(attrId));
+            });
+        }
+
+        document.getElementById('acc-create-attrs-btn').addEventListener('click', function () {
+            var selected         = [];
+            var selectedIndices  = [];
+            var cbs = document.querySelectorAll('.acc-attr-cb');
+            for (var c = 0; c < cbs.length; c++) {
+                if (cbs[c].checked) {
+                    var idx     = parseInt(cbs[c].getAttribute('data-idx'), 10);
+                    var orig    = pendingMissing[idx];
+                    var idInput = document.querySelector('.cm-attr-id-input[data-idx="' + idx + '"]');
+                    var editedId = (idInput && idInput.value.trim()) ? idInput.value.trim() : orig.id;
+                    selected.push({ id: editedId, label: orig.label, ctpType: orig.ctpType, sfccType: orig.sfccType });
+                    selectedIndices.push(idx);
+                }
+            }
+            if (!selected.length) {
+                document.getElementById('acc-create-attrs-msg').textContent = 'Select at least one attribute.';
+                return;
+            }
+            createSelectedAttributes(selected, selectedIndices);
+        });
+    }
+
+    function createSelectedAttributes(selected, selectedIndices) {
+        var btn = document.getElementById('acc-create-attrs-btn');
+        var msg = document.getElementById('acc-create-attrs-msg');
+        if (btn) { btn.disabled = true; btn.textContent = 'Creating...'; }
+        if (msg) { msg.textContent = ''; }
+
+        var req = new XMLHttpRequest();
+        req.open('POST', CREATE_ATTRS_URL, true);
+        req.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+        req.onreadystatechange = function () {
+            if (req.readyState !== 4) return;
+            var data;
+            try { data = JSON.parse(req.responseText); } catch (e) { data = { ok: false, error: 'Parse error' }; }
+
+            if (!data.ok) {
+                if (btn) { btn.disabled = false; btn.textContent = 'Retry'; }
+                if (msg) { msg.textContent = 'Error: ' + (data.error || 'Failed'); msg.style.color = '#c62828'; }
+                return;
+            }
+
+            var r    = data.result || {};
+            var text = r.created + ' created' + (r.failed ? ', ' + r.failed + ' failed' : '') + '.';
+            if (r.errors && r.errors.length) text += ' ' + r.errors[0];
+
+            if (btn) { btn.disabled = true; btn.textContent = '✓ Done'; }
+            if (msg) {
+                msg.textContent = text;
+                msg.style.color = r.failed ? '#c62828' : '#2e7d32';
+            }
+
+            // Enable Revert buttons for every row that was just created
+            var indices = selectedIndices || [];
+            for (var ri = 0; ri < indices.length; ri++) {
+                var revertBtn = document.querySelector('.acc-attr-revert-btn[data-idx="' + indices[ri] + '"]');
+                if (revertBtn) {
+                    revertBtn.disabled = false;
+                    revertBtn.title    = '';
+                }
+            }
+        };
+        req.send('attrs=' + encodeURIComponent(JSON.stringify(selected)));
+    }
+
+    checkAttrsBtn.addEventListener('click', function () {
+        checkAttrsBtn.disabled    = true;
+        checkAttrsBtn.textContent = 'Checking...';
+        attrCheckMsg.textContent  = '';
+        attrResults.style.display = 'none';
+
+        var req = new XMLHttpRequest();
+        req.open('GET', CHECK_ATTRS_URL, true);
+        req.onreadystatechange = function () {
+            if (req.readyState !== 4) return;
+            checkAttrsBtn.disabled    = false;
+            checkAttrsBtn.textContent = 'Re-check';
+
+            var data;
+            try { data = JSON.parse(req.responseText); } catch (e) { data = { ok: false, error: 'Parse error' }; }
+
+            if (!data.ok) {
+                attrCheckMsg.textContent = 'Error: ' + (data.error || 'Check failed');
+                attrCheckMsg.style.color = '#c62828';
+                return;
+            }
+
+            pendingMissing           = data.missing || [];
+            attrCheckMsg.textContent = pendingMissing.length
+                ? pendingMissing.length + ' missing attribute(s) found.'
+                : 'All attributes in sync.';
+            attrCheckMsg.style.color = pendingMissing.length ? '#e65100' : '#2e7d32';
+            renderAttrResults(pendingMissing);
+        };
+        req.send(null);
+    });
     document.getElementById('acc-ctp-ids').addEventListener('input', function () { clearError('acc-ctp-ids', 'acc-ctp-ids-error'); });
 
-    // ── Shared helpers ───────────────────────────────────────────────────────
+    // -- Shared helpers -------------------------------------------------------
 
     function setPhase(prefix, id, state, detail, pct) {
         var li  = document.getElementById(prefix + '-phase-' + id);
@@ -302,10 +665,10 @@
         req.send(params);
     }
 
-    // ── Check count ──────────────────────────────────────────────────────────
+    // -- Check count ----------------------------------------------------------
 
     checkBtn.addEventListener('click', function () {
-        countBadge.textContent = 'Checking…';
+        countBadge.textContent = 'Checking...';
         post(COUNT_URL, '', function (data) {
             if (data.ok) {
                 countBadge.textContent = data.total.toLocaleString() + ' customer(s) in CTP';
@@ -317,9 +680,9 @@
         });
     });
 
-    // ════════════════════════════════════════════════════════════════════════
+    // ????????????????????????????????????????????????????????????????????????
     // PARTIAL MIGRATION
-    // ════════════════════════════════════════════════════════════════════════
+    // ????????????????????????????????????????????????????????????????????????
 
     var startBtn    = document.getElementById('acc-start-btn');
     var overallEl   = document.getElementById('acc-move-overall');
@@ -338,7 +701,7 @@
     function runProfiles(offset, total) {
         var listId = listIdEl.value.trim();
         var pct    = (total > 0) ? Math.round((offset / total) * 100) : 0;
-        setPhase('acc', 'profiles', 'active', offset + ' / ' + (total || '?') + ' processed…', pct);
+        setPhase('acc', 'profiles', 'active', offset + ' / ' + (total || '?') + ' processed...', pct);
 
         post(
             PROFILE_URL,
@@ -373,14 +736,14 @@
 
                 if (!data.done) {
                     setPhase('acc', 'profiles', 'active',
-                        data.nextOffset + ' / ' + data.total + ' processed…', newPct);
+                        data.nextOffset + ' / ' + data.total + ' processed...', newPct);
                     runProfiles(data.nextOffset, data.total);
                 } else {
                     var state1  = (profilesFailed > 0 && profilesCreated === 0) ? 'error'
                                 : (profilesFailed > 0) ? 'warning' : 'done';
                     var detail1 = profilesCreated + ' created, ' + profilesSkipped + ' skipped'
                         + (profilesFailed ? ', ' + profilesFailed + ' failed' : '');
-                    if (profileErrors.length) detail1 += ' — ' + profileErrors[0];
+                    if (profileErrors.length) detail1 += ' ? ' + profileErrors[0];
                     setPhase('acc', 'profiles', state1, detail1, 100);
                     startAddresses();
                 }
@@ -394,7 +757,7 @@
             finalizePartial();
             return;
         }
-        setPhase('acc', 'addresses', 'active', 'Starting…', 0);
+        setPhase('acc', 'addresses', 'active', 'Starting...', 0);
         migrateCustomerAddresses(0, 0);
     }
 
@@ -420,7 +783,7 @@
         var pct    = Math.round((mapIndex / allMappings.length) * 100);
         setPhase('acc', 'addresses', 'active',
             'Customer ' + (mapIndex + 1) + ' / ' + allMappings.length
-            + ' — ' + addrsCreated + ' address(es) done', pct);
+            + ' ? ' + addrsCreated + ' address(es) done', pct);
 
         post(
             ADDRESS_URL,
@@ -447,21 +810,21 @@
     function finalizePartial() {
         partialRunning       = false;
         startBtn.disabled    = false;
-        startBtn.textContent = '✔ Migration Complete';
+        startBtn.textContent = '? Migration Complete';
 
         var hasErrors = (profilesFailed + addrsFailed) > 0;
         statusBox.style.display = 'block';
         statusBox.className     = hasErrors
             ? 'acc-callout acc-callout--warning'
             : 'acc-callout acc-callout--success';
-        statusBox.textContent   = 'Done — '
+        statusBox.textContent   = 'Done ? '
             + profilesCreated + ' customer profile(s) imported, '
             + addrsCreated + ' address(es) created.'
             + (profilesSkipped > 0 ? ' ' + profilesSkipped + ' duplicate email(s) skipped.' : '')
-            + (hasErrors ? ' Some records failed — check BM logs for details.' : '');
+            + (hasErrors ? ' Some records failed ? check BM logs for details.' : '');
     }
 
-    // ── Phase 1 (ID mode) – one request per CTP customer ID ──────────────────
+    // -- Phase 1 (ID mode) ? one request per CTP customer ID ------------------
 
     function runProfilesById(ids, index) {
         if (index >= ids.length) {
@@ -469,7 +832,7 @@
                         : (profilesFailed > 0) ? 'warning' : 'done';
             var detail1 = profilesCreated + ' created, ' + profilesSkipped + ' skipped'
                 + (profilesFailed ? ', ' + profilesFailed + ' failed' : '');
-            if (profileErrors.length) detail1 += ' — ' + profileErrors[0];
+            if (profileErrors.length) detail1 += ' ? ' + profileErrors[0];
             setPhase('acc', 'profiles', state1, detail1, 100);
             startAddresses();
             return;
@@ -479,7 +842,7 @@
         var listId = listIdEl.value.trim();
         var pct    = Math.round((index / ids.length) * 100);
         setPhase('acc', 'profiles', 'active',
-            (index + 1) + ' / ' + ids.length + ' — ' + ctpId, pct);
+            (index + 1) + ' / ' + ids.length + ' ? ' + ctpId, pct);
 
         post(BY_ID_URL,
             'ctpId=' + encodeURIComponent(ctpId) + '&listId=' + encodeURIComponent(listId),
@@ -510,6 +873,145 @@
         );
     }
 
+    // ????????????????????????????????????????????????????????????????????????
+    // ATTRIBUTE PRE-FLIGHT MODAL
+    // ????????????????????????????????????????????????????????????????????????
+
+    var preflightModal = document.getElementById('acc-preflight-modal');
+    var modalAttrList  = document.getElementById('acc-modal-attr-list');
+    var modalSkipBtn   = document.getElementById('acc-modal-skip');
+    var modalCreateBtn = document.getElementById('acc-modal-create');
+    var modalStatus    = document.getElementById('acc-modal-status');
+    var modalMissing   = [];
+    var modalCallback  = null;
+
+    function showPreflightModal(missing, onContinue) {
+        modalMissing  = missing;
+        modalCallback = onContinue;
+
+        var html = '<div style="border:1px solid #e0e5ee;border-radius:4px;overflow:hidden;margin-bottom:4px;">'
+            + '<table class="cm-attr-table">'
+            + '<thead><tr>'
+            + '<th>Attribute ID</th>'
+            + '<th>Label</th>'
+            + '<th>CTP Type</th>'
+            + '<th>SFCC Type</th>'
+            + '</tr></thead><tbody>';
+        for (var i = 0; i < missing.length; i++) {
+            var m = missing[i];
+            html += '<tr>'
+                + '<td><code>' + m.id + '</code></td>'
+                + '<td>' + (m.label || m.id) + '</td>'
+                + '<td style="color:#8a9ab8;">' + m.ctpType + '</td>'
+                + '<td style="color:#0070d2;font-weight:600;">' + m.sfccType + '</td>'
+                + '</tr>';
+        }
+        html += '</tbody></table></div>';
+        modalAttrList.innerHTML    = html;
+        modalStatus.textContent    = '';
+        modalStatus.style.color    = '#54698d';
+        modalCreateBtn.disabled    = false;
+        modalCreateBtn.textContent = 'Create Attributes & Migrate';
+        preflightModal.style.display = 'flex';
+    }
+
+    function closePreflightModal() {
+        preflightModal.style.display = 'none';
+    }
+
+    modalSkipBtn.addEventListener('click', function () {
+        closePreflightModal();
+        if (modalCallback) { modalCallback(); }
+    });
+
+    modalCreateBtn.addEventListener('click', function () {
+        modalCreateBtn.disabled    = true;
+        modalCreateBtn.textContent = 'Creating attributes...';
+        modalStatus.textContent    = '';
+
+        var req = new XMLHttpRequest();
+        req.open('POST', CREATE_ATTRS_URL, true);
+        req.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+        req.onreadystatechange = function () {
+            if (req.readyState !== 4) return;
+            var data;
+            try { data = JSON.parse(req.responseText); } catch (e) { data = { ok: false, error: 'Parse error' }; }
+
+            if (!data.ok) {
+                modalStatus.textContent = 'Error: ' + (data.error || 'Attribute creation failed');
+                modalStatus.style.color = '#c62828';
+                modalCreateBtn.disabled    = false;
+                modalCreateBtn.textContent = 'Retry';
+                return;
+            }
+
+            var r    = data.result || {};
+            var msg  = r.created + ' attribute(s) created';
+            if (r.failed) msg += ', ' + r.failed + ' failed';
+            modalStatus.textContent = msg + '. Starting migration...';
+            modalStatus.style.color = r.failed ? '#e65100' : '#2e7d32';
+
+            setTimeout(function () {
+                closePreflightModal();
+                if (modalCallback) { modalCallback(); }
+            }, 900);
+        };
+        req.send('attrs=' + encodeURIComponent(JSON.stringify(modalMissing)));
+    });
+
+    /**
+     * Run the attribute pre-flight check, then call onContinue.
+     * - Missing attributes found ? show modal so user can create them first.
+     * - All attributes present  ? call onContinue directly.
+     * - Check fails             ? show the modal in error mode so the user knows,
+     *                             but still allows them to proceed.
+     */
+    function runPreflightThenMigrate(onContinue) {
+        var req = new XMLHttpRequest();
+        req.open('GET', CHECK_ATTRS_URL, true);
+        req.onreadystatechange = function () {
+            if (req.readyState !== 4) return;
+            var data;
+            try { data = JSON.parse(req.responseText); } catch (e) { data = { ok: false, error: 'Response parse error' }; }
+
+            if (!data.ok) {
+                // Check failed ? show modal with error message so user can decide to proceed anyway
+                showPreflightError(data.error || 'Attribute check failed', onContinue);
+                return;
+            }
+
+            if (data.missing && data.missing.length > 0) {
+                showPreflightModal(data.missing, onContinue);
+            } else {
+                onContinue();
+            }
+        };
+        req.onerror = function () {
+            showPreflightError('Network error ? could not reach the attribute check endpoint', onContinue);
+        };
+        req.send(null);
+    }
+
+    function showPreflightError(errorMsg, onContinue) {
+        modalAttrList.innerHTML = '<p style="color:#c62828;font-size:13px;margin:0 0 8px;">'
+            + '<strong>Could not check CTP attributes:</strong> ' + errorMsg + '</p>'
+            + '<p style="font-size:13px;color:#54698d;margin:0;">You can proceed without the check ? '
+            + 'missing attributes will not be created automatically.</p>';
+        modalStatus.textContent = '';
+        modalCreateBtn.style.display = 'none';
+        modalSkipBtn.textContent = 'Proceed Anyway';
+        modalCallback = function () {
+            modalCreateBtn.style.display = '';
+            modalSkipBtn.textContent = 'Skip & Migrate';
+            onContinue();
+        };
+        preflightModal.style.display = 'flex';
+    }
+
+    // ????????????????????????????????????????????????????????????????????????
+    // PARTIAL MIGRATION ? start button (with pre-flight)
+    // ????????????????????????????????????????????????????????????????????????
+
     startBtn.addEventListener('click', function () {
         var listId = listIdEl.value.trim();
         var valid  = true;
@@ -538,25 +1040,29 @@
 
         if (!valid || partialRunning) return;
 
-        partialRunning   = true;
-        profilesCreated  = 0; profilesSkipped = 0; profilesFailed = 0; profileErrors = [];
-        addrsCreated     = 0; addrsFailed     = 0; allMappings    = [];
-
         startBtn.disabled    = true;
-        startBtn.textContent = 'Running…';
-        statusBox.style.display = 'none';
-        overallEl.textContent   = '';
-        phaseList.style.display = 'block';
+        startBtn.textContent = 'Checking attributes...';
 
-        setPhase('acc', 'profiles',  'pending', '', 0);
-        setPhase('acc', 'addresses', 'pending', '', 0);
+        runPreflightThenMigrate(function () {
+            partialRunning   = true;
+            profilesCreated  = 0; profilesSkipped = 0; profilesFailed = 0; profileErrors = [];
+            addrsCreated     = 0; addrsFailed     = 0; allMappings    = [];
 
-        runProfilesById(ids, 0);
+            startBtn.textContent    = 'Running...';
+            statusBox.style.display = 'none';
+            overallEl.textContent   = '';
+            phaseList.style.display = 'block';
+
+            setPhase('acc', 'profiles',  'pending', '', 0);
+            setPhase('acc', 'addresses', 'pending', '', 0);
+
+            runProfilesById(ids, 0);
+        });
     });
 
-    // ════════════════════════════════════════════════════════════════════════
+    // ????????????????????????????????????????????????????????????????????????
     // FULL MIGRATION
-    // ════════════════════════════════════════════════════════════════════════
+    // ????????????????????????????????????????????????????????????????????????
 
     var fullStartBtn   = document.getElementById('full-start-btn');
     var fullOverallEl  = document.getElementById('full-move-overall');
@@ -572,7 +1078,7 @@
         var listId = listIdEl.value.trim();
         var pct    = (total > 0) ? Math.round((offset / total) * 100) : 0;
         setPhase('full', 'build', 'active',
-            offset + ' / ' + (total || '?') + ' processed… (' + fullFiles + ' file(s) uploaded)', pct);
+            offset + ' / ' + (total || '?') + ' processed... (' + fullFiles + ' file(s) uploaded)', pct);
 
         post(
             FULL_BATCH_URL,
@@ -602,9 +1108,6 @@
                         fullFiles + ' file(s) uploaded, ' + fullBuilt + ' customer(s) built'
                         + (fullFailed ? ', ' + fullFailed + ' skipped due to errors' : ''),
                         100);
-                    setPhase('full', 'import', 'active',
-                        'Files ready at /Impex/src/instance/ctp-migration/ — run Import Customers job in BM to finish.',
-                        null);
                     finalizeFull(true);
                 }
             }
@@ -616,100 +1119,16 @@
         fullStartBtn.disabled    = false;
         fullStartBtn.textContent = success ? 'Phase 1 Done' : 'Build Failed';
 
-        fullStatusBox.style.display = 'block';
-        fullStatusBox.className     = success
-            ? 'acc-callout acc-callout--success'
-            : 'acc-callout acc-callout--warning';
-
         if (success) {
-            fullStatusBox.innerHTML = '<strong>Phase 1 complete.</strong> '
-                + fullFiles + ' XML file(s) uploaded to <code>/Impex/src/instance/ctp-migration/</code>. '
-                + 'Use Phase 2 below to run the import job.';
-            // Reveal job trigger controls inside the Phase 2 progress item
-            var p2ctrl = document.getElementById('full-phase2-controls');
-            if (p2ctrl) { p2ctrl.style.display = 'block'; }
-            setPhase('full', 'import', 'active', 'Enter Job ID below and click Trigger to import.', null);
+            fullStatusBox.style.display = 'none';
+            setPhase('full', 'import', 'active',
+                'Run your import job in Business Manager to complete the migration.', null);
         } else {
-            fullStatusBox.textContent = 'XML build failed — check BM logs for details.';
+            fullStatusBox.style.display = 'block';
+            fullStatusBox.className     = 'acc-callout acc-callout--warning';
+            fullStatusBox.textContent   = 'XML build failed - check BM logs for details.';
         }
     }
-
-    // ── Phase 2: job trigger and status polling ───────────────────────────────
-
-    function triggerJob() {
-        var jobId      = document.getElementById('full-job-id').value.trim();
-        var triggerBtn = document.getElementById('full-trigger-btn');
-        var jobMsg     = document.getElementById('full-job-status-msg');
-        if (!jobId || !triggerBtn) return;
-
-        triggerBtn.disabled    = true;
-        triggerBtn.textContent = 'Triggering...';
-        jobMsg.textContent     = '';
-        jobMsg.style.color     = '#54698d';
-
-        post(TRIGGER_JOB_URL, 'jobId=' + encodeURIComponent(jobId), function (data) {
-            if (!data.ok) {
-                triggerBtn.disabled    = false;
-                triggerBtn.textContent = 'Retry';
-                jobMsg.textContent     = 'Error: ' + (data.error || 'Could not trigger job');
-                jobMsg.style.color     = '#c62828';
-                setPhase('full', 'import', 'error', 'Job trigger failed: ' + (data.error || 'unknown'), null);
-                return;
-            }
-            var execId = data.executionId || '';
-            jobMsg.textContent = 'Job started (execution: ' + execId + ') — polling every 5 s...';
-            setPhase('full', 'import', 'active', 'Job running (execution: ' + execId + ')', null);
-            pollJobStatus(jobId, execId);
-        });
-    }
-
-    function pollJobStatus(jobId, executionId) {
-        var jobMsg = document.getElementById('full-job-status-msg');
-        post(
-            JOB_STATUS_URL,
-            'jobId=' + encodeURIComponent(jobId) + '&executionId=' + encodeURIComponent(executionId),
-            function (data) {
-                if (!data.ok) {
-                    if (jobMsg) {
-                        jobMsg.textContent = 'Status check failed: ' + (data.error || 'unknown');
-                        jobMsg.style.color = '#c62828';
-                    }
-                    // Retry anyway after 10 s — transient errors are common in long-running jobs
-                    setTimeout(function () { pollJobStatus(jobId, executionId); }, 10000);
-                    return;
-                }
-
-                var status   = data.status || 'unknown';
-                var durText  = data.duration ? ' (' + data.duration + ' s)' : '';
-                var msgText  = 'Job status: ' + status + durText;
-                if (jobMsg) { jobMsg.textContent = msgText; }
-
-                if (status === 'finished') {
-                    if (jobMsg) { jobMsg.style.color = '#2e7d32'; }
-                    setPhase('full', 'import', 'done', 'Import complete' + durText, null);
-                    fullStatusBox.innerHTML = '<strong>Migration complete!</strong> '
-                        + fullFiles + ' XML file(s) imported via job <em>' + jobId + '</em>' + durText + '.';
-                    fullStatusBox.className = 'acc-callout acc-callout--success';
-                } else if (status === 'failed' || status === 'aborted' || status === 'expired') {
-                    if (jobMsg) { jobMsg.style.color = '#c62828'; }
-                    setPhase('full', 'import', 'error', 'Job ' + status + durText, null);
-                    var trigBtn = document.getElementById('full-trigger-btn');
-                    if (trigBtn) { trigBtn.disabled = false; trigBtn.textContent = 'Retry Job'; }
-                } else {
-                    // pending / running / paused — keep polling
-                    if (jobMsg) { jobMsg.style.color = '#54698d'; }
-                    setTimeout(function () { pollJobStatus(jobId, executionId); }, 5000);
-                }
-            }
-        );
-    }
-
-    // Wire up trigger button (created in markup above, not yet in DOM when script loads — use delegation)
-    document.addEventListener('click', function (evt) {
-        if (evt.target && evt.target.id === 'full-trigger-btn') {
-            triggerJob();
-        }
-    });
 
     fullStartBtn.addEventListener('click', function () {
         var listId = listIdEl.value.trim();
@@ -720,19 +1139,23 @@
         clearError('acc-list-id', 'acc-list-id-error');
         if (fullRunning) return;
 
-        fullRunning   = true;
-        fullBuilt     = 0; fullFailed = 0; fullFiles = 0;
-
         fullStartBtn.disabled    = true;
-        fullStartBtn.textContent = 'Building…';
-        fullStatusBox.style.display = 'none';
-        fullOverallEl.textContent   = '';
-        fullPhaseList.style.display = 'block';
+        fullStartBtn.textContent = 'Checking attributes...';
 
-        setPhase('full', 'build',   'pending', '', 0);
-        setPhase('full', 'import',  'pending', null, 0);
+        runPreflightThenMigrate(function () {
+            fullRunning   = true;
+            fullBuilt     = 0; fullFailed = 0; fullFiles = 0;
 
-        runFullBatch(0, 0);
+            fullStartBtn.textContent    = 'Building...';
+            fullStatusBox.style.display = 'none';
+            fullOverallEl.textContent   = '';
+            fullPhaseList.style.display = 'block';
+
+            setPhase('full', 'build',  'pending', '', 0);
+            setPhase('full', 'import', 'pending', null, 0);
+
+            runFullBatch(0, 0);
+        });
     });
 
 }());

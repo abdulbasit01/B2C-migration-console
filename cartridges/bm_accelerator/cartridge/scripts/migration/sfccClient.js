@@ -65,6 +65,16 @@ function doPut(url, token, payload) {
     return { status: client.getStatusCode(), text: client.getText() };
 }
 
+function doPost(url, token, payload) {
+    var client = new HTTPClient();
+    client.setTimeout(30000);
+    client.open('POST', url);
+    client.setRequestHeader('Authorization', 'Bearer ' + token);
+    client.setRequestHeader('Content-Type', 'application/json');
+    client.send(JSON.stringify(payload));
+    return { status: client.getStatusCode(), text: client.getText() };
+}
+
 function doGet(url, token) {
     var client = new HTTPClient();
     client.setTimeout(30000);
@@ -146,6 +156,49 @@ function migrateObjectSchema(token, objectType, attrDefs) {
 }
 
 /**
+ * Create (or update) a custom attribute group on an SFCC system object.
+ * Idempotent — safe to call even if the group already exists.
+ * @param {string} token       - SFCC access token
+ * @param {string} objectType  - SFCC system object type (e.g. 'Profile')
+ * @param {string} groupId     - attribute group ID
+ * @param {string} displayName - human-readable group name
+ */
+function ensureAttributeGroup(token, objectType, groupId, displayName) {
+    var url = metaUrl('/system_object_definitions/' + objectType + '/attribute_groups/' + encodeURIComponent(groupId));
+    var res = doPut(url, token, {
+        id:           groupId,
+        display_name: { default: displayName || groupId },
+        position:     1
+    });
+    if (res.status >= 400) {
+        throw new Error('Attribute group ensure failed [' + objectType + '/' + groupId + '] (' + res.status + '): ' + res.text);
+    }
+    return true;
+}
+
+/**
+ * Add an attribute definition to an attribute group so it appears in BM.
+ * Uses PUT …/attribute_groups/{groupId}/attribute_definitions/{attributeId}
+ * which is the standard SFCC OCAPI pattern for linking a definition to a group.
+ * @param {string} token       - SFCC access token
+ * @param {string} objectType  - SFCC system object type
+ * @param {string} groupId     - attribute group ID
+ * @param {string} attributeId - attribute definition ID to link
+ */
+function addAttributeToGroup(token, objectType, groupId, attributeId) {
+    var url = metaUrl(
+        '/system_object_definitions/' + objectType +
+        '/attribute_groups/' + encodeURIComponent(groupId) +
+        '/attribute_definitions/' + encodeURIComponent(attributeId)
+    );
+    var res = doPut(url, token, { id: attributeId, position: 0 });
+    if (res.status >= 400) {
+        throw new Error('Add attr to group failed [' + groupId + '/' + attributeId + '] (' + res.status + '): ' + res.text);
+    }
+    return true;
+}
+
+/**
  * Delete a single custom attribute definition from an SFCC system object.
  * @param {string} token      - SFCC access token
  * @param {string} objectType - SFCC system object type
@@ -171,5 +224,7 @@ module.exports = {
     getExistingAttributeIds:   getExistingAttributeIds,
     createAttributeDefinition: createAttributeDefinition,
     deleteAttributeDefinition: deleteAttributeDefinition,
-    migrateObjectSchema:       migrateObjectSchema
+    migrateObjectSchema:       migrateObjectSchema,
+    ensureAttributeGroup:      ensureAttributeGroup,
+    addAttributeToGroup:       addAttributeToGroup
 };
