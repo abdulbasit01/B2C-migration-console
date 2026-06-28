@@ -42,17 +42,17 @@ var DATA_TYPES = [
         id:          'customer',
         label:       'Customers',
         description: 'Migrate customer profiles, addresses, and account data into SFCC.',
-        status:      'soon',
+        status:      'ready',
         iconClass:   'acc-data-type--customer',
-        items:       ['Customer profiles', 'Addresses', 'Customer groups']
+        items:       ['Customer profiles', 'Addresses', 'Custom attributes', 'Attribute pre-flight check']
     },
     {
         id:          'product',
         label:       'Products',
         description: 'Migrate product catalog, variants, and attributes into SFCC.',
-        status:      'soon',
+        status:      'ready',
         iconClass:   'acc-data-type--product',
-        items:       ['Product master data', 'Variants & SKUs', 'Custom attributes']
+        items:       ['Product master data', 'Variants & SKUs', 'Custom attributes', 'Full XML/WebDAV import']
     },
     {
         id:          'catalog',
