@@ -352,7 +352,8 @@ exports.DataMigrationDashboard = function () {
         cssUrl:               URLUtils.staticURL('/css/accelerator-migration.css').toString(),
         dashboardUrl:         URLUtils.url('Accelerator-Start').toString(),
         orderMigrationUrl:    URLUtils.url('Accelerator-OrderMigration').toString(),
-        customerMigrationUrl: URLUtils.url('Accelerator-CustomerMigration').toString()
+        customerMigrationUrl: URLUtils.url('Accelerator-CustomerMigration').toString(),
+        productMigrationUrl:  URLUtils.url('Accelerator-ProductWizard').toString()
     });
 };
 exports.DataMigrationDashboard.public = true;
@@ -495,6 +496,16 @@ exports.DataWizard = function () {
         return;
     }
 
+    // Types with dedicated migration pages redirect directly at step 3.
+    if (currentStep > 2 && dataTypeId === 'customer') {
+        response.redirect(URLUtils.url('Accelerator-CustomerMigration'));
+        return;
+    }
+    if (currentStep > 2 && dataTypeId === 'product') {
+        response.redirect(URLUtils.url('Accelerator-ProductWizard'));
+        return;
+    }
+
     if (currentStep > 2 && dataTypeId !== 'order' && wizardStep.key !== 'typePlaceholder') {
         response.redirect(URLUtils.url('Accelerator-DataWizard', 'platform', platformId, 'step', '3'));
         return;
@@ -522,6 +533,16 @@ exports.DataWizard = function () {
     var stepContent = null;
     if (wizardStep.key === 'selectType') {
         stepContent = migrationData.buildDataSelectContent();
+        // Force product and customer selectable regardless of cached migrationData status
+        var readyCount = 0;
+        for (var si = 0; si < stepContent.sections.length; si++) {
+            var sec = stepContent.sections[si];
+            if (sec.taskId === 'product' || sec.taskId === 'customer' || sec.taskId === 'order') {
+                sec.selectable = true;
+            }
+            if (sec.selectable) readyCount++;
+        }
+        stepContent.summary = readyCount + ' data type(s) ready';
     }
 
     var exportPhaseIds = [];
@@ -653,6 +674,17 @@ exports.DataWizardSelectType = function () {
     }
 
     session.custom.selectedDataType = typeId;
+
+    // Types with dedicated migration pages bypass the typePlaceholder and go directly.
+    if (typeId === 'customer') {
+        response.redirect(URLUtils.url('Accelerator-CustomerMigration'));
+        return;
+    }
+    if (typeId === 'product') {
+        response.redirect(URLUtils.url('Accelerator-ProductWizard'));
+        return;
+    }
+
     response.redirect(URLUtils.url('Accelerator-DataWizard', 'platform', platformId, 'step', '3'));
 };
 exports.DataWizardSelectType.public = true;
@@ -894,6 +926,52 @@ exports.GetCustomerLists = function () {
     }
 };
 exports.GetCustomerLists.public = true;
+
+/**
+ * Return all SFCC catalog IDs available on the instance.
+ * GET — no params required.
+ */
+exports.GetProductCatalogs = function () {
+    try {
+        var sfccClient = require('*/cartridge/scripts/migration/sfccClient');
+        var token      = sfccClient.getSFCCToken();
+        var s          = sfccClient.getSFCCSettings();
+        var HTTPClient = require('dw/net/HTTPClient');
+        var client     = new HTTPClient();
+        var url        = s.baseUrl + '/s/-/dw/data/' + s.metaVersion
+                       + '/catalogs?client_id=' + encodeURIComponent(s.bmClientId);
+
+        client.setTimeout(15000);
+        client.open('GET', url);
+        client.setRequestHeader('Authorization', 'Bearer ' + token);
+        client.setRequestHeader('Content-Type', 'application/json');
+        client.send();
+
+        var sc = client.statusCode;
+        if (sc !== 200) {
+            jsonResponse({ ok: false, error: 'SFCC API returned HTTP ' + sc });
+            return;
+        }
+
+        var parsed;
+        try { parsed = JSON.parse(client.text); } catch (e) { jsonResponse({ ok: false, error: 'Parse error' }); return; }
+
+        var data   = parsed.data || [];
+        var result = [];
+        var seen   = {};
+        for (var i = 0; i < data.length; i++) {
+            var catId = data[i].id || (data[i].catalog && data[i].catalog.id);
+            if (catId && !seen[catId]) {
+                seen[catId] = true;
+                result.push({ id: catId });
+            }
+        }
+        jsonResponse({ ok: true, catalogs: result });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.GetProductCatalogs.public = true;
 
 /**
  * Compare CTP customer custom fields against SFCC Customer attribute definitions.
@@ -1153,13 +1231,15 @@ exports.FullMigrationJobStatus.public = true;
  */
 exports.ProductWizard = function () {
     ISML.renderTemplate('accelerator/productMigration', {
-        title:          'Product Data Migration',
+        title:          Resource.msg('accelerator.title', 'accelerator', null),
+        subtitle:       Resource.msg('accelerator.subtitle', 'accelerator', null),
         countUrl:       URLUtils.url('Accelerator-ProductMigrationCount').toString(),
         partialUrl:     URLUtils.url('Accelerator-MigrateProductById').toString(),
         fullBatchUrl:   URLUtils.url('Accelerator-FullProductMigrationBuildBatch').toString(),
         checkAttrsUrl:  URLUtils.url('Accelerator-CheckProductAttributes').toString(),
         createAttrsUrl: URLUtils.url('Accelerator-CreateProductAttributes').toString(),
         deleteAttrUrl:  URLUtils.url('Accelerator-DeleteProductAttribute').toString(),
+        catalogsUrl:    URLUtils.url('Accelerator-GetProductCatalogs').toString(),
         dashboardUrl:   URLUtils.url('Accelerator-Start').toString(),
         cssUrl:         URLUtils.staticURL('/css/accelerator-migration.css').toString()
     });

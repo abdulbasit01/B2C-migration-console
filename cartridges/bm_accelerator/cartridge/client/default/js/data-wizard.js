@@ -149,31 +149,61 @@
                 countEl.textContent = ids.length + ' ' + (msgs.selectTypeCountSuffix || 'selected');
             }
 
+            // Radio-style: selecting one type unchecks all others.
+            function selectOnly(chosen) {
+                var cbs = getBoxes();
+                var ci = 0;
+                var cbCount = cbs.length;
+                while (cbCount > ci) {
+                    cbs[ci].checked = (cbs[ci] === chosen);
+                    syncPanelState(cbs[ci]);
+                    ci += 1;
+                }
+                updateCount();
+            }
+
+            // On page load: keep only the first checkbox checked.
+            var initBoxes = getBoxes();
+            var firstChecked = false;
+            var ibi = 0;
+            while (ibi < initBoxes.length) {
+                if (!firstChecked && initBoxes[ibi].checked) {
+                    firstChecked = true;
+                } else {
+                    initBoxes[ibi].checked = false;
+                }
+                syncPanelState(initBoxes[ibi]);
+                ibi += 1;
+            }
+
             var boxes = getBoxes();
             var bi = 0;
             var boxCount = boxes.length;
             while (boxCount > bi) {
                 (function (cb) {
                     cb.addEventListener('change', function () {
-                        syncPanelState(cb);
-                        updateCount();
+                        if (cb.checked) {
+                            selectOnly(cb);
+                        } else {
+                            syncPanelState(cb);
+                            updateCount();
+                        }
                     });
                 }(boxes[bi]));
                 bi += 1;
             }
 
-            if (selectAllBtn) {
-                selectAllBtn.addEventListener('click', function () {
-                    var cbs = getBoxes();
-                    var ci = 0;
-                    var cbCount = cbs.length;
-                    while (cbCount > ci) {
-                        cbs[ci].checked = true;
-                        syncPanelState(cbs[ci]);
-                        ci += 1;
-                    }
-                    updateCount();
-                });
+            // Also select on panel click (anywhere on the card)
+            var panels = document.querySelectorAll('#acc-data-type-panels .acc-panel--selectable');
+            var pi = 0;
+            while (pi < panels.length) {
+                (function (panel) {
+                    panel.addEventListener('click', function () {
+                        var cb = panel.querySelector('.acc-data-type-checkbox');
+                        if (cb) { selectOnly(cb); cb.checked = true; }
+                    });
+                }(panels[pi]));
+                pi += 1;
             }
 
             if (deselectAllBtn) {
