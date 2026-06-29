@@ -3,284 +3,275 @@
 <link rel="stylesheet" href="${pdict.cssUrl}"/>
 <div class="acc-page">
 <div class="acc-shell">
+<isinclude template="accelerator/components/header"/>
+<div style="padding:10px 32px 0;">
+<a href="${pdict.dashboardUrl}" style="font-size:13px;color:#0070d2;text-decoration:none;">Back to Dashboard</a>
+</div>
+<section class="acc-section">
+<header class="acc-section__head">
+<h2>Category Data Migration - Commercetools to SFCC</h2>
+</header>
 
-    <isinclude template="accelerator/components/header"/>
+<div style="background:#f4f6f9;border:1px solid #dddbda;border-radius:4px;padding:16px 20px;margin-bottom:20px;">
+<div style="display:flex;align-items:flex-end;flex-wrap:wrap;gap:12px;">
 
-    <div style="padding:10px 32px 0;">
-        <a href="${pdict.dashboardUrl}" style="font-size:13px;color:#0070d2;text-decoration:none;">&larr; Back to Dashboard</a>
-    </div>
+<div>
+<label for="cat-catalog-select" style="display:block;font-weight:600;font-size:13px;margin-bottom:4px;">Target Storefront Catalog</label>
+<div style="display:flex;gap:8px;align-items:center;">
+<select id="cat-catalog-select" class="acc-form__input" style="width:280px;padding:6px 8px;font-size:13px;border:1px solid #dddbda;border-radius:4px;">
+<option value="">-- Select a catalog --</option>
+</select>
+<button type="button" id="btn-load-catalogs" class="acc-btn acc-btn--ghost" style="white-space:nowrap;font-size:12px;padding:6px 12px;">Load Catalogs</button>
+<span id="catalog-load-status" style="font-size:12px;color:#54698d;"></span>
+</div>
+</div>
+<div>
+<label for="cat-catalog-id" style="display:block;font-weight:600;font-size:13px;margin-bottom:4px;">Or enter Catalog ID manually</label>
+<input id="cat-catalog-id" type="text" class="acc-form__input" placeholder="e.g. storefront-catalog-m-en" value="${pdict.catalogId}" style="width:240px;"/>
+</div>
+</div>
+<div style="margin-top:10px;font-size:12px;color:#54698d;">Selecting from dropdown will auto-fill the Catalog ID. Manual entry overrides the selection.</div>
+</div>
 
-    <section class="acc-section">
-        <header class="acc-section__head">
-            <h2>Category Migration &mdash; <span class="acc-highlight">Commercetools &rarr; SFCC</span></h2>
-            <p style="font-size:14px;color:#54698d;margin-top:6px;max-width:640px;">
-                Migrates Commercetools categories to SFCC catalog categories.
-                Custom attributes <code>ctId</code>, <code>ctSlug</code>, and <code>ctPosition</code>
-                must exist on the SFCC Category system object before importing.
-            </p>
-        </header>
+<div style="display:flex;border-bottom:2px solid #dddbda;margin-bottom:24px;flex-wrap:wrap;">
+<div id="tab-1" style="padding:10px 20px;font-size:13px;font-weight:600;color:#0070d2;border-bottom:3px solid #0070d2;cursor:pointer;margin-bottom:-2px;">Step 1 - Check Attributes</div>
+<div id="tab-2" style="padding:10px 20px;font-size:13px;font-weight:600;color:#54698d;cursor:pointer;margin-bottom:-2px;">Step 2 - Edit Hierarchy</div>
+<div id="tab-3" style="padding:10px 20px;font-size:13px;font-weight:600;color:#54698d;cursor:pointer;margin-bottom:-2px;">Step 3 - Export</div>
+<div id="tab-4" style="padding:10px 20px;font-size:13px;font-weight:600;color:#54698d;cursor:pointer;margin-bottom:-2px;">New Catalog</div>
+<div id="tab-5" style="padding:10px 20px;font-size:13px;font-weight:600;color:#54698d;cursor:pointer;margin-bottom:-2px;">New Category</div>
+</div>
 
-        <!-- ── Attribute Pre-flight Panel ── -->
-        <div id="cat-attr-preflight" style="background:#f4f6f9;border:1px solid #dddbda;border-radius:6px;padding:20px 24px;margin-bottom:24px;">
-            <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
-                <div>
-                    <h3 style="margin:0 0 4px;font-size:15px;color:#16325c;">SFCC Category Attribute Pre-flight</h3>
-                    <p style="margin:0;font-size:13px;color:#54698d;">
-                        Verify that <code>ctId</code>, <code>ctSlug</code>, and <code>ctPosition</code>
-                        are defined on the SFCC Category system object. Create any missing ones below.
-                    </p>
-                </div>
-                <button id="cat-check-attrs-btn" type="button" class="acc-btn acc-btn--ghost" style="white-space:nowrap;">
-                    Check Category Attributes
-                </button>
-            </div>
+<!-- STEP 1 -->
+<div id="panel-step1">
+<div id="step1-info-box" style="background:#f4f6f9;border:1px solid #dddbda;border-radius:4px;padding:14px 18px;font-size:13px;margin-bottom:16px;">Click Check Attributes to see which custom attributes exist on the Category system object.</div>
+<div id="attr-result" style="display:none;margin-bottom:16px;">
+<table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:10px;">
+<thead><tr>
+<th style="background:#f4f6f9;padding:8px 12px;text-align:center;border:1px solid #dddbda;font-weight:600;color:#16325c;width:52px;">Create</th>
+<th style="background:#f4f6f9;padding:8px 12px;text-align:left;border:1px solid #dddbda;font-weight:600;color:#16325c;">Attribute ID</th>
+<th style="background:#f4f6f9;padding:8px 12px;text-align:left;border:1px solid #dddbda;font-weight:600;color:#16325c;">Type</th>
+<th style="background:#f4f6f9;padding:8px 12px;text-align:left;border:1px solid #dddbda;font-weight:600;color:#16325c;">Label</th>
+<th style="background:#f4f6f9;padding:8px 12px;text-align:left;border:1px solid #dddbda;font-weight:600;color:#16325c;">Status</th>
+</tr></thead>
+<tbody id="attr-tbody"></tbody>
+</table>
+<div style="display:flex;gap:8px;margin-bottom:12px;">
+<button type="button" id="btn-select-all-attrs" class="acc-btn acc-btn--ghost" style="font-size:12px;padding:4px 12px;">Select All</button>
+<button type="button" id="btn-deselect-all-attrs" class="acc-btn acc-btn--ghost" style="font-size:12px;padding:4px 12px;">Deselect All</button>
+<button type="button" id="btn-revert-attrs" class="acc-btn acc-btn--ghost" style="font-size:12px;padding:4px 12px;">Revert to Default</button>
+</div>
+<div id="attr-warnings" style="display:none;background:#fff3e0;border:1px solid #ffb300;border-radius:4px;padding:10px 14px;font-size:13px;margin-bottom:8px;color:#e65100;"></div>
+<div id="attr-errors"   style="display:none;background:#ffebee;border:1px solid #c62828;border-radius:4px;padding:10px 14px;font-size:13px;margin-bottom:8px;color:#c62828;"></div>
+</div>
+<div class="acc-move-actions">
+<button type="button" id="btn-check-attrs" class="acc-btn acc-btn--primary">Check Attributes</button>
+<button type="button" id="btn-create-selected-attrs" class="acc-btn acc-btn--primary" style="display:none;margin-left:10px;">Create Selected</button>
+<button type="button" id="btn-skip-attrs" class="acc-btn acc-btn--ghost" style="margin-left:10px;">Skip to Step 2</button>
+<span id="attr-overall" style="margin-left:14px;font-size:13px;color:#54698d;"></span>
+</div>
+</div>
 
-            <div id="cat-attr-status" style="display:none;margin-top:14px;"></div>
+<!-- STEP 2 -->
+<div id="panel-step2" style="display:none;">
+<div style="background:#f4f6f9;border:1px solid #dddbda;border-radius:4px;padding:14px 18px;font-size:13px;margin-bottom:16px;">
+Step 2 of 3 - Edit Category Hierarchy and Sort Order.
+Grab the arrow icon on any row and drag it up or down to reorder or change level.
+Drop on top half of a row = place before it at same level.
+Drop on bottom half = make it a child of that row.
+Drop on the blue zone = make it a root L1 category.
+Use the Parent dropdown to change parent directly.
+Use the level filter buttons to view categories by level.
+Click Save and Apply Changes to confirm.
+</div>
+<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
+<input type="text" id="hierarchy-search" placeholder="Search by name or ID" style="width:220px;padding:6px 10px;font-size:13px;border:1px solid #dddbda;border-radius:4px;"/>
+<button type="button" id="btn-load-categories" class="acc-btn acc-btn--secondary">Load Categories from CT</button>
+<button type="button" id="btn-reset-hierarchy" class="acc-btn acc-btn--ghost">Reset All</button>
+<button type="button" id="btn-save-hierarchy" class="acc-btn acc-btn--primary" style="display:none;">Save and Apply Changes</button>
+<span id="hierarchy-fetch-status" style="font-size:13px;color:#54698d;"></span>
+</div>
+<div id="level-filter-tabs" style="display:none;gap:6px;flex-wrap:wrap;margin-bottom:12px;"></div>
+<div id="hierarchy-changes-summary" style="display:none;background:#e8f4fd;border:1px solid #0070d2;border-radius:4px;padding:10px 14px;font-size:13px;margin-bottom:10px;color:#0070d2;">
+<strong id="hierarchy-changes-count">0</strong> unsaved change(s). Click Save and Apply Changes to confirm.
+</div>
+<div id="hierarchy-applied-summary" style="display:none;background:#e8f5e9;border:1px solid #2e7d32;border-radius:4px;padding:10px 14px;font-size:13px;margin-bottom:10px;color:#2e7d32;">
+<strong id="hierarchy-applied-count">0</strong> change(s) applied and ready for export.
+</div>
+<div id="root-drop-zone" style="display:none;border:2px dashed #0070d2;border-radius:6px;padding:12px 20px;text-align:center;color:#0070d2;font-size:13px;font-weight:600;margin-bottom:10px;background:#f0f7ff;">
+Drop here to make Root (L1) category
+</div>
+<div style="border:1px solid #dddbda;border-radius:4px;max-height:520px;overflow-y:auto;">
+<table style="width:100%;border-collapse:collapse;font-size:13px;">
+<thead><tr>
+<th style="background:#f4f6f9;padding:8px 10px;text-align:center;border-bottom:2px solid #dddbda;font-weight:600;color:#16325c;font-size:12px;width:32px;"></th>
+<th style="background:#f4f6f9;padding:8px 10px;text-align:left;border-bottom:2px solid #dddbda;font-weight:600;color:#16325c;font-size:12px;width:48px;">Level</th>
+<th style="background:#f4f6f9;padding:8px 10px;text-align:left;border-bottom:2px solid #dddbda;font-weight:600;color:#16325c;font-size:12px;width:38px;">Pos</th>
+<th style="background:#f4f6f9;padding:8px 10px;text-align:left;border-bottom:2px solid #dddbda;font-weight:600;color:#16325c;font-size:12px;">Category ID</th>
+<th style="background:#f4f6f9;padding:8px 10px;text-align:left;border-bottom:2px solid #dddbda;font-weight:600;color:#16325c;font-size:12px;">Name</th>
+<th style="background:#f4f6f9;padding:8px 10px;text-align:left;border-bottom:2px solid #dddbda;font-weight:600;color:#16325c;font-size:12px;">Parent</th>
+</tr></thead>
+<tbody id="main-cat-tbody">
+<tr><td colspan="6" style="text-align:center;padding:30px;color:#54698d;">Click Load Categories from CT to begin.</td></tr>
+</tbody>
+</table>
+</div>
+<div class="acc-move-actions" style="margin-top:14px;">
+<button type="button" id="btn-back-to-step1" class="acc-btn acc-btn--ghost">Back</button>
+<button type="button" id="btn-next-to-step3" class="acc-btn acc-btn--primary" style="margin-left:10px;">Next - Export</button>
+</div>
+</div>
 
-            <div id="cat-attr-missing-wrap" style="display:none;margin-top:14px;">
-                <p style="font-size:13px;color:#c62828;margin:0 0 10px;">
-                    The following attributes are missing in SFCC Category system object:
-                </p>
-                <table style="width:100%;border-collapse:collapse;font-size:13px;">
-                    <thead>
-                        <tr style="background:#e0e5ee;">
-                            <th style="padding:8px 10px;text-align:left;width:32px;">
-                                <input type="checkbox" id="cat-attr-select-all" title="Select all"/>
-                            </th>
-                            <th style="padding:8px 10px;text-align:left;">Attribute ID</th>
-                            <th style="padding:8px 10px;text-align:left;">Label</th>
-                            <th style="padding:8px 10px;text-align:left;">SFCC Type</th>
-                        </tr>
-                    </thead>
-                    <tbody id="cat-attr-missing-body"></tbody>
-                </table>
-                <div style="display:flex;gap:10px;margin-top:14px;align-items:center;">
-                    <button id="cat-create-attrs-btn" type="button" class="acc-btn acc-btn--primary" disabled>
-                        Create Selected Attributes
-                    </button>
-                    <span id="cat-create-status" style="font-size:13px;color:#54698d;"></span>
-                </div>
-            </div>
+<!-- STEP 3 -->
+<div id="panel-step3" style="display:none;">
+<div id="step3-summary" style="background:#f4f6f9;border:1px solid #dddbda;border-radius:4px;padding:14px 18px;font-size:13px;margin-bottom:20px;">Step 3 of 3 - Export. Ready to migrate.</div>
+<ul class="acc-phases" id="cat-phase-list" style="display:none;margin-bottom:24px;">
+<li class="acc-phases__item acc-phases__item--pending" id="cat-phase-fetch">
+<div class="acc-phases__head"><span>Phase 1 - Fetch and Transform Categories</span><span class="acc-phases__status" id="cat-status-fetch">pending</span></div>
+<p class="acc-phases__detail" id="cat-detail-fetch"></p>
+<div class="acc-progress"><div class="acc-progress__bar" id="cat-bar-fetch" style="width:0%"></div></div>
+</li>
+<li class="acc-phases__item acc-phases__item--pending" id="cat-phase-import">
+<div class="acc-phases__head"><span>Phase 2 - Write XML to IMPEX</span><span class="acc-phases__status" id="cat-status-import">pending</span></div>
+<p class="acc-phases__detail" id="cat-detail-import">Waiting for Phase 1</p>
+<div class="acc-progress"><div class="acc-progress__bar" id="cat-bar-import" style="width:0%"></div></div>
+<div id="cat-xml-controls" style="display:none;margin-top:12px;padding:14px;background:#f4f6f9;border:1px solid #dddbda;border-radius:4px;">
+<div style="font-weight:600;color:#16325c;margin-bottom:8px;">XML written to IMPEX successfully.</div>
+<div style="font-size:12px;color:#54698d;margin-bottom:6px;">File location:</div>
+<code id="cat-xml-path" style="background:#e0e5ee;padding:4px 8px;border-radius:3px;font-size:12px;display:block;margin-bottom:14px;word-break:break-all;"></code>
+<div style="display:flex;gap:10px;flex-wrap:wrap;padding-top:12px;border-top:1px solid #dddbda;">
+<a id="btn-open-impex" href="#" class="acc-btn acc-btn--secondary" style="text-decoration:none;">Open IMPEX Folder</a>
+<a id="btn-open-import" href="#" class="acc-btn acc-btn--primary" style="text-decoration:none;margin-left:10px;">Go to Catalog Import</a>
+</div>
+<div style="margin-top:12px;font-size:12px;color:#54698d;line-height:1.8;">
+Next steps: 1. Click Open IMPEX Folder. 2. Click Go to Catalog Import. 3. Select the file and run the import job.
+</div>
+</div>
+</li>
+</ul>
+<div id="cat-move-status" style="display:none;padding:12px 16px;border-radius:4px;margin-bottom:16px;font-size:13px;"></div>
+<div class="acc-move-actions">
+<button type="button" id="btn-back-to-step2" class="acc-btn acc-btn--ghost">Back</button>
+<button type="button" id="cat-start-btn" class="acc-btn acc-btn--primary" style="margin-left:10px;">Run Migration</button>
+<span id="cat-move-overall" style="margin-left:14px;font-size:13px;color:#54698d;"></span>
+</div>
+</div>
 
-            <div id="cat-attr-ok-badge" style="display:none;margin-top:12px;color:#2e7d32;font-size:13px;font-weight:600;">
-                &#10003; All required SFCC Category attributes are present. Ready to migrate.
-            </div>
-        </div>
+<!-- STEP 4 - New Catalog -->
+<div id="panel-step4" style="display:none;">
+<div style="background:#f4f6f9;border:1px solid #dddbda;border-radius:4px;padding:14px 18px;font-size:13px;margin-bottom:20px;">
+Create a new SFCC storefront catalog by exporting an XML file to IMPEX. Fill in the Catalog ID and Name then click Generate Catalog XML. After the XML is generated import it via Administration - Site Development - Import and Export.
+</div>
+<div style="background:#fff;border:1px solid #dddbda;border-radius:4px;padding:20px 24px;margin-bottom:20px;max-width:520px;">
+<div style="margin-bottom:16px;">
+<label for="new-catalog-id" style="display:block;font-weight:600;font-size:13px;margin-bottom:6px;">Catalog ID</label>
+<input id="new-catalog-id" type="text" class="acc-form__input" placeholder="e.g. my-storefront-catalog" style="width:100%;padding:8px 10px;font-size:13px;border:1px solid #dddbda;border-radius:4px;"/>
+<div id="new-catalog-id-error" style="display:none;color:#c62828;font-size:12px;margin-top:4px;">Catalog ID is required.</div>
+</div>
+<div style="margin-bottom:20px;">
+<label for="new-catalog-name" style="display:block;font-weight:600;font-size:13px;margin-bottom:6px;">Catalog Name</label>
+<input id="new-catalog-name" type="text" class="acc-form__input" placeholder="e.g. My Storefront Catalog" style="width:100%;padding:8px 10px;font-size:13px;border:1px solid #dddbda;border-radius:4px;"/>
+<div id="new-catalog-name-error" style="display:none;color:#c62828;font-size:12px;margin-top:4px;">Catalog Name is required.</div>
+</div>
+<button type="button" id="btn-create-catalog" class="acc-btn acc-btn--primary">Generate Catalog XML</button>
+<span id="new-catalog-status" style="margin-left:14px;font-size:13px;color:#54698d;"></span>
+</div>
+<div id="new-catalog-result" style="display:none;background:#e8f5e9;border:1px solid #2e7d32;border-radius:4px;padding:16px 20px;max-width:520px;">
+<div style="font-weight:600;color:#2e7d32;margin-bottom:8px;">Catalog XML generated successfully.</div>
+<div style="font-size:12px;color:#54698d;margin-bottom:6px;">File location:</div>
+<code id="new-catalog-xml-path" style="background:#e0e5ee;padding:4px 8px;border-radius:3px;font-size:12px;display:block;margin-bottom:14px;word-break:break-all;"></code>
+<div style="display:flex;gap:10px;flex-wrap:wrap;padding-top:12px;border-top:1px solid #c8e6c9;">
+<a id="btn-new-catalog-impex" href="#" class="acc-btn acc-btn--secondary" style="text-decoration:none;">Open IMPEX Folder</a>
+<a id="btn-new-catalog-import" href="#" class="acc-btn acc-btn--primary" style="text-decoration:none;margin-left:10px;">Go to Catalog Import</a>
+</div>
+</div>
+</div>
 
-        <!-- ── Migration Panel ── -->
-        <div style="background:#f4f6f9;border:1px solid #dddbda;border-radius:6px;padding:20px 24px;margin-bottom:24px;">
-            <h3 style="margin:0 0 12px;font-size:15px;color:#16325c;">Run Category Migration</h3>
-            <p style="font-size:13px;color:#54698d;margin:0 0 16px;">
-                Fetches all categories from Commercetools and migrates them into SFCC.
-                Run the attribute pre-flight check above before starting.
-            </p>
+<!-- STEP 5 - New Category -->
+<div id="panel-step5" style="display:none;">
+<div style="background:#f4f6f9;border:1px solid #dddbda;border-radius:4px;padding:14px 18px;font-size:13px;margin-bottom:20px;">
+Create a new category by generating an XML file and importing it via Administration - Site Development - Import and Export.
+Fill in the Category ID, Name, and optionally a Parent Category ID then click Generate Category XML.
+</div>
+<div style="background:#fff;border:1px solid #dddbda;border-radius:4px;padding:20px 24px;margin-bottom:20px;max-width:520px;">
+<div style="margin-bottom:16px;">
+<label for="new-cat-id" style="display:block;font-weight:600;font-size:13px;margin-bottom:6px;">Category ID</label>
+<input id="new-cat-id" type="text" class="acc-form__input" placeholder="e.g. new-bedding" style="width:100%;padding:8px 10px;font-size:13px;border:1px solid #dddbda;border-radius:4px;"/>
+<div id="new-cat-id-error" style="display:none;color:#c62828;font-size:12px;margin-top:4px;">Category ID is required.</div>
+</div>
+<div style="margin-bottom:16px;">
+<label for="new-cat-name" style="display:block;font-weight:600;font-size:13px;margin-bottom:6px;">Category Name</label>
+<input id="new-cat-name" type="text" class="acc-form__input" placeholder="e.g. Bedding" style="width:100%;padding:8px 10px;font-size:13px;border:1px solid #dddbda;border-radius:4px;"/>
+<div id="new-cat-name-error" style="display:none;color:#c62828;font-size:12px;margin-top:4px;">Category Name is required.</div>
+</div>
+<div style="margin-bottom:20px;">
+<label for="new-cat-parent" style="display:block;font-weight:600;font-size:13px;margin-bottom:6px;">Parent Category (optional)</label>
+<div style="display:flex;gap:8px;">
+<input id="new-cat-parent" type="text" class="acc-form__input" placeholder="e.g. home-decor (leave blank for root)" style="flex:1;padding:8px 10px;font-size:13px;border:1px solid #dddbda;border-radius:4px;"/>
+<button type="button" id="btn-pick-parent" class="acc-btn acc-btn--ghost" style="white-space:nowrap;font-size:12px;padding:6px 12px;">Pick from loaded</button>
+</div>
+<div style="font-size:12px;color:#54698d;margin-top:4px;">Leave blank to create as a root (L1) category.</div>
+</div>
+<div style="margin-bottom:20px;padding:12px;background:#f4f6f9;border-radius:4px;border:1px solid #dddbda;">
+<div style="font-size:12px;font-weight:600;color:#16325c;margin-bottom:6px;">Target Catalog</div>
+<div id="new-cat-catalog-display" style="font-size:13px;color:#54698d;">Use the catalog selected in the config bar above.</div>
+</div>
+<button type="button" id="btn-create-category" class="acc-btn acc-btn--primary">Generate Category XML</button>
+<span id="new-cat-status" style="margin-left:14px;font-size:13px;color:#54698d;"></span>
+</div>
+<div id="new-cat-result" style="display:none;max-width:520px;padding:14px 16px;border-radius:4px;font-size:13px;"></div>
+<div id="new-cat-history" style="display:none;margin-top:20px;">
+<div style="font-weight:600;font-size:13px;color:#16325c;margin-bottom:10px;">Generated in this session:</div>
+<table style="width:100%;border-collapse:collapse;font-size:13px;max-width:640px;">
+<thead><tr>
+<th style="background:#f4f6f9;padding:8px 12px;text-align:left;border:1px solid #dddbda;font-weight:600;color:#16325c;">Category ID</th>
+<th style="background:#f4f6f9;padding:8px 12px;text-align:left;border:1px solid #dddbda;font-weight:600;color:#16325c;">Name</th>
+<th style="background:#f4f6f9;padding:8px 12px;text-align:left;border:1px solid #dddbda;font-weight:600;color:#16325c;">Parent</th>
+<th style="background:#f4f6f9;padding:8px 12px;text-align:left;border:1px solid #dddbda;font-weight:600;color:#16325c;">Status</th>
+</tr></thead>
+<tbody id="new-cat-history-tbody"></tbody>
+</table>
+</div>
+<div id="parent-picker-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.4);z-index:9999;">
+<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border-radius:6px;padding:24px;width:480px;max-height:80vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.2);">
+<div style="font-weight:600;font-size:15px;color:#16325c;margin-bottom:14px;">Pick Parent Category</div>
+<input type="text" id="parent-picker-search" placeholder="Search categories..." style="width:100%;padding:8px 10px;font-size:13px;border:1px solid #dddbda;border-radius:4px;margin-bottom:12px;box-sizing:border-box;"/>
+<div id="parent-picker-list" style="font-size:13px;"></div>
+<div style="margin-top:16px;text-align:right;">
+<button type="button" id="btn-close-picker" class="acc-btn acc-btn--ghost">Cancel</button>
+</div>
+</div>
+</div>
+</div>
 
-            <ul class="acc-phases" id="cat-phase-list" style="display:none;margin-bottom:24px;">
-                <li class="acc-phases__item acc-phases__item--pending" id="cat-phase-migrate">
-                    <div class="acc-phases__head">
-                        <span>Migrating Categories</span>
-                        <span class="acc-phases__status" id="cat-status-migrate">pending</span>
-                    </div>
-                    <p class="acc-phases__detail" id="cat-detail-migrate"></p>
-                    <div class="acc-progress">
-                        <div class="acc-progress__bar" id="cat-bar-migrate" style="width:0%"></div>
-                    </div>
-                </li>
-            </ul>
-
-            <div id="cat-move-status" class="acc-callout acc-callout--info" style="display:none;margin-bottom:20px;"></div>
-
-            <div class="acc-move-actions">
-                <button type="button" id="cat-start-btn" class="acc-btn acc-btn--primary">
-                    &#9654; Start Category Migration
-                </button>
-                <span id="cat-move-overall" style="margin-left:14px;font-size:13px;color:#54698d;"></span>
-            </div>
-        </div>
-
-    </section>
+</section>
 </div>
 
 <script>
-(function () {
-    var CHECK_ATTRS_URL  = '${pdict.checkAttrsUrl}';
-    var CREATE_ATTRS_URL = '${pdict.createAttrsUrl}';
-    var MIGRATE_URL      = '${pdict.migrateUrl}';
-
-    function post(url, params, onDone) {
-        var req = new XMLHttpRequest();
-        req.open('POST', url, true);
-        req.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
-        req.onreadystatechange = function () {
-            if (req.readyState !== 4) return;
-            var data;
-            try { data = JSON.parse(req.responseText); } catch (e) { data = { ok: false, error: 'Parse error' }; }
-            onDone(data);
-        };
-        req.send(params || '');
-    }
-
-    function setPhase(id, state, detail, pct) {
-        var li  = document.getElementById('cat-phase-' + id);
-        var st  = document.getElementById('cat-status-' + id);
-        var det = document.getElementById('cat-detail-' + id);
-        var bar = document.getElementById('cat-bar-' + id);
-        if (!li) return;
-        li.className = 'acc-phases__item acc-phases__item--' + state;
-        if (st)  st.textContent  = state;
-        if (det && detail !== null) det.textContent = detail || '';
-        if (bar) bar.style.width = (pct || 0) + '%';
-    }
-
-    // ── Attribute Pre-flight ─────────────────────────────────────────────────
-
-    var checkAttrsBtn   = document.getElementById('cat-check-attrs-btn');
-    var attrStatus      = document.getElementById('cat-attr-status');
-    var attrMissingWrap = document.getElementById('cat-attr-missing-wrap');
-    var attrMissingBody = document.getElementById('cat-attr-missing-body');
-    var attrOkBadge     = document.getElementById('cat-attr-ok-badge');
-    var createAttrsBtn  = document.getElementById('cat-create-attrs-btn');
-    var createStatus    = document.getElementById('cat-create-status');
-    var selectAllCb     = document.getElementById('cat-attr-select-all');
-
-    var missingList = [];
-
-    function showAttrStatus(msg, color) {
-        attrStatus.textContent   = msg;
-        attrStatus.style.color   = color || '#54698d';
-        attrStatus.style.display = 'block';
-    }
-
-    function updateCreateBtn() {
-        var checked = attrMissingBody.querySelectorAll('input[type="checkbox"]:checked');
-        createAttrsBtn.disabled = (checked.length === 0);
-    }
-
-    function renderMissingTable(missing) {
-        attrMissingBody.innerHTML = '';
-        for (var i = 0; i < missing.length; i++) {
-            var a  = missing[i];
-            var tr = document.createElement('tr');
-            tr.style.borderBottom = '1px solid #e0e5ee';
-            tr.innerHTML =
-                '<td style="padding:8px 10px;"><input type="checkbox" data-idx="' + i + '" checked/></td>' +
-                '<td style="padding:8px 10px;font-family:monospace;">' + a.id + '</td>' +
-                '<td style="padding:8px 10px;">' + (a.label || '') + '</td>' +
-                '<td style="padding:8px 10px;">' + (a.sfccType || 'string') + '</td>';
-            attrMissingBody.appendChild(tr);
+(function() {
+    function initApp() {
+        if (typeof _APP !== 'undefined' && typeof _APP.init === 'function') {
+            _APP.MIGRATE_URL         = '${pdict.migrateUrl}';
+            _APP.FETCH_URL           = '${pdict.fetchUrl}';
+            _APP.ATTRS_URL           = '${pdict.checkAttrsUrl}';
+            _APP.STATUS_URL          = '${pdict.checkStatusUrl}';
+            _APP.IMPEX_URL           = '${pdict.impexFolderUrl}';
+            _APP.FETCH_CATALOGS_URL  = '${pdict.fetchCatalogsUrl}';
+            _APP.CREATE_CATALOG_URL  = '${pdict.createCatalogUrl}';
+            _APP.CREATE_CATEGORY_URL = '${pdict.createCategoryUrl}';
+            _APP.IMPORT_URL          = 'https://zzkc-002.dx.commercecloud.salesforce.com/on/demandware.store/Sites-Site/default%3bapp%3d__bm_merchant/ViewCatalogImpex_52-Status?SelectedMenuItem=prod-cat_impex&CurrentMenuItemId=prod-cat';
+            _APP.init();
+        } else {
+            setTimeout(initApp, 50);
         }
-        var cbs = attrMissingBody.querySelectorAll('input[type="checkbox"]');
-        for (var c = 0; c < cbs.length; c++) {
-            cbs[c].addEventListener('change', updateCreateBtn);
-        }
-        updateCreateBtn();
     }
-
-    if (selectAllCb) {
-        selectAllCb.addEventListener('change', function () {
-            var cbs = attrMissingBody.querySelectorAll('input[type="checkbox"]');
-            for (var c = 0; c < cbs.length; c++) cbs[c].checked = selectAllCb.checked;
-            updateCreateBtn();
-        });
-    }
-
-    checkAttrsBtn.addEventListener('click', function () {
-        checkAttrsBtn.disabled        = true;
-        attrMissingWrap.style.display = 'none';
-        attrOkBadge.style.display     = 'none';
-        showAttrStatus('Checking SFCC Category attribute definitions...', '#54698d');
-
-        post(CHECK_ATTRS_URL, '', function (data) {
-            checkAttrsBtn.disabled = false;
-            if (!data.ok) {
-                showAttrStatus('Error: ' + (data.error || 'Check failed'), '#c62828');
-                return;
-            }
-            missingList = (data.attrs || []).filter(function (a) { return !a.exists; });
-            if (missingList.length === 0) {
-                attrStatus.style.display  = 'none';
-                attrOkBadge.style.display = 'block';
-            } else {
-                showAttrStatus(missingList.length + ' attribute(s) missing in SFCC Category.', '#c62828');
-                renderMissingTable(missingList);
-                attrMissingWrap.style.display = 'block';
-            }
-        });
-    });
-
-    createAttrsBtn.addEventListener('click', function () {
-        var cbs      = attrMissingBody.querySelectorAll('input[type="checkbox"]:checked');
-        var selected = [];
-        for (var c = 0; c < cbs.length; c++) {
-            var idx = parseInt(cbs[c].getAttribute('data-idx'), 10);
-            if (missingList[idx]) selected.push(missingList[idx]);
-        }
-        if (!selected.length) return;
-
-        createAttrsBtn.disabled  = true;
-        createStatus.textContent = 'Creating ' + selected.length + ' attribute(s)...';
-        createStatus.style.color = '#54698d';
-
-        post(CREATE_ATTRS_URL, 'attrs=' + encodeURIComponent(JSON.stringify(selected)), function (data) {
-            if (!data.ok) {
-                createStatus.textContent = 'Error: ' + (data.error || 'Create failed');
-                createStatus.style.color = '#c62828';
-                createAttrsBtn.disabled  = false;
-                return;
-            }
-            var r = data.result || {};
-            createStatus.textContent = (r.created || 0) + ' created'
-                + (r.skipped ? ', ' + r.skipped + ' already existed' : '')
-                + (r.failed  ? ', ' + r.failed  + ' failed'          : '') + '.';
-            createStatus.style.color = r.failed ? '#c62828' : '#2e7d32';
-            checkAttrsBtn.click();
-        });
-    });
-
-    // ── Category Migration ───────────────────────────────────────────────────
-
-    var startBtn   = document.getElementById('cat-start-btn');
-    var overall    = document.getElementById('cat-move-overall');
-    var moveStatus = document.getElementById('cat-move-status');
-    var phaseList  = document.getElementById('cat-phase-list');
-    var running    = false;
-
-    startBtn.addEventListener('click', function () {
-        if (running) return;
-        running = true;
-        startBtn.disabled    = true;
-        startBtn.textContent = 'Migrating...';
-        moveStatus.style.display = 'none';
-        overall.textContent      = '';
-        phaseList.style.display  = 'block';
-        setPhase('migrate', 'active', 'Running...', 10);
-
-        post(MIGRATE_URL, '', function (data) {
-            running = false;
-            startBtn.disabled    = false;
-            if (!data.ok) {
-                setPhase('migrate', 'error', data.error || 'Migration failed', 100);
-                moveStatus.className   = 'acc-callout acc-callout--warning';
-                moveStatus.textContent = 'Migration failed: ' + (data.error || 'See server logs.');
-                moveStatus.style.display = 'block';
-                startBtn.textContent     = 'Retry';
-                return;
-            }
-            var migrated = data.migrated || 0;
-            var failed   = data.failed   || 0;
-            var state    = (failed > 0 && migrated === 0) ? 'error' : (failed > 0 ? 'warning' : 'done');
-            setPhase('migrate', state, migrated + ' migrated' + (failed ? ', ' + failed + ' failed' : ''), 100);
-            moveStatus.className   = failed > 0 ? 'acc-callout acc-callout--warning' : 'acc-callout acc-callout--success';
-            moveStatus.textContent = migrated + ' category(-ies) migrated.'
-                + (failed ? ' ' + failed + ' failed — check BM logs.' : '');
-            moveStatus.style.display = 'block';
-            startBtn.textContent     = 'Migration Complete';
-        });
-    });
-
+    var jsScript = document.createElement('script');
+    jsScript.src = '${pdict.jsUrl}';
+    jsScript.onload = function() { initApp(); };
+    jsScript.onerror = function() { console.error('Failed to load categoryMigration JS from: ${pdict.jsUrl}'); };
+    document.head.appendChild(jsScript);
 }());
 </script>
-
 </div>
 </div>
 </isdecorate>
+

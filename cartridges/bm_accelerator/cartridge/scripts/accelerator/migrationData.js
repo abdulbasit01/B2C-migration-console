@@ -64,7 +64,7 @@ var DATA_TYPES = [
         id:          'catalog',
         label:       'Catalog',
         description: 'Migrate categories, catalog structure, and assignments into SFCC.',
-        status:      'soon',
+        status:      'ready',
         iconClass:   'acc-data-type--catalog',
         items:       ['Category hierarchy', 'Catalog assignments', 'Navigation structure']
     }

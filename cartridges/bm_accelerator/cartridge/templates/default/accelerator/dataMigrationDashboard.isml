@@ -194,17 +194,17 @@
                 </div>
 
                 <!-- Catalog: not yet available -->
-                <div class="dm-type" data-url="" data-available="false">
+              
+                <div class="dm-type dm-type--available" data-url="${pdict.categoryMigrationUrl}" data-available="true">
                     <div class="dm-type__header">
-                        <input type="checkbox" class="dm-type__cb" value="catalog" disabled/>
+                        <input type="checkbox" class="dm-type__cb" value="catalog"/>
                         <span class="dm-type__title">Catalog</span>
                     </div>
                     <ul class="dm-type__list">
-                        <li>Category hierarchy</li>
+                             <li>Category hierarchy</li>
                         <li>Catalog assignments</li>
                         <li>Navigation structure</li>
                     </ul>
-                    <div class="dm-type__unavail">This data type is not yet available for migration.</div>
                 </div>
 
             </div>
