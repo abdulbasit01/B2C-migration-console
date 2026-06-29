@@ -18,10 +18,7 @@
 
 <div style="background:#f4f6f9;border:1px solid #dddbda;border-radius:4px;padding:16px 20px;margin-bottom:20px;">
 <div style="display:flex;align-items:flex-end;flex-wrap:wrap;gap:12px;">
-<div>
-<label for="cat-locale" style="display:block;font-weight:600;font-size:13px;margin-bottom:4px;">Default Locale</label>
-<input id="cat-locale" type="text" class="acc-form__input" placeholder="e.g. en-US" value="en-US" style="width:90px;"/>
-</div>
+
 <div>
 <label for="cat-catalog-select" style="display:block;font-weight:600;font-size:13px;margin-bottom:4px;">Target Storefront Catalog</label>
 <div style="display:flex;gap:8px;align-items:center;">
