@@ -28,7 +28,13 @@ function createCustomer(token, listId, profile, password) {
             return result;
         }
 
-        var customer = CustomerMgr.createCustomer(login, password, list);
+        // CustomerMgr.createCustomer(login, pass, customerNo:String) sets a specific number.
+        // CustomerMgr.createCustomer(login, pass, list:CustomerList) auto-generates a numeric ID.
+        // We use the CTP UUID (dashes removed) as the customer number to match full-migration XML.
+        var ctpNo    = profile.c_ctp_customer_id ? String(profile.c_ctp_customer_id).replace(/-/g, '') : null;
+        var customer = ctpNo
+            ? CustomerMgr.createCustomer(login, password, ctpNo)
+            : CustomerMgr.createCustomer(login, password, list);
         if (!customer) {
             Transaction.rollback();
             result.error = 'CustomerMgr.createCustomer returned null';
@@ -53,11 +59,21 @@ function createCustomer(token, listId, profile, password) {
             } catch (be) { /* ignore unparseable date */ }
         }
 
-        try {
-            if (profile.c_ctp_customer_id)     p.custom.ctp_customer_id     = profile.c_ctp_customer_id;
-            if (profile.c_ctp_customer_number) p.custom.ctp_customer_number = profile.c_ctp_customer_number;
-            if (profile.c_ctp_external_id)     p.custom.ctp_external_id     = profile.c_ctp_external_id;
-        } catch (ce) { /* silently skip if attr definitions not yet created */ }
+        // Write all custom attributes from the transformer output.
+        // Keys prefixed with "c_" are custom attribute names (transformer convention).
+        // Each assignment is individually guarded so one missing definition doesn't
+        // prevent the rest from being written.
+        var customKeys = Object.keys(profile);
+        for (var ci = 0; ci < customKeys.length; ci++) {
+            var ck = customKeys[ci];
+            if (ck.length > 2 && ck.charAt(0) === 'c' && ck.charAt(1) === '_') {
+                var sfccAttrId = ck.slice(2); // strip "c_" prefix
+                var attrVal    = profile[ck];
+                if (attrVal !== null && attrVal !== undefined) {
+                    try { p.custom[sfccAttrId] = attrVal; } catch (ce) { /* attr not defined in SFCC yet */ }
+                }
+            }
+        }
 
         result.customerNo = String(p.customerNo);
         Transaction.commit();

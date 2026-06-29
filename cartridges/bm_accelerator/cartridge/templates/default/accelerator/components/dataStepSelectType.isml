@@ -7,7 +7,7 @@
 
     <div class="acc-grid acc-grid--2" id="acc-data-type-panels">
         <isloop items="${pdict.stepContent.sections}" var="section">
-            <isif condition="${section.selectable}">
+            <isif condition="${section.taskId ne 'catalog'}">
                 <div class="acc-panel acc-panel--selectable" data-type-id="${section.taskId}">
                     <div class="acc-panel__header">
                         <label class="acc-schema-check" style="display:inline-flex;align-items:center;gap:8px;">

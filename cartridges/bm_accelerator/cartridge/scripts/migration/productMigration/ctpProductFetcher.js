@@ -69,4 +69,22 @@ function fetchBatch(offset, limit) {
     };
 }
 
-module.exports = { getCount: getCount, fetchBatch: fetchBatch };
+/**
+ * Fetch a single product from CTP by its ID (UUID).
+ * @param {string} productId
+ * @returns {Object} CTP product object
+ */
+function fetchById(productId) {
+    var c   = cfg.ctp;
+    var tok = getToken();
+    var res = http.get(
+        c.apiUrl + '/' + c.projectKey + '/products/' + encodeURIComponent(productId),
+        { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' }
+    );
+    if (res.status !== 200) {
+        throw new Error('CTP product fetch failed for ID ' + productId + ' (' + res.status + ')');
+    }
+    return res.data;
+}
+
+module.exports = { getCount: getCount, fetchBatch: fetchBatch, fetchById: fetchById };

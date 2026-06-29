@@ -1,22 +1,15 @@
 'use strict';
 
-/**
- * Get first available locale value from a CTP localized string.
- * @param {Object} obj - CTP localized string { "en": "...", "de": "..." }
- * @returns {string}
- */
 function getLocalized(obj) {
     if (!obj || typeof obj !== 'object') return '';
     return obj['en'] || obj['en-US'] || obj['en-GB']
         || (Object.keys(obj).length > 0 ? obj[Object.keys(obj)[0]] : '') || '';
 }
 
-/**
- * Sanitize a string to be a valid SFCC product ID.
- * Replaces any character that is not alphanumeric, hyphen, or underscore.
- * @param {string} str
- * @returns {string}
- */
+function hasLocalized(obj) {
+    return obj && typeof obj === 'object' && Object.keys(obj).length > 0;
+}
+
 function sanitizeId(str) {
     if (!str) return '';
     return String(str)
@@ -27,31 +20,72 @@ function sanitizeId(str) {
 }
 
 /**
- * Transform a raw CTP product object into an SFCC-ready product descriptor.
- *
- * @param {Object} ctpProduct - raw CTP product from /products endpoint
- * @returns {{
- *   productId:   string,
- *   ctpId:       string,
- *   ctpKey:      string,
- *   name:        string,
- *   description: string,
- *   categories:  string[],
- *   variants:    Array<{ productId, sku, isDefault, images, attributes }>,
- *   hasVariants: boolean
- * }}
+ * Extract a named attribute value from a CTP attributes array.
+ * Handles plain values and localized values { "en": "..." }.
  */
-function transformProduct(ctpProduct) {
-    var current = (ctpProduct.masterData && ctpProduct.masterData.current) || {};
-    var mv      = current.masterVariant || {};
-    var ctpVars = current.variants || [];
+function getAttrValue(attributes, attrName) {
+    if (!attributes || !attributes.length) return '';
+    for (var i = 0; i < attributes.length; i++) {
+        if (attributes[i].name === attrName) {
+            var val = attributes[i].value;
+            if (val === null || val === undefined) return '';
+            if (typeof val === 'object' && !Array.isArray(val)) {
+                return getLocalized(val) || '';
+            }
+            return String(val);
+        }
+    }
+    return '';
+}
 
-    var ctpKey  = ctpProduct.key || '';
+function transformProduct(ctpProduct) {
+    var md     = ctpProduct.masterData || {};
+    var cur    = md.current || {};
+    var staged = md.staged  || {};
+
+    // Use staged when current has no name (unpublished products have empty current)
+    var data = hasLocalized(cur.name) ? cur : staged;
+
+    var mv      = data.masterVariant || {};
+    var ctpVars = data.variants || [];
+    var mvAttrs = mv.attributes || [];
+
+    var ctpKey   = ctpProduct.key || '';
     var masterId = ctpKey
         ? sanitizeId(ctpKey)
         : ('CTP' + String(ctpProduct.id).replace(/-/g, ''));
 
-    // Collect all variants: masterVariant first, then the rest
+    // Standard localized fields
+    var name = getLocalized(data.name);
+
+    // SFCC <short-description> = BM "Description" ← CTP shortDescription attribute
+    var shortDescription = getAttrValue(mvAttrs, 'shortDescription')
+        || getAttrValue(mvAttrs, 'short_description')
+        || getLocalized(data.description)
+        || '';
+
+    // SFCC <long-description> = BM "Product Details" ← CTP longDescription attribute
+    var longDescription = getAttrValue(mvAttrs, 'longDescription')
+        || getAttrValue(mvAttrs, 'long_description')
+        || getAttrValue(mvAttrs, 'productDetails')
+        || '';
+
+    var slug            = getLocalized(data.slug) || '';
+    var metaTitle       = getLocalized(data.metaTitle) || '';
+    var metaDescription = getLocalized(data.metaDescription) || '';
+    var metaKeywords    = getLocalized(data.metaKeywords) || '';
+
+    // Product-level fields from master variant attributes
+    var brand            = getAttrValue(mvAttrs, 'brand') || getAttrValue(mvAttrs, 'Brand') || '';
+    var manufacturerName = getAttrValue(mvAttrs, 'manufacturer') || getAttrValue(mvAttrs, 'manufacturerName') || '';
+    var manufacturerSku  = mv.sku || '';
+    var ean              = getAttrValue(mvAttrs, 'ean') || getAttrValue(mvAttrs, 'EAN') || mv.ean || '';
+    var upc              = getAttrValue(mvAttrs, 'upc') || getAttrValue(mvAttrs, 'UPC') || mv.upc || '';
+
+    var taxClassId = (ctpProduct.taxCategory && ctpProduct.taxCategory.id)
+        ? ctpProduct.taxCategory.id : '';
+
+    // Collect all variants
     var variants = [];
     if (mv.sku) {
         variants.push({
@@ -59,8 +93,7 @@ function transformProduct(ctpProduct) {
             sku:        mv.sku,
             isDefault:  true,
             images:     mv.images     || [],
-            attributes: mv.attributes || [],
-            prices:     mv.prices     || []
+            attributes: mv.attributes || []
         });
     }
     for (var i = 0; i < ctpVars.length; i++) {
@@ -71,33 +104,46 @@ function transformProduct(ctpProduct) {
                 sku:        v.sku,
                 isDefault:  false,
                 images:     v.images     || [],
-                attributes: v.attributes || [],
-                prices:     v.prices     || []
+                attributes: v.attributes || []
             });
         }
     }
 
-    // Category IDs (CTP category references carry only the UUID — the job step
-    // or BM import will resolve them against the imported category tree)
+    // Category IDs from CTP references
     var categories = [];
-    if (current.categories) {
-        for (var ci = 0; ci < current.categories.length; ci++) {
-            if (current.categories[ci].id) {
-                categories.push(current.categories[ci].id);
-            }
+    if (data.categories) {
+        for (var ci = 0; ci < data.categories.length; ci++) {
+            if (data.categories[ci].id) categories.push(data.categories[ci].id);
         }
+    }
+    // classification-category: use first category key (obj may have .key or only .id)
+    var classificationCategory = '';
+    if (data.categories && data.categories.length) {
+        classificationCategory = data.categories[0].key || data.categories[0].id || '';
     }
 
     return {
-        productId:   masterId,
-        ctpId:       ctpProduct.id,
-        ctpKey:      ctpKey,
-        name:        getLocalized(current.name),
-        description: getLocalized(current.description) || getLocalized(current.metaDescription) || '',
-        slug:        getLocalized(current.slug) || '',
-        categories:  categories,
-        variants:    variants,
-        hasVariants: variants.length > 0
+        productId:        masterId,
+        ctpId:            ctpProduct.id,
+        ctpKey:           ctpKey,
+        name:             name,
+        shortDescription: shortDescription,
+        longDescription:  longDescription,
+        slug:             slug,
+        metaTitle:        metaTitle,
+        metaDescription:  metaDescription,
+        metaKeywords:     metaKeywords,
+        brand:            brand,
+        manufacturerName: manufacturerName,
+        manufacturerSku:  manufacturerSku,
+        ean:              ean,
+        upc:              upc,
+        taxClassId:       taxClassId,
+        masterImages:             mv.images || [],
+        categories:               categories,
+        classificationCategory:   classificationCategory,
+        variants:                 variants,
+        hasVariants:              variants.length > 0
     };
 }
 

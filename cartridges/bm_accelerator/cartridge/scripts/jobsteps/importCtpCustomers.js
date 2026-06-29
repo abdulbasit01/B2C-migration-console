@@ -20,6 +20,7 @@ var XMLStreamConstants = require('dw/io/XMLStreamConstants');
 var Status             = require('dw/system/Status');
 var Transaction        = require('dw/system/Transaction');
 var CustomerMgr        = require('dw/customer/CustomerMgr');
+
 var Logger             = require('dw/system/Logger');
 
 var log = Logger.getLogger('ctp-migration', 'CustomerImport');
@@ -201,7 +202,7 @@ function processXmlFile(file, customerList) {
                     address = null; inAddress = false;
                 }
                 if (ln === 'customer' && customer) {
-                    var res = createSfccCustomer(customer, customerList);
+                    var res = createSfccCustomer(customer);
                     if (res === 'created')      { created++; }
                     else if (res === 'skipped') { skipped++; }
                     else                        { failed++;  }
@@ -226,68 +227,80 @@ function processXmlFile(file, customerList) {
 
 // ─── Single-customer creation ─────────────────────────────────────────────────
 
-function createSfccCustomer(cust, customerList) {
+function applyProfileFields(p, cust) {
+    if (cust.firstName)   { p.setFirstName(cust.firstName);     }
+    if (cust.lastName)    { p.setLastName(cust.lastName);       }
+    if (cust.email)       { p.setEmail(cust.email);             }
+    if (cust.salutation)  { p.setSalutation(cust.salutation);   }
+    if (cust.companyName) { p.setCompanyName(cust.companyName); }
+    if (cust.birthday) {
+        try {
+            var parts = String(cust.birthday).split('-');
+            p.setBirthday(new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10)));
+        } catch (be) {}
+    }
+    try {
+        var attrKeys = Object.keys(cust.customAttrs);
+        for (var ak = 0; ak < attrKeys.length; ak++) {
+            p.custom[attrKeys[ak]] = cust.customAttrs[attrKeys[ak]];
+        }
+    } catch (ce) {}
+}
+
+function applyAddresses(sfccCustomer, cust) {
+    var book = sfccCustomer.getAddressBook();
+    for (var ai = 0; ai < cust.addresses.length; ai++) {
+        var a = cust.addresses[ai];
+        try {
+            var sfccAddr = book.getAddress(a.addressId) || book.createAddress(a.addressId);
+            if (a.firstName)   { sfccAddr.setFirstName(a.firstName);     }
+            if (a.lastName)    { sfccAddr.setLastName(a.lastName);       }
+            if (a.salutation)  { sfccAddr.setSalutation(a.salutation);   }
+            if (a.companyName) { sfccAddr.setCompanyName(a.companyName); }
+            if (a.address1)    { sfccAddr.setAddress1(a.address1);       }
+            if (a.address2)    { sfccAddr.setAddress2(a.address2);       }
+            if (a.city)        { sfccAddr.setCity(a.city);               }
+            if (a.postalCode)  { sfccAddr.setPostalCode(a.postalCode);   }
+            if (a.countryCode) { sfccAddr.setCountryCode(a.countryCode); }
+            if (a.stateCode)   { sfccAddr.setStateCode(a.stateCode);     }
+            if (a.phone)       { sfccAddr.setPhone(a.phone);             }
+            if (a.preferred)   { book.setPreferredAddress(sfccAddr);     }
+        } catch (ae) {
+            log.warn('Address failed for ' + cust.login + ': ' + ae.message);
+        }
+    }
+}
+
+function createSfccCustomer(cust) {
     if (!cust.login) { return 'skipped'; }
 
     try {
         Transaction.begin();
-
-        var sfccCustomer = CustomerMgr.createCustomer(cust.login, cust.password || 'Rc1!TempPass1', customerList);
+        // CustomerMgr.createCustomer(login, password, customerNo) — 3rd param is the customer NUMBER,
+        // not a CustomerList. Passing the deterministic CTP-prefixed UUID ensures each customer
+        // gets a unique, stable customer number. The job must run in a site scope so CustomerMgr
+        // knows which customer list to write to.
+        var sfccCustomer = CustomerMgr.createCustomer(cust.login, 'Rc1!TempPass2024', cust.customerNo);
         if (!sfccCustomer) { Transaction.rollback(); return 'failed'; }
-
-        var p = sfccCustomer.getProfile();
-        if (cust.firstName)   { p.setFirstName(cust.firstName);   }
-        if (cust.lastName)    { p.setLastName(cust.lastName);     }
-        if (cust.email)       { p.setEmail(cust.email);           }
-        if (cust.salutation)  { p.setSalutation(cust.salutation); }
-        if (cust.companyName) { p.setCompanyName(cust.companyName); }
-        if (cust.birthday) {
-            try {
-                var parts = String(cust.birthday).split('-');
-                p.setBirthday(new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10)));
-            } catch (be) {}
-        }
-
-        try {
-            var attrKeys = Object.keys(cust.customAttrs);
-            for (var ak = 0; ak < attrKeys.length; ak++) {
-                p.custom[attrKeys[ak]] = cust.customAttrs[attrKeys[ak]];
-            }
-        } catch (ce) {}
-
-        // Addresses
-        var book = sfccCustomer.getAddressBook();
-        for (var ai = 0; ai < cust.addresses.length; ai++) {
-            var a = cust.addresses[ai];
-            try {
-                var sfccAddr = book.getAddress(a.addressId) || book.createAddress(a.addressId);
-                if (a.firstName)   { sfccAddr.setFirstName(a.firstName);     }
-                if (a.lastName)    { sfccAddr.setLastName(a.lastName);       }
-                if (a.salutation)  { sfccAddr.setSalutation(a.salutation);   }
-                if (a.companyName) { sfccAddr.setCompanyName(a.companyName); }
-                if (a.address1)    { sfccAddr.setAddress1(a.address1);       }
-                if (a.address2)    { sfccAddr.setAddress2(a.address2);       }
-                if (a.city)        { sfccAddr.setCity(a.city);               }
-                if (a.postalCode)  { sfccAddr.setPostalCode(a.postalCode);   }
-                if (a.countryCode) { sfccAddr.setCountryCode(a.countryCode); }
-                if (a.stateCode)   { sfccAddr.setStateCode(a.stateCode);     }
-                if (a.phone)       { sfccAddr.setPhone(a.phone);             }
-                if (a.preferred)   { book.setPreferredAddress(sfccAddr);     }
-            } catch (ae) {
-                log.warn('Address creation failed for ' + cust.login + ': ' + ae.message);
-            }
-        }
-
+        applyProfileFields(sfccCustomer.getProfile(), cust);
+        applyAddresses(sfccCustomer, cust);
         Transaction.commit();
         return 'created';
-
     } catch (e) {
         try { Transaction.rollback(); } catch (re) {}
-        var msg = (e.message || String(e)).toLowerCase();
-        if (msg.indexOf('exist') >= 0 || msg.indexOf('duplicate') >= 0 || msg.indexOf('already') >= 0 || msg.indexOf('login') >= 0) {
-            return 'skipped';
-        }
-        log.error('Failed to create ' + cust.login + ': ' + (e.message || String(e)));
+        var rawErr = (e.message || String(e));
+        log.warn('createCustomer threw for [' + cust.login + ']: ' + rawErr);
+
+        // Customer may already exist from a prior run — check by login
+        try {
+            var existing = CustomerMgr.getCustomerByLogin(cust.login);
+            if (existing) {
+                log.info('Already exists, counted as migrated: ' + cust.login);
+                return 'created';
+            }
+        } catch (le) {}
+
+        log.error('FAILED [' + cust.login + ']: ' + rawErr);
         return 'failed';
     }
 }

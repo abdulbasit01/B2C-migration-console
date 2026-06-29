@@ -18,7 +18,7 @@
                 ${Resource.msg('accelerator.card.schemaMigration', 'accelerator', null)}
             </a>
             <a class="acc-btn acc-btn--secondary acc-card__cta"
-               href="${pdict.dataWizardUrl}?platform=${platform.id}&amp;step=1">
+               href="${pdict.dataMigrationDashboardUrl}?platform=${platform.id}">
                 ${Resource.msg('accelerator.card.dataMigration', 'accelerator', null)}
             </a>
             <button type="button" class="acc-btn acc-btn--muted acc-card__cta" disabled="disabled">
