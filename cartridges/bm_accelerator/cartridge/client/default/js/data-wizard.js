@@ -32,8 +32,11 @@
             testConnectionUrl: cfgVal('acc-dw-test-url'),
             wizardBaseUrl: cfgVal('acc-dw-wizard-base'),
             exportUrl: cfgVal('acc-dw-export-url'),
+            orderCountUrl: cfgVal('acc-dw-order-count-url'),
             orderYears: cfgVal('acc-dw-order-years') || '1',
             orderMaxCount: cfgVal('acc-dw-order-max-count') || '',
+            orderOrderState: cfgVal('acc-dw-order-order-state') || '',
+            orderPaymentState: cfgVal('acc-dw-order-payment-state') || '',
             exportPhaseIds: cfgVal('acc-dw-export-phases').split(',').filter(Boolean),
             msgs: {
                 connectionFailed: cfgVal('acc-dw-msg-connection-failed'),
@@ -41,7 +44,13 @@
                 selectTypeNoneSelected: cfgVal('acc-dw-msg-select-none'),
                 exportRunning: cfgVal('acc-dw-msg-export-running'),
                 exportFailed: cfgVal('acc-dw-msg-export-failed'),
-                exportComplete: cfgVal('acc-dw-msg-export-complete')
+                exportComplete: cfgVal('acc-dw-msg-export-complete'),
+                orderCountLoading: cfgVal('acc-dw-msg-count-loading'),
+                orderCountPrompt: cfgVal('acc-dw-msg-count-prompt'),
+                orderCountError: cfgVal('acc-dw-msg-count-error'),
+                orderCountNone: cfgVal('acc-dw-msg-count-none'),
+                orderCountMatch: cfgVal('acc-dw-msg-count-match'),
+                orderCountExport: cfgVal('acc-dw-msg-count-export')
             }
         };
 
@@ -50,7 +59,7 @@
         if (cfg.step === 'selectType') {
             initSelectType(cfg);
         } else if (cfg.step === 'orderConfigure') {
-            initOrderConfigure();
+            initOrderConfigure(cfg, postForm);
         } else if (cfg.step === 'orderExport') {
             initOrderExport(cfg, postForm);
         }
@@ -134,14 +143,120 @@
                     alert(msgs.selectTypeNoneSelected || 'Please select a data type.');
                     return;
                 }
-                window.location.href = cfg.wizardBaseUrl + '&step=3&type=' + encodeURIComponent(selected);
+                var stepThreeBase = cfgVal('acc-dw-step-three-base');
+                var nextUrl = stepThreeBase
+                    ? stepThreeBase + String.fromCharCode(38) + 'type=' + encodeURIComponent(selected)
+                    : cfg.wizardBaseUrl + String.fromCharCode(38) + 'step=3' + String.fromCharCode(38) + 'type=' + encodeURIComponent(selected);
+                window.location.href = nextUrl;
             });
         }
 
         syncPanelStates();
     }
 
-    function initOrderConfigure() {
+    function initOrderConfigure(cfg, post) {
+        var msgs = cfg.msgs || {};
+        var countValueEl  = document.getElementById('acc-order-count-value');
+        var countExportEl = document.getElementById('acc-order-count-export');
+        var countBtn      = document.getElementById('acc-order-count-btn');
+
+        function fmtNum(n) {
+            return String(n || 0).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+        }
+
+        function getYears() {
+            var radios = document.querySelectorAll('#acc-order-config-form input[name="years"]');
+            var ri = 0;
+            while (ri < radios.length) {
+                if (radios[ri].checked) return radios[ri].value;
+                ri += 1;
+            }
+            return '1';
+        }
+
+        function getFilterParams() {
+            var yearsEl = document.querySelector('#acc-order-config-form input[name="years"]:checked');
+            var stateEl = document.getElementById('order-order-state');
+            var payEl   = document.getElementById('order-payment-state');
+            var maxEl   = document.getElementById('order-max-count');
+            var body    = 'years=' + encodeURIComponent(yearsEl ? yearsEl.value : getYears());
+            if (stateEl && stateEl.value) body += '&orderState=' + encodeURIComponent(stateEl.value);
+            if (payEl && payEl.value) body += '&paymentState=' + encodeURIComponent(payEl.value);
+            if (maxEl && maxEl.value) body += '&maxCount=' + encodeURIComponent(maxEl.value);
+            return body;
+        }
+
+        function setCountExportVisible(show) {
+            if (!countExportEl) return;
+            if (show) {
+                countExportEl.className = countExportEl.className.replace(' acc-hidden', '');
+            } else if (countExportEl.className.indexOf('acc-hidden') === -1) {
+                countExportEl.className += ' acc-hidden';
+            }
+        }
+
+        function showCountIdle() {
+            if (!countValueEl) return;
+            countValueEl.textContent = msgs.orderCountPrompt || 'Set your filters, then check how many orders match.';
+            countValueEl.className = 'acc-order-count__value acc-order-count__value--idle';
+            setCountExportVisible(false);
+        }
+
+        function showCountLoading() {
+            if (!countValueEl) return;
+            countValueEl.textContent = msgs.orderCountLoading || 'Checking commercetools...';
+            countValueEl.className = 'acc-order-count__value acc-order-count__value--loading';
+            setCountExportVisible(false);
+        }
+
+        function showCountError(message) {
+            if (!countValueEl) return;
+            countValueEl.textContent = message || msgs.orderCountError || 'Unable to count orders';
+            countValueEl.className = 'acc-order-count__value acc-order-count__value--error';
+            setCountExportVisible(false);
+        }
+
+        function showCountResult(data) {
+            if (!countValueEl) return;
+            var total = data.total || 0;
+            var exportCount = data.exportCount || 0;
+            var maxEl = document.getElementById('order-max-count');
+            var maxVal = maxEl && maxEl.value ? parseInt(maxEl.value, 10) : 0;
+
+            if (total === 0) {
+                countValueEl.textContent = msgs.orderCountNone || 'No orders match your filters';
+                countValueEl.className = 'acc-order-count__value acc-order-count__value--empty';
+                setCountExportVisible(false);
+                return;
+            }
+
+            countValueEl.textContent = fmtNum(total) + ' ' + (msgs.orderCountMatch || 'orders match your filters');
+            countValueEl.className = 'acc-order-count__value';
+
+            if (maxVal > 0 && exportCount < total && countExportEl) {
+                countExportEl.textContent = fmtNum(exportCount) + ' ' + (msgs.orderCountExport || 'orders will be exported (max count applied)');
+                setCountExportVisible(true);
+            } else {
+                setCountExportVisible(false);
+            }
+        }
+
+        function fetchOrderCount() {
+            if (!cfg.orderCountUrl || !countValueEl) return;
+
+            showCountLoading();
+            if (countBtn) countBtn.disabled = true;
+
+            post(cfg.orderCountUrl, getFilterParams(), function (data) {
+                if (countBtn) countBtn.disabled = false;
+                if (!data.ok) {
+                    showCountError((msgs.orderCountError || 'Unable to count orders') + (data.error ? ': ' + data.error : ''));
+                    return;
+                }
+                showCountResult(data);
+            });
+        }
+
         var chips = document.querySelectorAll('.acc-chip input[type="radio"]');
         var ci = 0;
         var chipCount = chips.length;
@@ -160,8 +275,24 @@
                         this.parentNode.className = cn + ' acc-chip--selected';
                     }
                 }
+                showCountIdle();
             });
             ci += 1;
+        }
+
+        var stateEl = document.getElementById('order-order-state');
+        var payEl   = document.getElementById('order-payment-state');
+        var maxEl   = document.getElementById('order-max-count');
+
+        if (stateEl) stateEl.addEventListener('change', showCountIdle);
+        if (payEl) payEl.addEventListener('change', showCountIdle);
+        if (maxEl) maxEl.addEventListener('input', showCountIdle);
+
+        if (countBtn) {
+            countBtn.addEventListener('click', function (e) {
+                e.preventDefault();
+                fetchOrderCount();
+            });
         }
     }
 
@@ -221,6 +352,8 @@
 
             var body = 'years=' + encodeURIComponent(cfg.orderYears || '1');
             if (cfg.orderMaxCount) body += '&maxCount=' + encodeURIComponent(cfg.orderMaxCount);
+            if (cfg.orderOrderState) body += '&orderState=' + encodeURIComponent(cfg.orderOrderState);
+            if (cfg.orderPaymentState) body += '&paymentState=' + encodeURIComponent(cfg.orderPaymentState);
 
             var exportDone = false;
             var animDone   = false;

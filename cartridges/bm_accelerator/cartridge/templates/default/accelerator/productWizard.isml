@@ -1,12 +1,7 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8"/>
-    <meta name="viewport" content="width=device-width, initial-scale=1"/>
-    <title>${pdict.title} — Product Migration</title>
-    <link rel="stylesheet" href="${pdict.cssUrl}"/>
-</head>
-<body class="acc-page acc-page--wizard">
+<isdecorate template="application/MenuFrame">
+<iscontent type="text/html" charset="UTF-8"/>
+<link rel="stylesheet" href="${pdict.cssUrl}"/>
+<div class="acc-page acc-page--wizard">
     <div class="acc-shell">
         <isinclude template="accelerator/components/header"/>
 
@@ -52,5 +47,5 @@
             </isif>
         </footer>
     </div>
-</body>
-</html>
+</div>
+</isdecorate>

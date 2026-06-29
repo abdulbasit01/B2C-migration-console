@@ -80,20 +80,40 @@ function dateYearsAgo(years) {
 }
 
 /**
+ * Build commercetools order query predicate.
+ * @param {Object} options
+ * @param {string} options.sinceDate - ISO date lower bound
+ * @param {string} [options.orderState] - commercetools orderState value
+ * @param {string} [options.paymentState] - commercetools paymentState value
+ * @returns {string}
+ */
+function buildOrdersWhere(options) {
+    var parts = ['createdAt >= "' + options.sinceDate + '"'];
+    if (options.orderState) {
+        parts.push('orderState = "' + options.orderState + '"');
+    }
+    if (options.paymentState) {
+        parts.push('paymentState = "' + options.paymentState + '"');
+    }
+    return parts.join(' and ');
+}
+
+/**
  * Fetch a single page of orders.
  * @param {string} token
  * @param {Object} options
  * @param {string} options.sinceDate - ISO date lower bound
+ * @param {string} [options.orderState] - commercetools orderState value
+ * @param {string} [options.paymentState] - commercetools paymentState value
  * @param {number} options.offset
  * @param {number} options.limit
  * @returns {Object} { results, total }
  */
 function fetchOrdersPage(token, options) {
     var c     = cfg.ctp;
-    var since = options.sinceDate;
     var offset = options.offset || 0;
     var limit  = options.limit || DEFAULT_LIMIT;
-    var where  = encodeURIComponent('createdAt >= "' + since + '"');
+    var where  = encodeURIComponent(buildOrdersWhere(options));
     var sort   = encodeURIComponent('createdAt asc');
     var qs     = '?limit=' + limit + '&offset=' + offset + '&where=' + where + '&sort=' + sort;
 
@@ -119,6 +139,8 @@ function fetchOrdersPage(token, options) {
  * @param {Object} options
  * @param {number} options.years - 1, 2, or 3
  * @param {number} [options.maxCount] - optional cap on orders fetched
+ * @param {string} [options.orderState] - commercetools orderState filter
+ * @param {string} [options.paymentState] - commercetools paymentState filter
  * @param {Object} [options.creds] - optional credential override
  * @returns {Object[]} raw commercetools order objects
  */
@@ -130,9 +152,20 @@ function fetchOrdersByDateRange(options) {
     var all       = [];
     var offset    = 0;
     var total     = null;
+    var pageOpts  = {
+        sinceDate:    sinceDate,
+        orderState:   options.orderState || '',
+        paymentState: options.paymentState || ''
+    };
 
     do {
-        var page = fetchOrdersPage(token, { sinceDate: sinceDate, offset: offset, limit: DEFAULT_LIMIT });
+        var page = fetchOrdersPage(token, {
+            sinceDate:    pageOpts.sinceDate,
+            orderState:   pageOpts.orderState,
+            paymentState: pageOpts.paymentState,
+            offset:       offset,
+            limit:        DEFAULT_LIMIT
+        });
         var results = page.results;
         if (total === null) total = page.total;
 
@@ -148,10 +181,47 @@ function fetchOrdersByDateRange(options) {
     return all;
 }
 
+/**
+ * Count orders matching filters without fetching full results.
+ * @param {Object} options
+ * @param {number} options.years - 1, 2, or 3
+ * @param {number} [options.maxCount] - optional export cap
+ * @param {string} [options.orderState] - commercetools orderState filter
+ * @param {string} [options.paymentState] - commercetools paymentState filter
+ * @param {Object} [options.creds] - optional credential override
+ * @returns {Object} { total, exportCount }
+ */
+function countOrders(options) {
+    var years     = parseInt(String(options.years || 1), 10);
+    var maxCount  = options.maxCount ? parseInt(String(options.maxCount), 10) : null;
+    var token     = authenticate(options.creds);
+    var sinceDate = dateYearsAgo(years);
+    var page      = fetchOrdersPage(token, {
+        sinceDate:    sinceDate,
+        orderState:   options.orderState || '',
+        paymentState: options.paymentState || '',
+        offset:       0,
+        limit:        1
+    });
+    var total = page.total || 0;
+    var exportCount = total;
+
+    if (maxCount && maxCount > 0 && maxCount < total) {
+        exportCount = maxCount;
+    }
+
+    return {
+        total:       total,
+        exportCount: exportCount
+    };
+}
+
 module.exports = {
     authenticate:            authenticate,
     fetchOrdersByDateRange:  fetchOrdersByDateRange,
     fetchOrdersPage:         fetchOrdersPage,
+    countOrders:             countOrders,
+    buildOrdersWhere:        buildOrdersWhere,
     dateYearsAgo:            dateYearsAgo,
     DEFAULT_LIMIT:           DEFAULT_LIMIT,
     MAX_RETRIES:             MAX_RETRIES
