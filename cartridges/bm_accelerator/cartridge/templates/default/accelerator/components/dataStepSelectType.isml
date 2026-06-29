@@ -5,26 +5,17 @@
     </h2>
     <p class="acc-step-panel__intro">${pdict.stepContent.intro}</p>
 
-    <div class="acc-fetch-toolbar">
-        <button type="button" id="acc-data-select-all" class="acc-btn acc-btn--ghost acc-btn--sm">
-            ${Resource.msg('accelerator.datawizard.selectType.selectAll', 'accelerator', null)}
-        </button>
-        <button type="button" id="acc-data-deselect-all" class="acc-btn acc-btn--ghost acc-btn--sm">
-            ${Resource.msg('accelerator.datawizard.selectType.deselectAll', 'accelerator', null)}
-        </button>
-        <span class="acc-fetch-toolbar__count" id="acc-data-selection-count"></span>
-    </div>
-
     <div class="acc-grid acc-grid--2" id="acc-data-type-panels">
         <isloop items="${pdict.stepContent.sections}" var="section">
-            <isif condition="${section.taskId ne 'catalog'}">
+            <isif condition="${section.selectable}">
                 <div class="acc-panel acc-panel--selectable" data-type-id="${section.taskId}">
                     <div class="acc-panel__header">
                         <label class="acc-schema-check" style="display:inline-flex;align-items:center;gap:8px;">
-                            <input type="checkbox"
-                                class="acc-data-type-checkbox"
+                            <input type="radio"
+                                class="acc-data-type-radio"
+                                name="dataType"
                                 data-type-id="${section.taskId}"
-                                checked="checked" />
+                                value="${section.taskId}" />
                             <h3 class="acc-panel__title mb-0" style="margin-bottom: 0;">
                                 ${section.title}
                             </h3>

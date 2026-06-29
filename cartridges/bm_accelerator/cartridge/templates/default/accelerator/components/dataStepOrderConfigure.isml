@@ -57,11 +57,48 @@
         </fieldset>
 
         <div class="acc-form__group">
+            <label class="acc-form__label" for="order-order-state">${Resource.msg('accelerator.ordermigration.orderstate', 'accelerator', null)}</label>
+            <select id="order-order-state" name="orderState" class="acc-form__input">
+                <isloop items="${pdict.orderStateFilters}" var="filter">
+                    <isif condition="${pdict.orderOrderState == filter.value}">
+                        <option value="${filter.value}" selected="selected">${Resource.msg('accelerator.ordermigration.orderstate.' + filter.key, 'accelerator', null)}</option>
+                    <iselse/>
+                        <option value="${filter.value}">${Resource.msg('accelerator.ordermigration.orderstate.' + filter.key, 'accelerator', null)}</option>
+                    </isif>
+                </isloop>
+            </select>
+            <p class="acc-form__hint">${Resource.msg('accelerator.ordermigration.orderstate.hint', 'accelerator', null)}</p>
+        </div>
+
+        <div class="acc-form__group">
+            <label class="acc-form__label" for="order-payment-state">${Resource.msg('accelerator.ordermigration.paymentstate', 'accelerator', null)}</label>
+            <select id="order-payment-state" name="paymentState" class="acc-form__input">
+                <isloop items="${pdict.paymentStateFilters}" var="filter">
+                    <isif condition="${pdict.orderPaymentState == filter.value}">
+                        <option value="${filter.value}" selected="selected">${Resource.msg('accelerator.ordermigration.paymentstate.' + filter.key, 'accelerator', null)}</option>
+                    <iselse/>
+                        <option value="${filter.value}">${Resource.msg('accelerator.ordermigration.paymentstate.' + filter.key, 'accelerator', null)}</option>
+                    </isif>
+                </isloop>
+            </select>
+            <p class="acc-form__hint">${Resource.msg('accelerator.ordermigration.paymentstate.hint', 'accelerator', null)}</p>
+        </div>
+
+        <div class="acc-form__group">
             <label class="acc-form__label" for="order-max-count">${Resource.msg('accelerator.ordermigration.maxcount', 'accelerator', null)}</label>
             <input type="number" id="order-max-count" name="maxCount" class="acc-form__input"
                    min="1" value="${pdict.orderMaxCount}"
                    placeholder="${Resource.msg('accelerator.ordermigration.maxcount.placeholder', 'accelerator', null)}"/>
             <p class="acc-form__hint">${Resource.msg('accelerator.ordermigration.maxcount.hint', 'accelerator', null)}</p>
+        </div>
+
+        <div class="acc-order-count" id="acc-order-count" aria-live="polite">
+            <h3 class="acc-order-count__title">${Resource.msg('accelerator.ordermigration.count.heading', 'accelerator', null)}</h3>
+            <p class="acc-order-count__value acc-order-count__value--idle" id="acc-order-count-value">${Resource.msg('accelerator.ordermigration.count.prompt', 'accelerator', null)}</p>
+            <p class="acc-order-count__detail acc-hidden" id="acc-order-count-export"></p>
+            <button type="button" id="acc-order-count-btn" class="acc-btn acc-btn--secondary acc-order-count__btn">
+                ${Resource.msg('accelerator.ordermigration.count.button', 'accelerator', null)}
+            </button>
         </div>
     </form>
 </section>
