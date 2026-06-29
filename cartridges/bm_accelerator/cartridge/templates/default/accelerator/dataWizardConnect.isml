@@ -1,12 +1,7 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8"/>
-    <meta name="viewport" content="width=device-width, initial-scale=1"/>
-    <title>${pdict.title} - ${pdict.platform.name}</title>
-    <link rel="stylesheet" href="${pdict.cssUrl}"/>
-</head>
-<body class="acc-page acc-page--wizard">
+<isdecorate template="application/MenuFrame">
+<iscontent type="text/html" charset="UTF-8"/>
+<link rel="stylesheet" href="${pdict.cssUrl}"/>
+<div class="acc-page acc-page--wizard">
     <div class="acc-shell">
         <isinclude template="accelerator/components/dataWizardChrome"/>
 
@@ -16,16 +11,102 @@
 
         <footer class="acc-wizard-footer">
             <isinclude template="accelerator/components/dataWizardNavPrev"/>
-            <span id="data-wizard-continue-wrap" class="acc-hidden">
-                <button type="submit" form="acc-data-connect-form" id="data-wizard-continue"
-                        class="acc-btn acc-btn--primary" disabled="disabled">
-                    ${Resource.msg('accelerator.wizard.continue', 'accelerator', null)}
-                </button>
-            </span>
+            <button type="button" id="data-wizard-continue" class="acc-btn acc-btn--primary">
+                ${Resource.msg('accelerator.wizard.continue', 'accelerator', null)}
+            </button>
         </footer>
 
         <isinclude template="accelerator/components/dataWizardConfig"/>
     </div>
-    <script src="${pdict.dataWizardJsUrl}"></script>
-</body>
-</html>
+    <script>
+    (function () {
+        var TEST_URL     = '${pdict.testConnectionUrl}';
+        var stepTwoEl    = document.getElementById('acc-dw-step-two-url');
+        var STEP_TWO_URL = stepTwoEl ? stepTwoEl.value : '';
+        var MSG_FAIL = '${Resource.msg('accelerator.datawizard.connectionFailed', 'accelerator', null)}';
+        var MSG_OK   = '${Resource.msg('accelerator.datawizard.connectionSuccess', 'accelerator', null)}';
+
+        function postForm(url, params, onDone) {
+            var req = new XMLHttpRequest();
+            req.open('POST', url, true);
+            req.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+            req.onreadystatechange = function () {
+                if (req.readyState !== 4) return;
+                var data;
+                try { data = JSON.parse(req.responseText); } catch (e) { data = { ok: false, error: 'Invalid response' }; }
+                onDone(data);
+            };
+            req.send(params);
+        }
+
+        function showStatus(el, msg, isError) {
+            el.textContent = msg;
+            el.className = 'acc-status' + (isError ? ' acc-status--error' : ' acc-status--success');
+            el.className = el.className.replace(' acc-status--hidden', '');
+        }
+
+        function validateForm(form) {
+            var inputs = form.querySelectorAll('input[required]');
+            var i = 0;
+            var n = inputs.length;
+            while (n > i) {
+                if (!inputs[i].value || !String(inputs[i].value).replace(/^\s+|\s+$/g, '')) {
+                    inputs[i].focus();
+                    return false;
+                }
+                i += 1;
+            }
+            return true;
+        }
+
+        function buildParams(form) {
+            var inputs = form.querySelectorAll('input[name]');
+            var params = 'mode=data';
+            var i = 0;
+            var n = inputs.length;
+            while (n > i) {
+                params += '&' + encodeURIComponent(inputs[i].name) + '=' + encodeURIComponent(inputs[i].value || '');
+                i += 1;
+            }
+            return params;
+        }
+
+        function init() {
+            var continueBtn = document.getElementById('data-wizard-continue');
+            var statusEl    = document.getElementById('data-connection-status');
+            var form        = document.getElementById('acc-data-connect-form');
+            if (!continueBtn || !statusEl || !form) return;
+
+            continueBtn.addEventListener('click', function () {
+                if (!validateForm(form)) {
+                    showStatus(statusEl, 'Please fill in all required fields.', true);
+                    return;
+                }
+
+                continueBtn.disabled = true;
+                showStatus(statusEl, 'Validating credentials...', false);
+
+                postForm(TEST_URL, buildParams(form), function (data) {
+                    if (!data.ok) {
+                        continueBtn.disabled = false;
+                        showStatus(statusEl, MSG_FAIL + ': ' + (data.error || 'Unknown error'), true);
+                        return;
+                    }
+                    var projectName = data.project && data.project.name
+                        ? data.project.name
+                        : (data.project && data.project.key ? data.project.key : '');
+                    showStatus(statusEl, MSG_OK + (projectName ? ' - ' + projectName : ''), false);
+                    window.location.replace(STEP_TWO_URL);
+                });
+            });
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
+        }
+    }());
+    </script>
+</div>
+</isdecorate>

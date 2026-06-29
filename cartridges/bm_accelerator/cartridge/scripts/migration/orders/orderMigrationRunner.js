@@ -11,6 +11,8 @@ var impexGenerator     = require('*/cartridge/scripts/migration/orders/generator
  * @param {Object} options
  * @param {number} options.years - 1, 2, or 3
  * @param {number} [options.maxCount] - optional max orders
+ * @param {string} [options.orderState] - commercetools orderState filter
+ * @param {string} [options.paymentState] - commercetools paymentState filter
  * @param {number} [options.chunkSize] - orders per XML file (default 5000)
  * @returns {Object} migration report
  */
@@ -20,8 +22,10 @@ function run(options) {
     var chunkSize = options.chunkSize || sfccOrderXmlGen.DEFAULT_CHUNK_SIZE;
 
     var rawOrders = ctpOrderConnector.fetchOrdersByDateRange({
-        years:    years,
-        maxCount: maxCount
+        years:        years,
+        maxCount:     maxCount,
+        orderState:   options.orderState || '',
+        paymentState: options.paymentState || ''
     });
 
     var ordersProcessed = rawOrders.length;

@@ -8,24 +8,24 @@
     <isif condition="${!empty(pdict.orderReport)}">
         <div class="acc-report">
             <h3 class="acc-report__title">${Resource.msg('accelerator.ordermigration.report', 'accelerator', null)}</h3>
-            <dl class="acc-report__stats acc-report__stats--enriched">
+            <div class="acc-report__stats acc-report__stats--enriched">
                 <div class="acc-report__stat acc-report__stat--card">
-                    <dt>${Resource.msg('accelerator.ordermigration.processed', 'accelerator', null)}</dt>
-                    <dd><isprint value="${pdict.orderReport.ordersProcessed}" formatter="#,##0"/></dd>
+                    <span class="acc-report__stat-label">${Resource.msg('accelerator.ordermigration.processed', 'accelerator', null)}</span>
+                    <span class="acc-report__stat-value"><isprint value="${pdict.orderReport.ordersProcessed}" formatter="#,##0"/></span>
                 </div>
                 <div class="acc-report__stat acc-report__stat--card acc-report__stat--success">
-                    <dt>${Resource.msg('accelerator.ordermigration.validated', 'accelerator', null)}</dt>
-                    <dd><isprint value="${pdict.orderReport.ordersValidated}" formatter="#,##0"/></dd>
+                    <span class="acc-report__stat-label">${Resource.msg('accelerator.ordermigration.validated', 'accelerator', null)}</span>
+                    <span class="acc-report__stat-value"><isprint value="${pdict.orderReport.ordersValidated}" formatter="#,##0"/></span>
                 </div>
                 <div class="acc-report__stat acc-report__stat--card acc-report__stat--danger">
-                    <dt>${Resource.msg('accelerator.ordermigration.failed', 'accelerator', null)}</dt>
-                    <dd><isprint value="${pdict.orderReport.ordersFailed}" formatter="#,##0"/></dd>
+                    <span class="acc-report__stat-label">${Resource.msg('accelerator.ordermigration.failed', 'accelerator', null)}</span>
+                    <span class="acc-report__stat-value"><isprint value="${pdict.orderReport.ordersFailed}" formatter="#,##0"/></span>
                 </div>
                 <div class="acc-report__stat acc-report__stat--card">
-                    <dt>${Resource.msg('accelerator.ordermigration.xmlfiles', 'accelerator', null)}</dt>
-                    <dd><isprint value="${pdict.orderReport.xmlFilesGenerated}" formatter="#,##0"/></dd>
+                    <span class="acc-report__stat-label">${Resource.msg('accelerator.ordermigration.xmlfiles', 'accelerator', null)}</span>
+                    <span class="acc-report__stat-value"><isprint value="${pdict.orderReport.xmlFilesGenerated}" formatter="#,##0"/></span>
                 </div>
-            </dl>
+            </div>
 
             <isif condition="${!empty(pdict.bmImpexUrl)}">
                 <div class="acc-bm-links">

@@ -1,12 +1,7 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8"/>
-    <meta name="viewport" content="width=device-width, initial-scale=1"/>
-    <title>${pdict.title} - ${pdict.platform.name}</title>
-    <link rel="stylesheet" href="${pdict.cssUrl}"/>
-</head>
-<body class="acc-page acc-page--wizard">
+<isdecorate template="application/MenuFrame">
+<iscontent type="text/html" charset="UTF-8"/>
+<link rel="stylesheet" href="${pdict.cssUrl}"/>
+<div class="acc-page acc-page--wizard">
     <div class="acc-shell">
         <isinclude template="accelerator/components/dataWizardChrome"/>
 
@@ -23,6 +18,176 @@
 
         <isinclude template="accelerator/components/dataWizardConfig"/>
     </div>
-    <script src="${pdict.dataWizardJsUrl}"></script>
-</body>
-</html>
+    <script>
+    (function () {
+        var COUNT_URL = '${pdict.orderCountUrl}';
+
+        function cfgVal(id) {
+            var el = document.getElementById(id);
+            return el ? el.value : '';
+        }
+
+        function postForm(url, params, onDone) {
+            var req = new XMLHttpRequest();
+            req.open('POST', url, true);
+            req.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+            req.onreadystatechange = function () {
+                if (req.readyState !== 4) return;
+                var data;
+                try { data = JSON.parse(req.responseText); } catch (e) { data = { ok: false, error: 'Invalid response' }; }
+                onDone(data, req.status);
+            };
+            req.onerror = function () {
+                onDone({ ok: false, error: 'Network error' }, 0);
+            };
+            req.send(params);
+        }
+
+        function fmtNum(n) {
+            return String(n || 0).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+        }
+
+        function init() {
+            var countBtn      = document.getElementById('acc-order-count-btn');
+            var countValueEl  = document.getElementById('acc-order-count-value');
+            var countExportEl = document.getElementById('acc-order-count-export');
+            var msgs = {
+                loading: cfgVal('acc-dw-msg-count-loading'),
+                prompt:  cfgVal('acc-dw-msg-count-prompt'),
+                error:   cfgVal('acc-dw-msg-count-error'),
+                none:    cfgVal('acc-dw-msg-count-none'),
+                match:   cfgVal('acc-dw-msg-count-match'),
+                export:  cfgVal('acc-dw-msg-count-export')
+            };
+
+            function setCountExportVisible(show) {
+                if (!countExportEl) return;
+                if (show) {
+                    countExportEl.className = countExportEl.className.replace(' acc-hidden', '');
+                } else if (countExportEl.className.indexOf('acc-hidden') === -1) {
+                    countExportEl.className += ' acc-hidden';
+                }
+            }
+
+            function showCountIdle() {
+                if (!countValueEl) return;
+                countValueEl.textContent = msgs.prompt || 'Set your filters, then check how many orders match.';
+                countValueEl.className = 'acc-order-count__value acc-order-count__value--idle';
+                setCountExportVisible(false);
+            }
+
+            function showCountLoading() {
+                if (!countValueEl) return;
+                countValueEl.textContent = msgs.loading || 'Checking commercetools...';
+                countValueEl.className = 'acc-order-count__value acc-order-count__value--loading';
+                setCountExportVisible(false);
+            }
+
+            function showCountError(message) {
+                if (!countValueEl) return;
+                countValueEl.textContent = message || msgs.error || 'Unable to count orders';
+                countValueEl.className = 'acc-order-count__value acc-order-count__value--error';
+                setCountExportVisible(false);
+            }
+
+            function showCountResult(data) {
+                if (!countValueEl) return;
+                var total = data.total || 0;
+                var exportCount = data.exportCount || 0;
+                var maxEl = document.getElementById('order-max-count');
+                var maxVal = maxEl && maxEl.value ? parseInt(maxEl.value, 10) : 0;
+
+                if (total === 0) {
+                    countValueEl.textContent = msgs.none || 'No orders match your filters';
+                    countValueEl.className = 'acc-order-count__value acc-order-count__value--empty';
+                    setCountExportVisible(false);
+                    return;
+                }
+
+                countValueEl.textContent = fmtNum(total) + ' ' + (msgs.match || 'orders match your filters');
+                countValueEl.className = 'acc-order-count__value';
+
+                if (maxVal > 0 && exportCount < total && countExportEl) {
+                    countExportEl.textContent = fmtNum(exportCount) + ' ' + (msgs.export || 'orders will be exported (max count applied)');
+                    setCountExportVisible(true);
+                } else {
+                    setCountExportVisible(false);
+                }
+            }
+
+            function getFilterParams() {
+                var yearsEl = document.querySelector('#acc-order-config-form input[name="years"]:checked');
+                var stateEl = document.getElementById('order-order-state');
+                var payEl   = document.getElementById('order-payment-state');
+                var maxEl   = document.getElementById('order-max-count');
+                var body    = 'years=' + encodeURIComponent(yearsEl ? yearsEl.value : '1');
+                if (stateEl && stateEl.value) body += '&orderState=' + encodeURIComponent(stateEl.value);
+                if (payEl && payEl.value) body += '&paymentState=' + encodeURIComponent(payEl.value);
+                if (maxEl && maxEl.value) body += '&maxCount=' + encodeURIComponent(maxEl.value);
+                return body;
+            }
+
+            function fetchOrderCount() {
+                if (!COUNT_URL || !countValueEl) {
+                    showCountError(msgs.error || 'Unable to count orders');
+                    return;
+                }
+
+                showCountLoading();
+                if (countBtn) countBtn.disabled = true;
+
+                postForm(COUNT_URL, getFilterParams(), function (data) {
+                    if (countBtn) countBtn.disabled = false;
+                    if (!data.ok) {
+                        showCountError((msgs.error || 'Unable to count orders') + (data.error ? ': ' + data.error : ''));
+                        return;
+                    }
+                    showCountResult(data);
+                });
+            }
+
+            var chips = document.querySelectorAll('.acc-chip input[type="radio"]');
+            var ci = 0;
+            while (ci < chips.length) {
+                chips[ci].addEventListener('change', function () {
+                    var labels = document.querySelectorAll('.acc-chip');
+                    var li = 0;
+                    while (li < labels.length) {
+                        labels[li].className = labels[li].className.replace(' acc-chip--selected', '');
+                        li += 1;
+                    }
+                    if (this.parentNode) {
+                        var cn = this.parentNode.className || '';
+                        if (cn.indexOf('acc-chip--selected') === -1) {
+                            this.parentNode.className = cn + ' acc-chip--selected';
+                        }
+                    }
+                    showCountIdle();
+                });
+                ci += 1;
+            }
+
+            var stateEl = document.getElementById('order-order-state');
+            var payEl   = document.getElementById('order-payment-state');
+            var maxEl   = document.getElementById('order-max-count');
+            if (stateEl) stateEl.addEventListener('change', showCountIdle);
+            if (payEl) payEl.addEventListener('change', showCountIdle);
+            if (maxEl) maxEl.addEventListener('input', showCountIdle);
+
+            if (countBtn) {
+                countBtn.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    fetchOrderCount();
+                });
+            }
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
+        }
+    }());
+    </script>
+</div>
+</isdecorate>

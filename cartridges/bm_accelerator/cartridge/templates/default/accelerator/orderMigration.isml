@@ -1,12 +1,7 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8"/>
-    <meta name="viewport" content="width=device-width, initial-scale=1"/>
-    <title>${pdict.title}</title>
-    <link rel="stylesheet" href="${pdict.cssUrl}"/>
-</head>
-<body class="acc-page">
+<isdecorate template="application/MenuFrame">
+<iscontent type="text/html" charset="UTF-8"/>
+<link rel="stylesheet" href="${pdict.cssUrl}"/>
+<div class="acc-page">
     <div class="acc-shell">
         <isinclude template="accelerator/components/header"/>
 
@@ -46,24 +41,24 @@
 
             <div id="export-report" class="acc-report acc-report--hidden">
                 <h3 class="acc-report__title">${Resource.msg('accelerator.ordermigration.report', 'accelerator', null)}</h3>
-                <dl class="acc-report__stats">
+                <div class="acc-report__stats">
                     <div class="acc-report__stat">
-                        <dt>${Resource.msg('accelerator.ordermigration.processed', 'accelerator', null)}</dt>
-                        <dd id="stat-processed">0</dd>
+                        <span class="acc-report__stat-label">${Resource.msg('accelerator.ordermigration.processed', 'accelerator', null)}</span>
+                        <span class="acc-report__stat-value" id="stat-processed">0</span>
                     </div>
                     <div class="acc-report__stat">
-                        <dt>${Resource.msg('accelerator.ordermigration.validated', 'accelerator', null)}</dt>
-                        <dd id="stat-validated">0</dd>
+                        <span class="acc-report__stat-label">${Resource.msg('accelerator.ordermigration.validated', 'accelerator', null)}</span>
+                        <span class="acc-report__stat-value" id="stat-validated">0</span>
                     </div>
                     <div class="acc-report__stat">
-                        <dt>${Resource.msg('accelerator.ordermigration.failed', 'accelerator', null)}</dt>
-                        <dd id="stat-failed">0</dd>
+                        <span class="acc-report__stat-label">${Resource.msg('accelerator.ordermigration.failed', 'accelerator', null)}</span>
+                        <span class="acc-report__stat-value" id="stat-failed">0</span>
                     </div>
                     <div class="acc-report__stat">
-                        <dt>${Resource.msg('accelerator.ordermigration.xmlfiles', 'accelerator', null)}</dt>
-                        <dd id="stat-xmlfiles">0</dd>
+                        <span class="acc-report__stat-label">${Resource.msg('accelerator.ordermigration.xmlfiles', 'accelerator', null)}</span>
+                        <span class="acc-report__stat-value" id="stat-xmlfiles">0</span>
                     </div>
-                </dl>
+                </div>
 
                 <div id="download-links" class="acc-downloads">
                     <h4 class="acc-downloads__title">${Resource.msg('accelerator.ordermigration.downloads', 'accelerator', null)}</h4>
@@ -142,5 +137,6 @@
             });
         })();
     </script>
-</body>
-</html>
+    </div>
+</div>
+</isdecorate>

@@ -29,6 +29,12 @@ var ORDER_EXPORT_PHASES = [
     { id: 'package',  label: 'Package IMPEX files' }
 ];
 
+/** commercetools orderState enum values (see Order.orderState). */
+var CTP_ORDER_STATE_VALUES = ['Open', 'Confirmed', 'Complete', 'Cancelled'];
+
+/** commercetools paymentState enum values (see Order.paymentState). */
+var CTP_PAYMENT_STATE_VALUES = ['Pending', 'Failed', 'Paid', 'BalanceDue', 'CreditOwed'];
+
 var DATA_TYPES = [
     {
         id:          'order',
@@ -58,7 +64,7 @@ var DATA_TYPES = [
         id:          'catalog',
         label:       'Catalog',
         description: 'Migrate categories, catalog structure, and assignments into SFCC.',
-        status:      'soon',
+        status:      'ready',
         iconClass:   'acc-data-type--catalog',
         items:       ['Category hierarchy', 'Catalog assignments', 'Navigation structure']
     }
@@ -253,6 +259,33 @@ function getOrderExportPhases() {
     return phases;
 }
 
+function buildStatusFilters(values) {
+    var filters = [{ value: '', key: 'all' }];
+    for (var i = 0; i < values.length; i++) {
+        filters.push({
+            value: values[i],
+            key:   values[i].toLowerCase()
+        });
+    }
+    return filters;
+}
+
+function getCtpOrderStateFilters() {
+    return buildStatusFilters(CTP_ORDER_STATE_VALUES);
+}
+
+function getCtpPaymentStateFilters() {
+    return buildStatusFilters(CTP_PAYMENT_STATE_VALUES);
+}
+
+function isValidCtpOrderState(value) {
+    return !value || CTP_ORDER_STATE_VALUES.indexOf(value) >= 0;
+}
+
+function isValidCtpPaymentState(value) {
+    return !value || CTP_PAYMENT_STATE_VALUES.indexOf(value) >= 0;
+}
+
 function getDataTypes() {
     var types = [];
     for (var i = 0; i < DATA_TYPES.length; i++) {
@@ -297,7 +330,7 @@ function buildDataSelectContent() {
 
     return {
         titleSuffix: 'Select data to migrate',
-        intro:       'Choose which data to export from the source platform. All ready types are selected by default.',
+        intro:       'Choose one data type to migrate. Each type follows its own migration flow.',
         sections:    sections,
         summary:     readyCount + ' data type(s) ready'
     };
@@ -314,6 +347,10 @@ module.exports = {
     getDataWizardStep:      getDataWizardStep,
     getMaxDataStep:         getMaxDataStep,
     getOrderExportPhases:   getOrderExportPhases,
+    getCtpOrderStateFilters:   getCtpOrderStateFilters,
+    getCtpPaymentStateFilters: getCtpPaymentStateFilters,
+    isValidCtpOrderState:      isValidCtpOrderState,
+    isValidCtpPaymentState:    isValidCtpPaymentState,
     getDataTypes:           getDataTypes,
     getDataType:            getDataType,
     buildDataSelectContent: buildDataSelectContent

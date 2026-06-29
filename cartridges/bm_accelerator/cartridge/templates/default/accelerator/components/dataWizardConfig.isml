@@ -1,10 +1,15 @@
 <div id="acc-data-wizard-config" class="acc-hidden" aria-hidden="true">
     <input type="hidden" id="acc-dw-step" value="${pdict.wizardStepKey}" />
-    <input type="hidden" id="acc-dw-test-url" value="${pdict.testConnectionUrl}" />
-    <input type="hidden" id="acc-dw-wizard-base" value="${pdict.wizardBaseUrl}" />
-    <input type="hidden" id="acc-dw-export-url" value="${pdict.exportUrl}" />
+    <input type="hidden" id="acc-dw-test-url" value="<isprint value="${pdict.testConnectionUrl}" encoding="htmldoublequote"/>" />
+    <input type="hidden" id="acc-dw-wizard-base" value="<isprint value="${pdict.wizardBaseUrl}" encoding="htmldoublequote"/>" />
+    <input type="hidden" id="acc-dw-step-two-url" value="<isprint value="${pdict.wizardBaseUrl}" encoding="htmldoublequote"/>&amp;step=2" />
+    <input type="hidden" id="acc-dw-step-three-base" value="<isprint value="${pdict.wizardBaseUrl}" encoding="htmldoublequote"/>&amp;step=3" />
+    <input type="hidden" id="acc-dw-export-url" value="<isprint value="${pdict.exportUrl}" encoding="htmldoublequote"/>" />
+    <input type="hidden" id="acc-dw-order-count-url" value="<isprint value="${pdict.orderCountUrl}" encoding="htmldoublequote"/>" />
     <input type="hidden" id="acc-dw-order-years" value="${pdict.orderYears}" />
     <input type="hidden" id="acc-dw-order-max-count" value="${pdict.orderMaxCount}" />
+    <input type="hidden" id="acc-dw-order-order-state" value="${pdict.orderOrderState}" />
+    <input type="hidden" id="acc-dw-order-payment-state" value="${pdict.orderPaymentState}" />
     <input type="hidden" id="acc-dw-export-phases" value="${pdict.exportPhaseCsv}" />
     <input type="hidden" id="acc-dw-msg-connection-failed" value="${pdict.msgConnectionFailed}" />
     <input type="hidden" id="acc-dw-msg-connection-success" value="${pdict.msgConnectionSuccess}" />
@@ -13,4 +18,10 @@
     <input type="hidden" id="acc-dw-msg-export-running" value="${pdict.msgExportRunning}" />
     <input type="hidden" id="acc-dw-msg-export-failed" value="${pdict.msgExportFailed}" />
     <input type="hidden" id="acc-dw-msg-export-complete" value="${pdict.msgExportComplete}" />
+    <input type="hidden" id="acc-dw-msg-count-loading" value="${pdict.msgOrderCountLoading}" />
+    <input type="hidden" id="acc-dw-msg-count-prompt" value="${pdict.msgOrderCountPrompt}" />
+    <input type="hidden" id="acc-dw-msg-count-error" value="${pdict.msgOrderCountError}" />
+    <input type="hidden" id="acc-dw-msg-count-none" value="${pdict.msgOrderCountNone}" />
+    <input type="hidden" id="acc-dw-msg-count-match" value="${pdict.msgOrderCountMatch}" />
+    <input type="hidden" id="acc-dw-msg-count-export" value="${pdict.msgOrderCountExport}" />
 </div>

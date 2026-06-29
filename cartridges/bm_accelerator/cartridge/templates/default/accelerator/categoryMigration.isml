@@ -1,11 +1,7 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8"/>
-<title>Category Migration</title>
+<isdecorate template="application/MenuFrame">
+<iscontent type="text/html" charset="UTF-8"/>
 <link rel="stylesheet" href="${pdict.cssUrl}"/>
-</head>
-<body class="acc-page">
+<div class="acc-page">
 <div class="acc-shell">
 <isinclude template="accelerator/components/header"/>
 <div style="padding:10px 32px 0;">
@@ -275,6 +271,7 @@ Fill in the Category ID, Name, and optionally a Parent Category ID then click Ge
     document.head.appendChild(jsScript);
 }());
 </script>
-</body>
-</html>
+</div>
+</div>
+</isdecorate>
 

@@ -6,7 +6,7 @@
     </h2>
     <p class="acc-step-panel__intro">${Resource.msg('accelerator.datawizard.connect.intro', 'accelerator', null)}</p>
 
-    <form class="acc-form" id="acc-data-connect-form" method="post" action="${pdict.continueUrl}">
+    <form class="acc-form" id="acc-data-connect-form" method="post" action="#" onsubmit="return false;">
         <input type="hidden" name="platformId" value="${pdict.platform.id}" />
         <isloop items="${pdict.platform.connectFields}" var="field">
             <div class="acc-form__group">
@@ -26,12 +26,6 @@
             </div>
         </isloop>
     </form>
-
-    <div class="acc-form__actions">
-        <button type="button" id="data-test-connection-btn" class="acc-btn acc-btn--primary">
-            ${Resource.msg('accelerator.datawizard.testConnection', 'accelerator', null)}
-        </button>
-    </div>
 
     <div id="data-connection-status" class="acc-status acc-status--hidden" role="status"></div>
 </section>
