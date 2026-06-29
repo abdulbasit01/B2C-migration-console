@@ -185,10 +185,10 @@
                     </ul>
                 </div>
 
-                <!-- Products: not yet available -->
-                <div class="dm-type" data-url="" data-available="false">
+                <!-- Products: ready -->
+                <div class="dm-type dm-type--available" data-url="${pdict.productMigrationUrl}" data-available="true">
                     <div class="dm-type__header">
-                        <input type="checkbox" class="dm-type__cb" value="products" disabled/>
+                        <input type="checkbox" class="dm-type__cb" value="products"/>
                         <span class="dm-type__title">Products</span>
                     </div>
                     <ul class="dm-type__list">
@@ -196,7 +196,6 @@
                         <li>Variants &amp; SKUs</li>
                         <li>Custom attributes</li>
                     </ul>
-                    <div class="dm-type__unavail">This data type is not yet available for migration.</div>
                 </div>
 
                 <!-- Catalog: not yet available -->

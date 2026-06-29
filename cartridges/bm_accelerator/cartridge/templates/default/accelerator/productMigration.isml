@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1"/>
-    <title>B2C Migration Console</title>
+    <title>${pdict.title}</title>
     <link rel="stylesheet" href="${pdict.cssUrl}"/>
     <style>
         .acc-tab {
@@ -43,6 +43,103 @@
             font-size: 12px;
             margin-top: 4px;
         }
+        /* ---- Attribute pre-flight table ---- */
+        .cm-attr-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        .cm-attr-table thead tr {
+            background: #f4f6f9;
+            border-bottom: 2px solid #dddbda;
+        }
+        .cm-attr-table th {
+            padding: 9px 14px;
+            text-align: left;
+            font-size: 11px;
+            font-weight: 700;
+            color: #54698d;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            white-space: nowrap;
+        }
+        .cm-attr-table td {
+            padding: 9px 14px;
+            border-bottom: 1px solid #f0f2f8;
+            color: #3e3e3c;
+            vertical-align: middle;
+        }
+        .cm-attr-table tbody tr:last-child td { border-bottom: none; }
+        .cm-attr-table tbody tr:hover { background: #f8f9fb; }
+        .cm-attr-table td code {
+            background: #eaf0fb;
+            padding: 2px 7px;
+            border-radius: 3px;
+            font-family: monospace;
+            font-size: 12px;
+            color: #16325c;
+            font-weight: 600;
+        }
+        .cm-attr-id-input {
+            background: #eaf0fb;
+            border: 1px solid #c8d6f0;
+            border-radius: 3px;
+            font-family: monospace;
+            font-size: 12px;
+            color: #16325c;
+            font-weight: 600;
+            padding: 3px 8px;
+            width: 190px;
+            outline: none;
+            box-sizing: border-box;
+        }
+        .cm-attr-id-input:focus {
+            border-color: #0070d2;
+            background: #fff;
+            box-shadow: 0 0 0 2px rgba(0,112,210,.15);
+        }
+        .cm-btn {
+            padding: 7px 16px;
+            font-size: 13px;
+            font-weight: 600;
+            border-radius: 4px;
+            cursor: pointer;
+            border: 1px solid transparent;
+            display: inline-block;
+            line-height: 1.4;
+            white-space: nowrap;
+        }
+        .cm-btn--primary {
+            background: #0070d2;
+            color: #fff;
+            border-color: #005fb2;
+        }
+        .cm-btn--primary:hover { background: #005fb2; }
+        .cm-btn--primary:disabled {
+            background: #97c3ea;
+            border-color: #97c3ea;
+            cursor: default;
+        }
+        .cm-btn--revert {
+            background: #fff;
+            color: #c62828;
+            border: 1px solid #f0b4b4;
+            padding: 4px 12px;
+            font-size: 12px;
+            font-weight: 600;
+            border-radius: 4px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .cm-btn--revert:hover { background: #fdecea; border-color: #c62828; }
+        .cm-btn--revert:disabled {
+            opacity: 1;
+            cursor: default;
+            color: #c8c8c8;
+            border-color: #e8e8e8;
+            background: #fafafa;
+            pointer-events: none;
+        }
     </style>
 </head>
 <body class="acc-page">
@@ -67,56 +164,34 @@
         <!-- ── Config row ── -->
         <div style="margin:24px 0 16px;">
             <div style="display:flex;align-items:flex-start;flex-wrap:wrap;gap:10px;">
+                <label for="prod-catalog-id" style="font-weight:600;font-size:14px;white-space:nowrap;padding-top:6px;">
+                    SFCC Catalog ID <span style="color:#c62828;">*</span>
+                </label>
+                <div>
+                    <select id="prod-catalog-id" class="acc-form__input" style="width:260px;">
+                        <option value="">Loading catalogs...</option>
+                    </select>
+                    <span id="prod-catalog-id-error" class="acc-field-error">Catalog ID is required.</span>
+                </div>
                 <button id="prod-check-btn" type="button" class="acc-btn acc-btn--ghost">Check Count</button>
                 <span id="prod-count-badge" style="font-size:13px;color:#54698d;padding-top:6px;"></span>
             </div>
         </div>
 
         <!-- ── Attribute Pre-flight Panel ── -->
-        <div id="prod-attr-preflight" style="background:#f4f6f9;border:1px solid #dddbda;border-radius:6px;padding:20px 24px;margin-bottom:24px;">
-            <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
-                <div>
-                    <h3 style="margin:0 0 4px;font-size:15px;color:#16325c;">SFCC Product Attribute Pre-flight</h3>
-                    <p style="margin:0;font-size:13px;color:#54698d;">
-                        Check whether all required custom attributes exist in SFCC before running the migration.
-                        Missing attributes will cause import warnings. Create them here in one click.
-                    </p>
-                </div>
-                <button id="prod-check-attrs-btn" type="button" class="acc-btn acc-btn--ghost" style="white-space:nowrap;">
-                    Check CTP Attributes
-                </button>
+        <div id="prod-attr-preflight" style="margin:0 0 28px;border:1px solid #dddbda;border-radius:6px;overflow:hidden;">
+            <div style="background:#f4f6f9;border-bottom:1px solid #dddbda;padding:11px 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                <span style="font-weight:700;font-size:14px;color:#16325c;">&#x26A1; Attribute Pre-flight Check</span>
+                <button id="prod-check-attrs-btn" type="button" class="acc-btn acc-btn--ghost">Check CTP Attributes</button>
+                <span id="prod-attr-check-msg" style="font-size:13px;color:#54698d;font-weight:600;"></span>
             </div>
-
-            <div id="prod-attr-status" style="display:none;margin-top:14px;"></div>
-
-            <div id="prod-attr-missing-wrap" style="display:none;margin-top:14px;">
-                <p style="font-size:13px;color:#c62828;margin:0 0 10px;">
-                    The following attributes are missing in SFCC. Select the ones you want to create:
+            <div style="padding:14px 20px;">
+                <p style="font-size:13px;color:#54698d;margin:0;">
+                    Scans CTP product type definitions and checks whether matching
+                    attributes exist on the SFCC <strong>Product</strong> system object.
+                    Missing attributes can be created here before the migration runs.
                 </p>
-                <table style="width:100%;border-collapse:collapse;font-size:13px;">
-                    <thead>
-                        <tr style="background:#e0e5ee;">
-                            <th style="padding:8px 10px;text-align:left;width:32px;">
-                                <input type="checkbox" id="prod-attr-select-all" title="Select all"/>
-                            </th>
-                            <th style="padding:8px 10px;text-align:left;">Attribute ID (SFCC)</th>
-                            <th style="padding:8px 10px;text-align:left;">Label</th>
-                            <th style="padding:8px 10px;text-align:left;">CTP Type</th>
-                            <th style="padding:8px 10px;text-align:left;">SFCC Type</th>
-                        </tr>
-                    </thead>
-                    <tbody id="prod-attr-missing-body"></tbody>
-                </table>
-                <div style="display:flex;gap:10px;margin-top:14px;align-items:center;">
-                    <button id="prod-create-attrs-btn" type="button" class="acc-btn acc-btn--primary" disabled>
-                        Create Selected Attributes
-                    </button>
-                    <span id="prod-create-status" style="font-size:13px;color:#54698d;"></span>
-                </div>
-            </div>
-
-            <div id="prod-attr-ok-badge" style="display:none;margin-top:12px;color:#2e7d32;font-size:13px;font-weight:600;">
-                &#10003; All required SFCC Product attributes are present. Ready to migrate.
+                <div id="prod-attr-results" style="display:none;margin-top:14px;"></div>
             </div>
         </div>
 
@@ -234,6 +309,38 @@
     var CHECK_ATTRS_URL  = '${pdict.checkAttrsUrl}';
     var CREATE_ATTRS_URL = '${pdict.createAttrsUrl}';
     var DELETE_ATTR_URL  = '${pdict.deleteAttrUrl}';
+    var CATALOGS_URL     = '${pdict.catalogsUrl}';
+
+    // ── Load SFCC Catalogs into dropdown ─────────────────────────────────────
+    var catalogSelect = document.getElementById('prod-catalog-id');
+    (function loadCatalogs() {
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', CATALOGS_URL, true);
+        xhr.onreadystatechange = function () {
+            if (xhr.readyState !== 4) return;
+            var data;
+            try { data = JSON.parse(xhr.responseText); } catch (e) { data = { ok: false }; }
+            catalogSelect.innerHTML = '';
+            if (!data.ok || !data.catalogs || !data.catalogs.length) {
+                var opt = document.createElement('option');
+                opt.value = '';
+                opt.textContent = data.ok ? 'No catalogs found' : 'Error loading catalogs';
+                catalogSelect.appendChild(opt);
+                return;
+            }
+            var blank = document.createElement('option');
+            blank.value = '';
+            blank.textContent = 'Select a Catalog';
+            catalogSelect.appendChild(blank);
+            for (var i = 0; i < data.catalogs.length; i++) {
+                var o = document.createElement('option');
+                o.value = data.catalogs[i].id;
+                o.textContent = data.catalogs[i].id;
+                catalogSelect.appendChild(o);
+            }
+        };
+        xhr.send();
+    }());
 
     var checkBtn    = document.getElementById('prod-check-btn');
     var countBadge  = document.getElementById('prod-count-badge');
@@ -308,107 +415,153 @@
     // ATTRIBUTE PRE-FLIGHT
     // ════════════════════════════════════════════════════════════════════════
 
-    var checkAttrsBtn    = document.getElementById('prod-check-attrs-btn');
-    var attrStatus       = document.getElementById('prod-attr-status');
-    var attrMissingWrap  = document.getElementById('prod-attr-missing-wrap');
-    var attrMissingBody  = document.getElementById('prod-attr-missing-body');
-    var attrOkBadge      = document.getElementById('prod-attr-ok-badge');
-    var createAttrsBtn   = document.getElementById('prod-create-attrs-btn');
-    var createStatus     = document.getElementById('prod-create-status');
-    var selectAllCb      = document.getElementById('prod-attr-select-all');
+    var checkAttrsBtn = document.getElementById('prod-check-attrs-btn');
+    var attrCheckMsg  = document.getElementById('prod-attr-check-msg');
+    var attrResults   = document.getElementById('prod-attr-results');
 
-    var missingAttrsList = [];
+    var pendingMissing = [];
 
-    function showAttrStatus(msg, color) {
-        attrStatus.textContent  = msg;
-        attrStatus.style.color  = color || '#54698d';
-        attrStatus.style.display = 'block';
-    }
+    function handleAttrCheckResult(missing) {
+        pendingMissing     = missing;
+        attrResults.innerHTML = '';
 
-    function updateCreateBtn() {
-        var checked = attrMissingBody.querySelectorAll('input[type="checkbox"]:checked');
-        createAttrsBtn.disabled = (checked.length === 0);
-    }
+        if (!missing.length) {
+            attrResults.innerHTML = '<p style="color:#2e7d32;font-size:13px;margin:0;">'
+                + '&#10003; All CTP product attributes already exist in SFCC &#8212; no action needed.</p>';
+            attrResults.style.display = 'block';
+            attrCheckMsg.textContent  = 'All attributes in sync.';
+            attrCheckMsg.style.color  = '#2e7d32';
+            return;
+        }
 
-    function renderMissingTable(missing) {
-        attrMissingBody.innerHTML = '';
+        attrCheckMsg.textContent = missing.length + ' missing.';
+        attrCheckMsg.style.color = '#c62828';
+
+        var html = '<p style="font-size:13px;color:#54698d;margin:0 0 10px;">'
+            + missing.length + ' attribute(s) found in CTP but missing in SFCC. '
+            + 'Select the ones you want to create:</p>';
+
+        html += '<div style="border:1px solid #e0e5ee;border-radius:4px;overflow:hidden;">'
+            + '<table class="cm-attr-table">'
+            + '<thead><tr>'
+            + '<th style="width:36px;"><input type="checkbox" id="prod-attr-select-all" checked/></th>'
+            + '<th>Attribute ID</th>'
+            + '<th>Label</th>'
+            + '<th>CTP Type</th>'
+            + '<th>SFCC Type</th>'
+            + '<th style="width:90px;">Action</th>'
+            + '</tr></thead><tbody>';
+
         for (var i = 0; i < missing.length; i++) {
-            var a  = missing[i];
-            var tr = document.createElement('tr');
-            tr.style.borderBottom = '1px solid #e0e5ee';
-            tr.innerHTML =
-                '<td style="padding:8px 10px;"><input type="checkbox" data-idx="' + i + '" checked/></td>' +
-                '<td style="padding:8px 10px;font-family:monospace;">' + a.id + '</td>' +
-                '<td style="padding:8px 10px;">' + (a.label || '') + '</td>' +
-                '<td style="padding:8px 10px;">' + (a.ctpType || '') + '</td>' +
-                '<td style="padding:8px 10px;">' + (a.sfccType || 'string') + '</td>';
-            attrMissingBody.appendChild(tr);
+            var m = missing[i];
+            html += '<tr id="prod-attr-row-' + i + '">'
+                + '<td style="text-align:center;"><input type="checkbox" class="prod-attr-cb" data-idx="' + i + '" checked/></td>'
+                + '<td><input type="text" class="cm-attr-id-input" data-idx="' + i + '" value="' + m.id + '" title="Edit attribute ID"/></td>'
+                + '<td>' + (m.label || m.id) + '</td>'
+                + '<td style="color:#8a9ab8;">' + m.ctpType + '</td>'
+                + '<td style="color:#0070d2;font-weight:600;">' + m.sfccType + '</td>'
+                + '<td><button type="button" class="cm-btn--revert prod-attr-revert-btn" data-idx="' + i + '" disabled title="Create the attribute first to enable revert">Revert</button></td>'
+                + '</tr>';
         }
-        var cbs = attrMissingBody.querySelectorAll('input[type="checkbox"]');
-        for (var c = 0; c < cbs.length; c++) {
-            cbs[c].addEventListener('change', updateCreateBtn);
-        }
-        updateCreateBtn();
-    }
+        html += '</tbody></table></div>';
 
-    if (selectAllCb) {
-        selectAllCb.addEventListener('change', function () {
-            var cbs = attrMissingBody.querySelectorAll('input[type="checkbox"]');
-            for (var c = 0; c < cbs.length; c++) cbs[c].checked = selectAllCb.checked;
-            updateCreateBtn();
+        html += '<div style="margin-top:14px;display:flex;align-items:center;gap:12px;">'
+            + '<button type="button" id="prod-create-attrs-btn" class="cm-btn cm-btn--primary">&#10003; Create Selected Attributes</button>'
+            + '<span id="prod-create-attrs-msg" style="font-size:13px;color:#54698d;"></span>'
+            + '</div>';
+
+        attrResults.innerHTML     = html;
+        attrResults.style.display = 'block';
+
+        document.getElementById('prod-attr-select-all').addEventListener('change', function () {
+            var cbs = document.querySelectorAll('.prod-attr-cb');
+            for (var c = 0; c < cbs.length; c++) { cbs[c].checked = this.checked; }
+        });
+
+        var revertBtns = document.querySelectorAll('.prod-attr-revert-btn');
+        for (var rb = 0; rb < revertBtns.length; rb++) {
+            revertBtns[rb].addEventListener('click', function () {
+                var btn     = this;
+                var idx     = parseInt(btn.getAttribute('data-idx'), 10);
+                var idInput = document.querySelector('.cm-attr-id-input[data-idx="' + idx + '"]');
+                var attrId  = idInput ? idInput.value.trim() : (pendingMissing[idx] || {}).id;
+                if (!attrId) return;
+                btn.disabled    = true;
+                btn.textContent = 'Reverting...';
+                post(DELETE_ATTR_URL, 'attrId=' + encodeURIComponent(attrId), function (res) {
+                    if (res.ok) {
+                        btn.textContent       = 'Reverted';
+                        btn.style.color       = '#2e7d32';
+                        btn.style.borderColor = '#a5d6a7';
+                        btn.style.background  = '#e8f5e9';
+                        var row = document.getElementById('prod-attr-row-' + idx);
+                        if (row) row.style.opacity = '0.5';
+                    } else {
+                        btn.disabled    = false;
+                        btn.textContent = 'Revert';
+                        var msgEl = document.getElementById('prod-create-attrs-msg');
+                        if (msgEl) { msgEl.textContent = 'Revert failed: ' + (res.error || 'Unknown error'); msgEl.style.color = '#c62828'; }
+                    }
+                });
+            });
+        }
+
+        document.getElementById('prod-create-attrs-btn').addEventListener('click', function () {
+            var selected        = [];
+            var selectedIndices = [];
+            var cbs = document.querySelectorAll('.prod-attr-cb');
+            for (var c = 0; c < cbs.length; c++) {
+                if (cbs[c].checked) {
+                    var idx      = parseInt(cbs[c].getAttribute('data-idx'), 10);
+                    var orig     = pendingMissing[idx];
+                    var idInput  = document.querySelector('.cm-attr-id-input[data-idx="' + idx + '"]');
+                    var editedId = (idInput && idInput.value.trim()) ? idInput.value.trim() : orig.id;
+                    selected.push({ id: editedId, label: orig.label, ctpType: orig.ctpType, sfccType: orig.sfccType });
+                    selectedIndices.push(idx);
+                }
+            }
+            if (!selected.length) {
+                document.getElementById('prod-create-attrs-msg').textContent = 'Select at least one attribute.';
+                return;
+            }
+            var btn = document.getElementById('prod-create-attrs-btn');
+            var msg = document.getElementById('prod-create-attrs-msg');
+            if (btn) { btn.disabled = true; btn.textContent = 'Creating...'; }
+            if (msg) { msg.textContent = ''; }
+            post(CREATE_ATTRS_URL, 'attrs=' + encodeURIComponent(JSON.stringify(selected)), function (data) {
+                if (!data.ok) {
+                    if (btn) { btn.disabled = false; btn.textContent = 'Retry'; }
+                    if (msg) { msg.textContent = 'Error: ' + (data.error || 'Failed'); msg.style.color = '#c62828'; }
+                    return;
+                }
+                var r    = data.result || {};
+                var text = r.created + ' created' + (r.failed ? ', ' + r.failed + ' failed' : '') + '.';
+                if (r.errors && r.errors.length) text += ' ' + r.errors[0];
+                if (btn) { btn.disabled = true; btn.textContent = '&#10003; Done'; }
+                if (msg) { msg.textContent = text; msg.style.color = r.failed ? '#c62828' : '#2e7d32'; }
+                for (var ri = 0; ri < selectedIndices.length; ri++) {
+                    var rv = document.querySelector('.prod-attr-revert-btn[data-idx="' + selectedIndices[ri] + '"]');
+                    if (rv) { rv.disabled = false; rv.title = ''; }
+                }
+            });
         });
     }
 
     checkAttrsBtn.addEventListener('click', function () {
-        checkAttrsBtn.disabled  = true;
-        attrMissingWrap.style.display = 'none';
-        attrOkBadge.style.display     = 'none';
-        showAttrStatus('Checking SFCC Product attributes against CTP product types...', '#54698d');
+        checkAttrsBtn.disabled    = true;
+        checkAttrsBtn.textContent = 'Checking...';
+        attrCheckMsg.textContent  = '';
+        attrResults.style.display = 'none';
 
         post(CHECK_ATTRS_URL, '', function (data) {
-            checkAttrsBtn.disabled = false;
+            checkAttrsBtn.disabled    = false;
+            checkAttrsBtn.textContent = 'Re-check';
             if (!data.ok) {
-                showAttrStatus('Error: ' + (data.error || 'Check failed'), '#c62828');
+                attrCheckMsg.textContent = 'Error: ' + (data.error || 'Check failed');
+                attrCheckMsg.style.color = '#c62828';
                 return;
             }
-            missingAttrsList = data.missing || [];
-            if (missingAttrsList.length === 0) {
-                attrStatus.style.display  = 'none';
-                attrOkBadge.style.display = 'block';
-            } else {
-                showAttrStatus(missingAttrsList.length + ' attribute(s) missing in SFCC.', '#c62828');
-                renderMissingTable(missingAttrsList);
-                attrMissingWrap.style.display = 'block';
-            }
-        });
-    });
-
-    createAttrsBtn.addEventListener('click', function () {
-        var cbs      = attrMissingBody.querySelectorAll('input[type="checkbox"]:checked');
-        var selected = [];
-        for (var c = 0; c < cbs.length; c++) {
-            var idx = parseInt(cbs[c].getAttribute('data-idx'), 10);
-            if (missingAttrsList[idx]) selected.push(missingAttrsList[idx]);
-        }
-        if (!selected.length) return;
-
-        createAttrsBtn.disabled  = true;
-        createStatus.textContent = 'Creating ' + selected.length + ' attribute(s)...';
-        createStatus.style.color = '#54698d';
-
-        post(CREATE_ATTRS_URL, 'attrs=' + encodeURIComponent(JSON.stringify(selected)), function (data) {
-            if (!data.ok) {
-                createStatus.textContent = 'Error: ' + (data.error || 'Create failed');
-                createStatus.style.color = '#c62828';
-                createAttrsBtn.disabled  = false;
-                return;
-            }
-            var r = data.result || {};
-            createStatus.textContent = (r.created || 0) + ' created'
-                + (r.failed ? ', ' + r.failed + ' failed' : '') + '.';
-            createStatus.style.color = r.failed ? '#c62828' : '#2e7d32';
-            // Re-run the check to refresh the table
-            checkAttrsBtn.click();
+            handleAttrCheckResult(data.missing || []);
         });
     });
 
