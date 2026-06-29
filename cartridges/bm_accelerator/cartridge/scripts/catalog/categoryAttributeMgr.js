@@ -1,14 +1,12 @@
 'use strict';
-
 /**
  * Manages CTP-specific custom attribute definitions on the SFCC Category system object.
  * Uses OCAPI (sfccClient) — NOT the deprecated DW Script ObjectAttributeDefinition API.
  */
-
 var sfccClient  = require('*/cartridge/scripts/migration/sfccClient');
 var attrBuilder = require('*/cartridge/scripts/migration/core/attrBuilder');
 
-var CATEGORY_OBJECT = 'Category';
+var CATEGORY_OBJECT     = 'Category';
 var CTP_ATTR_GROUP_ID   = 'CTPMigration';
 var CTP_ATTR_GROUP_NAME = 'CTP Migration';
 
@@ -17,7 +15,7 @@ var CTP_ATTR_GROUP_NAME = 'CTP Migration';
 var REQUIRED_ATTRS = [
     { id: 'ctId',       label: 'CTP Category ID',       sfccType: 'string' },
     { id: 'ctSlug',     label: 'CTP Category Slug',     sfccType: 'string' },
-    { id: 'ctPosition', label: 'CTP Category Position', sfccType: 'int'    }
+    { id: 'ctPosition', label: 'CTP Category Position', sfccType: 'double'    }
 ];
 
 /**
@@ -49,10 +47,11 @@ function checkAttributes() {
 function createMissingAttributes() {
     var token       = sfccClient.getSFCCToken();
     var existingIds = sfccClient.getExistingAttributeIds(token, CATEGORY_OBJECT);
-    var created     = 0;
-    var skipped     = 0;
-    var failed      = 0;
-    var errors      = [];
+
+    var created = 0;
+    var skipped = 0;
+    var failed  = 0;
+    var errors  = [];
 
     try { sfccClient.ensureAttributeGroup(token, CATEGORY_OBJECT, CTP_ATTR_GROUP_ID, CTP_ATTR_GROUP_NAME); } catch (ge) {}
 
@@ -73,6 +72,7 @@ function createMissingAttributes() {
             if (errors.length < 5) errors.push(a.id + ': ' + (e.message || String(e)));
         }
     }
+
     return { created: created, skipped: skipped, failed: failed, errors: errors };
 }
 
@@ -86,8 +86,8 @@ function deleteAttribute(attrId) {
 }
 
 module.exports = {
-    REQUIRED_ATTRS:         REQUIRED_ATTRS,
-    checkAttributes:        checkAttributes,
-    createMissingAttributes: createMissingAttributes,
-    deleteAttribute:        deleteAttribute
+    REQUIRED_ATTRS          : REQUIRED_ATTRS,
+    checkAttributes         : checkAttributes,
+    createMissingAttributes : createMissingAttributes,
+    deleteAttribute         : deleteAttribute
 };

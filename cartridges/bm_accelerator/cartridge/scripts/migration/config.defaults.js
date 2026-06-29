@@ -12,11 +12,11 @@ module.exports = {
         apiVersion:   '2025-01'
     },
     ctp: {
-        projectKey:   '',
-        clientId:     '',
-        clientSecret: '',
-        authUrl:      'https://auth.us-central1.gcp.commercetools.com',
-        apiUrl:       'https://api.us-central1.gcp.commercetools.com'
+        projectKey:   'royal-cyber-b2c-accelerator-wd',
+        clientId:     'PWqDRs2lknl77oBfOxZOXrro',
+        clientSecret: '4RkXFLeoN4OVxDAE4Cd0j7NqMtQ5TT-u',
+        authUrl:      'https://auth.australia-southeast1.gcp.commercetools.com',
+        apiUrl:       'https://api.australia-southeast1.gcp.commercetools.com'
     },
     sfcc: {
         bmClientId:      'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
