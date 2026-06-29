@@ -1,7 +1,7 @@
 <isdecorate template="application/MenuFrame">
 <iscontent type="text/html" charset="UTF-8"/>
 <link rel="stylesheet" href="${pdict.cssUrl}"/>
-    <style>
+<style>
         .dm-shell { padding: 24px 28px; }
 
         /* ── Step progress ───────────────────────────────────────── */
@@ -257,7 +257,5 @@
     });
 }());
 </script>
-    </div>
-</div>
 </div>
 </isdecorate>

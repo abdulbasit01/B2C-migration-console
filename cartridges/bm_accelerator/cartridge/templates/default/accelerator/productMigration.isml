@@ -1,7 +1,7 @@
 <isdecorate template="application/MenuFrame">
 <iscontent type="text/html" charset="UTF-8"/>
 <link rel="stylesheet" href="${pdict.cssUrl}"/>
-    <style>
+<style>
         .acc-tab {
             padding: 8px 20px;
             font-size: 14px;

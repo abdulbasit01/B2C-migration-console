@@ -30,10 +30,12 @@
   box-sizing: border-box;
 }
 
-.acc-page {
+.acc-page,
+body.acc-page {
   margin: 0;
   padding: 16px 24px;
   width: 100%;
+  max-width: 100%;
   box-sizing: border-box;
   font-family: var(--acc-font);
   font-size: 14px;
@@ -42,18 +44,72 @@
   line-height: 1.5;
 }
 
-.acc-bm-content {
+/* Standalone full-page mode only (no BM MenuFrame) */
+body.acc-page {
+  min-height: 100vh;
+}
+
+/* Business Manager — legacy table frame; prevent phantom scrollbars */
+table.main,
+table.main > tbody,
+table.main > tbody > tr,
+#bm_content_column,
+#bm_content_column table,
+#bm_content_column table tbody,
+#bm_content_column table tr {
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+#bm_content_column {
+  vertical-align: top;
   width: 100%;
+  max-width: 100%;
+  overflow: visible !important;
+}
+
+/* Spacer column (space.gif) + content column must not exceed row width */
+#bm_content_column table table tr td:first-child {
+  width: 12px !important;
+  max-width: 12px;
   padding: 0;
   vertical-align: top;
 }
 
-#bm_content_column .acc-bm-content {
-  width: 100%;
+#bm_content_column table table tr td:last-child {
+  width: auto !important;
+  max-width: none;
+  vertical-align: top;
+  overflow: visible !important;
 }
 
-#bm_content_column > table {
+#bm_content_column .acc-page {
   width: 100%;
+  max-width: 100%;
+  min-height: 0;
+  height: auto;
+  overflow: visible;
+  overflow-x: clip;
+  margin: 0;
+  padding: 12px 16px;
+}
+
+#bm_content_column .acc-shell {
+  max-width: 100%;
+  overflow: visible;
+}
+
+#bm_content_column .acc-wizard-card,
+#bm_content_column .acc-cards,
+#bm_content_column .acc-report__stats {
+  max-width: 100%;
+}
+
+/* SLDS BM shell — page is not a standalone viewport */
+.slds-brand-band .acc-page {
+  min-height: 0;
+  overflow: visible;
 }
 
 .acc-shell {
