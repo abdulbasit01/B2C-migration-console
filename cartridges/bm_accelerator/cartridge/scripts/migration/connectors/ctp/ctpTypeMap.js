@@ -3,8 +3,8 @@
 var PRODUCT_TYPE_MAP = {
     text:            'string',
     ltext:           'string',
-    enum:            'string',
-    lenum:           'string',
+    enum:            'enum_of_string',
+    lenum:           'enum_of_string',
     number:          'double',
     boolean:         'boolean',
     date:            'date',
@@ -27,8 +27,8 @@ var CUSTOM_FIELD_TYPE_MAP = {
     Time:            'string',
     DateTime:        'datetime',
     Money:           'double',
-    Enum:            'string',
-    LocalizedEnum:   'string',
+    Enum:            'enum_of_string',
+    LocalizedEnum:   'enum_of_string',
     Reference:       'string',
     Set:             'set_of_string'
 };
@@ -66,6 +66,106 @@ var _PERFECT = ['text', 'ltext', 'boolean', 'date', 'datetime', 'number', 'Strin
 var _HIGH    = ['enum', 'lenum', 'time', 'Enum', 'LocalizedEnum', 'Time'];
 var _MEDIUM  = ['money', 'reference', 'Money', 'Reference'];
 
+/**
+ * SFCC custom attribute types (BM UI labels).
+ * OCAPI value_type uses snake_case keys below — see attrBuilder.buildAttrDefinition()
+ * and SFCC Data API system_object_definitions attribute_definitions.
+ */
+var SFCC_TYPE_LABELS = {
+    string:          'String',
+    text:            'Text',
+    html:            'HTML',
+    int:             'Integer',
+    double:          'Number',
+    boolean:         'Boolean',
+    date:            'Date',
+    datetime:        'Date+Time',
+    image:           'Image',
+    email:           'Email',
+    password:        'Password',
+    set_of_string:   'Set of Strings',
+    set_of_int:      'Set of Integers',
+    set_of_double:   'Set of Numbers',
+    enum_of_string:  'Enum of Strings',
+    enum_of_int:     'Enum of Integers'
+};
+
+var CTP_TYPE_FAMILIES = {
+    String: 'string', LocalizedString: 'string', text: 'string', ltext: 'string',
+    Number: 'number', number: 'number', Money: 'money', money: 'money',
+    Integer: 'integer',
+    Boolean: 'boolean', boolean: 'boolean',
+    Date: 'date', date: 'date',
+    DateTime: 'datetime', datetime: 'datetime',
+    Time: 'time', time: 'time',
+    Enum: 'enum', LocalizedEnum: 'enum', enum: 'enum', lenum: 'enum',
+    Reference: 'reference', reference: 'reference',
+    Set: 'set', set: 'set', 'set-of-string': 'set'
+};
+
+/** Compatible SFCC value_type options per CTP type family (subset of BM types). */
+var FAMILY_SFCC_OPTIONS = {
+    string:    ['string', 'text', 'html', 'email'],
+    number:    ['double', 'int'],
+    integer:   ['int', 'double'],
+    boolean:   ['boolean'],
+    date:      ['date'],
+    datetime:  ['datetime'],
+    time:      ['string', 'text'],
+    money:     ['double', 'int'],
+    enum:      ['enum_of_string', 'string', 'text', 'enum_of_int'],
+    reference: ['string'],
+    set:       ['set_of_string', 'set_of_int', 'set_of_double']
+};
+
+function ctpTypeFamily(ctpType) {
+    return CTP_TYPE_FAMILIES[ctpType] || 'string';
+}
+
+/**
+ * Allowed SFCC value_type options for a CTP type (user-selectable in pre-flight UI).
+ * @param {string} ctpType
+ * @param {string} [defaultType] - pre-selected value (defaults to resolver output)
+ * @returns {Array<{ value: string, label: string }>}
+ */
+function getSfccTypeOptions(ctpType, defaultType) {
+    var family = ctpTypeFamily(ctpType);
+    var values = FAMILY_SFCC_OPTIONS[family] || FAMILY_SFCC_OPTIONS.string;
+    var def    = defaultType
+        || CUSTOM_FIELD_TYPE_MAP[ctpType]
+        || PRODUCT_TYPE_MAP[ctpType]
+        || 'string';
+
+    if (values.indexOf(def) < 0) {
+        values = [def].concat(values);
+    }
+
+    var out = [];
+    for (var i = 0; i < values.length; i++) {
+        var v = values[i];
+        out.push({ value: v, label: SFCC_TYPE_LABELS[v] || v });
+    }
+    return out;
+}
+
+/**
+ * Build a missing-attribute payload for pre-flight UI (includes selectable SFCC types).
+ * @param {Object} entry - { id, label, ctpType, sfccType? }
+ * @param {Function} [resolveFn] - optional resolver (resolveCustomFieldType or resolveProductType)
+ * @returns {Object}
+ */
+function enrichMissingAttribute(entry, resolveFn) {
+    var resolver = resolveFn || resolveCustomFieldType;
+    var sfccType = entry.sfccType || resolver(entry.ctpType) || 'string';
+    return {
+        id:              entry.id,
+        label:           entry.label,
+        ctpType:         entry.ctpType,
+        sfccType:        sfccType,
+        sfccTypeOptions: getSfccTypeOptions(entry.ctpType, sfccType)
+    };
+}
+
 function resolveProductType(ctpType) {
     return PRODUCT_TYPE_MAP[ctpType] || 'string';
 }
@@ -89,6 +189,8 @@ module.exports = {
     resolveProductType:     resolveProductType,
     resolveCustomFieldType: resolveCustomFieldType,
     resolveResourceType:    resolveResourceType,
+    getSfccTypeOptions:     getSfccTypeOptions,
+    enrichMissingAttribute: enrichMissingAttribute,
     confidence:             confidence,
     RESOURCE_TYPE_MAP:      RESOURCE_TYPE_MAP,
     PRODUCT_RESOURCE_IDS:   PRODUCT_RESOURCE_IDS

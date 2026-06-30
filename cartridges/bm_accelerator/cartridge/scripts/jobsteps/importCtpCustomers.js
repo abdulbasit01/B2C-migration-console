@@ -31,11 +31,10 @@ var log = Logger.getLogger('ctp-migration', 'CustomerImport');
  * @returns {dw.system.Status}
  */
 function execute(args) {
-    var importDir = (args.ImportDirectory && String(args.ImportDirectory).trim()) || 'ctp-migration';
+    var importDir = (args.ImportDirectory && String(args.ImportDirectory).trim()) || 'src/migration/customer';
     var listId    = (args.CustomerListID  && String(args.CustomerListID).trim())  || null;
 
-    // Phase 1 writes config.json so the job always targets the correct list
-    var configFile = new File(File.IMPEX + File.SEPARATOR + 'src' + File.SEPARATOR + 'instance' + File.SEPARATOR + importDir + File.SEPARATOR + 'config.json');
+    var configFile = new File(File.IMPEX + File.SEPARATOR + importDir.replace(/\//g, File.SEPARATOR) + File.SEPARATOR + 'config.json');
     if (configFile.exists()) {
         var cfr = null;
         try {
@@ -63,7 +62,7 @@ function execute(args) {
         return new Status(Status.ERROR, 'NOT_FOUND', 'Customer list not found: ' + listId);
     }
 
-    var dir = new File(File.IMPEX + File.SEPARATOR + 'src' + File.SEPARATOR + 'instance' + File.SEPARATOR + importDir);
+    var dir = new File(File.IMPEX + File.SEPARATOR + importDir.replace(/\//g, File.SEPARATOR));
     if (!dir.exists() || !dir.isDirectory()) {
         log.error('Import directory not found: ' + importDir);
         return new Status(Status.ERROR, 'NOT_FOUND', 'Directory not found: ' + importDir);

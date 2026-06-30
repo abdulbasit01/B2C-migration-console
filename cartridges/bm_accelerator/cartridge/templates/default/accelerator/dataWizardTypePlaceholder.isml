@@ -11,7 +11,7 @@
 
         <footer class="acc-wizard-footer">
             <isinclude template="accelerator/components/dataWizardNavPrev"/>
-            <a class="acc-btn acc-btn--primary" href="${pdict.dashboardUrl}">
+            <a class="acc-btn acc-btn--primary" href="${pdict.dataWizardEntryUrl}">
                 ${Resource.msg('accelerator.datawizard.finish', 'accelerator', null)}
             </a>
         </footer>

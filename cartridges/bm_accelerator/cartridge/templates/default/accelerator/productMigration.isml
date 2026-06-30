@@ -1,6 +1,7 @@
 <isdecorate template="application/MenuFrame">
 <iscontent type="text/html" charset="UTF-8"/>
 <link rel="stylesheet" href="${pdict.cssUrl}"/>
+<script src="${pdict.attrPreflightJsUrl}"></script>
 <style>
         .acc-tab {
             padding: 8px 20px;
@@ -93,6 +94,16 @@
             border-color: #0070d2;
             background: #fff;
             box-shadow: 0 0 0 2px rgba(0,112,210,.15);
+        }
+        .cm-attr-type-select {
+            font-size: 12px;
+            padding: 4px 6px;
+            border: 1px solid #c8d6f0;
+            border-radius: 3px;
+            background: #fff;
+            color: #16325c;
+            min-width: 140px;
+            max-width: 180px;
         }
         .cm-btn {
             padding: 7px 16px;
@@ -271,12 +282,13 @@
                     <p class="acc-phases__detail" id="full-detail-import">Complete Phase 1 first.</p>
                     <div id="full-phase2-instructions" style="display:none;margin-top:12px;">
                         <div class="acc-info-box" style="margin:0;">
-                            XML files uploaded to <code>/Impex/src/instance/ctp-product-migration/</code><br/><br/>
+                            XML files uploaded to <code>/Impex/${pdict.impexPath}/</code>
+                            (e.g. <code>product-YYYYMMDD-v001.xml</code>)<br/><br/>
                             <strong>To import in BM:</strong><br/>
                             <strong>Administration &rarr; Operations &rarr; Import &amp; Export</strong><br/>
                             &rarr; Select <strong>Catalog</strong> &rarr; choose the uploaded XML file &rarr; Import<br/><br/>
                             <em>Or run a BM Job with step type <code>sfcc.catalog.catalog-import</code>
-                            pointing to <code>ctp-product-migration</code> directory.</em>
+                            pointing to <code>/Impex/${pdict.impexPath}/</code>.</em>
                         </div>
                     </div>
                 </li>
@@ -305,6 +317,7 @@
     var CREATE_ATTRS_URL = '${pdict.createAttrsUrl}';
     var DELETE_ATTR_URL  = '${pdict.deleteAttrUrl}';
     var CATALOGS_URL     = '${pdict.catalogsUrl}';
+    var DATA_WIZARD_ENTRY_URL = '${pdict.dataWizardEntryUrl}';
 
     // ── Load SFCC Catalogs into dropdown ─────────────────────────────────────
     var catalogSelect = document.getElementById('prod-catalog-id');
@@ -454,7 +467,7 @@
                 + '<td><input type="text" class="cm-attr-id-input" data-idx="' + i + '" value="' + m.id + '" title="Edit attribute ID"/></td>'
                 + '<td>' + (m.label || m.id) + '</td>'
                 + '<td style="color:#8a9ab8;">' + m.ctpType + '</td>'
-                + '<td style="color:#0070d2;font-weight:600;">' + m.sfccType + '</td>'
+                + '<td>' + window.AccAttrPreflight.sfccTypeSelectHtml(m, i) + '</td>'
                 + '<td><button type="button" class="cm-btn--revert prod-attr-revert-btn" data-idx="' + i + '" disabled title="Create the attribute first to enable revert">Revert</button></td>'
                 + '</tr>';
         }
@@ -511,7 +524,12 @@
                     var orig     = pendingMissing[idx];
                     var idInput  = document.querySelector('.cm-attr-id-input[data-idx="' + idx + '"]');
                     var editedId = (idInput && idInput.value.trim()) ? idInput.value.trim() : orig.id;
-                    selected.push({ id: editedId, label: orig.label, ctpType: orig.ctpType, sfccType: orig.sfccType });
+                    selected.push({
+                        id: editedId,
+                        label: orig.label,
+                        ctpType: orig.ctpType,
+                        sfccType: window.AccAttrPreflight.readSfccType(idx, orig.sfccType)
+                    });
                     selectedIndices.push(idx);
                 }
             }
@@ -664,8 +682,13 @@
     var fullStatus   = document.getElementById('full-move-status');
     var fullPhases   = document.getElementById('full-phase-list');
     var fullRunning  = false;
+    var fullFinished = false;
     var fullBuilt    = 0;
     var fullFailed   = 0;
+
+    function goToDataWizard() {
+        window.location.href = DATA_WIZARD_ENTRY_URL;
+    }
 
     function runFullBatch(offset, total) {
         var pct = (total > 0) ? Math.round((offset / total) * 100) : 0;
@@ -699,9 +722,10 @@
     function finalizeFull(success) {
         fullRunning              = false;
         fullStartBtn.disabled    = false;
-        fullStartBtn.textContent = success ? 'Phase 1 Done' : 'Build Failed';
-        fullStatus.style.display = 'block';
         if (success) {
+            fullFinished             = true;
+            fullStartBtn.textContent = 'Finish';
+            fullStatus.style.display = 'block';
             fullStatus.className   = fullFailed > 0 ? 'acc-callout acc-callout--warning' : 'acc-callout acc-callout--success';
             fullStatus.textContent = fullBuilt + ' product(s) written to XML.'
                 + (fullFailed ? ' ' + fullFailed + ' skipped.' : '')
@@ -710,13 +734,21 @@
             var inst = document.getElementById('full-phase2-instructions');
             if (inst) inst.style.display = 'block';
         } else {
+            fullFinished             = false;
+            fullStartBtn.textContent = 'Build Failed';
+            fullStatus.style.display = 'block';
             fullStatus.className   = 'acc-callout acc-callout--warning';
             fullStatus.textContent = 'Build failed — check server logs.';
         }
     }
 
     fullStartBtn.addEventListener('click', function () {
+        if (fullFinished) {
+            goToDataWizard();
+            return;
+        }
         if (fullRunning) return;
+        fullFinished = false;
         fullRunning  = true;
         fullBuilt    = 0;
         fullFailed   = 0;

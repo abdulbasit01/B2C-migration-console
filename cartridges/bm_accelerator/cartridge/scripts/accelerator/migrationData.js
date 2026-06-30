@@ -67,6 +67,14 @@ var DATA_TYPES = [
         status:      'ready',
         iconClass:   'acc-data-type--catalog',
         items:       ['Category hierarchy', 'Catalog assignments', 'Navigation structure']
+    },
+    {
+        id:          'shippingMethod',
+        label:       'Shipping Methods',
+        description: 'Migrate commercetools shipping methods into a selected SFCC site.',
+        status:      'ready',
+        iconClass:   'acc-data-type--shipping',
+        items:       ['Shipping method definitions', 'Zone-based rates', 'Site-specific XML export', 'Attribute pre-flight check']
     }
 ];
 

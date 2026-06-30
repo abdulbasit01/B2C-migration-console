@@ -21,10 +21,12 @@ const ROOT = path.resolve(__dirname, '..');
 const CARTRIDGE = path.join(ROOT, 'cartridges/bm_accelerator/cartridge');
 const SCSS = path.join(CARTRIDGE, 'client/default/scss/accelerator-migration.scss');
 const JS_SRC = path.join(CARTRIDGE, 'client/default/js/data-wizard.js');
+const ATTR_PREFLIGHT_SRC = path.join(CARTRIDGE, 'client/default/js/attr-preflight.js');
 const CSS_OUT_DIR = path.join(CARTRIDGE, 'static/default/css');
 const CSS_OUT_FILE = path.join(CSS_OUT_DIR, 'accelerator-migration.css');
 const JS_OUT_DIR = path.join(CARTRIDGE, 'static/default/js');
 const JS_OUT_FILE = path.join(JS_OUT_DIR, 'data-wizard.js');
+const ATTR_PREFLIGHT_OUT = path.join(JS_OUT_DIR, 'attr-preflight.js');
 
 if (!fs.existsSync(SCSS)) {
     console.error('ERROR: SCSS source not found:', SCSS);
@@ -41,4 +43,9 @@ if (fs.existsSync(JS_SRC)) {
     fs.mkdirSync(JS_OUT_DIR, { recursive: true });
     fs.copyFileSync(JS_SRC, JS_OUT_FILE);
     console.log('Copied data-wizard.js →', JS_OUT_FILE);
+}
+if (fs.existsSync(ATTR_PREFLIGHT_SRC)) {
+    fs.mkdirSync(JS_OUT_DIR, { recursive: true });
+    fs.copyFileSync(ATTR_PREFLIGHT_SRC, ATTR_PREFLIGHT_OUT);
+    console.log('Copied attr-preflight.js →', ATTR_PREFLIGHT_OUT);
 }

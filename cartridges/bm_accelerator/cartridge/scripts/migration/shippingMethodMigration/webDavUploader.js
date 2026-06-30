@@ -3,7 +3,7 @@
 var corePaths    = require('*/cartridge/scripts/migration/core/migrationPaths');
 var coreUploader = require('*/cartridge/scripts/migration/core/webDavUploader');
 
-var REL_PATH = corePaths.getRelativePath('product');
+var REL_PATH = corePaths.getRelativePath('shippingMethod');
 
 function ensureDirectory() {
     return coreUploader.ensureDirectory(REL_PATH);
@@ -18,8 +18,8 @@ function uploadFile(fileName, content) {
 }
 
 module.exports = {
-    ensureDirectory: ensureDirectory,
-    fileExists:      fileExists,
-    uploadFile:      uploadFile,
+    ensureDirectory:      ensureDirectory,
+    fileExists:           fileExists,
+    uploadFile:           uploadFile,
     MODULE_RELATIVE_PATH: REL_PATH
 };
