@@ -152,7 +152,7 @@ var STORE_ATTRS = '        <store-attributes>\n'
  *
  * @returns {{ productXml: string, categoryXml: string }}
  */
-function buildProductXml(t) {
+function buildProductXml(t, selectedVarAttrs) {
     var pid        = xmlEsc(t.productId);
     var productXml = '';
     var catXml     = '';
@@ -227,6 +227,8 @@ function buildProductXml(t) {
                 var a    = v.attributes[ai];
                 var val  = a.value;
                 if (val === null || val === undefined || typeof val === 'object') continue;
+                // Skip attrs not in the user-selected variant attr list (if a selection was saved).
+                if (selectedVarAttrs && selectedVarAttrs.length && selectedVarAttrs.indexOf(a.name) === -1) continue;
                 // Use nativeFieldMap to resolve the SFCC custom attr ID.
                 // custom_attr entries have an explicit sfccField; others get ctp_<name>.
                 var rule = nativeMap.getRule('commercetools', 'Product', a.name);
@@ -260,7 +262,7 @@ function buildProductXml(t) {
  * @param {string} catalogId
  * @returns {{ xml: string, built: number, failed: number, errors: Array }}
  */
-function buildXml(ctpProducts, catalogId) {
+function buildXml(ctpProducts, catalogId, selectedVarAttrs) {
     var built         = 0;
     var failed        = 0;
     var errors        = [];
@@ -270,7 +272,7 @@ function buildXml(ctpProducts, catalogId) {
     for (var i = 0; i < ctpProducts.length; i++) {
         try {
             var t      = transformer.transformProduct(ctpProducts[i]);
-            var result = buildProductXml(t);
+            var result = buildProductXml(t, selectedVarAttrs);
             productsXml   += result.productXml;
             categoriesXml += result.categoryXml;
             built++;
