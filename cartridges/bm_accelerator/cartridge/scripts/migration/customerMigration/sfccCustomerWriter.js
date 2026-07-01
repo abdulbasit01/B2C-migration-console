@@ -75,7 +75,8 @@ function createCustomer(token, listId, profile, password) {
             }
         }
 
-        result.customerNo = String(p.customerNo);
+        result.customerNo         = String(p.customerNo);
+        result.ctpCustomerGroupId = profile.c_ctp_customer_group_id || null;
         Transaction.commit();
         result.ok = true;
     } catch (e) {

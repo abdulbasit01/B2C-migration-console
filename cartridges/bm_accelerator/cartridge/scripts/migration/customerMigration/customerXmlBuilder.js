@@ -76,6 +76,13 @@ function buildCustomerXml(ctpCustomer) {
         xml += '        </addresses>\n';
     }
 
+    // Include customer group assignment — CTP group UUID used directly as SFCC group ID
+    if (ctpCustomer.customerGroup && ctpCustomer.customerGroup.id) {
+        xml += '        <customer-groups>\n';
+        xml += '            <customer-group group-id="' + xmlEsc(ctpCustomer.customerGroup.id) + '"/>\n';
+        xml += '        </customer-groups>\n';
+    }
+
     xml += '    </customer>\n';
     return xml;
 }
