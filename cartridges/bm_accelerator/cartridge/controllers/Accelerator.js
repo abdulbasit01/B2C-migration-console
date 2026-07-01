@@ -1165,38 +1165,13 @@ exports.GetCustomerLists.public = true;
  */
 exports.GetProductCatalogs = function () {
     try {
-        var sfccClient = require('*/cartridge/scripts/migration/sfccClient');
-        var token      = sfccClient.getSFCCToken();
-        var s          = sfccClient.getSFCCSettings();
-        var HTTPClient = require('dw/net/HTTPClient');
-        var client     = new HTTPClient();
-        var url        = s.baseUrl + '/s/-/dw/data/' + s.metaVersion
-                       + '/catalogs?client_id=' + encodeURIComponent(s.bmClientId);
-
-        client.setTimeout(15000);
-        client.open('GET', url);
-        client.setRequestHeader('Authorization', 'Bearer ' + token);
-        client.setRequestHeader('Content-Type', 'application/json');
-        client.send();
-
-        var sc = client.statusCode;
-        if (sc !== 200) {
-            jsonResponse({ ok: false, error: 'SFCC API returned HTTP ' + sc });
-            return;
-        }
-
-        var parsed;
-        try { parsed = JSON.parse(client.text); } catch (e) { jsonResponse({ ok: false, error: 'Parse error' }); return; }
-
-        var data   = parsed.data || [];
-        var result = [];
-        var seen   = {};
-        for (var i = 0; i < data.length; i++) {
-            var catId = data[i].id || (data[i].catalog && data[i].catalog.id);
-            if (catId && !seen[catId]) {
-                seen[catId] = true;
-                result.push({ id: catId });
-            }
+        var CatalogMgr = require('dw/catalog/CatalogMgr');
+        var allCatalogs = CatalogMgr.getAllCatalogs();
+        var result      = [];
+        var it          = allCatalogs.iterator();
+        while (it.hasNext()) {
+            var cat = it.next();
+            result.push({ id: cat.ID });
         }
         jsonResponse({ ok: true, catalogs: result });
     } catch (e) {
@@ -1204,6 +1179,66 @@ exports.GetProductCatalogs = function () {
     }
 };
 exports.GetProductCatalogs.public = true;
+
+/**
+ * GET — Returns all CTP variant product attributes plus the saved selection from session.
+ * Response: { ok, attrs: [{ name, sfccId, label, ctpType }], savedSelection: [string]|null }
+ */
+exports.GetVariantAttrs = function () {
+    try {
+        var checker    = require('*/cartridge/scripts/migration/productMigration/productAttrChecker');
+        var sfccClient = require('*/cartridge/scripts/migration/sfccClient');
+        var fields     = checker.getCtpProductTypeFields();
+
+        var existingIds = {};
+        try {
+            var tok     = sfccClient.getSFCCToken();
+            existingIds = sfccClient.getExistingAttributeIds(tok, 'Product') || {};
+        } catch (se) {}
+
+        var enriched = [];
+        for (var i = 0; i < fields.length; i++) {
+            var f = fields[i];
+            enriched.push({
+                name:         f.name,
+                sfccId:       f.sfccId,
+                label:        f.label,
+                ctpType:      f.ctpType,
+                existsInSfcc: !!existingIds[f.sfccId]
+            });
+        }
+
+        var savedRaw       = String(session.custom.selectedVariantAttrs || '');
+        var savedSelection = null;
+        if (savedRaw) {
+            try { savedSelection = JSON.parse(savedRaw); } catch (pe) {}
+        }
+        jsonResponse({ ok: true, attrs: enriched, savedSelection: savedSelection });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.GetVariantAttrs.public = true;
+
+/**
+ * POST: attrs=<JSON array of attr names to include in variant XML>
+ * Saves the selection to session. Pass empty array to include none; omit or null to include all.
+ */
+exports.SaveVariantAttrSelection = function () {
+    try {
+        var attrsJson = getParam('attrs');
+        if (!attrsJson) {
+            session.custom.selectedVariantAttrs = null;
+        } else {
+            var parsed = JSON.parse(attrsJson);
+            session.custom.selectedVariantAttrs = JSON.stringify(parsed);
+        }
+        jsonResponse({ ok: true });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.SaveVariantAttrSelection.public = true;
 
 /**
  * Compare CTP customer custom fields against SFCC Customer attribute definitions.
@@ -2208,13 +2243,15 @@ exports.ProductWizard = function () {
         countUrl:       URLUtils.url('Accelerator-ProductMigrationCount').toString(),
         partialUrl:     URLUtils.url('Accelerator-MigrateProductById').toString(),
         fullBatchUrl:   URLUtils.url('Accelerator-FullProductMigrationBuildBatch').toString(),
-        checkAttrsUrl:  URLUtils.url('Accelerator-CheckProductAttributes').toString(),
-        createAttrsUrl: URLUtils.url('Accelerator-CreateProductAttributes').toString(),
-        deleteAttrUrl:  URLUtils.url('Accelerator-DeleteProductAttribute').toString(),
-        catalogsUrl:    URLUtils.url('Accelerator-GetProductCatalogs').toString(),
-        dashboardUrl:   URLUtils.url('Accelerator-Start').toString(),
-        cssUrl:         URLUtils.staticURL('/css/accelerator-migration.css').toString(),
-        attrPreflightJsUrl: URLUtils.staticURL('/js/attr-preflight.js').toString()
+        checkAttrsUrl:       URLUtils.url('Accelerator-CheckProductAttributes').toString(),
+        createAttrsUrl:      URLUtils.url('Accelerator-CreateProductAttributes').toString(),
+        deleteAttrUrl:       URLUtils.url('Accelerator-DeleteProductAttribute').toString(),
+        catalogsUrl:         URLUtils.url('Accelerator-GetProductCatalogs').toString(),
+        variantAttrsUrl:     URLUtils.url('Accelerator-GetVariantAttrs').toString(),
+        saveVariantAttrsUrl: URLUtils.url('Accelerator-SaveVariantAttrSelection').toString(),
+        dashboardUrl:        URLUtils.url('Accelerator-Start').toString(),
+        cssUrl:              URLUtils.staticURL('/css/accelerator-migration.css').toString(),
+        attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString()
     }, 'rc_accelerator_product_wizard'));
 };
 exports.ProductWizard.public = true;
@@ -2279,9 +2316,14 @@ exports.FullProductMigrationBuildBatch = function () {
         jsonResponse({ ok: false, error: 'sfcc.catalogId is not configured in config.js' });
         return;
     }
+    var selectedVarAttrs = null;
+    try {
+        var raw = String(session.custom.selectedVariantAttrs || '');
+        if (raw) { selectedVarAttrs = JSON.parse(raw); }
+    } catch (pe) {}
     try {
         var prodRunner = require('*/cartridge/scripts/migration/productMigration/fullProductMigrationRunner');
-        jsonResponse(prodRunner.runBatch(offset, catalogId));
+        jsonResponse(prodRunner.runBatch(offset, catalogId, selectedVarAttrs));
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
     }
@@ -2304,9 +2346,14 @@ exports.MigrateProductById = function () {
         jsonResponse({ ok: false, error: 'sfcc.catalogId is not configured in config.js' });
         return;
     }
+    var selectedVarAttrs = null;
+    try {
+        var raw = String(session.custom.selectedVariantAttrs || '');
+        if (raw) { selectedVarAttrs = JSON.parse(raw); }
+    } catch (pe) {}
     try {
         var prodRunner = require('*/cartridge/scripts/migration/productMigration/fullProductMigrationRunner');
-        jsonResponse(prodRunner.runById(ctpId, catalogId));
+        jsonResponse(prodRunner.runById(ctpId, catalogId, selectedVarAttrs));
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
     }

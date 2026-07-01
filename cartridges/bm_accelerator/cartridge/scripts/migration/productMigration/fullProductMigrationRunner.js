@@ -8,7 +8,16 @@ var fileResolver = require('*/cartridge/scripts/migration/core/migrationFileReso
 var MODULE_KEY = 'product';
 var BATCH_SIZE = 500;
 
-function runBatch(offset, catalogId) {
+/**
+ * Run one migration batch — fetches BATCH_SIZE products from CTP, builds
+ * SFCC catalog XML, and uploads to WebDAV.
+ *
+ * @param {number} offset           - CTP pagination offset
+ * @param {string} catalogId        - target SFCC catalog ID
+ * @param {Array}  selectedVarAttrs - CTP attr names to include (null = all)
+ * @returns {{ ok, total, nextOffset, done, built, failed, errors }}
+ */
+function runBatch(offset, catalogId, selectedVarAttrs) {
     if (!catalogId) return { ok: false, error: 'catalogId is required' };
 
     var batch    = fetcher.fetchBatch(offset, BATCH_SIZE);
@@ -32,7 +41,7 @@ function runBatch(offset, catalogId) {
     var fileName  = fileResolver.resolveXmlFileName(MODULE_KEY, offset, BATCH_SIZE, 'webdav');
     var impexPath = fileResolver.getRelativePath(MODULE_KEY);
 
-    var catalogResult = xmlBuilder.buildXml(rawProds, catalogId);
+    var catalogResult = xmlBuilder.buildXml(rawProds, catalogId, selectedVarAttrs);
     var putResult     = uploader.uploadFile(fileName, catalogResult.xml);
     if (!putResult.ok) {
         return { ok: false, error: 'WebDAV upload failed: ' + putResult.error };
@@ -53,7 +62,16 @@ function runBatch(offset, catalogId) {
     };
 }
 
-function runById(ctpId, catalogId) {
+/**
+ * Migrate a single product by CTP product ID — fetches from CTP, builds XML,
+ * uploads to WebDAV.
+ *
+ * @param {string} ctpId            - CTP product UUID
+ * @param {string} catalogId        - target SFCC catalog ID
+ * @param {Array}  selectedVarAttrs - CTP attr names to include (null = all)
+ * @returns {{ ok, built, failed, errors }}
+ */
+function runById(ctpId, catalogId, selectedVarAttrs) {
     if (!ctpId)     return { ok: false, error: 'ctpId is required' };
     if (!catalogId) return { ok: false, error: 'catalogId is required' };
 
@@ -65,7 +83,7 @@ function runById(ctpId, catalogId) {
     }
 
     var fileName      = fileResolver.resolveXmlFileName(MODULE_KEY, 0, 1, 'webdav');
-    var catalogResult = xmlBuilder.buildXml([product], catalogId);
+    var catalogResult = xmlBuilder.buildXml([product], catalogId, selectedVarAttrs);
     var putResult     = uploader.uploadFile(fileName, catalogResult.xml);
     if (!putResult.ok) {
         return { ok: false, error: 'WebDAV upload failed: ' + putResult.error };
