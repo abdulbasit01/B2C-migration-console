@@ -85,7 +85,7 @@ function transformProduct(ctpProduct) {
     var taxClassId = (ctpProduct.taxCategory && ctpProduct.taxCategory.id)
         ? ctpProduct.taxCategory.id : '';
 
-    // Collect all variants
+    // Collect all variants — masterVariant first (CTP's designated default)
     var variants = [];
     if (mv.sku) {
         variants.push({
@@ -107,6 +107,14 @@ function transformProduct(ctpProduct) {
                 attributes: v.attributes || []
             });
         }
+    }
+    // Guarantee exactly one default — fallback to first variant if masterVariant had no SKU
+    var hasDefault = false;
+    for (var di = 0; di < variants.length; di++) {
+        if (variants[di].isDefault) { hasDefault = true; break; }
+    }
+    if (!hasDefault && variants.length > 0) {
+        variants[0].isDefault = true;
     }
 
     // Category IDs from CTP references

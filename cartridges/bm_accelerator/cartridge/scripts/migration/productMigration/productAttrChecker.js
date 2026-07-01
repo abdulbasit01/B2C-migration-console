@@ -177,6 +177,7 @@ function createAttributes(attrs) {
 }
 
 module.exports = {
-    checkMissingAttributes: checkMissingAttributes,
-    createAttributes:       createAttributes
+    getCtpProductTypeFields: getCtpProductTypeFields,
+    checkMissingAttributes:  checkMissingAttributes,
+    createAttributes:        createAttributes
 };
