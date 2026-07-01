@@ -14,7 +14,6 @@
             summaryId:   'acc-pb-standalone-summary',
             selectAllId: 'acc-pb-standalone-select-all',
             reloadBtnId: 'acc-reload-standalone-btn',
-            checkBtnId:  'acc-check-standalone-counts-btn',
             cbClass:     'acc-pb-standalone-cb',
             idClass:     'acc-pb-standalone-id',
             countClass:  'acc-pb-standalone-count',
@@ -29,7 +28,6 @@
             summaryId:   'acc-pb-embedded-summary',
             selectAllId: 'acc-pb-embedded-select-all',
             reloadBtnId: 'acc-reload-embedded-btn',
-            checkBtnId:  'acc-check-embedded-counts-btn',
             cbClass:     'acc-pb-embedded-cb',
             idClass:     'acc-pb-embedded-id',
             countClass:  'acc-pb-embedded-count',
@@ -389,12 +387,6 @@
             });
         }
 
-        function checkSectionCounts(sec) {
-            var cells = document.querySelectorAll('.' + sec.countClass);
-            var i;
-            for (i = 0; i < cells.length; i++) fetchRowCount(sec, cells[i]);
-        }
-
         function readExportFromRow(sec, exportKey) {
             var cb = document.querySelector('.' + sec.cbClass + '[data-export-key="' + exportKey + '"]');
             if (!cb || !cb.checked) return null;
@@ -657,7 +649,6 @@
         for (si = 0; si < SECTIONS.length; si++) {
             (function (sec) {
                 var selectAll = document.getElementById(sec.selectAllId);
-                var checkBtn = document.getElementById(sec.checkBtnId);
                 var reloadBtn = document.getElementById(sec.reloadBtnId);
 
                 if (selectAll) {
@@ -666,11 +657,6 @@
                         var i;
                         for (i = 0; i < cbs.length; i++) cbs[i].checked = this.checked;
                         updateSectionSummary(sec);
-                    });
-                }
-                if (checkBtn) {
-                    checkBtn.addEventListener('click', function () {
-                        checkSectionCounts(sec);
                     });
                 }
                 if (reloadBtn) {

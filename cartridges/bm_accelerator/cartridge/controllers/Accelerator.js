@@ -522,6 +522,36 @@ exports.CountOrders = function () {
 };
 exports.CountOrders.public = true;
 
+exports.CheckOrderAttributes = function () {
+    try {
+        var checker = require('*/cartridge/scripts/migration/orders/orderAttrChecker');
+        jsonResponse({ ok: true, missing: checker.checkMissingAttributes() });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.CheckOrderAttributes.public = true;
+
+exports.CreateOrderAttributes = function () {
+    var rawAttrs = getParam('attrs');
+    var attrs    = [];
+    try { attrs = JSON.parse(rawAttrs || '[]'); } catch (e) {
+        jsonResponse({ ok: false, error: 'Invalid attrs JSON' });
+        return;
+    }
+    if (!attrs.length) {
+        jsonResponse({ ok: false, error: 'No attributes provided' });
+        return;
+    }
+    try {
+        var checker = require('*/cartridge/scripts/migration/orders/orderAttrChecker');
+        jsonResponse({ ok: true, result: checker.createAttributes(attrs) });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.CreateOrderAttributes.public = true;
+
 /**
  * Download a generated migration file from IMPEX/src/migration/.
  * GET: path=src/migration/{runId}/src/orders/orders_001.xml
@@ -758,6 +788,8 @@ exports.DataWizard = function () {
         nextStepQuery:       toStepQuery(nextStep),
         isLastStep:          currentStep >= maxStep,
         dashboardUrl:        URLUtils.url('Accelerator-Start').toString(),
+        dataWizardSelectUrl: dataMigrationSession.dataWizardSelectUrl(platformId),
+        hideDataSelectionBack: wizardStep.key === 'connect' || wizardStep.key === 'selectType',
         dataWizardEntryUrl:  dataMigrationSession.dataWizardUrl(platformId),
         wizardBaseUrl:       wizardBaseUrl,
         continueUrl:         URLUtils.url('Accelerator-DataWizardContinue').toString(),
@@ -765,9 +797,12 @@ exports.DataWizard = function () {
         testConnectionUrl:   URLUtils.url('Accelerator-TestConnection').toString(),
         exportUrl:           URLUtils.url('Accelerator-ExportOrders').toString(),
         orderCountUrl:       URLUtils.url('Accelerator-CountOrders').toString(),
+        checkAttrsUrl:       URLUtils.url('Accelerator-CheckOrderAttributes').toString(),
+        createAttrsUrl:      URLUtils.url('Accelerator-CreateOrderAttributes').toString(),
         downloadUrl:         URLUtils.url('Accelerator-DownloadMigrationFile').toString(),
         categoryMigrationUrl: URLUtils.url('Accelerator-CategoryMigration').toString(),
         dataWizardJsUrl:     URLUtils.staticURL('/js/data-wizard.js').toString(),
+        attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString(),
         cssUrl:              URLUtils.staticURL('/css/accelerator-migration.css').toString()
     }));
 };
@@ -1033,6 +1068,7 @@ exports.Wizard = function () {
         nextStepLabel: migrationData.getNextStepLabel(currentStep),
         isLastStep:    currentStep >= migrationData.maxStep,
         dashboardUrl:  URLUtils.url('Accelerator-Start').toString(),
+        dataWizardSelectUrl: dataMigrationSession.dataWizardSelectUrl(platformId),
         wizardBaseUrl: URLUtils.url('Accelerator-Wizard', 'platform', platform.id).toString(),
         cssUrl:        URLUtils.staticURL('/css/accelerator-migration.css').toString()
     }));
@@ -1600,7 +1636,7 @@ exports.InventoryMigration = function () {
         impexUrl:            pageCtx.impexUrl,
         cssUrl:              URLUtils.staticURL('/css/accelerator-migration.css').toString(),
         attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString(),
-        inventoryMigrationJsUrl: URLUtils.staticURL('/js/inventory-migration.js').toString() + '?v=4',
+        inventoryMigrationJsUrl: URLUtils.staticURL('/js/inventory-migration.js').toString() + '?v=5',
         jobsUrl:             jobsUrl
     }));
 };
@@ -1733,7 +1769,7 @@ exports.PricebookMigration = function () {
         impexUrl:            pageCtx.impexUrl,
         cssUrl:              URLUtils.staticURL('/css/accelerator-migration.css').toString(),
         attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString(),
-        pricebookMigrationJsUrl: URLUtils.staticURL('/js/pricebook-migration.js').toString() + '?v=4',
+        pricebookMigrationJsUrl: URLUtils.staticURL('/js/pricebook-migration.js').toString() + '?v=5',
         jobsUrl:             jobsUrl
     }));
 };

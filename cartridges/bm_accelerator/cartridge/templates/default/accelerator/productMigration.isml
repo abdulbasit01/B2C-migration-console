@@ -154,7 +154,7 @@
     <isinclude template="accelerator/components/header"/>
 
     <div style="padding:10px 32px 0;">
-        <a href="${pdict.dashboardUrl}" style="font-size:13px;color:#0070d2;text-decoration:none;">&larr; Back to Dashboard</a>
+        <isinclude template="accelerator/components/migrationBackLink"/>
     </div>
 
     <section class="acc-section">
@@ -179,15 +179,13 @@
                     </select>
                     <span id="prod-catalog-id-error" class="acc-field-error">Catalog ID is required.</span>
                 </div>
-                <button id="prod-check-btn" type="button" class="acc-btn acc-btn--ghost">Check Count</button>
-                <span id="prod-count-badge" style="font-size:13px;color:#54698d;padding-top:6px;"></span>
             </div>
         </div>
 
         <!-- ── Attribute Pre-flight Panel ── -->
         <div id="prod-attr-preflight" style="margin:0 0 28px;border:1px solid #dddbda;border-radius:6px;overflow:hidden;">
             <div style="background:#f4f6f9;border-bottom:1px solid #dddbda;padding:11px 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-                <span style="font-weight:700;font-size:14px;color:#16325c;">&#x26A1; Attribute Pre-flight Check</span>
+                <span style="font-weight:700;font-size:14px;color:#16325c;">Attribute Pre-flight Check</span>
                 <button id="prod-check-attrs-btn" type="button" class="acc-btn acc-btn--ghost">Check CTP Attributes</button>
                 <span id="prod-attr-check-msg" style="font-size:13px;color:#54698d;font-weight:600;"></span>
             </div>
@@ -326,23 +324,15 @@
 
 <script>
 (function () {
-    var COUNT_URL        = '${pdict.countUrl}';
     var PARTIAL_URL      = '${pdict.partialUrl}';
     var FULL_BATCH_URL   = '${pdict.fullBatchUrl}';
-<<<<<<< Updated upstream
-    var CHECK_ATTRS_URL  = '${pdict.checkAttrsUrl}';
-    var CREATE_ATTRS_URL = '${pdict.createAttrsUrl}';
-    var DELETE_ATTR_URL  = '${pdict.deleteAttrUrl}';
-    var CATALOGS_URL     = '${pdict.catalogsUrl}';
-    var DATA_WIZARD_ENTRY_URL = '${pdict.dataWizardEntryUrl}';
-=======
-    var CHECK_ATTRS_URL       = '${pdict.checkAttrsUrl}';
-    var CREATE_ATTRS_URL      = '${pdict.createAttrsUrl}';
-    var DELETE_ATTR_URL       = '${pdict.deleteAttrUrl}';
-    var CATALOGS_URL          = '${pdict.catalogsUrl}';
-    var VARIANT_ATTRS_URL     = '${pdict.variantAttrsUrl}';
+    var CHECK_ATTRS_URL        = '${pdict.checkAttrsUrl}';
+    var CREATE_ATTRS_URL       = '${pdict.createAttrsUrl}';
+    var DELETE_ATTR_URL        = '${pdict.deleteAttrUrl}';
+    var CATALOGS_URL           = '${pdict.catalogsUrl}';
+    var DATA_WIZARD_ENTRY_URL  = '${pdict.dataWizardEntryUrl}';
+    var VARIANT_ATTRS_URL      = '${pdict.variantAttrsUrl}';
     var SAVE_VARIANT_ATTRS_URL = '${pdict.saveVariantAttrsUrl}';
->>>>>>> Stashed changes
 
     // ── Load SFCC Catalogs into dropdown ─────────────────────────────────────
     var catalogSelect = document.getElementById('prod-catalog-id');
@@ -374,9 +364,6 @@
         };
         xhr.send();
     }());
-
-    var checkBtn    = document.getElementById('prod-check-btn');
-    var countBadge  = document.getElementById('prod-count-badge');
 
     // ── Tab switching ────────────────────────────────────────────────────────
 
@@ -607,6 +594,8 @@
         });
     });
 
+    });
+
     // ════════════════════════════════════════════════════════════════════════
     // VARIANT PRODUCT ATTRIBUTE SELECTION
     // ════════════════════════════════════════════════════════════════════════
@@ -677,7 +666,6 @@
         varAttrsResults.innerHTML     = html;
         varAttrsResults.style.display = 'block';
 
-        // Select-all only toggles enabled (SFCC-existing) checkboxes
         document.getElementById('prod-var-attr-select-all').addEventListener('change', function () {
             var cbs = document.querySelectorAll('.prod-var-attr-cb:not([disabled])');
             for (var c = 0; c < cbs.length; c++) { cbs[c].checked = this.checked; }
@@ -687,7 +675,6 @@
             var selected = [];
             var cbs      = document.querySelectorAll('.prod-var-attr-cb');
             for (var c = 0; c < cbs.length; c++) {
-                // Only save attrs that are checked AND exist in SFCC (double-guard)
                 if (cbs[c].checked && cbs[c].getAttribute('data-in-sfcc') === '1') {
                     selected.push(cbs[c].getAttribute('data-name'));
                 }
@@ -714,48 +701,34 @@
         });
     }
 
-    loadVarAttrsBtn.addEventListener('click', function () {
-        loadVarAttrsBtn.disabled    = true;
-        loadVarAttrsBtn.textContent = 'Loading...';
-        varAttrsMsg.textContent     = '';
-        varAttrsResults.style.display = 'none';
+    if (loadVarAttrsBtn) {
+        loadVarAttrsBtn.addEventListener('click', function () {
+            loadVarAttrsBtn.disabled    = true;
+            loadVarAttrsBtn.textContent = 'Loading...';
+            varAttrsMsg.textContent     = '';
+            varAttrsResults.style.display = 'none';
 
-        var xhr = new XMLHttpRequest();
-        xhr.open('GET', VARIANT_ATTRS_URL, true);
-        xhr.onreadystatechange = function () {
-            if (xhr.readyState !== 4) return;
-            loadVarAttrsBtn.disabled    = false;
-            loadVarAttrsBtn.textContent = 'Reload';
-            var data;
-            try { data = JSON.parse(xhr.responseText); } catch (e) { data = { ok: false, error: 'Parse error' }; }
-            if (!data.ok) {
-                varAttrsMsg.textContent = 'Error: ' + (data.error || 'Load failed');
-                varAttrsMsg.style.color = '#c62828';
-                return;
-            }
-            var attrCount = (data.attrs || []).length;
-            varAttrsMsg.textContent = attrCount + ' attribute(s) found';
-            varAttrsMsg.style.color = '#54698d';
-            renderVarAttrsTable(data.attrs || [], data.savedSelection);
-        };
-        xhr.send();
-    });
-
-    // ── Check Count ──────────────────────────────────────────────────────────
-
-    checkBtn.addEventListener('click', function () {
-        countBadge.textContent = 'Checking...';
-        countBadge.style.color = '#54698d';
-        post(COUNT_URL, '', function (data) {
-            if (data.ok) {
-                countBadge.textContent = data.total.toLocaleString() + ' product(s) in CTP';
-                countBadge.style.color = '#2e7d32';
-            } else {
-                countBadge.textContent = 'Error: ' + (data.error || 'Connection failed');
-                countBadge.style.color = '#c62828';
-            }
+            var xhr = new XMLHttpRequest();
+            xhr.open('GET', VARIANT_ATTRS_URL, true);
+            xhr.onreadystatechange = function () {
+                if (xhr.readyState !== 4) return;
+                loadVarAttrsBtn.disabled    = false;
+                loadVarAttrsBtn.textContent = 'Reload';
+                var data;
+                try { data = JSON.parse(xhr.responseText); } catch (e) { data = { ok: false, error: 'Parse error' }; }
+                if (!data.ok) {
+                    varAttrsMsg.textContent = 'Error: ' + (data.error || 'Load failed');
+                    varAttrsMsg.style.color = '#c62828';
+                    return;
+                }
+                var attrCount = (data.attrs || []).length;
+                varAttrsMsg.textContent = attrCount + ' attribute(s) found';
+                varAttrsMsg.style.color = '#54698d';
+                renderVarAttrsTable(data.attrs || [], data.savedSelection);
+            };
+            xhr.send();
         });
-    });
+    }
 
     // ════════════════════════════════════════════════════════════════════════
     // PARTIAL MIGRATION
