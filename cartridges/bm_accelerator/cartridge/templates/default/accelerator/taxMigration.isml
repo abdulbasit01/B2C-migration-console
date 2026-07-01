@@ -1,0 +1,165 @@
+<isdecorate template="application/MenuFrame">
+<iscontent type="text/html" charset="UTF-8"/>
+<link rel="stylesheet" href="${pdict.cssUrl}"/>
+<script src="${pdict.attrPreflightJsUrl}"></script>
+<style>
+        .acc-info-box { background: #f4f6f9; border: 1px solid #dddbda; border-radius: 4px; padding: 16px 20px; font-size: 13px; line-height: 1.6; margin-bottom: 20px; }
+        .acc-info-box strong { color: #16325c; }
+        .acc-info-box code { background: #e0e5ee; padding: 1px 5px; border-radius: 3px; font-family: monospace; font-size: 12px; }
+        .cm-attr-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .cm-attr-table thead tr { background: #f4f6f9; border-bottom: 2px solid #dddbda; }
+        .cm-attr-table th { padding: 9px 14px; text-align: left; font-size: 11px; font-weight: 700; color: #54698d; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; }
+        .cm-attr-table td { padding: 9px 14px; border-bottom: 1px solid #f0f2f8; color: #3e3e3c; vertical-align: middle; }
+        .cm-attr-id-input { background: #eaf0fb; border: 1px solid #c8d6f0; border-radius: 3px; font-family: monospace; font-size: 12px; color: #16325c; font-weight: 600; padding: 3px 8px; width: 190px; outline: none; box-sizing: border-box; }
+        .cm-btn { padding: 7px 16px; font-size: 13px; font-weight: 600; border-radius: 4px; cursor: pointer; border: 1px solid transparent; display: inline-block; line-height: 1.4; white-space: nowrap; }
+        .cm-btn--primary { background: #0070d2; color: #fff; border-color: #005fb2; }
+        .cm-btn--primary:disabled { background: #97c3ea; border-color: #97c3ea; cursor: default; }
+        .tx-details-panel { margin: 0 0 28px; border: 1px solid #dddbda; border-radius: 6px; overflow: hidden; }
+        .tx-details-panel__head { background: #f4f6f9; border-bottom: 1px solid #dddbda; padding: 11px 20px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+        .tx-details-panel__body { padding: 14px 20px; }
+        .tx-file-name { font-family: monospace; font-size: 12px; color: #16325c; }
+        .tx-overview-row { display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid #f0f2f8; font-size: 13px; line-height: 1.5; }
+        .tx-overview-row:last-child { border-bottom: none; }
+        .tx-overview-row__label { flex: 0 0 160px; font-weight: 700; color: #54698d; text-transform: uppercase; font-size: 11px; letter-spacing: 0.4px; padding-top: 2px; }
+        .tx-overview-row__value { flex: 1; color: #16325c; }
+        .tx-tax-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 14px; }
+        .tx-tax-table thead tr { background: #f8f9fb; border-bottom: 2px solid #dddbda; }
+        .tx-tax-table th { padding: 8px 12px; text-align: left; font-size: 11px; font-weight: 700; color: #54698d; text-transform: uppercase; }
+        .tx-tax-table td { padding: 8px 12px; border-bottom: 1px solid #f0f2f8; vertical-align: top; color: #3e3e3c; }
+        .tx-tax-table code { background: #eaf0fb; padding: 2px 6px; border-radius: 3px; font-size: 11px; }
+    </style>
+<div class="acc-page">
+<div class="acc-shell">
+    <isinclude template="accelerator/components/header"/>
+    <div style="padding:10px 32px 0;">
+        <a href="${pdict.dashboardUrl}" style="font-size:13px;color:#0070d2;text-decoration:none;">&larr; Back to Platform Selection</a>
+    </div>
+    <section class="acc-section">
+        <header class="acc-section__head">
+            <h2>Tax Migration &mdash; <span class="acc-highlight">Commercetools &rarr; SFCC</span></h2>
+            <p style="font-size:14px;color:#54698d;margin-top:6px;max-width:720px;">
+                Export CTP <strong>tax categories</strong> and rates into one SFCC tax IMPEX XML file
+                (<code>tax-classes</code>, <code>tax-jurisdictions</code>, <code>tax-rates</code>).
+            </p>
+        </header>
+
+        <div id="acc-attr-preflight" style="margin:24px 0 28px;border:1px solid #dddbda;border-radius:6px;overflow:hidden;">
+            <div style="background:#f4f6f9;border-bottom:1px solid #dddbda;padding:11px 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                <span style="font-weight:700;font-size:14px;color:#16325c;">Attribute Pre-flight Check</span>
+                <button id="acc-check-attrs-btn" type="button" class="acc-btn acc-btn--ghost">Check CTP Attributes</button>
+                <span id="acc-attr-check-msg" style="font-size:13px;color:#54698d;font-weight:600;"></span>
+            </div>
+            <div style="padding:14px 20px;">
+                <p style="font-size:13px;color:#54698d;margin:0;">
+                    Verifies SFCC <strong>TaxClass</strong> attributes for any CTP custom fields that apply to tax migration.
+                    CTP tax categories use native fields only (name, rates, country) and map to
+                    <code>tax-class</code>, <code>tax-jurisdiction</code>, and <code>tax-rate</code> XML — no custom-type scan is required.
+                </p>
+                <div id="acc-attr-results" style="display:none;margin-top:14px;"></div>
+            </div>
+        </div>
+
+        <div id="acc-tx-root"
+             data-full-batch-url="<isprint value="${pdict.fullBatchUrl}" encoding="htmldoublequote"/>"
+             data-summary-url="<isprint value="${pdict.summaryUrl}" encoding="htmldoublequote"/>"
+             data-check-attrs-url="<isprint value="${pdict.checkAttrsUrl}" encoding="htmldoublequote"/>"
+             data-create-attrs-url="<isprint value="${pdict.createAttrsUrl}" encoding="htmldoublequote"/>"
+             data-wizard-entry-url="<isprint value="${pdict.dataWizardEntryUrl}" encoding="htmldoublequote"/>"
+             data-impex-path="<isprint value="${pdict.impexPath}" encoding="htmldoublequote"/>">
+
+        <div class="tx-details-panel">
+            <div class="tx-details-panel__head">
+                <span style="font-weight:700;font-size:14px;color:#16325c;">Tax Overview</span>
+                <button id="acc-reload-tax-btn" type="button" class="acc-btn acc-btn--ghost">Reload from CTP</button>
+                <span id="acc-tx-summary" style="font-size:13px;color:#54698d;font-weight:600;"></span>
+            </div>
+            <div class="tx-details-panel__body">
+                <p style="font-size:13px;color:#54698d;margin:0;">
+                    Review tax classes and countries found in commercetools before building the export XML.
+                </p>
+                <div id="acc-tx-loading" style="font-size:13px;color:#54698d;margin-top:12px;">Loading tax data from commercetools...</div>
+                <div id="acc-tx-error" style="display:none;font-size:13px;color:#c62828;margin-top:12px;"></div>
+                <div id="acc-tx-overview-wrap" style="display:none;margin-top:12px;">
+                    <div class="tx-overview-row">
+                        <div class="tx-overview-row__label">Tax Classes</div>
+                        <div class="tx-overview-row__value" id="acc-tx-class-labels">&mdash;</div>
+                    </div>
+                    <div class="tx-overview-row">
+                        <div class="tx-overview-row__label">Countries</div>
+                        <div class="tx-overview-row__value" id="acc-tx-country-labels">&mdash;</div>
+                    </div>
+                    <div id="acc-tx-table-wrap" style="display:none;border:1px solid #e0e5ee;border-radius:4px;overflow:auto;max-height:360px;">
+                        <table class="tx-tax-table">
+                            <thead>
+                                <tr>
+                                    <th>Tax Class</th>
+                                    <th>Countries</th>
+                                    <th>Rates</th>
+                                </tr>
+                            </thead>
+                            <tbody id="acc-tx-tbody"></tbody>
+                        </table>
+                    </div>
+                    <p style="font-size:13px;color:#54698d;margin:14px 0 0;">
+                        Output file: <code class="tx-file-name" id="acc-tx-file-name">&mdash;</code>
+                    </p>
+                </div>
+            </div>
+        </div>
+        </div>
+
+        <div class="acc-info-box">
+            <strong>How migration works:</strong><br/>
+            Fetches all tax categories from commercetools, maps CTP rates to SFCC
+            <code>tax-class</code>, <code>tax-jurisdiction</code>, and <code>tax-rate</code> elements,
+            and uploads a single XML file to WebDAV at <code>/Impex/${pdict.impexPath}/</code>.<br/>
+            Import in BM via <strong>Merchant Tools &rarr; Online Marketing &rarr; Import &amp; Export &rarr; Import Tax Tables</strong>
+            (or Administration &rarr; Site Development &rarr; Import &amp; Export).
+        </div>
+
+        <ul class="acc-phases" id="full-phase-list" style="display:none;margin-bottom:24px;">
+            <li class="acc-phases__item acc-phases__item--pending" id="full-phase-build">
+                <div class="acc-phases__head">
+                    <span>Phase 1 &mdash; Build &amp; Upload XML</span>
+                    <span class="acc-phases__status" id="full-status-build">pending</span>
+                </div>
+                <p class="acc-phases__detail" id="full-detail-build"></p>
+                <div class="acc-progress"><div class="acc-progress__bar" id="full-bar-build" style="width:0%"></div></div>
+            </li>
+            <li class="acc-phases__item acc-phases__item--pending" id="full-phase-import">
+                <div class="acc-phases__head">
+                    <span>Phase 2 &mdash; Import in Business Manager</span>
+                    <span class="acc-phases__status" id="full-status-import">pending</span>
+                </div>
+                <p class="acc-phases__detail" id="full-detail-import">Waiting for Phase 1&hellip;</p>
+                <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;">
+                    <a href="${pdict.jobsUrl}" target="_blank" class="acc-btn acc-btn--primary" style="text-decoration:none;font-size:13px;display:inline-block;padding:7px 16px;">Open BM Import</a>
+                    <a href="${pdict.impexUrl}" target="_blank" class="acc-btn acc-btn--ghost" style="text-decoration:none;font-size:13px;display:inline-block;padding:7px 16px;">Open IMPEX</a>
+                </div>
+            </li>
+        </ul>
+
+        <div id="full-move-status" class="acc-callout acc-callout--info" style="display:none;margin-bottom:20px;"></div>
+        <div class="acc-move-actions">
+            <button type="button" id="full-start-btn" class="acc-btn acc-btn--primary" disabled>Start Migration (Build XML)</button>
+            <span id="full-move-overall" style="margin-left:14px;font-size:13px;color:#54698d;"></span>
+        </div>
+    </section>
+</div>
+
+<div id="acc-preflight-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center;">
+    <div style="background:#fff;border-radius:6px;padding:28px 32px;max-width:620px;width:90%;max-height:82vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.3);">
+        <h3 style="margin:0 0 6px;color:#16325c;font-size:16px;">Missing CTP Attributes in SFCC</h3>
+        <p style="font-size:13px;color:#54698d;margin:0 0 16px;">Create missing TaxClass attributes now, or skip and migrate without them.</p>
+        <div id="acc-modal-attr-list"></div>
+        <p id="acc-modal-status" style="font-size:12px;margin:12px 0 0;min-height:16px;"></p>
+        <div style="margin-top:16px;display:flex;gap:12px;justify-content:flex-end;flex-wrap:wrap;">
+            <button id="acc-modal-skip" type="button" class="acc-btn acc-btn--ghost">Skip &amp; Migrate</button>
+            <button id="acc-modal-create" type="button" class="acc-btn acc-btn--primary">Create Attributes &amp; Migrate</button>
+        </div>
+    </div>
+</div>
+
+<script src="${pdict.taxMigrationJsUrl}"></script>
+</div>
+</isdecorate>

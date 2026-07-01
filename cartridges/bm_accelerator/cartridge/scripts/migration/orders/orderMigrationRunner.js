@@ -47,7 +47,8 @@ function run(options) {
         ordersValidated:    validation.valid,
         ordersFailed:       validation.failed,
         xmlFilesGenerated:  xmlChunks.length,
-        runId:              pkg.runId,
+        runId:              pkg.runDate,
+        impexPath:          pkg.impexPath,
         validationReport:   validation
     };
 }
