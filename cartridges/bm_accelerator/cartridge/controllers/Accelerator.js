@@ -1165,13 +1165,38 @@ exports.GetCustomerLists.public = true;
  */
 exports.GetProductCatalogs = function () {
     try {
-        var CatalogMgr = require('dw/catalog/CatalogMgr');
-        var allCatalogs = CatalogMgr.getAllCatalogs();
-        var result      = [];
-        var it          = allCatalogs.iterator();
-        while (it.hasNext()) {
-            var cat = it.next();
-            result.push({ id: cat.ID });
+        var sfccClient = require('*/cartridge/scripts/migration/sfccClient');
+        var token      = sfccClient.getSFCCToken();
+        var s          = sfccClient.getSFCCSettings();
+        var HTTPClient = require('dw/net/HTTPClient');
+        var client     = new HTTPClient();
+        var url        = s.baseUrl + '/s/-/dw/data/' + s.metaVersion
+                       + '/catalogs?client_id=' + encodeURIComponent(s.bmClientId);
+
+        client.setTimeout(15000);
+        client.open('GET', url);
+        client.setRequestHeader('Authorization', 'Bearer ' + token);
+        client.setRequestHeader('Content-Type', 'application/json');
+        client.send();
+
+        var sc = client.statusCode;
+        if (sc !== 200) {
+            jsonResponse({ ok: false, error: 'SFCC API returned HTTP ' + sc });
+            return;
+        }
+
+        var parsed;
+        try { parsed = JSON.parse(client.text); } catch (e) { jsonResponse({ ok: false, error: 'Parse error' }); return; }
+
+        var data   = parsed.data || [];
+        var result = [];
+        var seen   = {};
+        for (var i = 0; i < data.length; i++) {
+            var catId = data[i].id || (data[i].catalog && data[i].catalog.id);
+            if (catId && !seen[catId]) {
+                seen[catId] = true;
+                result.push({ id: catId });
+            }
         }
         jsonResponse({ ok: true, catalogs: result });
     } catch (e) {
