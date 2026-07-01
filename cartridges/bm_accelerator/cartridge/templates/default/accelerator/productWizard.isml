@@ -5,9 +5,7 @@
 <div class="acc-shell">
         <isinclude template="accelerator/components/header"/>
 
-        <a class="acc-back" href="${pdict.dashboardUrl}">
-            &larr; Back to Dashboard
-        </a>
+        <isinclude template="accelerator/components/migrationBackLink"/>
 
         <isinclude template="accelerator/components/stepper"/>
 

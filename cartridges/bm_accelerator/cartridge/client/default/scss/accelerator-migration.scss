@@ -451,16 +451,148 @@ table.main > tbody > tr,
 }
 
 /* Wizard layout */
+.acc-back-nav {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin: 0 0 20px;
+}
+
+.acc-back-nav__sep {
+  color: #c9c9c9;
+  font-size: 13px;
+  line-height: 1;
+  user-select: none;
+}
+
 .acc-back {
-  display: inline-block;
-  margin-bottom: 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
   color: var(--acc-blue);
   text-decoration: none;
   font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+  white-space: nowrap;
 }
 
 .acc-back:hover {
   text-decoration: underline;
+  color: #005fb2;
+}
+
+.acc-order-attr-preflight {
+  margin: 0 0 24px;
+  border: 1px solid var(--acc-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.acc-order-attr-preflight__head {
+  background: #f4f6f9;
+  border-bottom: 1px solid var(--acc-border);
+  padding: 11px 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.acc-order-attr-preflight__title {
+  font-weight: 700;
+  font-size: 14px;
+  color: #16325c;
+}
+
+.acc-order-attr-preflight__msg {
+  font-size: 13px;
+  color: var(--acc-muted);
+  font-weight: 600;
+}
+
+.acc-order-attr-preflight__body {
+  padding: 14px 20px;
+}
+
+.acc-order-attr-preflight__intro {
+  font-size: 13px;
+  color: var(--acc-muted);
+  margin: 0;
+  line-height: 1.55;
+}
+
+.acc-order-attr-preflight__results {
+  margin-top: 14px;
+}
+
+.cm-attr-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.cm-attr-table thead tr {
+  background: #f4f6f9;
+  border-bottom: 2px solid var(--acc-border);
+}
+
+.cm-attr-table th {
+  padding: 9px 14px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  color: #54698d;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+.cm-attr-table td {
+  padding: 9px 14px;
+  border-bottom: 1px solid #f0f2f8;
+  color: #3e3e3c;
+  vertical-align: middle;
+}
+
+.cm-attr-id-input {
+  background: #eaf0fb;
+  border: 1px solid #c8d6f0;
+  border-radius: 3px;
+  font-family: monospace;
+  font-size: 12px;
+  color: #16325c;
+  font-weight: 600;
+  padding: 3px 8px;
+  width: 190px;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.cm-btn {
+  padding: 7px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 4px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  display: inline-block;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.cm-btn--primary {
+  background: #0070d2;
+  color: #fff;
+  border-color: #005fb2;
+}
+
+.cm-btn--primary:disabled {
+  background: #97c3ea;
+  border-color: #97c3ea;
+  cursor: default;
 }
 
 .acc-wizard-card {

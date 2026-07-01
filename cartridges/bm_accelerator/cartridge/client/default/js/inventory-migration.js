@@ -129,7 +129,6 @@
         var invSelectAll      = document.getElementById('acc-inv-select-all');
         var invSelectionErr   = document.getElementById('acc-inv-selection-error');
         var reloadChannelsBtn = document.getElementById('acc-reload-channels-btn');
-        var checkCountsBtn    = document.getElementById('acc-check-counts-btn');
         var startBtn          = document.getElementById('full-start-btn');
         var fullOverallEl     = document.getElementById('full-move-overall');
         var fullPhaseList     = document.getElementById('full-phase-list');
@@ -289,24 +288,6 @@
         }
 
         loadChannelsHandler = loadChannels;
-
-        function fetchRowCount(cell) {
-            if (!cell) return;
-            var channelId = cell.getAttribute('data-channel-id') || 'all';
-            cell.textContent = '...';
-            get(appendChannelParam(cfg.countUrl, channelId), function (data) {
-                cell.textContent = data.ok
-                    ? data.total.toLocaleString()
-                    : 'Error';
-                cell.style.color = data.ok ? '#54698d' : '#c62828';
-            });
-        }
-
-        function checkAllCounts() {
-            var cells = document.querySelectorAll('.acc-inv-count');
-            var i;
-            for (i = 0; i < cells.length; i++) fetchRowCount(cells[i]);
-        }
 
         function readExportFromRow(exportKey) {
             var cb = document.querySelector('.acc-inv-export-cb[data-export-key="' + exportKey + '"]');
@@ -562,8 +543,6 @@
                 updateSelectionSummary();
             });
         }
-
-        if (checkCountsBtn) checkCountsBtn.addEventListener('click', checkAllCounts);
 
         loadChannels(false);
 

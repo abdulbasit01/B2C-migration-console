@@ -31,9 +31,7 @@
 <div class="acc-page">
 <div class="acc-shell">
     <isinclude template="accelerator/components/header"/>
-    <div style="padding:10px 32px 0;">
-        <a href="${pdict.dashboardUrl}" style="font-size:13px;color:#0070d2;text-decoration:none;">&larr; Back to Platform Selection</a>
-    </div>
+    <isinclude template="accelerator/components/migrationBackLink"/>
     <section class="acc-section">
         <header class="acc-section__head">
             <h2>Tax Migration &mdash; <span class="acc-highlight">Commercetools &rarr; SFCC</span></h2>

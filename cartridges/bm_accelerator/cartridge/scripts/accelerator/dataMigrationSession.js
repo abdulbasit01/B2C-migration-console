@@ -63,10 +63,14 @@ function dataWizardUrl(platformId) {
 
 /**
  * @param {string} platformId
- * @returns {string}
+ * @returns {string} Data Wizard step 2 (Select Data)
  */
 function dataWizardSelectUrl(platformId) {
-    return dataWizardUrl(platformId);
+    return URLUtils.url(
+        'Accelerator-DataWizard',
+        'platform', platformId,
+        'step', '2'
+    ).toString();
 }
 
 module.exports = {
