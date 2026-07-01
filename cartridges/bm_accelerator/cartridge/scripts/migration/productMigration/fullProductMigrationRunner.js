@@ -32,15 +32,6 @@ function runBatch(offset, catalogId) {
     var fileName  = fileResolver.resolveXmlFileName(MODULE_KEY, offset, BATCH_SIZE, 'webdav');
     var impexPath = fileResolver.getRelativePath(MODULE_KEY);
 
-    if (offset === 0) {
-        uploader.uploadFile('config.json', JSON.stringify({
-            catalogId: catalogId,
-            module:    MODULE_KEY,
-            runDate:   runDate,
-            impexPath: impexPath
-        }));
-    }
-
     var catalogResult = xmlBuilder.buildXml(rawProds, catalogId);
     var putResult     = uploader.uploadFile(fileName, catalogResult.xml);
     if (!putResult.ok) {

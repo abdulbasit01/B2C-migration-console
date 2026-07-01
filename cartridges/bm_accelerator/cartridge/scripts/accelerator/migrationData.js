@@ -75,6 +75,38 @@ var DATA_TYPES = [
         status:      'ready',
         iconClass:   'acc-data-type--shipping',
         items:       ['Shipping method definitions', 'Zone-based rates', 'Site-specific XML export', 'Attribute pre-flight check']
+    },
+    {
+        id:          'inventory',
+        label:       'Inventory Lists',
+        description: 'Migrate commercetools inventory entries into an SFCC inventory list.',
+        status:      'ready',
+        iconClass:   'acc-data-type--inventory',
+        items:       ['SKU stock levels', 'Supply channel filter', 'Inventory-list XML export', 'Attribute pre-flight check']
+    },
+    {
+        id:          'pricebook',
+        label:       'Pricebooks',
+        description: 'Migrate commercetools standalone prices into SFCC pricebooks.',
+        status:      'ready',
+        iconClass:   'acc-data-type--pricebook',
+        items:       ['Standalone prices by currency', 'Distribution channel filter', 'Pricebook XML export', 'Attribute pre-flight check']
+    },
+    {
+        id:          'taxation',
+        label:       'Taxation',
+        description: 'Migrate commercetools tax categories and rates into SFCC tax tables.',
+        status:      'ready',
+        iconClass:   'acc-data-type--taxation',
+        items:       ['Full tax table XML export', 'Tax classes from CTP categories', 'Jurisdictions by country/state', 'Tax rate mapping']
+    },
+    {
+        id:          'store',
+        label:       'Stores',
+        description: 'Migrate commercetools stores into SFCC physical store definitions.',
+        status:      'ready',
+        iconClass:   'acc-data-type--store',
+        items:       ['Full store list XML export', 'CTP /stores mapping', 'Address enrichment from channels', 'Store locator flags']
     }
 ];
 

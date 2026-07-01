@@ -4,13 +4,44 @@ var paths    = require('*/cartridge/scripts/migration/core/migrationPaths');
 var uploader = require('*/cartridge/scripts/migration/core/webDavUploader');
 
 var MAX_VERSION = 999;
+var MAX_SESSION_KEY_LEN = 50;
+
+/**
+ * Deterministic short hash for session.custom keys (api.session.maxKeyLength = 50).
+ * @param {string} seed
+ * @returns {string}
+ */
+function hashSeed(seed) {
+    var raw  = String(seed || 'x');
+    var hash = 0;
+    var i;
+    for (i = 0; i < raw.length; i++) {
+        hash = ((hash << 5) - hash) + raw.charCodeAt(i);
+        hash |= 0;
+    }
+    var suffix = Math.abs(hash).toString(36);
+    while (suffix.length < 8) {
+        suffix = '0' + suffix;
+    }
+    return suffix.substring(0, 10);
+}
+
+/**
+ * @param {string} prefix
+ * @param {string} seed
+ * @returns {string}
+ */
+function buildSessionKey(prefix, seed) {
+    var key = String(prefix || 'mk') + '_' + hashSeed(seed);
+    return key.length > MAX_SESSION_KEY_LEN ? key.substring(0, MAX_SESSION_KEY_LEN) : key;
+}
 
 function sessionRunDateKey(moduleKey) {
-    return 'migrationRunDate_' + moduleKey;
+    return buildSessionKey('mRD', moduleKey);
 }
 
 function sessionVersionStartKey(moduleKey) {
-    return 'migrationVersionStart_' + moduleKey;
+    return buildSessionKey('mVS', moduleKey);
 }
 
 function localFileExists(relativePath) {
@@ -92,5 +123,6 @@ module.exports = {
     getRunDate:         getRunDate,
     resolveXmlFileName: resolveXmlFileName,
     getRelativePath:    paths.getRelativePath,
-    localFileExists:    localFileExists
+    localFileExists:    localFileExists,
+    sessionRunDateKey:  sessionRunDateKey
 };

@@ -23,16 +23,6 @@ function uploadBatchXml(methods, siteId, offset, total) {
         return { ok: false, error: 'WebDAV directory creation failed: ' + dirResult.error };
     }
 
-    if (offset === 0) {
-        uploader.uploadFile('config.json', JSON.stringify({
-            siteId:      siteId,
-            methodCount: total,
-            module:      MODULE_KEY,
-            runDate:     runDate,
-            impexPath:   impexPath
-        }), 'application/json; charset=UTF-8');
-    }
-
     var putResult = uploader.uploadFile(fileName, buildResult.xml);
     if (!putResult.ok) {
         return { ok: false, error: 'WebDAV upload failed: ' + putResult.error };

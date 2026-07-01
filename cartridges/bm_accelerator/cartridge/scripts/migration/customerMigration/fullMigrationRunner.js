@@ -65,15 +65,6 @@ function runBatch(offset, listId) {
     var fileName = fileResolver.resolveXmlFileName(MODULE_KEY, offset, BATCH_SIZE, 'webdav');
     var impexPath = fileResolver.getRelativePath(MODULE_KEY);
 
-    if (offset === 0) {
-        uploader.uploadFile('config.json', JSON.stringify({
-            listId:    listId,
-            module:    MODULE_KEY,
-            runDate:   runDate,
-            impexPath: impexPath
-        }), 'application/json; charset=UTF-8');
-    }
-
     var putResult = uploader.uploadFile(fileName, buildResult.xml);
     if (!putResult.ok) {
         return { ok: false, error: 'WebDAV upload failed: ' + putResult.error };

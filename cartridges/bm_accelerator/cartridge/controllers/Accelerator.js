@@ -373,6 +373,10 @@ exports.Start = function () {
         dataMigrationDashboardUrl: URLUtils.url('Accelerator-DataMigrationDashboard').toString(),
         customerMigrationUrl:      URLUtils.url('Accelerator-CustomerMigration').toString(),
         shippingMethodMigrationUrl: URLUtils.url('Accelerator-ShippingMethodMigration').toString(),
+        inventoryMigrationUrl:     URLUtils.url('Accelerator-InventoryMigration').toString(),
+        pricebookMigrationUrl:     URLUtils.url('Accelerator-PricebookMigration').toString(),
+        taxMigrationUrl:           URLUtils.url('Accelerator-TaxMigration').toString(),
+        storeMigrationUrl:         URLUtils.url('Accelerator-StoreMigration').toString(),
         productWizardUrl:          URLUtils.url('Accelerator-ProductWizard').toString(),
         categoryMigrationUrl:      URLUtils.url('Accelerator-CategoryMigration').toString(),
         cssUrl:                    URLUtils.staticURL('/css/accelerator-migration.css').toString(),
@@ -612,6 +616,22 @@ exports.DataWizard = function () {
         response.redirect(URLUtils.url('Accelerator-ShippingMethodMigration'));
         return;
     }
+    if (currentStep > 2 && dataTypeId === 'inventory') {
+        response.redirect(URLUtils.url('Accelerator-InventoryMigration'));
+        return;
+    }
+    if (currentStep > 2 && dataTypeId === 'pricebook') {
+        response.redirect(URLUtils.url('Accelerator-PricebookMigration'));
+        return;
+    }
+    if (currentStep > 2 && dataTypeId === 'taxation') {
+        response.redirect(URLUtils.url('Accelerator-TaxMigration'));
+        return;
+    }
+    if (currentStep > 2 && dataTypeId === 'store') {
+        response.redirect(URLUtils.url('Accelerator-StoreMigration'));
+        return;
+    }
     if (currentStep > 2 && dataTypeId === 'product') {
         response.redirect(URLUtils.url('Accelerator-ProductWizard'));
         return;
@@ -649,7 +669,8 @@ exports.DataWizard = function () {
         for (var si = 0; si < stepContent.sections.length; si++) {
             var sec = stepContent.sections[si];
             if (sec.taskId === 'product' || sec.taskId === 'customer' || sec.taskId === 'order'
-                || sec.taskId === 'catalog' || sec.taskId === 'shippingMethod') {
+                || sec.taskId === 'catalog' || sec.taskId === 'shippingMethod' || sec.taskId === 'inventory'
+                || sec.taskId === 'pricebook' || sec.taskId === 'taxation' || sec.taskId === 'store') {
                 sec.selectable = true;
             }
             if (sec.selectable) readyCount++;
@@ -816,6 +837,22 @@ exports.DataWizardSelectType = function () {
     }
     if (typeId === 'shippingMethod') {
         response.redirect(URLUtils.url('Accelerator-ShippingMethodMigration'));
+        return;
+    }
+    if (typeId === 'inventory') {
+        response.redirect(URLUtils.url('Accelerator-InventoryMigration'));
+        return;
+    }
+    if (typeId === 'pricebook') {
+        response.redirect(URLUtils.url('Accelerator-PricebookMigration'));
+        return;
+    }
+    if (typeId === 'taxation') {
+        response.redirect(URLUtils.url('Accelerator-TaxMigration'));
+        return;
+    }
+    if (typeId === 'store') {
+        response.redirect(URLUtils.url('Accelerator-StoreMigration'));
         return;
     }
     if (typeId === 'product') {
@@ -1494,6 +1531,547 @@ exports.FullShippingMethodBuildBatch = function () {
     }
 };
 exports.FullShippingMethodBuildBatch.public = true;
+
+// ─── Inventory list data migration ────────────────────────────────────────────
+
+/**
+ * Inventory list migration page — mirrors shipping method flow without entity checklist.
+ */
+exports.InventoryMigration = function () {
+    var cfg2           = require('*/cartridge/scripts/migration/configAccessor');
+    var Site           = require('dw/system/Site');
+    var siteId         = Site.getCurrent().getID();
+    var listId         = (cfg2.sfcc && cfg2.sfcc.inventoryListId) ? cfg2.sfcc.inventoryListId : '';
+    var platformId     = String(session.custom.migrationPlatformId || 'commercetools');
+    var pageCtx        = migrationPageContext(platformId, 'inventory');
+    var jobsUrl        = 'https://' + request.httpHost
+        + '/on/demandware.store/Sites-Site/default;site=' + siteId
+        + '/ViewApplication-BM?SelectedMenuItem=site-obj_impex'
+        + '#/?impex#import';
+
+    ISML.renderTemplate('accelerator/inventoryMigration', withBmFrame({
+        title:               Resource.msg('accelerator.title', 'accelerator', null),
+        subtitle:            Resource.msg('accelerator.subtitle', 'accelerator', null),
+        presetListId:        listId,
+        impexPath:           pageCtx.impexPath,
+        dashboardUrl:        URLUtils.url('Accelerator-Start').toString(),
+        dataWizardEntryUrl:  pageCtx.dataWizardEntryUrl,
+        dataWizardSelectUrl: pageCtx.dataWizardSelectUrl,
+        countUrl:            URLUtils.url('Accelerator-InventoryMigrationCount').toString(),
+        fullBatchUrl:        URLUtils.url('Accelerator-FullInventoryBuildBatch').toString(),
+        supplyChannelsUrl:   URLUtils.url('Accelerator-GetSupplyChannels').toString(),
+        checkAttrsUrl:       URLUtils.url('Accelerator-CheckInventoryAttributes').toString(),
+        createAttrsUrl:      URLUtils.url('Accelerator-CreateInventoryAttributes').toString(),
+        impexUrl:            pageCtx.impexUrl,
+        cssUrl:              URLUtils.staticURL('/css/accelerator-migration.css').toString(),
+        attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString(),
+        inventoryMigrationJsUrl: URLUtils.staticURL('/js/inventory-migration.js').toString() + '?v=4',
+        jobsUrl:             jobsUrl
+    }));
+};
+exports.InventoryMigration.public = true;
+
+/**
+ * Return CTP inventory supply channels for optional filtering.
+ * GET — no params required.
+ */
+exports.GetSupplyChannels = function () {
+    try {
+        var fetcher = require('*/cartridge/scripts/migration/inventoryMigration/ctpInventoryFetcher');
+        jsonResponse({ ok: true, channels: fetcher.fetchSupplyChannels() });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.GetSupplyChannels.public = true;
+
+exports.CheckInventoryAttributes = function () {
+    try {
+        var checker = require('*/cartridge/scripts/migration/inventoryMigration/inventoryAttrChecker');
+        jsonResponse({ ok: true, missing: checker.checkMissingAttributes() });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.CheckInventoryAttributes.public = true;
+
+exports.CreateInventoryAttributes = function () {
+    var rawAttrs = getParam('attrs');
+    var attrs    = [];
+    try { attrs = JSON.parse(rawAttrs || '[]'); } catch (e) {
+        jsonResponse({ ok: false, error: 'Invalid attrs JSON' });
+        return;
+    }
+    if (!attrs.length) {
+        jsonResponse({ ok: false, error: 'No attributes provided' });
+        return;
+    }
+    try {
+        var checker2 = require('*/cartridge/scripts/migration/inventoryMigration/inventoryAttrChecker');
+        jsonResponse({ ok: true, result: checker2.createAttributes(attrs) });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.CreateInventoryAttributes.public = true;
+
+exports.DeleteInventoryAttribute = function () {
+    var attrId = getParam('attrId');
+    if (!attrId) {
+        jsonResponse({ ok: false, error: 'attrId is required' });
+        return;
+    }
+    try {
+        var sfccClientDel = require('*/cartridge/scripts/migration/sfccClient');
+        var tokenDel      = sfccClientDel.getSFCCToken();
+        sfccClientDel.deleteAttributeDefinition(tokenDel, 'ProductInventoryRecord', attrId);
+        jsonResponse({ ok: true });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.DeleteInventoryAttribute.public = true;
+
+exports.InventoryMigrationCount = function () {
+    try {
+        var supplyChannelId = getParam('supplyChannelId');
+        var ctpFetcher      = require('*/cartridge/scripts/migration/inventoryMigration/ctpInventoryFetcher');
+        jsonResponse({ ok: true, total: ctpFetcher.getCount(supplyChannelId) });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.InventoryMigrationCount.public = true;
+
+exports.FullInventoryBuildBatch = function () {
+    var offset          = parseInt(getParam('offset') || '0', 10);
+    var listId          = getParam('listId');
+    var supplyChannelId = getParam('supplyChannelId');
+    var exportKey       = getParam('exportKey');
+    var fileName        = getParam('fileName');
+    var aggregate       = getParam('aggregate') === 'true';
+
+    if (!listId) {
+        jsonResponse({ ok: false, error: 'listId is required' });
+        return;
+    }
+    if (!exportKey) {
+        jsonResponse({ ok: false, error: 'exportKey is required' });
+        return;
+    }
+
+    try {
+        var fullRunner = require('*/cartridge/scripts/migration/inventoryMigration/fullMigrationRunner');
+        jsonResponse(fullRunner.runBatch(offset, listId, supplyChannelId, exportKey, fileName, aggregate));
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.FullInventoryBuildBatch.public = true;
+
+// ─── Pricebook data migration ─────────────────────────────────────────────────
+
+exports.PricebookMigration = function () {
+    var Site           = require('dw/system/Site');
+    var siteId         = Site.getCurrent().getID();
+    var presetId       = 'list-prices';
+    var platformId     = String(session.custom.migrationPlatformId || 'commercetools');
+    var pageCtx        = migrationPageContext(platformId, 'pricebook');
+    var jobsUrl        = 'https://' + request.httpHost
+        + '/on/demandware.store/Sites-Site/default;site=' + siteId
+        + '/ViewApplication-BM?SelectedMenuItem=site-obj_impex'
+        + '#/?impex#import';
+
+    ISML.renderTemplate('accelerator/pricebookMigration', withBmFrame({
+        title:               Resource.msg('accelerator.title', 'accelerator', null),
+        subtitle:            Resource.msg('accelerator.subtitle', 'accelerator', null),
+        presetPricebookId:   presetId,
+        impexPath:           pageCtx.impexPath,
+        dashboardUrl:        URLUtils.url('Accelerator-Start').toString(),
+        dataWizardEntryUrl:  pageCtx.dataWizardEntryUrl,
+        dataWizardSelectUrl: pageCtx.dataWizardSelectUrl,
+        countUrl:            URLUtils.url('Accelerator-PricebookMigrationCount').toString(),
+        fullBatchUrl:        URLUtils.url('Accelerator-FullPricebookBuildBatch').toString(),
+        pricebooksUrl:       URLUtils.url('Accelerator-GetPricebooks').toString(),
+        checkAttrsUrl:       URLUtils.url('Accelerator-CheckPricebookAttributes').toString(),
+        createAttrsUrl:      URLUtils.url('Accelerator-CreatePricebookAttributes').toString(),
+        impexUrl:            pageCtx.impexUrl,
+        cssUrl:              URLUtils.staticURL('/css/accelerator-migration.css').toString(),
+        attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString(),
+        pricebookMigrationJsUrl: URLUtils.staticURL('/js/pricebook-migration.js').toString() + '?v=4',
+        jobsUrl:             jobsUrl
+    }));
+};
+exports.PricebookMigration.public = true;
+
+exports.GetPricebooks = function () {
+    response.setContentType('application/json');
+    var section = getParam('section') || 'standalone';
+    var offset  = parseInt(getParam('offset') || '0', 10);
+    var reset   = getParam('reset') === 'true';
+    try {
+        if (section === 'embedded') {
+            var embeddedOnly = require('*/cartridge/scripts/migration/pricebookMigration/ctpEmbeddedPriceFetcher');
+            var embResult    = embeddedOnly.discoverEmbeddedStep(offset, reset);
+            jsonResponse({
+                ok:           true,
+                done:         embResult.done,
+                nextOffset:   embResult.nextOffset,
+                scanned:      embResult.scanned,
+                total:        embResult.total,
+                productTotal: embResult.productTotal,
+                embedded:     embResult.embedded || []
+            });
+            return;
+        }
+        var fetcher   = require('*/cartridge/scripts/migration/pricebookMigration/ctpPricebookFetcher');
+        var stdResult = fetcher.discoverStandaloneStep(offset, reset);
+        jsonResponse({
+            ok:         true,
+            done:       stdResult.done,
+            nextOffset: stdResult.nextOffset,
+            scanned:    stdResult.scanned,
+            total:      stdResult.total,
+            standalone: stdResult.standalone || []
+        });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.GetPricebooks.public = true;
+
+exports.CheckPricebookAttributes = function () {
+    try {
+        var checker = require('*/cartridge/scripts/migration/pricebookMigration/pricebookAttrChecker');
+        jsonResponse({ ok: true, missing: checker.checkMissingAttributes() });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.CheckPricebookAttributes.public = true;
+
+exports.CreatePricebookAttributes = function () {
+    var attrsRaw = getParam('attrs');
+    if (!attrsRaw) {
+        jsonResponse({ ok: false, error: 'attrs parameter is required' });
+        return;
+    }
+    try {
+        var attrs = JSON.parse(attrsRaw);
+        var checker2 = require('*/cartridge/scripts/migration/pricebookMigration/pricebookAttrChecker');
+        jsonResponse({ ok: true, result: checker2.createAttributes(attrs) });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.CreatePricebookAttributes.public = true;
+
+exports.PricebookMigrationCount = function () {
+    response.setContentType('application/json');
+    try {
+        var source    = getParam('source') || 'standalone';
+        var currency  = getParam('currency');
+        var channelId = getParam('channelId');
+        var aggregate = getParam('aggregate') === 'true';
+        if (source === 'embedded') {
+            var embedded = require('*/cartridge/scripts/migration/pricebookMigration/ctpEmbeddedPriceFetcher');
+            jsonResponse({ ok: true, total: embedded.getPriceCount(currency, channelId, aggregate) });
+            return;
+        }
+        var fetcher = require('*/cartridge/scripts/migration/pricebookMigration/ctpPricebookFetcher');
+        jsonResponse({ ok: true, total: fetcher.getCount(currency, channelId, aggregate) });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.PricebookMigrationCount.public = true;
+
+exports.FullPricebookBuildBatch = function () {
+    response.setContentType('application/json');
+    var offset       = parseInt(getParam('offset') || '0', 10);
+    var pricebookId  = getParam('pricebookId');
+    var currency     = getParam('currency');
+    var channelId    = getParam('channelId');
+    var exportKey    = getParam('exportKey');
+    var fileName     = getParam('fileName');
+    var aggregate    = getParam('aggregate') === 'true';
+    var source       = getParam('source') || 'standalone';
+
+    if (!pricebookId) {
+        jsonResponse({ ok: false, error: 'pricebookId is required' });
+        return;
+    }
+    if (!currency) {
+        jsonResponse({ ok: false, error: 'currency is required' });
+        return;
+    }
+    if (!exportKey) {
+        jsonResponse({ ok: false, error: 'exportKey is required' });
+        return;
+    }
+
+    try {
+        var fullRunner = require('*/cartridge/scripts/migration/pricebookMigration/fullMigrationRunner');
+        if (source === 'embedded') {
+            jsonResponse(fullRunner.runEmbeddedBatch(
+                offset, pricebookId, currency, channelId, exportKey, fileName, aggregate
+            ));
+            return;
+        }
+        jsonResponse(fullRunner.runBatch(
+            offset, pricebookId, currency, channelId, exportKey, fileName, aggregate
+        ));
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.FullPricebookBuildBatch.public = true;
+
+// ─── Tax data migration ───────────────────────────────────────────────────────
+
+exports.TaxMigration = function () {
+    var Site           = require('dw/system/Site');
+    var siteId         = Site.getCurrent().getID();
+    var platformId     = String(session.custom.migrationPlatformId || 'commercetools');
+    var pageCtx        = migrationPageContext(platformId, 'tax');
+    var jobsUrl        = 'https://' + request.httpHost
+        + '/on/demandware.store/Sites-Site/default;site=' + siteId
+        + '/ViewApplication-BM?SelectedMenuItem=site-obj_impex'
+        + '#/?impex#import';
+
+    ISML.renderTemplate('accelerator/taxMigration', withBmFrame({
+        title:               Resource.msg('accelerator.title', 'accelerator', null),
+        subtitle:            Resource.msg('accelerator.subtitle', 'accelerator', null),
+        impexPath:           pageCtx.impexPath,
+        dashboardUrl:        URLUtils.url('Accelerator-Start').toString(),
+        dataWizardEntryUrl:  pageCtx.dataWizardEntryUrl,
+        dataWizardSelectUrl: pageCtx.dataWizardSelectUrl,
+        countUrl:            URLUtils.url('Accelerator-TaxMigrationCount').toString(),
+        fullBatchUrl:        URLUtils.url('Accelerator-FullTaxBuildBatch').toString(),
+        summaryUrl:          URLUtils.url('Accelerator-GetTaxSummary').toString(),
+        checkAttrsUrl:       URLUtils.url('Accelerator-CheckTaxAttributes').toString(),
+        createAttrsUrl:      URLUtils.url('Accelerator-CreateTaxAttributes').toString(),
+        impexUrl:            pageCtx.impexUrl,
+        cssUrl:              URLUtils.staticURL('/css/accelerator-migration.css').toString(),
+        attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString(),
+        taxMigrationJsUrl:   URLUtils.staticURL('/js/tax-migration.js').toString() + '?v=6',
+        jobsUrl:             jobsUrl
+    }));
+};
+exports.TaxMigration.public = true;
+
+exports.CheckTaxAttributes = function () {
+    response.setContentType('application/json');
+    try {
+        var checker = require('*/cartridge/scripts/migration/taxMigration/taxAttrChecker');
+        jsonResponse({ ok: true, missing: checker.checkMissingAttributes() });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.CheckTaxAttributes.public = true;
+
+exports.CreateTaxAttributes = function () {
+    response.setContentType('application/json');
+    var rawAttrs = getParam('attrs');
+    var attrs    = [];
+    try { attrs = JSON.parse(rawAttrs || '[]'); } catch (e) {
+        jsonResponse({ ok: false, error: 'Invalid attrs JSON' });
+        return;
+    }
+    if (!attrs.length) {
+        jsonResponse({ ok: false, error: 'No attributes provided' });
+        return;
+    }
+    try {
+        var checker = require('*/cartridge/scripts/migration/taxMigration/taxAttrChecker');
+        jsonResponse({ ok: true, result: checker.createAttributes(attrs) });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.CreateTaxAttributes.public = true;
+
+exports.GetTaxSummary = function () {
+    response.setContentType('application/json');
+    try {
+        var fetcher = require('*/cartridge/scripts/migration/taxMigration/ctpTaxFetcher');
+        jsonResponse({ ok: true, overview: fetcher.getTaxOverview() });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.GetTaxSummary.public = true;
+
+exports.TaxMigrationCount = function () {
+    response.setContentType('application/json');
+    try {
+        var scopeType = getParam('scopeType') || 'full';
+        var scopeId   = getParam('scopeId') || '';
+        var fetcher   = require('*/cartridge/scripts/migration/taxMigration/ctpTaxFetcher');
+        jsonResponse({ ok: true, total: fetcher.getRateCount(scopeType, scopeId) });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.TaxMigrationCount.public = true;
+
+exports.FullTaxBuildBatch = function () {
+    response.setContentType('application/json');
+    var offset     = parseInt(getParam('offset') || '0', 10);
+    var exportKey  = getParam('exportKey');
+    var scopeType  = getParam('scopeType') || 'full';
+    var scopeId    = getParam('scopeId') || '';
+    var fileName   = getParam('fileName');
+
+    if (!exportKey) {
+        jsonResponse({ ok: false, error: 'exportKey is required' });
+        return;
+    }
+
+    try {
+        var fullRunner = require('*/cartridge/scripts/migration/taxMigration/fullMigrationRunner');
+        jsonResponse(fullRunner.runBatch(offset, exportKey, scopeType, scopeId, fileName));
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.FullTaxBuildBatch.public = true;
+
+// ─── Store data migration ─────────────────────────────────────────────────────
+
+exports.StoreMigration = function () {
+    var Site           = require('dw/system/Site');
+    var siteId         = Site.getCurrent().getID();
+    var platformId     = String(session.custom.migrationPlatformId || 'commercetools');
+    var pageCtx        = migrationPageContext(platformId, 'store');
+    var jobsUrl        = 'https://' + request.httpHost
+        + '/on/demandware.store/Sites-Site/default;site=' + siteId
+        + '/ViewApplication-BM?SelectedMenuItem=site-obj_impex'
+        + '#/?impex#import';
+
+    ISML.renderTemplate('accelerator/storeMigration', withBmFrame({
+        title:               Resource.msg('accelerator.title', 'accelerator', null),
+        subtitle:            Resource.msg('accelerator.subtitle', 'accelerator', null),
+        impexPath:           pageCtx.impexPath,
+        dashboardUrl:        URLUtils.url('Accelerator-Start').toString(),
+        dataWizardEntryUrl:  pageCtx.dataWizardEntryUrl,
+        dataWizardSelectUrl: pageCtx.dataWizardSelectUrl,
+        fullBatchUrl:        URLUtils.url('Accelerator-FullStoreBuildBatch').toString(),
+        listStoresUrl:       URLUtils.url('Accelerator-ListStores').toString(),
+        checkAttrsUrl:       URLUtils.url('Accelerator-CheckStoreAttributes').toString(),
+        createAttrsUrl:      URLUtils.url('Accelerator-CreateStoreAttributes').toString(),
+        impexUrl:            pageCtx.impexUrl,
+        cssUrl:              URLUtils.staticURL('/css/accelerator-migration.css').toString(),
+        attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString(),
+        storeMigrationJsUrl: URLUtils.staticURL('/js/store-migration.js').toString() + '?v=4',
+        jobsUrl:             jobsUrl
+    }));
+};
+exports.StoreMigration.public = true;
+
+exports.CheckStoreAttributes = function () {
+    response.setContentType('application/json');
+    try {
+        var checker = require('*/cartridge/scripts/migration/storeMigration/storeAttrChecker');
+        jsonResponse({ ok: true, missing: checker.checkMissingAttributes() });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.CheckStoreAttributes.public = true;
+
+exports.CreateStoreAttributes = function () {
+    response.setContentType('application/json');
+    var rawAttrs = getParam('attrs');
+    var attrs    = [];
+    try { attrs = JSON.parse(rawAttrs || '[]'); } catch (e) {
+        jsonResponse({ ok: false, error: 'Invalid attrs JSON' });
+        return;
+    }
+    if (!attrs.length) {
+        jsonResponse({ ok: false, error: 'No attributes provided' });
+        return;
+    }
+    try {
+        var checker = require('*/cartridge/scripts/migration/storeMigration/storeAttrChecker');
+        jsonResponse({ ok: true, result: checker.createAttributes(attrs) });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.CreateStoreAttributes.public = true;
+
+exports.GetStoreSummary = function () {
+    response.setContentType('application/json');
+    try {
+        var fetcher = require('*/cartridge/scripts/migration/storeMigration/ctpStoreFetcher');
+        jsonResponse({ ok: true, summary: fetcher.getFullStoreSummary() });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.GetStoreSummary.public = true;
+
+/**
+ * List all CTP stores for the migration checklist UI.
+ * GET — no params required.
+ */
+exports.ListStores = function () {
+    response.setContentType('application/json');
+    try {
+        var fetcher     = require('*/cartridge/scripts/migration/storeMigration/ctpStoreFetcher');
+        var transformer = require('*/cartridge/scripts/migration/storeMigration/storeTransformer');
+        var stores      = fetcher.fetchAllCtpStores();
+        var list        = [];
+        var i;
+
+        for (i = 0; i < stores.length; i++) {
+            list.push(transformer.toSummary(stores[i]));
+        }
+
+        jsonResponse({ ok: true, total: stores.length, stores: list });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.ListStores.public = true;
+
+exports.StoreMigrationCount = function () {
+    response.setContentType('application/json');
+    try {
+        var fetcher = require('*/cartridge/scripts/migration/storeMigration/ctpStoreFetcher');
+        var summary = fetcher.getFullStoreSummary();
+        jsonResponse({ ok: true, total: summary.storeCount || 0 });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.StoreMigrationCount.public = true;
+
+exports.FullStoreBuildBatch = function () {
+    response.setContentType('application/json');
+    var offset    = parseInt(getParam('offset') || '0', 10);
+    var exportKey = getParam('exportKey') || 'full';
+    var fileName  = getParam('fileName');
+    var rawKeys   = getParam('keys');
+
+    var keys = null;
+    if (rawKeys) {
+        try { keys = JSON.parse(rawKeys); } catch (e) {
+            jsonResponse({ ok: false, error: 'Invalid keys JSON' });
+            return;
+        }
+    }
+
+    try {
+        var fullRunner = require('*/cartridge/scripts/migration/storeMigration/fullMigrationRunner');
+        jsonResponse(fullRunner.runBatch(offset, exportKey, fileName, keys));
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.FullStoreBuildBatch.public = true;
 
 /**
  * Full Migration — trigger the SFCC import job via OCAPI Data API (self-call).

@@ -1174,6 +1174,22 @@ table.main > tbody > tr,
   background: linear-gradient(135deg, #00838f, #00acc1);
 }
 
+.acc-data-type--inventory .acc-data-type__icon {
+  background: linear-gradient(135deg, #6a1b9a, #ab47bc);
+}
+
+.acc-data-type--pricebook .acc-data-type__icon {
+  background: linear-gradient(135deg, #e65100, #ff9800);
+}
+
+.acc-data-type--taxation .acc-data-type__icon {
+  background: linear-gradient(135deg, #1565c0, #42a5f5);
+}
+
+.acc-data-type--store .acc-data-type__icon {
+  background: linear-gradient(135deg, #2e7d32, #66bb6a);
+}
+
 .acc-data-types--enriched .acc-data-type__icon {
   width: 48px;
   height: 48px;

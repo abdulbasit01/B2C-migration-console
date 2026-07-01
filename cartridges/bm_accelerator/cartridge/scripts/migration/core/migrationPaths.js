@@ -8,7 +8,11 @@ var MODULE_IDS = {
     product:        'product',
     order:          'order',
     catalog:        'catalog',
-    shippingMethod: 'shipping-method'
+    shippingMethod: 'shipping-method',
+    inventory:      'inventory',
+    pricebook:      'pricebook',
+    tax:            'tax',
+    store:          'store'
 };
 
 /**

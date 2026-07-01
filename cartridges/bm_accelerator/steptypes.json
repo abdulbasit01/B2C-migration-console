@@ -19,7 +19,7 @@
                         "@name": "CustomerListID",
                         "@type": "String",
                         "@required": "false",
-                        "description": "SFCC Customer List ID to import customers into — used as fallback if config.json is absent",
+                        "description": "SFCC Customer List ID to import customers into (required)",
                         "default-value": ""
                     }
                 ]
