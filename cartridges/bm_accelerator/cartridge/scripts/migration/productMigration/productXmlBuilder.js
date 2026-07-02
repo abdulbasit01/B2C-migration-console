@@ -13,17 +13,19 @@ function xmlEsc(val) {
         .replace(/'/g,  '&apos;');
 }
 
+var UUID_RE_XML = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /**
- * Convert a CTP member product ID (UUID) to the same SFCC product ID
- * format used by productTransformer: 'CTP' + uuid-without-dashes.
- * If the value is already a non-UUID slug/key it is returned as-is.
+ * Convert a CTP member product UUID to its SFCC product ID.
+ * Uses the batch lookup map (populated in buildXml) so member references
+ * resolve to the same ID the product itself uses in the catalog XML.
  */
+var _uuidToSfccId = {};
 function ctpMemberIdToSfcc(ctpId) {
     if (!ctpId) return '';
     var s = String(ctpId);
-    // UUID pattern: 8-4-4-4-12 hex chars with dashes
-    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)) {
-        return 'CTP' + s.replace(/-/g, '');
+    if (UUID_RE_XML.test(s)) {
+        return _uuidToSfccId[s] || ('CTP' + s.replace(/-/g, ''));
     }
     return s;
 }
@@ -340,6 +342,19 @@ function buildProductXml(t, selectedVarAttrs) {
  * @returns {{ xml: string, built: number, failed: number, errors: Array }}
  */
 function buildXml(ctpProducts, catalogId, selectedVarAttrs) {
+    // Build UUID → SFCC product ID map so member references resolve correctly
+    _uuidToSfccId = {};
+    for (var mi = 0; mi < ctpProducts.length; mi++) {
+        var cp    = ctpProducts[mi];
+        var cpId  = cp.id  || '';
+        var cpKey = cp.key || '';
+        if (cpId) {
+            _uuidToSfccId[cpId] = cpKey
+                ? String(cpKey).replace(/[^a-zA-Z0-9_-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').substring(0, 100)
+                : ('CTP' + cpId.replace(/-/g, ''));
+        }
+    }
+
     var built         = 0;
     var failed        = 0;
     var errors        = [];
