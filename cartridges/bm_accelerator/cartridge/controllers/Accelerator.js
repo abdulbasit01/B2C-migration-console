@@ -1115,6 +1115,8 @@ exports.CustomerMigration = function () {
         checkAttrsUrl:       URLUtils.url('Accelerator-CheckCustomerAttributes').toString(),
         createAttrsUrl:      URLUtils.url('Accelerator-CreateCustomerAttributes').toString(),
         deleteAttrUrl:       URLUtils.url('Accelerator-DeleteCustomerAttribute').toString(),
+        fetchGroupsUrl:      URLUtils.url('Accelerator-FetchCtpCustomerGroups').toString(),
+        createGroupsUrl:     URLUtils.url('Accelerator-CreateSfccCustomerGroups').toString(),
         jobsUrl:             jobsUrl
     }));
 };
@@ -1158,6 +1160,36 @@ exports.GetCustomerLists = function () {
     }
 };
 exports.GetCustomerLists.public = true;
+
+/**
+ * Fetch all customer groups from CTP and return as JSON.
+ */
+exports.FetchCtpCustomerGroups = function () {
+    try {
+        var groupFetcher = require('*/cartridge/scripts/migration/customerMigration/ctpCustomerGroupFetcher');
+        jsonResponse({ ok: true, groups: groupFetcher.fetchGroups() });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.FetchCtpCustomerGroups.public = true;
+
+/**
+ * Create selected CTP customer groups in SFCC (keeps exact CTP UUID as group ID).
+ * POST body: groups=[{"id":"...","name":"..."},...]
+ */
+exports.CreateSfccCustomerGroups = function () {
+    var raw = getParam('groups');
+    if (!raw) { jsonResponse({ ok: false, error: 'groups param is required' }); return; }
+    try {
+        var groups      = JSON.parse(raw);
+        var groupWriter = require('*/cartridge/scripts/migration/customerMigration/sfccCustomerGroupWriter');
+        jsonResponse({ ok: true, result: groupWriter.ensureGroups(groups) });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.CreateSfccCustomerGroups.public = true;
 
 /**
  * Return all SFCC catalog IDs available on the instance.
