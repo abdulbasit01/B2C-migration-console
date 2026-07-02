@@ -112,7 +112,9 @@ function checkMissingAttributes() {
         if (seen[bf.sfccId]) continue;
         seen[bf.sfccId] = true;
         if (!existingIds[bf.sfccId]) {
-            missing.push({ id: bf.sfccId, label: bf.label, ctpType: bf.ctpType, sfccType: 'string' });
+            missing.push(typeMap.enrichMissingAttribute({
+                id: bf.sfccId, label: bf.label, ctpType: bf.ctpType, sfccType: 'string'
+            }));
         } else {
             try { sfccClient.addAttributeToGroup(sfccToken, 'Product', CTP_ATTR_GROUP_ID, bf.sfccId); } catch (age) {}
         }
@@ -126,12 +128,11 @@ function checkMissingAttributes() {
         if (seen[id]) continue;
         seen[id] = true;
         if (!existingIds[id]) {
-            missing.push({
+            missing.push(typeMap.enrichMissingAttribute({
                 id:       id,
                 label:    field.label,
-                ctpType:  field.ctpType,
-                sfccType: typeMap.resolveProductType(field.ctpType)
-            });
+                ctpType:  field.ctpType
+            }, typeMap.resolveProductType));
         } else {
             try { sfccClient.addAttributeToGroup(sfccToken, 'Product', CTP_ATTR_GROUP_ID, id); } catch (age) {}
         }
@@ -176,6 +177,7 @@ function createAttributes(attrs) {
 }
 
 module.exports = {
-    checkMissingAttributes: checkMissingAttributes,
-    createAttributes:       createAttributes
+    getCtpProductTypeFields: getCtpProductTypeFields,
+    checkMissingAttributes:  checkMissingAttributes,
+    createAttributes:        createAttributes
 };

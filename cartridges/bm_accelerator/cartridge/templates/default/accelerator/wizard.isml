@@ -2,12 +2,10 @@
 <iscontent type="text/html" charset="UTF-8"/>
 <link rel="stylesheet" href="${pdict.cssUrl}"/>
 <div class="acc-page acc-page--wizard">
-    <div class="acc-shell">
+<div class="acc-shell">
         <isinclude template="accelerator/components/header"/>
 
-        <a class="acc-back" href="${pdict.dashboardUrl}">
-            &larr; ${Resource.msg('accelerator.wizard.back', 'accelerator', null)}
-        </a>
+        <isinclude template="accelerator/components/migrationBackLink"/>
 
         <isinclude template="accelerator/components/stepper"/>
 

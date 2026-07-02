@@ -1,8 +1,6 @@
 <isinclude template="accelerator/components/header"/>
 
-<a class="acc-back" href="${pdict.dashboardUrl}">
-    &larr; ${Resource.msg('accelerator.datawizard.back', 'accelerator', null)}
-</a>
+<isinclude template="accelerator/components/migrationBackLink"/>
 
 <isif condition="${!empty(pdict.dataType)}">
     <div class="acc-data-context">

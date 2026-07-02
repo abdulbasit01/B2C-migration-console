@@ -1,7 +1,8 @@
 <isdecorate template="application/MenuFrame">
 <iscontent type="text/html" charset="UTF-8"/>
 <link rel="stylesheet" href="${pdict.cssUrl}"/>
-    <style>
+<script src="${pdict.attrPreflightJsUrl}"></script>
+<style>
         .acc-tab {
             padding: 8px 20px;
             font-size: 14px;
@@ -94,6 +95,16 @@
             background: #fff;
             box-shadow: 0 0 0 2px rgba(0,112,210,.15);
         }
+        .cm-attr-type-select {
+            font-size: 12px;
+            padding: 4px 6px;
+            border: 1px solid #c8d6f0;
+            border-radius: 3px;
+            background: #fff;
+            color: #16325c;
+            min-width: 140px;
+            max-width: 180px;
+        }
         /* ---- Buttons used in dynamically-rendered attr results ---- */
         .cm-btn {
             padding: 7px 16px;
@@ -142,10 +153,7 @@
 <div class="acc-shell">
 
     <isinclude template="accelerator/components/header"/>
-
-    <div style="padding:10px 32px 0;">
-        <a href="${pdict.dashboardUrl}" style="font-size:13px;color:#0070d2;text-decoration:none;">&larr; Back to Platform Selection</a>
-    </div>
+    <isinclude template="accelerator/components/migrationBackLink"/>
 
     <section class="acc-section">
         <header class="acc-section__head">
@@ -169,15 +177,13 @@
                     </select>
                     <span id="acc-list-id-error" class="acc-field-error">Customer List ID is required.</span>
                 </div>
-                <button id="acc-check-btn" type="button" class="acc-btn acc-btn--ghost">Check Count</button>
-                <span id="acc-count-badge" style="font-size:13px;color:#54698d;padding-top:6px;"></span>
             </div>
         </div>
 
         <!-- -- Attribute pre-flight -- -->
         <div id="acc-attr-preflight" style="margin:0 0 28px;border:1px solid #dddbda;border-radius:6px;overflow:hidden;">
             <div style="background:#f4f6f9;border-bottom:1px solid #dddbda;padding:11px 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-                <span style="font-weight:700;font-size:14px;color:#16325c;">&#x26A1; Attribute Pre-flight Check</span>
+                <span style="font-weight:700;font-size:14px;color:#16325c;">Attribute Pre-flight Check</span>
                 <button id="acc-check-attrs-btn" type="button" class="acc-btn acc-btn--ghost">Check CTP Attributes</button>
                 <span id="acc-attr-check-msg" style="font-size:13px;color:#54698d;font-weight:600;"></span>
             </div>
@@ -270,7 +276,7 @@
                 <strong>How Full Migration works:</strong><br/>
                 Phase 1 fetches customers from Commercetools in batches of 500, builds SFCC customer import XML,
                 and uploads each file to WebDAV at
-                <code>/Impex/src/instance/ctp-migration/</code>.<br/>
+                <code>/Impex/${pdict.impexPath}/</code> (e.g. <code>customer-YYYYMMDD-v001.xml</code>).<br/>
                 Phase 2 is a manual BM step: run <strong>Administration &rarr; Site Development &rarr; Import &amp; Export
                 &rarr; Import Customers</strong> and point it at the uploaded files.
                 Customers receive a deterministic temporary password (<code>Rc1!</code> + first 12 chars of CTP ID);
@@ -342,20 +348,65 @@
 
 <script>
 (function () {
-    var COUNT_URL        = '${pdict.countUrl}';
     var PROFILE_URL      = '${pdict.profileUrl}';
     var ADDRESS_URL      = '${pdict.addressUrl}';
     var FULL_BATCH_URL   = '${pdict.fullBatchUrl}';
     var BY_ID_URL        = '${pdict.byIdUrl}';
-    var LISTS_URL        = '${pdict.customerListsUrl}';
-    var PRESET_LIST_ID   = '${pdict.customerListId}';
+    var DATA_WIZARD_ENTRY_URL = ${pdict.dataWizardEntryUrlJs};
+    var LISTS_URL        = ${pdict.customerListsUrlJs};
+    var PRESET_LIST_ID   = ${pdict.presetListIdJs};
     var CHECK_ATTRS_URL  = '${pdict.checkAttrsUrl}';
     var CREATE_ATTRS_URL = '${pdict.createAttrsUrl}';
     var DELETE_ATTR_URL  = '${pdict.deleteAttrUrl}';
 
     var listIdEl   = document.getElementById('acc-list-id');
-    var checkBtn   = document.getElementById('acc-check-btn');
-    var countBadge = document.getElementById('acc-count-badge');
+
+    // -- Load customer lists into dropdown on page init (before other listeners) --
+
+    (function loadCustomerLists() {
+        if (!listIdEl) return;
+        var req = new XMLHttpRequest();
+        req.open('GET', LISTS_URL, true);
+        req.onreadystatechange = function () {
+            if (req.readyState !== 4) return;
+            var data;
+            try { data = JSON.parse(req.responseText); } catch (e) { data = { ok: false }; }
+
+            listIdEl.innerHTML = '';
+
+            if (!data.ok || !data.lists || !data.lists.length) {
+                var errOpt    = document.createElement('option');
+                errOpt.value  = '';
+                errOpt.textContent = data.ok
+                    ? 'No customer lists found'
+                    : 'Failed to load lists (' + (data.error || 'unknown') + ')';
+                listIdEl.appendChild(errOpt);
+                return;
+            }
+
+            var placeholder       = document.createElement('option');
+            placeholder.value     = '';
+            placeholder.textContent = 'Select a Customer List';
+            listIdEl.appendChild(placeholder);
+
+            for (var i = 0; i < data.lists.length; i++) {
+                var opt         = document.createElement('option');
+                opt.value       = data.lists[i].id;
+                opt.textContent = data.lists[i].id;
+                if (data.lists[i].id === PRESET_LIST_ID) { opt.selected = true; }
+                listIdEl.appendChild(opt);
+            }
+        };
+        req.onerror = function () {
+            if (!listIdEl) return;
+            listIdEl.innerHTML = '';
+            var errOpt = document.createElement('option');
+            errOpt.value = '';
+            errOpt.textContent = 'Failed to load lists (network error)';
+            listIdEl.appendChild(errOpt);
+        };
+        req.send(null);
+    }());
 
     // -- Tab switching --------------------------------------------------------
 
@@ -364,19 +415,21 @@
     var panelPartial = document.getElementById('panel-partial');
     var panelFull    = document.getElementById('panel-full');
 
-    tabPartial.addEventListener('click', function () {
-        tabPartial.className  = 'acc-tab acc-tab--active';
-        tabFull.className     = 'acc-tab';
-        panelPartial.style.display = '';
-        panelFull.style.display    = 'none';
-    });
+    if (tabPartial && tabFull && panelPartial && panelFull) {
+        tabPartial.addEventListener('click', function () {
+            tabPartial.className  = 'acc-tab acc-tab--active';
+            tabFull.className     = 'acc-tab';
+            panelPartial.style.display = '';
+            panelFull.style.display    = 'none';
+        });
 
-    tabFull.addEventListener('click', function () {
-        tabFull.className     = 'acc-tab acc-tab--active';
-        tabPartial.className  = 'acc-tab';
-        panelFull.style.display    = '';
-        panelPartial.style.display = 'none';
-    });
+        tabFull.addEventListener('click', function () {
+            tabFull.className     = 'acc-tab acc-tab--active';
+            tabPartial.className  = 'acc-tab';
+            panelFull.style.display    = '';
+            panelPartial.style.display = 'none';
+        });
+    }
 
     // -- Inline field validation ----------------------------------------------
 
@@ -394,46 +447,10 @@
         if (err) { err.textContent = ''; err.style.display = 'none'; }
     }
 
-    // -- Load customer lists into dropdown on page init -----------------------
-
-    (function loadCustomerLists() {
-        var req = new XMLHttpRequest();
-        req.open('GET', LISTS_URL, true);
-        req.onreadystatechange = function () {
-            if (req.readyState !== 4) return;
-            var data;
-            try { data = JSON.parse(req.responseText); } catch (e) { data = { ok: false }; }
-
-            listIdEl.innerHTML = '';
-
-            if (!data.ok || !data.lists || !data.lists.length) {
-                var errOpt    = document.createElement('option');
-                errOpt.value  = '';
-                errOpt.textContent = data.ok
-                    ? '? No customer lists found ?'
-                    : '? Failed to load lists (' + (data.error || 'unknown') + ') ?';
-                listIdEl.appendChild(errOpt);
-                return;
-            }
-
-            var placeholder       = document.createElement('option');
-            placeholder.value     = '';
-            placeholder.textContent = ' Select a Customer List ?';
-            listIdEl.appendChild(placeholder);
-
-            for (var i = 0; i < data.lists.length; i++) {
-                var opt         = document.createElement('option');
-                opt.value       = data.lists[i].id;
-                opt.textContent = data.lists[i].id;
-                if (data.lists[i].id === PRESET_LIST_ID) { opt.selected = true; }
-                listIdEl.appendChild(opt);
-            }
-        };
-        req.send(null);
-    }());
-
     // Clear errors when selection changes
-    listIdEl.addEventListener('change', function () { clearError('acc-list-id', 'acc-list-id-error'); });
+    if (listIdEl) {
+        listIdEl.addEventListener('change', function () { clearError('acc-list-id', 'acc-list-id-error'); });
+    }
 
     // -- Attribute pre-flight -------------------------------------------------
 
@@ -474,7 +491,7 @@
                 + '<td><input type="text" class="cm-attr-id-input" data-idx="' + i + '" value="' + m.id + '" title="Edit attribute ID"/></td>'
                 + '<td>' + (m.label || m.id) + '</td>'
                 + '<td style="color:#8a9ab8;">' + m.ctpType + '</td>'
-                + '<td style="color:#0070d2;font-weight:600;">' + m.sfccType + '</td>'
+                + '<td>' + window.AccAttrPreflight.sfccTypeSelectHtml(m, i) + '</td>'
                 + '<td><button type="button" class="cm-btn--revert acc-attr-revert-btn" data-idx="' + i + '" disabled title="Create the attribute first to enable revert">Revert</button></td>'
                 + '</tr>';
         }
@@ -545,7 +562,12 @@
                     var orig    = pendingMissing[idx];
                     var idInput = document.querySelector('.cm-attr-id-input[data-idx="' + idx + '"]');
                     var editedId = (idInput && idInput.value.trim()) ? idInput.value.trim() : orig.id;
-                    selected.push({ id: editedId, label: orig.label, ctpType: orig.ctpType, sfccType: orig.sfccType });
+                    selected.push({
+                        id: editedId,
+                        label: orig.label,
+                        ctpType: orig.ctpType,
+                        sfccType: window.AccAttrPreflight.readSfccType(idx, orig.sfccType)
+                    });
                     selectedIndices.push(idx);
                 }
             }
@@ -659,21 +681,6 @@
         };
         req.send(params);
     }
-
-    // -- Check count ----------------------------------------------------------
-
-    checkBtn.addEventListener('click', function () {
-        countBadge.textContent = 'Checking...';
-        post(COUNT_URL, '', function (data) {
-            if (data.ok) {
-                countBadge.textContent = data.total.toLocaleString() + ' customer(s) in CTP';
-                countBadge.style.color = '#2e7d32';
-            } else {
-                countBadge.textContent = 'Error: ' + (data.error || 'Connection failed');
-                countBadge.style.color = '#c62828';
-            }
-        });
-    });
 
     // ????????????????????????????????????????????????????????????????????????
     // PARTIAL MIGRATION
@@ -898,7 +905,7 @@
                 + '<td><code>' + m.id + '</code></td>'
                 + '<td>' + (m.label || m.id) + '</td>'
                 + '<td style="color:#8a9ab8;">' + m.ctpType + '</td>'
-                + '<td style="color:#0070d2;font-weight:600;">' + m.sfccType + '</td>'
+                + '<td>' + window.AccAttrPreflight.sfccTypeSelectHtml(m, i, 'cm-attr-type-select cm-attr-modal-type') + '</td>'
                 + '</tr>';
         }
         html += '</tbody></table></div>';
@@ -951,7 +958,14 @@
                 if (modalCallback) { modalCallback(); }
             }, 900);
         };
-        req.send('attrs=' + encodeURIComponent(JSON.stringify(modalMissing)));
+        req.send('attrs=' + encodeURIComponent(JSON.stringify(modalMissing.map(function (m, i) {
+            return {
+                id: m.id,
+                label: m.label,
+                ctpType: m.ctpType,
+                sfccType: window.AccAttrPreflight.readSfccType(i, m.sfccType, 'cm-attr-modal-type')
+            };
+        })));
     });
 
     /**
@@ -1068,6 +1082,11 @@
     var fullFailed     = 0;
     var fullFiles      = 0;
     var fullRunning    = false;
+    var fullFinished   = false;
+
+    function goToDataWizard() {
+        window.location.href = DATA_WIZARD_ENTRY_URL;
+    }
 
     function runFullBatch(offset, total) {
         var listId = listIdEl.value.trim();
@@ -1112,13 +1131,15 @@
     function finalizeFull(success) {
         fullRunning              = false;
         fullStartBtn.disabled    = false;
-        fullStartBtn.textContent = success ? 'Phase 1 Done' : 'Build Failed';
-
         if (success) {
+            fullFinished             = true;
+            fullStartBtn.textContent = 'Finish';
             fullStatusBox.style.display = 'none';
             setPhase('full', 'import', 'active',
                 'Run your import job in Business Manager to complete the migration.', null);
         } else {
+            fullFinished             = false;
+            fullStartBtn.textContent = 'Build Failed';
             fullStatusBox.style.display = 'block';
             fullStatusBox.className     = 'acc-callout acc-callout--warning';
             fullStatusBox.textContent   = 'XML build failed - check BM logs for details.';
@@ -1126,6 +1147,11 @@
     }
 
     fullStartBtn.addEventListener('click', function () {
+        if (fullFinished) {
+            goToDataWizard();
+            return;
+        }
+
         var listId = listIdEl.value.trim();
         if (!listId) {
             showError('acc-list-id', 'acc-list-id-error', 'Customer List ID is required.');
@@ -1133,6 +1159,7 @@
         }
         clearError('acc-list-id', 'acc-list-id-error');
         if (fullRunning) return;
+        fullFinished = false;
 
         fullStartBtn.disabled    = true;
         fullStartBtn.textContent = 'Checking attributes...';

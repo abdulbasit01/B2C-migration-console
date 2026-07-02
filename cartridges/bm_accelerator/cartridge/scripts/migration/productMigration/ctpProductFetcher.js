@@ -54,7 +54,7 @@ function getCount() {
 function fetchBatch(offset, limit) {
     var c   = cfg.ctp;
     var tok = getToken();
-    var qs  = '?limit=' + (limit || 500) + '&offset=' + (offset || 0) + '&sort=id+asc&withTotal=true';
+    var qs  = '?limit=' + (limit || 500) + '&offset=' + (offset || 0) + '&sort=id+asc&withTotal=true&expand=productType';
 
     var res = http.get(
         c.apiUrl + '/' + c.projectKey + '/products' + qs,
@@ -78,7 +78,7 @@ function fetchById(productId) {
     var c   = cfg.ctp;
     var tok = getToken();
     var res = http.get(
-        c.apiUrl + '/' + c.projectKey + '/products/' + encodeURIComponent(productId),
+        c.apiUrl + '/' + c.projectKey + '/products/' + encodeURIComponent(productId) + '?expand=productType',
         { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' }
     );
     if (res.status !== 200) {

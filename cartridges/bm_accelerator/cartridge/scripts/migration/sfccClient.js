@@ -222,6 +222,7 @@ function deleteAttributeDefinition(token, objectType, attrId) {
 module.exports = {
     getSFCCToken:              getSFCCToken,
     getSFCCSettings:           getSFCCSettings,
+    doGet:                     doGet,
     getExistingAttributeIds:   getExistingAttributeIds,
     createAttributeDefinition: createAttributeDefinition,
     deleteAttributeDefinition: deleteAttributeDefinition,

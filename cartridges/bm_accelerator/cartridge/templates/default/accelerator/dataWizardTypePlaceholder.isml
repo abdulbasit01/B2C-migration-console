@@ -2,7 +2,7 @@
 <iscontent type="text/html" charset="UTF-8"/>
 <link rel="stylesheet" href="${pdict.cssUrl}"/>
 <div class="acc-page acc-page--wizard">
-    <div class="acc-shell">
+<div class="acc-shell">
         <isinclude template="accelerator/components/dataWizardChrome"/>
 
         <main class="acc-wizard-card">
@@ -11,7 +11,7 @@
 
         <footer class="acc-wizard-footer">
             <isinclude template="accelerator/components/dataWizardNavPrev"/>
-            <a class="acc-btn acc-btn--primary" href="${pdict.dashboardUrl}">
+            <a class="acc-btn acc-btn--primary" href="${pdict.dataWizardEntryUrl}">
                 ${Resource.msg('accelerator.datawizard.finish', 'accelerator', null)}
             </a>
         </footer>
