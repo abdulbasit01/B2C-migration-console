@@ -183,10 +183,9 @@ Drop here to make Root (L1) category
 <code id="cat-xml-path" style="background:#e0e5ee;padding:4px 8px;border-radius:3px;font-size:12px;display:block;margin-bottom:14px;word-break:break-all;"></code>
 <div style="display:flex;gap:10px;flex-wrap:wrap;padding-top:12px;border-top:1px solid #dddbda;">
 <a id="btn-open-impex" href="#" class="acc-btn acc-btn--secondary" style="text-decoration:none;">Open IMPEX Folder</a>
-<a id="btn-open-import" href="#" class="acc-btn acc-btn--primary" style="text-decoration:none;margin-left:10px;">Go to Catalog Import</a>
 </div>
 <div style="margin-top:12px;font-size:12px;color:#54698d;line-height:1.8;">
-Next steps: 1. Click Open IMPEX Folder. 2. Click Go to Catalog Import. 3. Select the file and run the import job.
+Next steps: 1. Click Open IMPEX Folder. 2. Select the file and run the import job via Administration - Site Development - Import and Export.
 </div>
 </div>
 </li>
