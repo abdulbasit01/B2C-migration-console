@@ -1,13 +1,8 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8"/>
-    <meta name="viewport" content="width=device-width, initial-scale=1"/>
-    <title>${pdict.title}</title>
-    <link rel="stylesheet" href="${pdict.cssUrl}"/>
-</head>
-<body class="acc-page">
-    <div class="acc-shell">
+<isdecorate template="application/MenuFrame">
+<iscontent type="text/html" charset="UTF-8"/>
+<link rel="stylesheet" href="${pdict.cssUrl}"/>
+<div class="acc-page">
+<div class="acc-shell">
         <isinclude template="accelerator/components/header"/>
 
         <iscomment> <isinclude template="accelerator/components/advisorBanner"/> </iscomment>
@@ -24,33 +19,9 @@
         </section>
 
 
-        <section class="acc-section" style="margin-top:0;padding-top:0;">
-            <header class="acc-section__head">
-                <h2>Product Catalog Migration</h2>
-            </header>
-            <div class="acc-cards">
-                <article class="acc-card acc-card--ready">
-                    <span class="acc-card__badge acc-card__badge--ready">Ready</span>
-                    <div class="acc-card__icon platform-icon--commercetools" aria-hidden="true"></div>
-                    <h3 class="acc-card__name">Commercetools &rarr; SFCC</h3>
-                    <p class="acc-card__tagline">Import product catalog &amp; variants</p>
-                    <p class="acc-card__desc">
-                        Migrate product records, variants, images, and custom attributes
-                        from your CTP project into an SFCC catalog via XML/WebDAV import.
-                    </p>
-                    <div class="acc-card__actions">
-                        <a class="acc-btn acc-btn--primary acc-card__cta"
-                           href="${pdict.productWizardUrl}">
-                            Migrate Products
-                        </a>
-                    </div>
-                </article>
-            </div>
-        </section>
-
         <iscomment> <button type="button" class="acc-fab" disabled="disabled" title="AI Migration Advisor (demo)">
             AI Migration Advisor
         </button> </iscomment>
     </div>
-</body>
-</html>
+</div>
+</isdecorate>

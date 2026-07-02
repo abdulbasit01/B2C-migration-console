@@ -174,12 +174,18 @@ function testConnectionWith(creds) {
     if (!creds.storeUrl || !creds.clientId || !creds.clientSecret) {
         throw new Error('Store URL, Client ID, and Secret are required.');
     }
+    fetchAccessToken(creds);
+    var expiresIn = Math.max(60, Math.floor((_tokenExpiresAt - Date.now()) / 1000));
     var res = http.get(adminBase(creds) + '/shop.json', authHeaders(creds));
     if (res.status !== 200 || !res.data.shop) {
         throw new Error('Connection failed (' + res.status + '): check store URL and access token.');
     }
     var shop = res.data.shop;
-    return { ok: true, project: { key: shop.myshopify_domain || shop.domain, name: shop.name } };
+    return {
+        ok:        true,
+        expiresIn: expiresIn,
+        project:   { key: shop.myshopify_domain || shop.domain, name: shop.name }
+    };
 }
 
 function testConnection() {

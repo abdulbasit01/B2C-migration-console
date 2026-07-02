@@ -8,6 +8,7 @@ var ISML           = require('dw/template/ISML');
 var URLUtils       = require('dw/web/URLUtils');
 var Resource       = require('dw/web/Resource');
 var migrationData  = require('*/cartridge/scripts/accelerator/migrationData');
+var dataMigrationSession = require('*/cartridge/scripts/accelerator/dataMigrationSession');
 var registry       = require('*/cartridge/scripts/migration/connectors/registry');
 var runner         = require('*/cartridge/scripts/migration/core/runner');
 var nativeFieldMap = require('*/cartridge/scripts/migration/config/nativeFieldMap');
@@ -36,12 +37,33 @@ function toStepQuery(n) {
 }
 
 /**
+ * Attach Business Manager navigation frame context for MenuFrame.isml.
+ * @param {Object} pdict
+ * @param {string} [menuActionId]
+ * @returns {Object}
+ */
+function withBmFrame(pdict, menuActionId) {
+    pdict.SelectedMenuItem = 'rc_accelerator_tools';
+    pdict.CurrentMenuItemId = menuActionId || 'rc_accelerator_wizard';
+    return pdict;
+}
+
+/**
  * @param {Object} obj - response payload
  * @returns {void}
  */
 function jsonResponse(obj) {
     response.setContentType('application/json');
     response.writer.print(JSON.stringify(obj));
+}
+
+/**
+ * JSON-encoded value safe to embed in inline <script> (includes quotes).
+ * @param {*} val
+ * @returns {string}
+ */
+function toJsLiteral(val) {
+    return JSON.stringify(val == null ? '' : String(val));
 }
 
 /**
@@ -65,8 +87,25 @@ function resolvePlatform() {
  * @returns {boolean} whether data migration connection was verified in this session
  */
 function isDataMigrationConnected() {
-    var flag = session.custom.dataMigrationConnected;
-    return flag === true || flag === 'true';
+    return dataMigrationSession.isConnected();
+}
+
+/**
+ * Shared IMPEX + wizard entry URLs for dedicated migration pages.
+ * @param {string} platformId
+ * @param {string} moduleKey - key in migrationPaths.MODULE_IDS
+ * @returns {Object}
+ */
+function migrationPageContext(platformId, moduleKey) {
+    var migPaths = require('*/cartridge/scripts/migration/core/migrationPaths');
+    var bmLinks  = require('*/cartridge/scripts/accelerator/bmLinks');
+    var impexPath = migPaths.getRelativePath(moduleKey);
+    return {
+        impexPath:          impexPath,
+        impexUrl:           bmLinks.getImpexFolderUrl(impexPath),
+        dataWizardEntryUrl: dataMigrationSession.dataWizardUrl(platformId),
+        dataWizardSelectUrl: dataMigrationSession.dataWizardSelectUrl(platformId)
+    };
 }
 
 /**
@@ -178,8 +217,7 @@ exports.TestConnection = function () {
             session.custom.shopifyApiVersion   = creds.apiVersion   || '2025-01';
         }
         if (getParam('mode') === 'data') {
-            session.custom.dataMigrationConnected = 'true';
-            session.custom.migrationPlatformId    = platformId;
+            dataMigrationSession.markConnected(platformId, result.expiresIn);
         }
         jsonResponse({ ok: true, project: result.project });
     } catch (e) {
@@ -326,33 +364,40 @@ exports.SaveMigrationResults.public = true;
 // ─── Page endpoints ───────────────────────────────────────────────────────────
 
 exports.Start = function () {
-    ISML.renderTemplate('accelerator/dashboard', {
-        title:                    Resource.msg('accelerator.title', 'accelerator', null),
-        subtitle:                 Resource.msg('accelerator.subtitle', 'accelerator', null),
-        platforms:                migrationData.getPlatforms(),
-        wizardUrl:                URLUtils.url('Accelerator-Wizard').toString(),
-        dataWizardUrl:            URLUtils.url('Accelerator-DataWizard').toString(),
+    ISML.renderTemplate('accelerator/dashboard', withBmFrame({
+        title:                     Resource.msg('accelerator.title', 'accelerator', null),
+        subtitle:                  Resource.msg('accelerator.subtitle', 'accelerator', null),
+        platforms:                 migrationData.getPlatforms(),
+        wizardUrl:                 URLUtils.url('Accelerator-Wizard').toString(),
+        dataWizardUrl:             URLUtils.url('Accelerator-DataWizard').toString(),
         dataMigrationDashboardUrl: URLUtils.url('Accelerator-DataMigrationDashboard').toString(),
-        customerMigrationUrl:     URLUtils.url('Accelerator-CustomerMigration').toString(),
-        productWizardUrl:         URLUtils.url('Accelerator-ProductWizard').toString(),
-        cssUrl:                   URLUtils.staticURL('/css/accelerator-migration.css').toString()
-    });
+        customerMigrationUrl:      URLUtils.url('Accelerator-CustomerMigration').toString(),
+        shippingMethodMigrationUrl: URLUtils.url('Accelerator-ShippingMethodMigration').toString(),
+        inventoryMigrationUrl:     URLUtils.url('Accelerator-InventoryMigration').toString(),
+        pricebookMigrationUrl:     URLUtils.url('Accelerator-PricebookMigration').toString(),
+        taxMigrationUrl:           URLUtils.url('Accelerator-TaxMigration').toString(),
+        storeMigrationUrl:         URLUtils.url('Accelerator-StoreMigration').toString(),
+        productWizardUrl:          URLUtils.url('Accelerator-ProductWizard').toString(),
+        categoryMigrationUrl:      URLUtils.url('Accelerator-CategoryMigration').toString(),
+        cssUrl:                    URLUtils.staticURL('/css/accelerator-migration.css').toString(),
+        jsUrl: URLUtils.staticURL('/js/categoryMigration.js').toString(),
+        fetchCatalogsUrl : URLUtils.url('Accelerator-FetchSFCCCatalogs').toString(),
+        createCatalogUrl : URLUtils.url('Accelerator-CreateCatalog').toString(),
+        createCategoryUrl: URLUtils.url('Accelerator-CreateCategory').toString()
+    }));
 };
 exports.Start.public = true;
 
 /**
- * Inner data migration dashboard — 4-card selection (Orders, Customers, Products, Catalog).
- * Reached by clicking "Start Data Migration" on any platform tile.
+ * Legacy entry — redirect into the data wizard (connect → select data).
  */
 exports.DataMigrationDashboard = function () {
-    ISML.renderTemplate('accelerator/dataMigrationDashboard', {
-        title:                Resource.msg('accelerator.title', 'accelerator', null),
-        subtitle:             Resource.msg('accelerator.subtitle', 'accelerator', null),
-        cssUrl:               URLUtils.staticURL('/css/accelerator-migration.css').toString(),
-        dashboardUrl:         URLUtils.url('Accelerator-Start').toString(),
-        orderMigrationUrl:    URLUtils.url('Accelerator-OrderMigration').toString(),
-        customerMigrationUrl: URLUtils.url('Accelerator-CustomerMigration').toString()
-    });
+    var platformId = getParam('platform') || String(session.custom.migrationPlatformId || 'commercetools');
+    response.redirect(URLUtils.url(
+        'Accelerator-DataWizard',
+        'platform', platformId,
+        'step', dataMigrationSession.connectOrSelectStep()
+    ));
 };
 exports.DataMigrationDashboard.public = true;
 
@@ -363,7 +408,11 @@ exports.OrderMigration = function () {
     var platformId = getParam('platform') || String(session.custom.migrationPlatformId || 'commercetools');
 
     if (!isDataMigrationConnected()) {
-        response.redirect(URLUtils.url('Accelerator-DataWizard', 'platform', platformId, 'step', '1'));
+        response.redirect(URLUtils.url(
+            'Accelerator-DataWizard',
+            'platform', platformId,
+            'step', dataMigrationSession.connectOrSelectStep()
+        ));
         return;
     }
 
@@ -374,28 +423,41 @@ exports.OrderMigration.public = true;
 
 /**
  * Export orders from commercetools and generate IMPEX package.
- * POST: years=1|2|3&maxCount=optional
+ * POST: years=1|2|3&maxCount=optional&orderState=optional&paymentState=optional
  */
 exports.ExportOrders = function () {
     var years    = parseInt(getParam('years') || String(session.custom.orderExportYears || '1'), 10);
     var maxRaw   = getParam('maxCount') || String(session.custom.orderExportMaxCount || '');
     var maxCount = maxRaw ? parseInt(maxRaw, 10) : null;
+    var orderState   = getParam('orderState') || String(session.custom.orderExportOrderState || '');
+    var paymentState = getParam('paymentState') || String(session.custom.orderExportPaymentState || '');
 
     if ([1, 2, 3].indexOf(years) < 0) {
         jsonResponse({ ok: false, error: 'Years must be 1, 2, or 3' });
         return;
     }
 
+    if (!migrationData.isValidCtpOrderState(orderState) || !migrationData.isValidCtpPaymentState(paymentState)) {
+        jsonResponse({ ok: false, error: 'Invalid order or payment state filter' });
+        return;
+    }
+
     try {
         var runner2 = require('*/cartridge/scripts/migration/orders/orderMigrationRunner');
-        var report  = runner2.run({ years: years, maxCount: maxCount });
+        var report  = runner2.run({
+            years:        years,
+            maxCount:     maxCount,
+            orderState:   orderState,
+            paymentState: paymentState
+        });
 
         session.custom.orderMigrationReport = JSON.stringify({
             ordersProcessed:   report.ordersProcessed,
             ordersValidated:   report.ordersValidated,
             ordersFailed:      report.ordersFailed,
             xmlFilesGenerated: report.xmlFilesGenerated,
-            runId:             report.runId
+            runId:             report.runId,
+            impexPath:         report.impexPath || 'src/migration/order'
         });
 
         jsonResponse({
@@ -413,6 +475,82 @@ exports.ExportOrders = function () {
     }
 };
 exports.ExportOrders.public = true;
+
+/**
+ * Count orders matching export filters (commercetools query total).
+ * POST: years=1|2|3&maxCount=optional&orderState=optional&paymentState=optional
+ */
+exports.CountOrders = function () {
+    if (!isDataMigrationConnected()) {
+        jsonResponse({ ok: false, error: 'Not connected to source platform' });
+        return;
+    }
+
+    var years        = parseInt(getParam('years') || '1', 10);
+    var maxRaw       = getParam('maxCount') || '';
+    var maxCount     = maxRaw ? parseInt(maxRaw, 10) : null;
+    var orderState   = getParam('orderState') || '';
+    var paymentState = getParam('paymentState') || '';
+
+    if ([1, 2, 3].indexOf(years) < 0) {
+        jsonResponse({ ok: false, error: 'Years must be 1, 2, or 3' });
+        return;
+    }
+
+    if (!migrationData.isValidCtpOrderState(orderState) || !migrationData.isValidCtpPaymentState(paymentState)) {
+        jsonResponse({ ok: false, error: 'Invalid order or payment state filter' });
+        return;
+    }
+
+    try {
+        var ctpOrderConnector = require('*/cartridge/scripts/migration/orders/connectors/ctpOrderConnector');
+        var counts = ctpOrderConnector.countOrders({
+            years:        years,
+            maxCount:     maxCount,
+            orderState:   orderState,
+            paymentState: paymentState
+        });
+
+        jsonResponse({
+            ok:          true,
+            total:       counts.total,
+            exportCount: counts.exportCount
+        });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.CountOrders.public = true;
+
+exports.CheckOrderAttributes = function () {
+    try {
+        var checker = require('*/cartridge/scripts/migration/orders/orderAttrChecker');
+        jsonResponse({ ok: true, missing: checker.checkMissingAttributes() });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.CheckOrderAttributes.public = true;
+
+exports.CreateOrderAttributes = function () {
+    var rawAttrs = getParam('attrs');
+    var attrs    = [];
+    try { attrs = JSON.parse(rawAttrs || '[]'); } catch (e) {
+        jsonResponse({ ok: false, error: 'Invalid attrs JSON' });
+        return;
+    }
+    if (!attrs.length) {
+        jsonResponse({ ok: false, error: 'No attributes provided' });
+        return;
+    }
+    try {
+        var checker = require('*/cartridge/scripts/migration/orders/orderAttrChecker');
+        jsonResponse({ ok: true, result: checker.createAttributes(attrs) });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.CreateOrderAttributes.public = true;
 
 /**
  * Download a generated migration file from IMPEX/src/migration/.
@@ -484,6 +622,11 @@ exports.DataWizard = function () {
 
     session.custom.migrationPlatformId = platformId;
 
+    if (currentStep === 1 && dataMigrationSession.isConnected()) {
+        response.redirect(URLUtils.url('Accelerator-DataWizard', 'platform', platformId, 'step', '2'));
+        return;
+    }
+
     if (currentStep > 1 && !isDataMigrationConnected()) {
         response.redirect(URLUtils.url('Accelerator-DataWizard', 'platform', platformId, 'step', '1'));
         return;
@@ -491,6 +634,40 @@ exports.DataWizard = function () {
 
     if (currentStep > 2 && !dataTypeId) {
         response.redirect(URLUtils.url('Accelerator-DataWizard', 'platform', platformId, 'step', '2'));
+        return;
+    }
+
+    // Types with dedicated migration pages redirect directly at step 3.
+    if (currentStep > 2 && dataTypeId === 'customer') {
+        response.redirect(URLUtils.url('Accelerator-CustomerMigration'));
+        return;
+    }
+    if (currentStep > 2 && dataTypeId === 'shippingMethod') {
+        response.redirect(URLUtils.url('Accelerator-ShippingMethodMigration'));
+        return;
+    }
+    if (currentStep > 2 && dataTypeId === 'inventory') {
+        response.redirect(URLUtils.url('Accelerator-InventoryMigration'));
+        return;
+    }
+    if (currentStep > 2 && dataTypeId === 'pricebook') {
+        response.redirect(URLUtils.url('Accelerator-PricebookMigration'));
+        return;
+    }
+    if (currentStep > 2 && dataTypeId === 'taxation') {
+        response.redirect(URLUtils.url('Accelerator-TaxMigration'));
+        return;
+    }
+    if (currentStep > 2 && dataTypeId === 'store') {
+        response.redirect(URLUtils.url('Accelerator-StoreMigration'));
+        return;
+    }
+    if (currentStep > 2 && dataTypeId === 'product') {
+        response.redirect(URLUtils.url('Accelerator-ProductWizard'));
+        return;
+    }
+    if (currentStep > 2 && dataTypeId === 'catalog') {
+        response.redirect(URLUtils.url('Accelerator-CategoryMigration'));
         return;
     }
 
@@ -506,14 +683,10 @@ exports.DataWizard = function () {
             orderReport = JSON.parse(String(session.custom.orderMigrationReport || 'null'));
             if (orderReport) {
                 var bmLinks  = require('*/cartridge/scripts/accelerator/bmLinks');
-                var impexGen = require('*/cartridge/scripts/migration/orders/generators/impexGenerator');
-                if (orderReport.runId) {
-                    var ordersFolder = impexGen.MIGRATION_BASE + '/' + orderReport.runId + '/'
-                        + impexGen.IMPEX_SRC + '/' + impexGen.ORDERS_SUBDIR;
-                    bmImpexUrl = bmLinks.getImpexFolderUrl(ordersFolder);
-                } else {
-                    bmImpexUrl = bmLinks.getImpexFolderUrl(impexGen.MIGRATION_BASE);
-                }
+                var migPaths = require('*/cartridge/scripts/migration/core/migrationPaths');
+                bmImpexUrl = bmLinks.getImpexFolderUrl(
+                    orderReport.impexPath || migPaths.getRelativePath('order')
+                );
             }
         } catch (e) { /* no report yet */ }
     }
@@ -521,6 +694,18 @@ exports.DataWizard = function () {
     var stepContent = null;
     if (wizardStep.key === 'selectType') {
         stepContent = migrationData.buildDataSelectContent();
+        // Force product and customer selectable regardless of cached migrationData status
+        var readyCount = 0;
+        for (var si = 0; si < stepContent.sections.length; si++) {
+            var sec = stepContent.sections[si];
+            if (sec.taskId === 'product' || sec.taskId === 'customer' || sec.taskId === 'order'
+                || sec.taskId === 'catalog' || sec.taskId === 'shippingMethod' || sec.taskId === 'inventory'
+                || sec.taskId === 'pricebook' || sec.taskId === 'taxation' || sec.taskId === 'store') {
+                sec.selectable = true;
+            }
+            if (sec.selectable) readyCount++;
+        }
+        stepContent.summary = readyCount + ' data type(s) ready';
     }
 
     var exportPhaseIds = [];
@@ -536,7 +721,13 @@ exports.DataWizard = function () {
         selectTypeNoneSelected: Resource.msg('accelerator.datawizard.selectType.noneSelected', 'accelerator', null),
         exportRunning:          Resource.msg('accelerator.ordermigration.export.running', 'accelerator', null),
         exportFailed:           Resource.msg('accelerator.ordermigration.export.failed', 'accelerator', null),
-        exportComplete:         Resource.msg('accelerator.ordermigration.export.complete', 'accelerator', null)
+        exportComplete:         Resource.msg('accelerator.ordermigration.export.complete', 'accelerator', null),
+        orderCountLoading:      Resource.msg('accelerator.ordermigration.count.loading', 'accelerator', null),
+        orderCountPrompt:       Resource.msg('accelerator.ordermigration.count.prompt', 'accelerator', null),
+        orderCountError:        Resource.msg('accelerator.ordermigration.count.error', 'accelerator', null),
+        orderCountNone:         Resource.msg('accelerator.ordermigration.count.none', 'accelerator', null),
+        orderCountMatch:        Resource.msg('accelerator.ordermigration.count.match', 'accelerator', null),
+        orderCountExport:       Resource.msg('accelerator.ordermigration.count.export', 'accelerator', null)
     };
 
     var wizardBaseUrl = URLUtils.url('Accelerator-DataWizard', 'platform', platform.id).toString();
@@ -557,7 +748,7 @@ exports.DataWizard = function () {
         pageTemplate = 'accelerator/dataWizardDiag';
     }
 
-    ISML.renderTemplate(pageTemplate, {
+    ISML.renderTemplate(pageTemplate, withBmFrame({
         title:               Resource.msg('accelerator.datawizard.title', 'accelerator', null),
         subtitle:            Resource.msg('accelerator.subtitle', 'accelerator', null),
         platform:            platform,
@@ -577,25 +768,43 @@ exports.DataWizard = function () {
         msgExportRunning:         dataWizardMsgs.exportRunning,
         msgExportFailed:          dataWizardMsgs.exportFailed,
         msgExportComplete:        dataWizardMsgs.exportComplete,
+        msgOrderCountLoading:     dataWizardMsgs.orderCountLoading,
+        msgOrderCountPrompt:      dataWizardMsgs.orderCountPrompt,
+        msgOrderCountError:       dataWizardMsgs.orderCountError,
+        msgOrderCountNone:        dataWizardMsgs.orderCountNone,
+        msgOrderCountMatch:       dataWizardMsgs.orderCountMatch,
+        msgOrderCountExport:      dataWizardMsgs.orderCountExport,
         orderReport:         orderReport,
         bmImpexUrl:          bmImpexUrl,
         orderYears:          String(session.custom.orderExportYears || '1'),
         orderMaxCount:       String(session.custom.orderExportMaxCount || ''),
+        orderOrderState:     String(session.custom.orderExportOrderState || ''),
+        orderPaymentState:   String(session.custom.orderExportPaymentState || ''),
+        orderStateFilters:   migrationData.getCtpOrderStateFilters(),
+        paymentStateFilters: migrationData.getCtpPaymentStateFilters(),
         prevStep:            prevStep,
         nextStep:            nextStep,
         prevStepQuery:       toStepQuery(prevStep),
         nextStepQuery:       toStepQuery(nextStep),
         isLastStep:          currentStep >= maxStep,
         dashboardUrl:        URLUtils.url('Accelerator-Start').toString(),
+        dataWizardSelectUrl: dataMigrationSession.dataWizardSelectUrl(platformId),
+        hideDataSelectionBack: wizardStep.key === 'connect' || wizardStep.key === 'selectType',
+        dataWizardEntryUrl:  dataMigrationSession.dataWizardUrl(platformId),
         wizardBaseUrl:       wizardBaseUrl,
         continueUrl:         URLUtils.url('Accelerator-DataWizardContinue').toString(),
         orderConfigUrl:      URLUtils.url('Accelerator-DataWizardSaveOrderConfig').toString(),
         testConnectionUrl:   URLUtils.url('Accelerator-TestConnection').toString(),
         exportUrl:           URLUtils.url('Accelerator-ExportOrders').toString(),
+        orderCountUrl:       URLUtils.url('Accelerator-CountOrders').toString(),
+        checkAttrsUrl:       URLUtils.url('Accelerator-CheckOrderAttributes').toString(),
+        createAttrsUrl:      URLUtils.url('Accelerator-CreateOrderAttributes').toString(),
         downloadUrl:         URLUtils.url('Accelerator-DownloadMigrationFile').toString(),
+        categoryMigrationUrl: URLUtils.url('Accelerator-CategoryMigration').toString(),
         dataWizardJsUrl:     URLUtils.staticURL('/js/data-wizard.js').toString(),
+        attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString(),
         cssUrl:              URLUtils.staticURL('/css/accelerator-migration.css').toString()
-    });
+    }));
 };
 exports.DataWizard.public = true;
 
@@ -614,9 +823,8 @@ exports.DataWizardContinue = function () {
     }
 
     try {
-        connector.testConnectionWith(buildConnectionCreds(platformId));
-        session.custom.dataMigrationConnected = 'true';
-        session.custom.migrationPlatformId    = platformId;
+        var result = connector.testConnectionWith(buildConnectionCreds(platformId));
+        dataMigrationSession.markConnected(platformId, result.expiresIn);
 
         if (platformId === 'shopify') {
             var creds = buildConnectionCreds(platformId);
@@ -628,7 +836,7 @@ exports.DataWizardContinue = function () {
 
         response.redirect(stepTwoUrl);
     } catch (e) {
-        session.custom.dataMigrationConnected = 'false';
+        dataMigrationSession.clearConnection();
         response.redirect(stepOneUrl);
     }
 };
@@ -642,7 +850,11 @@ exports.DataWizardSelectType = function () {
     var typeId     = getParam('type');
 
     if (!isDataMigrationConnected()) {
-        response.redirect(URLUtils.url('Accelerator-DataWizard', 'platform', platformId, 'step', '1'));
+        response.redirect(URLUtils.url(
+            'Accelerator-DataWizard',
+            'platform', platformId,
+            'step', dataMigrationSession.connectOrSelectStep()
+        ));
         return;
     }
 
@@ -652,6 +864,41 @@ exports.DataWizardSelectType = function () {
     }
 
     session.custom.selectedDataType = typeId;
+
+    // Types with dedicated migration pages bypass the typePlaceholder and go directly.
+    if (typeId === 'customer') {
+        response.redirect(URLUtils.url('Accelerator-CustomerMigration'));
+        return;
+    }
+    if (typeId === 'shippingMethod') {
+        response.redirect(URLUtils.url('Accelerator-ShippingMethodMigration'));
+        return;
+    }
+    if (typeId === 'inventory') {
+        response.redirect(URLUtils.url('Accelerator-InventoryMigration'));
+        return;
+    }
+    if (typeId === 'pricebook') {
+        response.redirect(URLUtils.url('Accelerator-PricebookMigration'));
+        return;
+    }
+    if (typeId === 'taxation') {
+        response.redirect(URLUtils.url('Accelerator-TaxMigration'));
+        return;
+    }
+    if (typeId === 'store') {
+        response.redirect(URLUtils.url('Accelerator-StoreMigration'));
+        return;
+    }
+    if (typeId === 'product') {
+        response.redirect(URLUtils.url('Accelerator-ProductWizard'));
+        return;
+    }
+    if (typeId === 'catalog') {
+        response.redirect(URLUtils.url('Accelerator-CategoryMigration'));
+        return;
+    }
+
     response.redirect(URLUtils.url('Accelerator-DataWizard', 'platform', platformId, 'step', '3'));
 };
 exports.DataWizardSelectType.public = true;
@@ -663,6 +910,8 @@ exports.DataWizardSaveOrderConfig = function () {
     var platformId = getParam('platformId') || getParam('platform') || String(session.custom.migrationPlatformId || 'commercetools');
     var years      = parseInt(getParam('years') || '1', 10);
     var maxRaw     = getParam('maxCount');
+    var orderState   = getParam('orderState') || '';
+    var paymentState = getParam('paymentState') || '';
     var stepThree  = URLUtils.url('Accelerator-DataWizard', 'platform', platformId, 'step', '3');
     var stepFour   = URLUtils.url('Accelerator-DataWizard', 'platform', platformId, 'step', '4');
 
@@ -676,8 +925,15 @@ exports.DataWizardSaveOrderConfig = function () {
         return;
     }
 
-    session.custom.orderExportYears    = String(years);
-    session.custom.orderExportMaxCount = maxRaw ? String(parseInt(maxRaw, 10)) : '';
+    if (!migrationData.isValidCtpOrderState(orderState) || !migrationData.isValidCtpPaymentState(paymentState)) {
+        response.redirect(stepThree);
+        return;
+    }
+
+    session.custom.orderExportYears         = String(years);
+    session.custom.orderExportMaxCount      = maxRaw ? String(parseInt(maxRaw, 10)) : '';
+    session.custom.orderExportOrderState    = orderState;
+    session.custom.orderExportPaymentState  = paymentState;
     response.redirect(stepFour);
 };
 exports.DataWizardSaveOrderConfig.public = true;
@@ -690,7 +946,11 @@ exports.DataMigrationFlow = function () {
     var typeId     = getParam('type');
 
     if (!isDataMigrationConnected()) {
-        response.redirect(URLUtils.url('Accelerator-DataWizard', 'platform', platformId, 'step', '1'));
+        response.redirect(URLUtils.url(
+            'Accelerator-DataWizard',
+            'platform', platformId,
+            'step', dataMigrationSession.connectOrSelectStep()
+        ));
         return;
     }
 
@@ -793,7 +1053,7 @@ exports.Wizard = function () {
         stepContent = buildViewContent(sessionResults);
     }
 
-    ISML.renderTemplate('accelerator/wizard', {
+    ISML.renderTemplate('accelerator/wizard', withBmFrame({
         title:         Resource.msg('accelerator.title', 'accelerator', null),
         subtitle:      Resource.msg('accelerator.subtitle', 'accelerator', null),
         platform:      platform,
@@ -808,9 +1068,10 @@ exports.Wizard = function () {
         nextStepLabel: migrationData.getNextStepLabel(currentStep),
         isLastStep:    currentStep >= migrationData.maxStep,
         dashboardUrl:  URLUtils.url('Accelerator-Start').toString(),
+        dataWizardSelectUrl: dataMigrationSession.dataWizardSelectUrl(platformId),
         wizardBaseUrl: URLUtils.url('Accelerator-Wizard', 'platform', platform.id).toString(),
         cssUrl:        URLUtils.staticURL('/css/accelerator-migration.css').toString()
-    });
+    }));
 };
 exports.Wizard.public = true;
 
@@ -828,25 +1089,36 @@ exports.CustomerMigration = function () {
                        + '/on/demandware.store/Sites-Site/default;site=' + siteId
                        + '/ViewApplication-BM?SelectedMenuItem=jobschedules'
                        + '#/?job#editor!id!CTCustomer!config!CTCustomer!domain!Sites';
-    ISML.renderTemplate('accelerator/customerMigration', {
+    var platformId = String(session.custom.migrationPlatformId || 'commercetools');
+    var pageCtx    = migrationPageContext(platformId, 'customer');
+    var listsUrl   = URLUtils.url('Accelerator-GetCustomerLists').toString();
+    ISML.renderTemplate('accelerator/customerMigration', withBmFrame({
         title:          Resource.msg('accelerator.title', 'accelerator', null),
         subtitle:       Resource.msg('accelerator.subtitle', 'accelerator', null),
         customerListId: customerListId,
         dashboardUrl:   URLUtils.url('Accelerator-Start').toString(),
-        cssUrl:         URLUtils.staticURL('/css/accelerator-migration.css').toString(),
+        impexPath:      pageCtx.impexPath,
+        impexUrl:       pageCtx.impexUrl,
+        dataWizardEntryUrl:  pageCtx.dataWizardEntryUrl,
+        dataWizardSelectUrl: pageCtx.dataWizardSelectUrl,
+        dataWizardEntryUrlJs: toJsLiteral(pageCtx.dataWizardEntryUrl),
+        customerListsUrlJs:   toJsLiteral(listsUrl),
+        presetListIdJs:       toJsLiteral(customerListId),
+        cssUrl:              URLUtils.staticURL('/css/accelerator-migration.css').toString(),
+        attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString(),
         countUrl:       URLUtils.url('Accelerator-CustomerMigrationCount').toString(),
         profileUrl:     URLUtils.url('Accelerator-MigrateCustomerBatch').toString(),
         addressUrl:     URLUtils.url('Accelerator-MigrateCustomerAddresses').toString(),
         fullBatchUrl:        URLUtils.url('Accelerator-FullMigrationBuildBatch').toString(),
         byIdUrl:             URLUtils.url('Accelerator-MigrateCustomerById').toString(),
-        customerListsUrl:    URLUtils.url('Accelerator-GetCustomerLists').toString(),
-        checkAttrsUrl:         URLUtils.url('Accelerator-CheckCustomerAttributes').toString(),
-        createAttrsUrl:        URLUtils.url('Accelerator-CreateCustomerAttributes').toString(),
-        deleteAttrUrl:         URLUtils.url('Accelerator-DeleteCustomerAttribute').toString(),
-        fetchGroupsUrl:        URLUtils.url('Accelerator-FetchCtpCustomerGroups').toString(),
-        createGroupsUrl:       URLUtils.url('Accelerator-CreateSfccCustomerGroups').toString(),
-        jobsUrl:               jobsUrl
-    });
+        customerListsUrl:    listsUrl,
+        checkAttrsUrl:       URLUtils.url('Accelerator-CheckCustomerAttributes').toString(),
+        createAttrsUrl:      URLUtils.url('Accelerator-CreateCustomerAttributes').toString(),
+        deleteAttrUrl:       URLUtils.url('Accelerator-DeleteCustomerAttribute').toString(),
+        fetchGroupsUrl:      URLUtils.url('Accelerator-FetchCtpCustomerGroups').toString(),
+        createGroupsUrl:     URLUtils.url('Accelerator-CreateSfccCustomerGroups').toString(),
+        jobsUrl:             jobsUrl
+    }));
 };
 exports.CustomerMigration.public = true;
 
@@ -859,31 +1131,24 @@ exports.GetCustomerLists = function () {
         var sfccClientSites = require('*/cartridge/scripts/migration/sfccClient');
         var token           = sfccClientSites.getSFCCToken();
         var s               = sfccClientSites.getSFCCSettings();
-        var HTTPClientSites = require('dw/net/HTTPClient');
-        var client          = new HTTPClientSites();
         var url             = s.baseUrl + '/s/-/dw/data/' + s.metaVersion
                             + '/sites?client_id=' + encodeURIComponent(s.bmClientId);
+        var res             = sfccClientSites.doGet(url, token);
 
-        client.setTimeout(15000);
-        client.open('GET', url);
-        client.setRequestHeader('Authorization', 'Bearer ' + token);
-        client.send('');
-
-        var sc   = client.getStatusCode();
-        var body = {};
-        try { body = JSON.parse(client.getText() || '{}'); } catch (pe) {}
-
-        if (sc !== 200) {
-            jsonResponse({ ok: false, error: 'HTTP ' + sc });
+        if (res.status !== 200) {
+            jsonResponse({ ok: false, error: 'HTTP ' + res.status });
             return;
         }
 
         var seen   = {};
         var result = [];
-        var data   = body.data || [];
+        var data   = (res.data && res.data.data) ? res.data.data : [];
         for (var i = 0; i < data.length; i++) {
             var site   = data[i];
-            var listId = site.customer_list_id || site.id;
+            var link   = site.customer_list_link;
+            var listId = (link && link.customer_list_id)
+                      || site.customer_list_id
+                      || site.id;
             if (listId && !seen[listId]) {
                 seen[listId] = true;
                 result.push({ id: listId });
@@ -925,6 +1190,198 @@ exports.CreateSfccCustomerGroups = function () {
     }
 };
 exports.CreateSfccCustomerGroups.public = true;
+
+/**
+ * Return all SFCC catalog IDs available on the instance.
+ * GET — no params required.
+ */
+exports.GetProductCatalogs = function () {
+    try {
+        var config  = require('*/cartridge/scripts/migration/config');
+        var result  = [];
+        var catId   = config.sfcc && config.sfcc.catalogId;
+        if (catId) {
+            result.push({ id: catId });
+        }
+        jsonResponse({ ok: true, catalogs: result });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.GetProductCatalogs.public = true;
+
+/**
+ * GET: fileName=<name> — streams XML file from IMPEX as a download.
+ */
+exports.DownloadProductXml = function () {
+    var fileName = getParam('fileName') || '';
+    if (!fileName || !/^[a-zA-Z0-9_\-]+\.xml$/.test(fileName)) {
+        response.setContentType('text/plain');
+        response.writer.print('Invalid or missing fileName parameter.');
+        return;
+    }
+    var File       = require('dw/io/File');
+    var FileReader = require('dw/io/FileReader');
+    var sep        = File.SEPARATOR;
+    var file       = new File(File.IMPEX + sep + 'src' + sep + 'migration' + sep + 'product' + sep + fileName);
+    if (!file.exists()) {
+        response.setContentType('text/plain');
+        response.writer.print('File not found: ' + fileName);
+        return;
+    }
+    response.setContentType('application/xml');
+    response.addHttpHeader('Content-Disposition', 'attachment; filename="' + fileName + '"');
+    var reader = new FileReader(file, 'UTF-8');
+    try {
+        var line;
+        while ((line = reader.readLine()) !== null) {
+            response.writer.println(line);
+        }
+    } finally {
+        reader.close();
+    }
+};
+exports.DownloadProductXml.public = true;
+
+/**
+ * GET — Returns all CTP variant product attributes plus the saved selection from session.
+ * Response: { ok, attrs: [{ name, sfccId, label, ctpType }], savedSelection: [string]|null }
+ */
+/**
+ * GET — Returns CTP product types detected as Product Sets, with product count per type.
+ * Response: { ok, sets: [{ typeId, typeName, refAttrName, count }] }
+ */
+exports.GetProductSetsInfo = function () {
+    try {
+        var scanner = require('*/cartridge/scripts/migration/productMigration/ctpProductTypeScanner');
+        jsonResponse({ ok: true, sets: scanner.getProductSetsSummary() });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.GetProductSetsInfo.public = true;
+
+/**
+ * GET — Returns CTP product types detected as Bundle Products, with product count per type.
+ * Response: { ok, bundles: [{ typeId, typeName, refAttrName, quantityAttrName, count }] }
+ */
+exports.GetBundleProductsInfo = function () {
+    try {
+        var scanner = require('*/cartridge/scripts/migration/productMigration/ctpProductTypeScanner');
+        jsonResponse({ ok: true, bundles: scanner.getBundleProductsSummary() });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.GetBundleProductsInfo.public = true;
+
+exports.GetVariantAttrs = function () {
+    try {
+        var checker    = require('*/cartridge/scripts/migration/productMigration/productAttrChecker');
+        var sfccClient = require('*/cartridge/scripts/migration/sfccClient');
+        var fields     = checker.getCtpProductTypeFields();
+
+        var existingIds = {};
+        try {
+            var tok     = sfccClient.getSFCCToken();
+            existingIds = sfccClient.getExistingAttributeIds(tok, 'Product') || {};
+        } catch (se) {}
+
+        var enriched = [];
+        for (var i = 0; i < fields.length; i++) {
+            var f = fields[i];
+            enriched.push({
+                name:         f.name,
+                sfccId:       f.sfccId,
+                label:        f.label,
+                ctpType:      f.ctpType,
+                existsInSfcc: !!existingIds[f.sfccId]
+            });
+        }
+
+        var savedRaw       = String(session.custom.selectedVariantAttrs || '');
+        var savedSelection = null;
+        if (savedRaw) {
+            try { savedSelection = JSON.parse(savedRaw); } catch (pe) {}
+        }
+        jsonResponse({ ok: true, attrs: enriched, savedSelection: savedSelection });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.GetVariantAttrs.public = true;
+
+/**
+ * POST: attrs=<JSON array of SFCC attr IDs authorized by the user in the pre-flight panel>
+ * Saves the pre-flight authorization list to session. No attribute creation happens here.
+ */
+exports.SavePreflightSelection = function () {
+    try {
+        var attrsJson = getParam('attrs');
+        var attrs = [];
+        if (attrsJson) { try { attrs = JSON.parse(attrsJson); } catch (pe) {} }
+        session.custom.preflightSelection = JSON.stringify(attrs);
+        jsonResponse({ ok: true, authorized: attrs.length });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.SavePreflightSelection.public = true;
+
+/**
+ * POST: attrs=<JSON array of CTP attr names to include in variant XML>
+ * Validates, auto-creates missing SFCC attrs (if pre-flight authorized), then saves selection.
+ *
+ * Rules:
+ *  - Attr exists in SFCC → include directly, no pre-flight needed
+ *  - Attr missing in SFCC + pre-flight authorized → create it, then include
+ *  - Attr missing in SFCC + NOT pre-flight authorized → validation error
+ */
+exports.SaveVariantAttrSelection = function () {
+    try {
+        var attrsJson = getParam('attrs');
+        var selected  = [];
+        if (attrsJson) { try { selected = JSON.parse(attrsJson); } catch (pe) {} }
+
+        var checker    = require('*/cartridge/scripts/migration/productMigration/productAttrChecker');
+        var sfccClient = require('*/cartridge/scripts/migration/sfccClient');
+
+        // Build ctpName → sfccId map
+        var ctpFields      = checker.getCtpProductTypeFields();
+        var ctpNameToField = {};
+        for (var fi = 0; fi < ctpFields.length; fi++) {
+            ctpNameToField[ctpFields[fi].name] = ctpFields[fi];
+        }
+
+        // Check which attrs currently exist in SFCC (best-effort — if OCAPI fails, skip validation)
+        var existingIds = null;
+        try {
+            var tok = sfccClient.getSFCCToken();
+            existingIds = sfccClient.getExistingAttributeIds(tok, 'Product') || {};
+        } catch (se) {}
+
+        // Validate only when OCAPI call succeeded (existingIds is not null)
+        if (existingIds !== null && Object.keys(existingIds).length > 0) {
+            var notInSfcc = [];
+            for (var si = 0; si < selected.length; si++) {
+                var field = ctpNameToField[selected[si]];
+                if (field && !existingIds[field.sfccId]) {
+                    notInSfcc.push(selected[si]);
+                }
+            }
+            if (notInSfcc.length) {
+                jsonResponse({ ok: false, validationError: true, notInSfcc: notInSfcc });
+                return;
+            }
+        }
+
+        session.custom.selectedVariantAttrs = JSON.stringify(selected);
+        jsonResponse({ ok: true });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.SaveVariantAttrSelection.public = true;
 
 /**
  * Compare CTP customer custom fields against SFCC Customer attribute definitions.
@@ -1096,6 +1553,740 @@ exports.MigrateCustomerById = function () {
 };
 exports.MigrateCustomerById.public = true;
 
+// ─── Shipping method data migration ───────────────────────────────────────────
+
+/**
+ * Shipping method migration page — site-specific, mirrors customer migration flow.
+ */
+exports.ShippingMethodMigration = function () {
+    var Site      = require('dw/system/Site');
+    var siteId    = Site.getCurrent().getID();
+    var platformId = String(session.custom.migrationPlatformId || 'commercetools');
+    var pageCtx    = migrationPageContext(platformId, 'shippingMethod');
+    var jobsUrl = 'https://' + request.httpHost
+        + '/on/demandware.store/Sites-Site/default;site=' + siteId
+        + '/ViewApplication-BM?SelectedMenuItem=site-obj_impex'
+        + '#/?impex#import';
+
+    ISML.renderTemplate('accelerator/shippingMethodMigration', withBmFrame({
+        title:        Resource.msg('accelerator.title', 'accelerator', null),
+        subtitle:     Resource.msg('accelerator.subtitle', 'accelerator', null),
+        presetSiteId: siteId,
+        impexPath:    pageCtx.impexPath,
+        dashboardUrl: URLUtils.url('Accelerator-Start').toString(),
+        dataWizardEntryUrl:  pageCtx.dataWizardEntryUrl,
+        dataWizardSelectUrl: pageCtx.dataWizardSelectUrl,
+        impexUrl:     pageCtx.impexUrl,
+        cssUrl:       URLUtils.staticURL('/css/accelerator-migration.css').toString(),
+        attrPreflightJsUrl: URLUtils.staticURL('/js/attr-preflight.js').toString(),
+        countUrl:          URLUtils.url('Accelerator-ShippingMethodMigrationCount').toString(),
+        listMethodsUrl:    URLUtils.url('Accelerator-ListShippingMethods').toString(),
+        fullBatchUrl:      URLUtils.url('Accelerator-FullShippingMethodBuildBatch').toString(),
+        sitesUrl:          URLUtils.url('Accelerator-GetSites').toString(),
+        checkAttrsUrl:     URLUtils.url('Accelerator-CheckShippingMethodAttributes').toString(),
+        createAttrsUrl:    URLUtils.url('Accelerator-CreateShippingMethodAttributes').toString(),
+        deleteAttrUrl:     URLUtils.url('Accelerator-DeleteShippingMethodAttribute').toString(),
+        jobsUrl:           jobsUrl
+    }));
+};
+exports.ShippingMethodMigration.public = true;
+
+/**
+ * Return all SFCC site IDs available on the instance.
+ * GET — no params required.
+ */
+exports.GetSites = function () {
+    try {
+        var sfccClientSites = require('*/cartridge/scripts/migration/sfccClient');
+        var token           = sfccClientSites.getSFCCToken();
+        var s               = sfccClientSites.getSFCCSettings();
+        var HTTPClientSites = require('dw/net/HTTPClient');
+        var client          = new HTTPClientSites();
+        var url             = s.baseUrl + '/s/-/dw/data/' + s.metaVersion
+            + '/sites?client_id=' + encodeURIComponent(s.bmClientId);
+
+        client.setTimeout(15000);
+        client.open('GET', url);
+        client.setRequestHeader('Authorization', 'Bearer ' + token);
+        client.send('');
+
+        var sc   = client.getStatusCode();
+        var body = {};
+        try { body = JSON.parse(client.getText() || '{}'); } catch (pe) {}
+
+        if (sc !== 200) {
+            jsonResponse({ ok: false, error: 'HTTP ' + sc });
+            return;
+        }
+
+        var result = [];
+        var seen   = {};
+        var data   = body.data || [];
+        for (var i = 0; i < data.length; i++) {
+            var siteId = data[i].id;
+            if (siteId && !seen[siteId]) {
+                seen[siteId] = true;
+                result.push({ id: siteId });
+            }
+        }
+        jsonResponse({ ok: true, sites: result });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.GetSites.public = true;
+
+exports.CheckShippingMethodAttributes = function () {
+    try {
+        var checker = require('*/cartridge/scripts/migration/shippingMethodMigration/shippingMethodAttrChecker');
+        jsonResponse({ ok: true, missing: checker.checkMissingAttributes() });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.CheckShippingMethodAttributes.public = true;
+
+exports.CreateShippingMethodAttributes = function () {
+    var rawAttrs = getParam('attrs');
+    var attrs    = [];
+    try { attrs = JSON.parse(rawAttrs || '[]'); } catch (e) {
+        jsonResponse({ ok: false, error: 'Invalid attrs JSON' });
+        return;
+    }
+    if (!attrs.length) {
+        jsonResponse({ ok: false, error: 'No attributes provided' });
+        return;
+    }
+    try {
+        var checker2 = require('*/cartridge/scripts/migration/shippingMethodMigration/shippingMethodAttrChecker');
+        jsonResponse({ ok: true, result: checker2.createAttributes(attrs) });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.CreateShippingMethodAttributes.public = true;
+
+exports.DeleteShippingMethodAttribute = function () {
+    var attrId = getParam('attrId');
+    if (!attrId) {
+        jsonResponse({ ok: false, error: 'attrId is required' });
+        return;
+    }
+    try {
+        var sfccClientDel = require('*/cartridge/scripts/migration/sfccClient');
+        var tokenDel      = sfccClientDel.getSFCCToken();
+        sfccClientDel.deleteAttributeDefinition(tokenDel, 'ShippingMethod', attrId);
+        jsonResponse({ ok: true });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.DeleteShippingMethodAttribute.public = true;
+
+exports.ShippingMethodMigrationCount = function () {
+    try {
+        var ctpFetcher = require('*/cartridge/scripts/migration/shippingMethodMigration/ctpShippingMethodFetcher');
+        jsonResponse({ ok: true, total: ctpFetcher.getCount() });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.ShippingMethodMigrationCount.public = true;
+
+/**
+ * List all CTP shipping methods for the migration checklist UI.
+ * GET — no params required.
+ */
+exports.ListShippingMethods = function () {
+    try {
+        var fetcher     = require('*/cartridge/scripts/migration/shippingMethodMigration/ctpShippingMethodFetcher');
+        var transformer = require('*/cartridge/scripts/migration/shippingMethodMigration/shippingMethodTransformer');
+        var batch       = fetcher.fetchAll();
+        var list        = [];
+
+        for (var i = 0; i < batch.methods.length; i++) {
+            list.push(transformer.toSummary(batch.methods[i]));
+        }
+
+        jsonResponse({ ok: true, total: batch.total, methods: list });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.ListShippingMethods.public = true;
+
+exports.FullShippingMethodBuildBatch = function () {
+    var offset  = parseInt(getParam('offset') || '0', 10);
+    var siteId  = getParam('siteId');
+    var rawKeys = getParam('keys');
+
+    if (!siteId) {
+        jsonResponse({ ok: false, error: 'siteId is required' });
+        return;
+    }
+
+    var keys = null;
+    if (rawKeys) {
+        try { keys = JSON.parse(rawKeys); } catch (e) {
+            jsonResponse({ ok: false, error: 'Invalid keys JSON' });
+            return;
+        }
+    }
+
+    try {
+        var fullRunner = require('*/cartridge/scripts/migration/shippingMethodMigration/fullMigrationRunner');
+        if (keys && keys.length) {
+            jsonResponse(fullRunner.runBatchForKeys(keys, offset, siteId));
+        } else {
+            jsonResponse(fullRunner.runBatch(offset, siteId));
+        }
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.FullShippingMethodBuildBatch.public = true;
+
+// ─── Inventory list data migration ────────────────────────────────────────────
+
+/**
+ * Inventory list migration page — mirrors shipping method flow without entity checklist.
+ */
+exports.InventoryMigration = function () {
+    var cfg2           = require('*/cartridge/scripts/migration/configAccessor');
+    var Site           = require('dw/system/Site');
+    var siteId         = Site.getCurrent().getID();
+    var listId         = (cfg2.sfcc && cfg2.sfcc.inventoryListId) ? cfg2.sfcc.inventoryListId : '';
+    var platformId     = String(session.custom.migrationPlatformId || 'commercetools');
+    var pageCtx        = migrationPageContext(platformId, 'inventory');
+    var jobsUrl        = 'https://' + request.httpHost
+        + '/on/demandware.store/Sites-Site/default;site=' + siteId
+        + '/ViewApplication-BM?SelectedMenuItem=site-obj_impex'
+        + '#/?impex#import';
+
+    ISML.renderTemplate('accelerator/inventoryMigration', withBmFrame({
+        title:               Resource.msg('accelerator.title', 'accelerator', null),
+        subtitle:            Resource.msg('accelerator.subtitle', 'accelerator', null),
+        presetListId:        listId,
+        impexPath:           pageCtx.impexPath,
+        dashboardUrl:        URLUtils.url('Accelerator-Start').toString(),
+        dataWizardEntryUrl:  pageCtx.dataWizardEntryUrl,
+        dataWizardSelectUrl: pageCtx.dataWizardSelectUrl,
+        countUrl:            URLUtils.url('Accelerator-InventoryMigrationCount').toString(),
+        fullBatchUrl:        URLUtils.url('Accelerator-FullInventoryBuildBatch').toString(),
+        supplyChannelsUrl:   URLUtils.url('Accelerator-GetSupplyChannels').toString(),
+        checkAttrsUrl:       URLUtils.url('Accelerator-CheckInventoryAttributes').toString(),
+        createAttrsUrl:      URLUtils.url('Accelerator-CreateInventoryAttributes').toString(),
+        impexUrl:            pageCtx.impexUrl,
+        cssUrl:              URLUtils.staticURL('/css/accelerator-migration.css').toString(),
+        attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString(),
+        inventoryMigrationJsUrl: URLUtils.staticURL('/js/inventory-migration.js').toString() + '?v=5',
+        jobsUrl:             jobsUrl
+    }));
+};
+exports.InventoryMigration.public = true;
+
+/**
+ * Return CTP inventory supply channels for optional filtering.
+ * GET — no params required.
+ */
+exports.GetSupplyChannels = function () {
+    try {
+        var fetcher = require('*/cartridge/scripts/migration/inventoryMigration/ctpInventoryFetcher');
+        jsonResponse({ ok: true, channels: fetcher.fetchSupplyChannels() });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.GetSupplyChannels.public = true;
+
+exports.CheckInventoryAttributes = function () {
+    try {
+        var checker = require('*/cartridge/scripts/migration/inventoryMigration/inventoryAttrChecker');
+        jsonResponse({ ok: true, missing: checker.checkMissingAttributes() });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.CheckInventoryAttributes.public = true;
+
+exports.CreateInventoryAttributes = function () {
+    var rawAttrs = getParam('attrs');
+    var attrs    = [];
+    try { attrs = JSON.parse(rawAttrs || '[]'); } catch (e) {
+        jsonResponse({ ok: false, error: 'Invalid attrs JSON' });
+        return;
+    }
+    if (!attrs.length) {
+        jsonResponse({ ok: false, error: 'No attributes provided' });
+        return;
+    }
+    try {
+        var checker2 = require('*/cartridge/scripts/migration/inventoryMigration/inventoryAttrChecker');
+        jsonResponse({ ok: true, result: checker2.createAttributes(attrs) });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.CreateInventoryAttributes.public = true;
+
+exports.DeleteInventoryAttribute = function () {
+    var attrId = getParam('attrId');
+    if (!attrId) {
+        jsonResponse({ ok: false, error: 'attrId is required' });
+        return;
+    }
+    try {
+        var sfccClientDel = require('*/cartridge/scripts/migration/sfccClient');
+        var tokenDel      = sfccClientDel.getSFCCToken();
+        sfccClientDel.deleteAttributeDefinition(tokenDel, 'ProductInventoryRecord', attrId);
+        jsonResponse({ ok: true });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.DeleteInventoryAttribute.public = true;
+
+exports.InventoryMigrationCount = function () {
+    try {
+        var supplyChannelId = getParam('supplyChannelId');
+        var ctpFetcher      = require('*/cartridge/scripts/migration/inventoryMigration/ctpInventoryFetcher');
+        jsonResponse({ ok: true, total: ctpFetcher.getCount(supplyChannelId) });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.InventoryMigrationCount.public = true;
+
+exports.FullInventoryBuildBatch = function () {
+    var offset          = parseInt(getParam('offset') || '0', 10);
+    var listId          = getParam('listId');
+    var supplyChannelId = getParam('supplyChannelId');
+    var exportKey       = getParam('exportKey');
+    var fileName        = getParam('fileName');
+    var aggregate       = getParam('aggregate') === 'true';
+
+    if (!listId) {
+        jsonResponse({ ok: false, error: 'listId is required' });
+        return;
+    }
+    if (!exportKey) {
+        jsonResponse({ ok: false, error: 'exportKey is required' });
+        return;
+    }
+
+    try {
+        var fullRunner = require('*/cartridge/scripts/migration/inventoryMigration/fullMigrationRunner');
+        jsonResponse(fullRunner.runBatch(offset, listId, supplyChannelId, exportKey, fileName, aggregate));
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.FullInventoryBuildBatch.public = true;
+
+// ─── Pricebook data migration ─────────────────────────────────────────────────
+
+exports.PricebookMigration = function () {
+    var Site           = require('dw/system/Site');
+    var siteId         = Site.getCurrent().getID();
+    var presetId       = 'list-prices';
+    var platformId     = String(session.custom.migrationPlatformId || 'commercetools');
+    var pageCtx        = migrationPageContext(platformId, 'pricebook');
+    var jobsUrl        = 'https://' + request.httpHost
+        + '/on/demandware.store/Sites-Site/default;site=' + siteId
+        + '/ViewApplication-BM?SelectedMenuItem=site-obj_impex'
+        + '#/?impex#import';
+
+    ISML.renderTemplate('accelerator/pricebookMigration', withBmFrame({
+        title:               Resource.msg('accelerator.title', 'accelerator', null),
+        subtitle:            Resource.msg('accelerator.subtitle', 'accelerator', null),
+        presetPricebookId:   presetId,
+        impexPath:           pageCtx.impexPath,
+        dashboardUrl:        URLUtils.url('Accelerator-Start').toString(),
+        dataWizardEntryUrl:  pageCtx.dataWizardEntryUrl,
+        dataWizardSelectUrl: pageCtx.dataWizardSelectUrl,
+        countUrl:            URLUtils.url('Accelerator-PricebookMigrationCount').toString(),
+        fullBatchUrl:        URLUtils.url('Accelerator-FullPricebookBuildBatch').toString(),
+        pricebooksUrl:       URLUtils.url('Accelerator-GetPricebooks').toString(),
+        checkAttrsUrl:       URLUtils.url('Accelerator-CheckPricebookAttributes').toString(),
+        createAttrsUrl:      URLUtils.url('Accelerator-CreatePricebookAttributes').toString(),
+        impexUrl:            pageCtx.impexUrl,
+        cssUrl:              URLUtils.staticURL('/css/accelerator-migration.css').toString(),
+        attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString(),
+        pricebookMigrationJsUrl: URLUtils.staticURL('/js/pricebook-migration.js').toString() + '?v=5',
+        jobsUrl:             jobsUrl
+    }));
+};
+exports.PricebookMigration.public = true;
+
+exports.GetPricebooks = function () {
+    response.setContentType('application/json');
+    var section = getParam('section') || 'standalone';
+    var offset  = parseInt(getParam('offset') || '0', 10);
+    var reset   = getParam('reset') === 'true';
+    try {
+        if (section === 'embedded') {
+            var embeddedOnly = require('*/cartridge/scripts/migration/pricebookMigration/ctpEmbeddedPriceFetcher');
+            var embResult    = embeddedOnly.discoverEmbeddedStep(offset, reset);
+            jsonResponse({
+                ok:           true,
+                done:         embResult.done,
+                nextOffset:   embResult.nextOffset,
+                scanned:      embResult.scanned,
+                total:        embResult.total,
+                productTotal: embResult.productTotal,
+                embedded:     embResult.embedded || []
+            });
+            return;
+        }
+        var fetcher   = require('*/cartridge/scripts/migration/pricebookMigration/ctpPricebookFetcher');
+        var stdResult = fetcher.discoverStandaloneStep(offset, reset);
+        jsonResponse({
+            ok:         true,
+            done:       stdResult.done,
+            nextOffset: stdResult.nextOffset,
+            scanned:    stdResult.scanned,
+            total:      stdResult.total,
+            standalone: stdResult.standalone || []
+        });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.GetPricebooks.public = true;
+
+exports.CheckPricebookAttributes = function () {
+    try {
+        var checker = require('*/cartridge/scripts/migration/pricebookMigration/pricebookAttrChecker');
+        jsonResponse({ ok: true, missing: checker.checkMissingAttributes() });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.CheckPricebookAttributes.public = true;
+
+exports.CreatePricebookAttributes = function () {
+    var attrsRaw = getParam('attrs');
+    if (!attrsRaw) {
+        jsonResponse({ ok: false, error: 'attrs parameter is required' });
+        return;
+    }
+    try {
+        var attrs = JSON.parse(attrsRaw);
+        var checker2 = require('*/cartridge/scripts/migration/pricebookMigration/pricebookAttrChecker');
+        jsonResponse({ ok: true, result: checker2.createAttributes(attrs) });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.CreatePricebookAttributes.public = true;
+
+exports.PricebookMigrationCount = function () {
+    response.setContentType('application/json');
+    try {
+        var source    = getParam('source') || 'standalone';
+        var currency  = getParam('currency');
+        var channelId = getParam('channelId');
+        var aggregate = getParam('aggregate') === 'true';
+        if (source === 'embedded') {
+            var embedded = require('*/cartridge/scripts/migration/pricebookMigration/ctpEmbeddedPriceFetcher');
+            jsonResponse({ ok: true, total: embedded.getPriceCount(currency, channelId, aggregate) });
+            return;
+        }
+        var fetcher = require('*/cartridge/scripts/migration/pricebookMigration/ctpPricebookFetcher');
+        jsonResponse({ ok: true, total: fetcher.getCount(currency, channelId, aggregate) });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.PricebookMigrationCount.public = true;
+
+exports.FullPricebookBuildBatch = function () {
+    response.setContentType('application/json');
+    var offset       = parseInt(getParam('offset') || '0', 10);
+    var pricebookId  = getParam('pricebookId');
+    var currency     = getParam('currency');
+    var channelId    = getParam('channelId');
+    var exportKey    = getParam('exportKey');
+    var fileName     = getParam('fileName');
+    var aggregate    = getParam('aggregate') === 'true';
+    var source       = getParam('source') || 'standalone';
+
+    if (!pricebookId) {
+        jsonResponse({ ok: false, error: 'pricebookId is required' });
+        return;
+    }
+    if (!currency) {
+        jsonResponse({ ok: false, error: 'currency is required' });
+        return;
+    }
+    if (!exportKey) {
+        jsonResponse({ ok: false, error: 'exportKey is required' });
+        return;
+    }
+
+    try {
+        var fullRunner = require('*/cartridge/scripts/migration/pricebookMigration/fullMigrationRunner');
+        if (source === 'embedded') {
+            jsonResponse(fullRunner.runEmbeddedBatch(
+                offset, pricebookId, currency, channelId, exportKey, fileName, aggregate
+            ));
+            return;
+        }
+        jsonResponse(fullRunner.runBatch(
+            offset, pricebookId, currency, channelId, exportKey, fileName, aggregate
+        ));
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.FullPricebookBuildBatch.public = true;
+
+// ─── Tax data migration ───────────────────────────────────────────────────────
+
+exports.TaxMigration = function () {
+    var Site           = require('dw/system/Site');
+    var siteId         = Site.getCurrent().getID();
+    var platformId     = String(session.custom.migrationPlatformId || 'commercetools');
+    var pageCtx        = migrationPageContext(platformId, 'tax');
+    var jobsUrl        = 'https://' + request.httpHost
+        + '/on/demandware.store/Sites-Site/default;site=' + siteId
+        + '/ViewApplication-BM?SelectedMenuItem=site-obj_impex'
+        + '#/?impex#import';
+
+    ISML.renderTemplate('accelerator/taxMigration', withBmFrame({
+        title:               Resource.msg('accelerator.title', 'accelerator', null),
+        subtitle:            Resource.msg('accelerator.subtitle', 'accelerator', null),
+        impexPath:           pageCtx.impexPath,
+        dashboardUrl:        URLUtils.url('Accelerator-Start').toString(),
+        dataWizardEntryUrl:  pageCtx.dataWizardEntryUrl,
+        dataWizardSelectUrl: pageCtx.dataWizardSelectUrl,
+        countUrl:            URLUtils.url('Accelerator-TaxMigrationCount').toString(),
+        fullBatchUrl:        URLUtils.url('Accelerator-FullTaxBuildBatch').toString(),
+        summaryUrl:          URLUtils.url('Accelerator-GetTaxSummary').toString(),
+        checkAttrsUrl:       URLUtils.url('Accelerator-CheckTaxAttributes').toString(),
+        createAttrsUrl:      URLUtils.url('Accelerator-CreateTaxAttributes').toString(),
+        impexUrl:            pageCtx.impexUrl,
+        cssUrl:              URLUtils.staticURL('/css/accelerator-migration.css').toString(),
+        attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString(),
+        taxMigrationJsUrl:   URLUtils.staticURL('/js/tax-migration.js').toString() + '?v=6',
+        jobsUrl:             jobsUrl
+    }));
+};
+exports.TaxMigration.public = true;
+
+exports.CheckTaxAttributes = function () {
+    response.setContentType('application/json');
+    try {
+        var checker = require('*/cartridge/scripts/migration/taxMigration/taxAttrChecker');
+        jsonResponse({ ok: true, missing: checker.checkMissingAttributes() });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.CheckTaxAttributes.public = true;
+
+exports.CreateTaxAttributes = function () {
+    response.setContentType('application/json');
+    var rawAttrs = getParam('attrs');
+    var attrs    = [];
+    try { attrs = JSON.parse(rawAttrs || '[]'); } catch (e) {
+        jsonResponse({ ok: false, error: 'Invalid attrs JSON' });
+        return;
+    }
+    if (!attrs.length) {
+        jsonResponse({ ok: false, error: 'No attributes provided' });
+        return;
+    }
+    try {
+        var checker = require('*/cartridge/scripts/migration/taxMigration/taxAttrChecker');
+        jsonResponse({ ok: true, result: checker.createAttributes(attrs) });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.CreateTaxAttributes.public = true;
+
+exports.GetTaxSummary = function () {
+    response.setContentType('application/json');
+    try {
+        var fetcher = require('*/cartridge/scripts/migration/taxMigration/ctpTaxFetcher');
+        jsonResponse({ ok: true, overview: fetcher.getTaxOverview() });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.GetTaxSummary.public = true;
+
+exports.TaxMigrationCount = function () {
+    response.setContentType('application/json');
+    try {
+        var scopeType = getParam('scopeType') || 'full';
+        var scopeId   = getParam('scopeId') || '';
+        var fetcher   = require('*/cartridge/scripts/migration/taxMigration/ctpTaxFetcher');
+        jsonResponse({ ok: true, total: fetcher.getRateCount(scopeType, scopeId) });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.TaxMigrationCount.public = true;
+
+exports.FullTaxBuildBatch = function () {
+    response.setContentType('application/json');
+    var offset     = parseInt(getParam('offset') || '0', 10);
+    var exportKey  = getParam('exportKey');
+    var scopeType  = getParam('scopeType') || 'full';
+    var scopeId    = getParam('scopeId') || '';
+    var fileName   = getParam('fileName');
+
+    if (!exportKey) {
+        jsonResponse({ ok: false, error: 'exportKey is required' });
+        return;
+    }
+
+    try {
+        var fullRunner = require('*/cartridge/scripts/migration/taxMigration/fullMigrationRunner');
+        jsonResponse(fullRunner.runBatch(offset, exportKey, scopeType, scopeId, fileName));
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.FullTaxBuildBatch.public = true;
+
+// ─── Store data migration ─────────────────────────────────────────────────────
+
+exports.StoreMigration = function () {
+    var Site           = require('dw/system/Site');
+    var siteId         = Site.getCurrent().getID();
+    var platformId     = String(session.custom.migrationPlatformId || 'commercetools');
+    var pageCtx        = migrationPageContext(platformId, 'store');
+    var jobsUrl        = 'https://' + request.httpHost
+        + '/on/demandware.store/Sites-Site/default;site=' + siteId
+        + '/ViewApplication-BM?SelectedMenuItem=site-obj_impex'
+        + '#/?impex#import';
+
+    ISML.renderTemplate('accelerator/storeMigration', withBmFrame({
+        title:               Resource.msg('accelerator.title', 'accelerator', null),
+        subtitle:            Resource.msg('accelerator.subtitle', 'accelerator', null),
+        impexPath:           pageCtx.impexPath,
+        dashboardUrl:        URLUtils.url('Accelerator-Start').toString(),
+        dataWizardEntryUrl:  pageCtx.dataWizardEntryUrl,
+        dataWizardSelectUrl: pageCtx.dataWizardSelectUrl,
+        fullBatchUrl:        URLUtils.url('Accelerator-FullStoreBuildBatch').toString(),
+        listStoresUrl:       URLUtils.url('Accelerator-ListStores').toString(),
+        checkAttrsUrl:       URLUtils.url('Accelerator-CheckStoreAttributes').toString(),
+        createAttrsUrl:      URLUtils.url('Accelerator-CreateStoreAttributes').toString(),
+        impexUrl:            pageCtx.impexUrl,
+        cssUrl:              URLUtils.staticURL('/css/accelerator-migration.css').toString(),
+        attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString(),
+        storeMigrationJsUrl: URLUtils.staticURL('/js/store-migration.js').toString() + '?v=4',
+        jobsUrl:             jobsUrl
+    }));
+};
+exports.StoreMigration.public = true;
+
+exports.CheckStoreAttributes = function () {
+    response.setContentType('application/json');
+    try {
+        var checker = require('*/cartridge/scripts/migration/storeMigration/storeAttrChecker');
+        jsonResponse({ ok: true, missing: checker.checkMissingAttributes() });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.CheckStoreAttributes.public = true;
+
+exports.CreateStoreAttributes = function () {
+    response.setContentType('application/json');
+    var rawAttrs = getParam('attrs');
+    var attrs    = [];
+    try { attrs = JSON.parse(rawAttrs || '[]'); } catch (e) {
+        jsonResponse({ ok: false, error: 'Invalid attrs JSON' });
+        return;
+    }
+    if (!attrs.length) {
+        jsonResponse({ ok: false, error: 'No attributes provided' });
+        return;
+    }
+    try {
+        var checker = require('*/cartridge/scripts/migration/storeMigration/storeAttrChecker');
+        jsonResponse({ ok: true, result: checker.createAttributes(attrs) });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.CreateStoreAttributes.public = true;
+
+exports.GetStoreSummary = function () {
+    response.setContentType('application/json');
+    try {
+        var fetcher = require('*/cartridge/scripts/migration/storeMigration/ctpStoreFetcher');
+        jsonResponse({ ok: true, summary: fetcher.getFullStoreSummary() });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.GetStoreSummary.public = true;
+
+/**
+ * List all CTP stores for the migration checklist UI.
+ * GET — no params required.
+ */
+exports.ListStores = function () {
+    response.setContentType('application/json');
+    try {
+        var fetcher     = require('*/cartridge/scripts/migration/storeMigration/ctpStoreFetcher');
+        var transformer = require('*/cartridge/scripts/migration/storeMigration/storeTransformer');
+        var stores      = fetcher.fetchAllCtpStores();
+        var list        = [];
+        var i;
+
+        for (i = 0; i < stores.length; i++) {
+            list.push(transformer.toSummary(stores[i]));
+        }
+
+        jsonResponse({ ok: true, total: stores.length, stores: list });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.ListStores.public = true;
+
+exports.StoreMigrationCount = function () {
+    response.setContentType('application/json');
+    try {
+        var fetcher = require('*/cartridge/scripts/migration/storeMigration/ctpStoreFetcher');
+        var summary = fetcher.getFullStoreSummary();
+        jsonResponse({ ok: true, total: summary.storeCount || 0 });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.StoreMigrationCount.public = true;
+
+exports.FullStoreBuildBatch = function () {
+    response.setContentType('application/json');
+    var offset    = parseInt(getParam('offset') || '0', 10);
+    var exportKey = getParam('exportKey') || 'full';
+    var fileName  = getParam('fileName');
+    var rawKeys   = getParam('keys');
+
+    var keys = null;
+    if (rawKeys) {
+        try { keys = JSON.parse(rawKeys); } catch (e) {
+            jsonResponse({ ok: false, error: 'Invalid keys JSON' });
+            return;
+        }
+    }
+
+    try {
+        var fullRunner = require('*/cartridge/scripts/migration/storeMigration/fullMigrationRunner');
+        jsonResponse(fullRunner.runBatch(offset, exportKey, fileName, keys));
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.FullStoreBuildBatch.public = true;
+
 /**
  * Full Migration — trigger the SFCC import job via OCAPI Data API (self-call).
  * POST: jobId=<BM-job-id>
@@ -1183,77 +2374,32 @@ exports.FullMigrationJobStatus.public = true;
  * Produces SFCC catalog XML files uploaded via WebDAV, then triggers a BM import job.
  */
 exports.ProductWizard = function () {
-    var params    = request.httpParameterMap;
-    var stepParam = 1;
-
-    if (params.step && params.step.submitted) {
-        var parsed = parseInt(String(params.step.stringValue || '1'), 10);
-        if (!Number.isNaN(parsed) && parsed > 0) stepParam = parsed;
-    }
-
-    var currentStep = Math.min(Math.max(stepParam, 1), migrationData.maxProductStep);
-    var wizardStep  = migrationData.getProductWizardStep(currentStep);
-    var platform    = migrationData.getPlatform('commercetools');
-    var stepContent = null;
-    var prevStep    = currentStep > 1 ? currentStep - 1 : null;
-    var nextStep    = currentStep < migrationData.maxProductStep ? currentStep + 1 : null;
-
-    // Step 2: fetch product count from CTP
-    if (currentStep === 2) {
-        try {
-            var prodFetcher2 = require('*/cartridge/scripts/migration/productMigration/ctpProductFetcher');
-            stepContent = { total: prodFetcher2.getCount(), error: null };
-        } catch (e) {
-            stepContent = { total: 0, error: e.message || String(e) };
-        }
-    }
-
-    // Step 3: configure — read persisted values from session
-    if (currentStep === 3) {
-        stepContent = {
-            catalogId:       String(session.custom.prodWizardCatalogId       || ''),
-            pricebookId:     String(session.custom.prodWizardPricebookId     || 'list-prices'),
-            currency:        String(session.custom.prodWizardCurrency        || 'USD'),
-            inventoryListId: String(session.custom.prodWizardInventoryListId || 'default-inventory')
-        };
-    }
-
-    // Step 4: move — read config from session, build URLs for inline JS
-    if (currentStep === 4) {
-        stepContent = {
-            catalogId:       String(session.custom.prodWizardCatalogId       || ''),
-            pricebookId:     String(session.custom.prodWizardPricebookId     || 'list-prices'),
-            currency:        String(session.custom.prodWizardCurrency        || 'USD'),
-            inventoryListId: String(session.custom.prodWizardInventoryListId || 'default-inventory'),
-            fullBatchUrl:    URLUtils.url('Accelerator-FullProductMigrationBuildBatch').toString(),
-            triggerJobUrl:   URLUtils.url('Accelerator-FullMigrationTriggerJob').toString(),
-            jobStatusUrl:    URLUtils.url('Accelerator-FullMigrationJobStatus').toString(),
-            saveResultsUrl:  URLUtils.url('Accelerator-SaveProdWizardResults').toString()
-        };
-    }
-
-    // Step 5: view — parse results from session
-    if (currentStep === 5) {
-        var rawRes5 = String(session.custom.prodWizardResults || 'null');
-        var results5 = null;
-        try { results5 = JSON.parse(rawRes5); } catch (e) { /* no results yet */ }
-        stepContent = { results: results5 };
-    }
-
-    ISML.renderTemplate('accelerator/productWizard', {
-        title:        Resource.msg('accelerator.title', 'accelerator', null),
-        platform:     platform,
-        wizardSteps:  migrationData.getProductWizardSteps(),
-        currentStep:  currentStep,
-        wizardStep:   wizardStep,
-        stepContent:  stepContent,
-        prevStep:     prevStep,
-        nextStep:     nextStep,
-        isLastStep:   currentStep >= migrationData.maxProductStep,
-        dashboardUrl: URLUtils.url('Accelerator-Start').toString(),
-        wizardBaseUrl: URLUtils.url('Accelerator-ProductWizard').toString(),
-        cssUrl:       URLUtils.staticURL('/css/accelerator-migration.css').toString()
-    });
+    var platformId = String(session.custom.migrationPlatformId || 'commercetools');
+    var pageCtx    = migrationPageContext(platformId, 'product');
+    ISML.renderTemplate('accelerator/productMigration', withBmFrame({
+        title:          Resource.msg('accelerator.title', 'accelerator', null),
+        subtitle:       Resource.msg('accelerator.subtitle', 'accelerator', null),
+        impexPath:      pageCtx.impexPath,
+        impexUrl:       pageCtx.impexUrl,
+        dataWizardEntryUrl:  pageCtx.dataWizardEntryUrl,
+        dataWizardSelectUrl: pageCtx.dataWizardSelectUrl,
+        countUrl:       URLUtils.url('Accelerator-ProductMigrationCount').toString(),
+        partialUrl:     URLUtils.url('Accelerator-MigrateProductById').toString(),
+        fullBatchUrl:   URLUtils.url('Accelerator-FullProductMigrationBuildBatch').toString(),
+        checkAttrsUrl:       URLUtils.url('Accelerator-CheckProductAttributes').toString(),
+        createAttrsUrl:      URLUtils.url('Accelerator-CreateProductAttributes').toString(),
+        deleteAttrUrl:       URLUtils.url('Accelerator-DeleteProductAttribute').toString(),
+        catalogsUrl:         URLUtils.url('Accelerator-GetProductCatalogs').toString(),
+        downloadXmlUrl:      URLUtils.url('Accelerator-DownloadProductXml').toString(),
+        variantAttrsUrl:      URLUtils.url('Accelerator-GetVariantAttrs').toString(),
+        saveVariantAttrsUrl:  URLUtils.url('Accelerator-SaveVariantAttrSelection').toString(),
+        savePreflightUrl:     URLUtils.url('Accelerator-SavePreflightSelection').toString(),
+        productSetsUrl:      URLUtils.url('Accelerator-GetProductSetsInfo').toString(),
+        bundleProductsUrl:   URLUtils.url('Accelerator-GetBundleProductsInfo').toString(),
+        dashboardUrl:        URLUtils.url('Accelerator-Start').toString(),
+        cssUrl:              URLUtils.staticURL('/css/accelerator-migration.css').toString(),
+        attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString()
+    }, 'rc_accelerator_product_wizard'));
 };
 exports.ProductWizard.public = true;
 
@@ -1304,25 +2450,1309 @@ exports.ProductMigrationCount = function () {
 exports.ProductMigrationCount.public = true;
 
 /**
- * Full Product Migration — fetch one batch of 500 CTP products, build catalog + pricebook + inventory XML, upload via WebDAV.
- * POST: offset=<n>&catalogId=<id>&pricebookId=<id>&currency=<code>&inventoryListId=<id>
+ * Full Product Migration — fetch one batch of CTP products, build catalog XML, upload via WebDAV.
+ * POST: offset=<n>
+ * catalogId is read from config.js (sfcc.catalogId).
  */
 exports.FullProductMigrationBuildBatch = function () {
-    var offset          = parseInt(getParam('offset') || '0', 10);
-    var catalogId       = getParam('catalogId')       || String(session.custom.prodWizardCatalogId       || '');
-    var pricebookId     = getParam('pricebookId')     || String(session.custom.prodWizardPricebookId     || 'list-prices');
-    var currency        = getParam('currency')        || String(session.custom.prodWizardCurrency        || 'USD');
-    var inventoryListId = getParam('inventoryListId') || String(session.custom.prodWizardInventoryListId || 'default-inventory');
+    var offset    = parseInt(getParam('offset') || '0', 10);
+    var migCfg    = require('*/cartridge/scripts/migration/configAccessor');
+    var catalogId = getParam('catalogId')
+                 || (migCfg.sfcc && migCfg.sfcc.catalogId ? String(migCfg.sfcc.catalogId) : '');
 
     if (!catalogId) {
-        jsonResponse({ ok: false, error: 'catalogId is required' });
+        jsonResponse({ ok: false, error: 'sfcc.catalogId is not configured in config.js' });
         return;
     }
+    var selectedVarAttrs = null;
+    try {
+        var raw = String(session.custom.selectedVariantAttrs || '');
+        if (raw) { selectedVarAttrs = JSON.parse(raw); }
+    } catch (pe) {}
     try {
         var prodRunner = require('*/cartridge/scripts/migration/productMigration/fullProductMigrationRunner');
-        jsonResponse(prodRunner.runBatch(offset, catalogId, pricebookId, currency, inventoryListId));
+        jsonResponse(prodRunner.runBatch(offset, catalogId, selectedVarAttrs));
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
     }
 };
 exports.FullProductMigrationBuildBatch.public = true;
+
+/**
+ * Partial Product Migration — fetch one CTP product by ID, build XML, upload via WebDAV.
+ * POST: ctpId=<ctp-product-id>
+ */
+exports.MigrateProductById = function () {
+    var ctpId = getParam('ctpId');
+    if (!ctpId) {
+        jsonResponse({ ok: false, error: 'ctpId is required' });
+        return;
+    }
+    var migCfg    = require('*/cartridge/scripts/migration/configAccessor');
+    var catalogId = getParam('catalogId')
+                 || (migCfg.sfcc && migCfg.sfcc.catalogId ? String(migCfg.sfcc.catalogId) : '');
+    if (!catalogId) {
+        jsonResponse({ ok: false, error: 'sfcc.catalogId is not configured in config.js' });
+        return;
+    }
+    var selectedVarAttrs = null;
+    try {
+        var raw = String(session.custom.selectedVariantAttrs || '');
+        if (raw) { selectedVarAttrs = JSON.parse(raw); }
+    } catch (pe) {}
+    try {
+        var prodRunner = require('*/cartridge/scripts/migration/productMigration/fullProductMigrationRunner');
+        jsonResponse(prodRunner.runById(ctpId, catalogId, selectedVarAttrs));
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.MigrateProductById.public = true;
+
+/**
+ * Compare CTP product type attributes against SFCC Product attribute definitions.
+ * Returns attributes present in CTP but missing in SFCC.
+ * GET — no params required.
+ */
+exports.CheckProductAttributes = function () {
+    try {
+        var checker = require('*/cartridge/scripts/migration/productMigration/productAttrChecker');
+        jsonResponse({ ok: true, missing: checker.checkMissingAttributes() });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.CheckProductAttributes.public = true;
+
+/**
+ * Create selected attribute definitions on the SFCC Product system object.
+ * POST: attrs=<json-array of {id, label, sfccType}>
+ */
+exports.CreateProductAttributes = function () {
+    var rawAttrs = getParam('attrs');
+    var attrs    = [];
+    try { attrs = JSON.parse(rawAttrs || '[]'); } catch (e) {
+        jsonResponse({ ok: false, error: 'Invalid attrs JSON' });
+        return;
+    }
+    if (!attrs.length) {
+        jsonResponse({ ok: false, error: 'No attributes provided' });
+        return;
+    }
+    try {
+        var checker2 = require('*/cartridge/scripts/migration/productMigration/productAttrChecker');
+        jsonResponse({ ok: true, result: checker2.createAttributes(attrs) });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.CreateProductAttributes.public = true;
+
+/**
+ * Delete a single custom attribute definition from the SFCC Product system object.
+ * POST: attrId=<attribute-id>
+ */
+exports.DeleteProductAttribute = function () {
+    var attrId = getParam('attrId');
+    if (!attrId) {
+        jsonResponse({ ok: false, error: 'attrId is required' });
+        return;
+    }
+    try {
+        var sfcc2 = require('*/cartridge/scripts/migration/sfccClient');
+        var tok   = sfcc2.getSFCCToken();
+        sfcc2.deleteAttributeDefinition(tok, 'Product', attrId);
+        jsonResponse({ ok: true });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.DeleteProductAttribute.public = true;
+
+// ─── Category migration ───────────────────────────────────────────────────────
+
+/**
+ * Category migration page — renders the category migration UI.
+ */
+
+
+exports.CategoryMigrationJS = function () {
+    response.setContentType('application/javascript');
+    response.writer.print(getCategoryMigrationJS());
+};
+exports.CategoryMigrationJS.public = true;
+
+// Paste this function into Accelerator.js
+// It returns the full JS as a string served via Accelerator-CategoryMigrationJS
+
+
+function getCategoryMigrationJS() {
+    var L = [];
+
+    L.push('var _APP = {};');
+    L.push('_APP.allCategories = [];');
+    L.push('_APP.catMap = {};');
+    L.push('_APP.hierarchyOverrides = {};');
+    L.push('_APP.orderOverrides = {};');
+    L.push('_APP.pendingParent = {};');
+    L.push('_APP.pendingOrder = {};');
+    L.push('_APP.running = false;');
+    L.push('_APP.draggingId = null;');
+    L.push('_APP.activeFilter = "all";');
+    L.push('_APP.MIGRATE_URL = "";');
+    L.push('_APP.FETCH_URL = "";');
+    L.push('_APP.ATTRS_URL = "";');
+    L.push('_APP.STATUS_URL = "";');
+    L.push('_APP.IMPEX_URL = "";');
+    L.push('_APP.FETCH_CATALOGS_URL = "";');
+    L.push('_APP.CREATE_CATALOG_URL = "";');
+    L.push('_APP.CREATE_CATEGORY_URL = "";');
+    L.push('_APP.IMPORT_URL = "";');
+
+    L.push('function a(k,v){return " "+k+"="+String.fromCharCode(34)+v+String.fromCharCode(34);}');
+
+    L.push('_APP.post = function(url,params,onDone){');
+    L.push('  var req=new XMLHttpRequest();');
+    L.push('  req.open("POST",url,true);');
+    L.push('  req.setRequestHeader("Content-Type","application/x-www-form-urlencoded");');
+    L.push('  req.onreadystatechange=function(){');
+    L.push('    if(req.readyState!==4)return;');
+    L.push('    var raw=req.responseText||"";');
+    L.push('    var start=raw.indexOf("{");');
+    L.push('    if(start>0)raw=raw.substring(start);');
+    L.push('    var data;');
+    L.push('    try{data=JSON.parse(raw);}catch(e){data={ok:false,error:"Parse error"};}');
+    L.push('    onDone(data);');
+    L.push('  };');
+    L.push('  req.send(params);');
+    L.push('};');
+
+    L.push('_APP.openInNewTab=function(url){');
+    L.push('  var a=document.createElement("a");');
+    L.push('  a.href=url;a.target="_blank";');
+    L.push('  document.body.appendChild(a);a.click();document.body.removeChild(a);');
+    L.push('};');
+
+    L.push('_APP.toCamelCase=function(str){');
+    L.push('  if(!str)return"";');
+    L.push('  return str.replace(/[-_]+/g," ").replace(/([a-z])([A-Z])/g,"$1 $2").replace(/\\b\\w/g,function(c){return c.toUpperCase();});');
+    L.push('};');
+
+    L.push('_APP.getCatalogId=function(){');
+    L.push('  var el=document.getElementById("cat-catalog-id");');
+    L.push('  return el?el.value.trim():"";');
+    L.push('};');
+
+    L.push('_APP.goToStep=function(n){');
+    L.push('  [1,2,3,4,5].forEach(function(i){');
+    L.push('    var p=document.getElementById("panel-step"+i);');
+    L.push('    var t=document.getElementById("tab-"+i);');
+    L.push('    if(p)p.style.display=(i===n)?"block":"none";');
+    L.push('    if(t){t.style.color=(i===n)?"#0070d2":"#54698d";t.style.borderBottom=(i===n)?"3px solid #0070d2":"3px solid transparent";}');
+    L.push('  });');
+    L.push('  if(n===5){');
+    L.push('    var cid=_APP.getCatalogId();');
+    L.push('    var disp=document.getElementById("new-cat-catalog-display");');
+    L.push('    if(disp){disp.textContent=cid?"Catalog: "+cid:"Use the catalog selected in the config bar above.";disp.style.color=cid?"#16325c":"#54698d";}');
+    L.push('  }');
+    L.push('};');
+
+    L.push('_APP.setPhase=function(id,state,detail,pct){');
+    L.push('  var li=document.getElementById("cat-phase-"+id);');
+    L.push('  var st=document.getElementById("cat-status-"+id);');
+    L.push('  var det=document.getElementById("cat-detail-"+id);');
+    L.push('  var bar=document.getElementById("cat-bar-"+id);');
+    L.push('  if(!li)return;');
+    L.push('  li.className="acc-phases__item acc-phases__item--"+state;');
+    L.push('  if(st)st.textContent=state;');
+    L.push('  if(det)det.textContent=detail||"";');
+    L.push('  if(bar)bar.style.width=(pct||0)+"%";');
+    L.push('};');
+
+    L.push('_APP.effectiveParentId=function(catId){');
+    L.push('  if(_APP.pendingParent[catId]!==undefined)return _APP.pendingParent[catId];');
+    L.push('  if(_APP.hierarchyOverrides[catId]!==undefined)return _APP.hierarchyOverrides[catId];');
+    L.push('  var cat=_APP.catMap[catId];');
+    L.push('  return cat?(cat.parentId||"root"):"root";');
+    L.push('};');
+
+    L.push('_APP.getDepth=function(catId,visited){');
+    L.push('  visited=visited||{};');
+    L.push('  if(visited[catId])return 0;');
+    L.push('  visited[catId]=true;');
+    L.push('  var pId=_APP.effectiveParentId(catId);');
+    L.push('  if(!pId||pId==="root")return 0;');
+    L.push('  return _APP.catMap[pId]?1+_APP.getDepth(pId,visited):0;');
+    L.push('};');
+
+    L.push('_APP.isDescendant=function(catId,targetId){');
+    L.push('  if(!targetId||targetId==="root")return false;');
+    L.push('  var visited={};var cur=targetId;');
+    L.push('  while(cur&&cur!=="root"){');
+    L.push('    if(visited[cur])break;');
+    L.push('    visited[cur]=true;');
+    L.push('    if(cur===catId)return true;');
+    L.push('    cur=_APP.effectiveParentId(cur);');
+    L.push('  }');
+    L.push('  return false;');
+    L.push('};');
+
+    L.push('_APP.getPosition=function(catId){');
+    L.push('  if(_APP.pendingOrder[catId]!==undefined)return _APP.pendingOrder[catId];');
+    L.push('  if(_APP.orderOverrides[catId]!==undefined)return _APP.orderOverrides[catId];');
+    L.push('  var cat=_APP.catMap[catId];');
+    L.push('  return cat?(cat.position||0):0;');
+    L.push('};');
+
+    L.push('_APP.getLevelColor=function(depth){');
+    L.push('  var colors=["#0070d2","#5b5fc7","#2e7d32","#e65100"];');
+    L.push('  return colors[depth]||"#78909c";');
+    L.push('};');
+
+    L.push('_APP.buildParentOptions=function(catId){');
+    L.push('  var Q=String.fromCharCode(34);');
+    L.push('  var html="<option value="+Q+"root"+Q+">root (top level)</option>";');
+    L.push('  _APP.allCategories.forEach(function(c){');
+    L.push('    if(c.id===catId)return;');
+    L.push('    if(_APP.isDescendant(catId,c.id))return;');
+    L.push('    html+="<option value="+Q+c.id+Q+">"+c.id+"</option>";');
+    L.push('  });');
+    L.push('  return html;');
+    L.push('};');
+
+    L.push('_APP.buildSortedRows=function(){');
+    L.push('  var result=[];var visited={};');
+    L.push('  function visitGroup(parentId){');
+    L.push('    var children=_APP.allCategories.filter(function(c){return _APP.effectiveParentId(c.id)===parentId;});');
+    L.push('    children.sort(function(a,b){return _APP.getPosition(a.id)-_APP.getPosition(b.id);});');
+    L.push('    children.forEach(function(cat){');
+    L.push('      if(visited[cat.id])return;');
+    L.push('      visited[cat.id]=true;');
+    L.push('      result.push({id:cat.id,name:cat.name,parentId:_APP.effectiveParentId(cat.id),depth:_APP.getDepth(cat.id),position:_APP.getPosition(cat.id)});');
+    L.push('      visitGroup(cat.id);');
+    L.push('    });');
+    L.push('  }');
+    L.push('  visitGroup("root");');
+    L.push('  _APP.allCategories.forEach(function(cat){if(!visited[cat.id])result.push({id:cat.id,name:cat.name,parentId:_APP.effectiveParentId(cat.id),depth:_APP.getDepth(cat.id),position:_APP.getPosition(cat.id)});});');
+    L.push('  return result;');
+    L.push('};');
+
+    L.push('_APP.applyDrop=function(srcId,tgtId,tgtParent,dropTop){');
+    L.push('  if(dropTop){');
+    L.push('    if(tgtParent!=="root"&&_APP.isDescendant(srcId,tgtParent)){alert("Cannot move: circular reference.");return false;}');
+    L.push('    _APP.pendingParent[srcId]=tgtParent;');
+    L.push('    var siblings=_APP.allCategories.filter(function(c){return c.id!==srcId&&_APP.effectiveParentId(c.id)===tgtParent;}).sort(function(a,b){return _APP.getPosition(a.id)-_APP.getPosition(b.id);});');
+    L.push('    var tgtPos=siblings.length;');
+    L.push('    for(var i=0;i<siblings.length;i++){if(siblings[i].id===tgtId){tgtPos=i;break;}}');
+    L.push('    siblings.splice(tgtPos,0,_APP.catMap[srcId]);');
+    L.push('    siblings.forEach(function(s,idx){_APP.pendingOrder[s.id]=idx+1;});');
+    L.push('  }else{');
+    L.push('    if(tgtId===srcId||_APP.isDescendant(srcId,tgtId)){alert("Cannot move: circular reference.");return false;}');
+    L.push('    _APP.pendingParent[srcId]=tgtId;');
+    L.push('    var ec=_APP.allCategories.filter(function(c){return c.id!==srcId&&_APP.effectiveParentId(c.id)===tgtId;}).sort(function(a,b){return _APP.getPosition(a.id)-_APP.getPosition(b.id);});');
+    L.push('    ec.forEach(function(c,idx){_APP.pendingOrder[c.id]=idx+1;});');
+    L.push('    _APP.pendingOrder[srcId]=ec.length+1;');
+    L.push('  }');
+    L.push('  return true;');
+    L.push('};');
+
+    L.push('_APP.buildLevelFilterTabs=function(){');
+    L.push('  var tabsEl=document.getElementById("level-filter-tabs");');
+    L.push('  if(!tabsEl)return;');
+    L.push('  var depths={};');
+    L.push('  _APP.allCategories.forEach(function(c){var d=_APP.getDepth(c.id);depths[d]=(depths[d]||0)+1;});');
+    L.push('  var levels=Object.keys(depths).map(Number).sort(function(a,b){return a-b;});');
+    L.push('  var colors=["#0070d2","#5b5fc7","#2e7d32","#e65100","#78909c"];');
+    L.push('  var Q=String.fromCharCode(34);');
+    L.push('  var abg=_APP.activeFilter==="all"?"background:#0070d2;color:#fff;":"background:#fff;color:#0070d2;";');
+    L.push('  var html="<button type="+Q+"button"+Q+" data-level="+Q+"all"+Q+" style="+Q+"padding:5px 14px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;border:2px solid #0070d2;"+abg+Q+">All ("+_APP.allCategories.length+")</button>";');
+    L.push('  levels.forEach(function(lvl){');
+    L.push('    var color=colors[lvl]||"#78909c";');
+    L.push('    var isActive=_APP.activeFilter===String(lvl);');
+    L.push('    var lbg=isActive?"background:"+color+";color:#fff;":"background:#fff;color:"+color+";";');
+    L.push('    html+="<button type="+Q+"button"+Q+" data-level="+Q+lvl+Q+" style="+Q+"padding:5px 14px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;border:2px solid "+color+";"+lbg+Q+">L"+(lvl+1)+" ("+depths[lvl]+")</button>";');
+    L.push('  });');
+    L.push('  tabsEl.innerHTML=html;');
+    L.push('  tabsEl.style.display="flex";');
+    L.push('  var btns=tabsEl.querySelectorAll("button");');
+    L.push('  for(var i=0;i<btns.length;i++){btns[i].addEventListener("click",function(){_APP.activeFilter=this.getAttribute("data-level");_APP.buildLevelFilterTabs();_APP.applyLevelFilter();});}');
+    L.push('};');
+
+    L.push('_APP.applyLevelFilter=function(){');
+    L.push('  var rows=document.querySelectorAll("#main-cat-tbody tr[data-catid]");');
+    L.push('  for(var i=0;i<rows.length;i++){rows[i].style.display=(_APP.activeFilter==="all"||rows[i].getAttribute("data-depth")===_APP.activeFilter)?"":"none";}');
+    L.push('};');
+
+    L.push('_APP.updatePendingSummary=function(){');
+    L.push('  var allIds={};');
+    L.push('  Object.keys(_APP.pendingParent).forEach(function(k){allIds[k]=true;});');
+    L.push('  Object.keys(_APP.pendingOrder).forEach(function(k){allIds[k]=true;});');
+    L.push('  var total=Object.keys(allIds).length;');
+    L.push('  var s=document.getElementById("hierarchy-changes-summary");');
+    L.push('  var b=document.getElementById("btn-save-hierarchy");');
+    L.push('  var c=document.getElementById("hierarchy-changes-count");');
+    L.push('  if(total>0){if(s)s.style.display="block";if(b)b.style.display="inline-block";if(c)c.textContent=total;}');
+    L.push('  else{if(s)s.style.display="none";if(b)b.style.display="none";}');
+    L.push('};');
+
+    L.push('_APP.renderTable=function(){');
+    L.push('  var tbody=document.getElementById("main-cat-tbody");');
+    L.push('  if(!tbody)return;');
+    L.push('  tbody.innerHTML="";');
+    L.push('  var Q=String.fromCharCode(34);');
+    L.push('  if(!_APP.allCategories.length){tbody.innerHTML="<tr><td colspan="+Q+"6"+Q+" style="+Q+"text-align:center;padding:30px;color:#54698d;"+Q+">Click Load Categories from CT to begin.</td></tr>";return;}');
+    L.push('  var sorted=_APP.buildSortedRows();');
+    L.push('  sorted.forEach(function(row,idx){');
+    L.push('    var catId=row.id;');
+    L.push('    var isPC=_APP.pendingParent[catId]!==undefined||_APP.hierarchyOverrides[catId]!==undefined;');
+    L.push('    var isOC=_APP.pendingOrder[catId]!==undefined||_APP.orderOverrides[catId]!==undefined;');
+    L.push('    var isChanged=isPC||isOC;');
+    L.push('    var currentParent=row.parentId;');
+    L.push('    var lvlColor=_APP.getLevelColor(row.depth);');
+    L.push('    var lvlLabel="L"+(row.depth+1);');
+    L.push('    var origParent=_APP.catMap[catId]?(_APP.catMap[catId].parentId||"root"):"root";');
+    L.push('    var parentOpts=_APP.buildParentOptions(catId).replace("value="+Q+currentParent+Q,"value="+Q+currentParent+Q+" selected");');
+    L.push('    var sb=isPC?"#0070d2":"#dddbda";');
+    L.push('    var sbg=isPC?"#e8f4fd":"#fff";');
+    L.push('    var pb=isOC?"background:#fff3e0;border-color:#ffb300;color:#e65100;":"";');
+    L.push('    var rb=isChanged?"background:#fff8e1;":"";');
+    L.push('    var tdSt="padding:7px 8px;border-bottom:1px solid #f0f0f0;";');
+    L.push('    var trHtml="<tr"');
+    L.push('      +" data-catid="+Q+catId+Q');
+    L.push('      +" data-depth="+Q+row.depth+Q');
+    L.push('      +" data-parent="+Q+currentParent+Q');
+    L.push('      +" data-changed="+Q+(isChanged?"1":"0")+Q');
+    L.push('      +" style="+Q+rb+Q+">";');
+    L.push('    trHtml+="<td"+a("style",tdSt+"text-align:center;")+"><span class="+Q+"drag-handle-icon"+Q+a("data-catid",catId)+a("style","cursor:grab;color:#a8b7c7;font-size:20px;user-select:none;")+">&#8597;</span></td>";');
+    L.push('    trHtml+="<td"+a("style",tdSt)+"><span"+a("style","display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;color:#fff;background:"+lvlColor+";")+">"+lvlLabel+"</span></td>";');
+    L.push('    trHtml+="<td"+a("style",tdSt)+"><span id="+Q+"pos-"+catId+Q+a("style","display:inline-block;background:#f4f6f9;border:1px solid #dddbda;border-radius:3px;padding:1px 6px;font-size:11px;font-family:monospace;"+pb)+">"+(idx+1)+"</span></td>";');
+    L.push('    trHtml+="<td"+a("style",tdSt+"font-family:monospace;font-size:11px;")+">"+catId+"</td>";');
+    L.push('    trHtml+="<td"+a("style",tdSt+"font-weight:600;color:#16325c;")+">"+_APP.toCamelCase(row.name)+"</td>";');
+    L.push('    trHtml+="<td"+a("style",tdSt)+"><select"+a("data-catid",catId)+a("data-orig",origParent)+a("style","width:100%;font-size:12px;padding:4px 6px;border:1px solid "+sb+";border-radius:3px;background:"+sbg+";")+">"+parentOpts+"</select></td>";');
+    L.push('    trHtml+="</tr>";');
+    L.push('    tbody.innerHTML+=trHtml;');
+    L.push('  });');
+    L.push('  var selects=tbody.querySelectorAll("select");');
+    L.push('  for(var i=0;i<selects.length;i++){selects[i].addEventListener("change",_APP.onParentDropdownChange);}');
+    L.push('  _APP.initDragDrop(tbody);');
+    L.push('  _APP.buildLevelFilterTabs();');
+    L.push('  _APP.applyLevelFilter();');
+    L.push('  _APP.updatePendingSummary();');
+    L.push('};');
+
+    L.push('_APP.onParentDropdownChange=function(evt){');
+    L.push('  var select=evt.target;');
+    L.push('  var catId=select.getAttribute("data-catid");');
+    L.push('  var orig=select.getAttribute("data-orig");');
+    L.push('  var newVal=select.value;');
+    L.push('  if(newVal===catId){alert("A category cannot be its own parent.");select.value=_APP.effectiveParentId(catId);return;}');
+    L.push('  if(newVal!=="root"&&_APP.isDescendant(catId,newVal)){alert("Cannot set: circular reference.");select.value=_APP.effectiveParentId(catId);return;}');
+    L.push('  if(newVal===orig){delete _APP.pendingParent[catId];}else{');
+    L.push('    _APP.pendingParent[catId]=newVal;');
+    L.push('    var sib=_APP.allCategories.filter(function(c){return c.id!==catId&&_APP.effectiveParentId(c.id)===newVal;}).sort(function(a,b){return _APP.getPosition(a.id)-_APP.getPosition(b.id);});');
+    L.push('    _APP.pendingOrder[catId]=sib.length+1;');
+    L.push('  }');
+    L.push('  _APP.updatePendingSummary();');
+    L.push('  _APP.renderTable();');
+    L.push('};');
+
+    L.push('_APP.initDragDrop=function(tbody){');
+    L.push('  var dragRow=null;var dragId=null;');
+    L.push('  function getRow(el){while(el&&el.tagName!=="TR")el=el.parentNode;return(el&&el.getAttribute("data-catid"))?el:null;}');
+    L.push('  function getAllRows(){return Array.prototype.slice.call(tbody.querySelectorAll("tr[data-catid]"));}');
+    L.push('  function removePH(){var p=document.getElementById("drag-placeholder");if(p&&p.parentNode)p.parentNode.removeChild(p);}');
+    L.push('  function makePH(h){var p=document.createElement("tr");p.id="drag-placeholder";p.style.cssText="height:"+(h||36)+"px;background:#e8f4fd;pointer-events:none;";return p;}');
+    L.push('  function getRowAtY(y){');
+    L.push('    var rows=getAllRows();');
+    L.push('    for(var i=0;i<rows.length;i++){if(rows[i].style.display==="none")continue;var r=rows[i].getBoundingClientRect();if(y>=r.top&&y<=r.bottom)return{row:rows[i],top:y<r.top+r.height/2};}');
+    L.push('    var last=null;for(var j=rows.length-1;j>=0;j--){if(rows[j].style.display!=="none"){last=rows[j];break;}}');
+    L.push('    if(last){var lr=last.getBoundingClientRect();if(y>lr.bottom)return{row:last,top:false};}');
+    L.push('    return null;');
+    L.push('  }');
+    L.push('  function onMM(e){');
+    L.push('    if(!dragRow)return;e.preventDefault();');
+    L.push('    var rz=document.getElementById("root-drop-zone");');
+    L.push('    if(rz){var rr=rz.getBoundingClientRect();if(e.clientY>=rr.top&&e.clientY<=rr.bottom&&e.clientX>=rr.left&&e.clientX<=rr.right){rz.style.background="#cce4f7";rz.style.borderColor="#0050a0";removePH();return;}else{rz.style.background="#f0f7ff";rz.style.borderColor="#0070d2";}}');
+    L.push('    var hit=getRowAtY(e.clientY);if(!hit||hit.row===dragRow)return;');
+    L.push('    removePH();var ph=makePH(dragRow.getBoundingClientRect().height);');
+    L.push('    if(hit.top){ph.style.borderTop="3px solid #0070d2";hit.row.parentNode.insertBefore(ph,hit.row);}');
+    L.push('    else{ph.style.borderBottom="3px solid #5b5fc7";var ns=hit.row.nextSibling;if(ns)hit.row.parentNode.insertBefore(ph,ns);else hit.row.parentNode.appendChild(ph);}');
+    L.push('  }');
+    L.push('  function onMU(e){');
+    L.push('    document.removeEventListener("mousemove",onMM);document.removeEventListener("mouseup",onMU);');
+    L.push('    if(!dragRow)return;');
+    L.push('    dragRow.style.opacity="";dragRow.style.background=dragRow.getAttribute("data-changed")==="1"?"#fff8e1":"";');
+    L.push('    var rz=document.getElementById("root-drop-zone");');
+    L.push('    if(rz){var rr=rz.getBoundingClientRect();if(e.clientY>=rr.top&&e.clientY<=rr.bottom&&e.clientX>=rr.left&&e.clientX<=rr.right){removePH();rz.style.display="none";_APP.pendingParent[dragId]="root";var rc=_APP.allCategories.filter(function(c){return c.id!==dragId&&_APP.effectiveParentId(c.id)==="root";}).sort(function(a,b){return _APP.getPosition(a.id)-_APP.getPosition(b.id);});rc.forEach(function(c,idx){_APP.pendingOrder[c.id]=idx+1;});_APP.pendingOrder[dragId]=rc.length+1;dragRow=null;dragId=null;_APP.draggingId=null;_APP.updatePendingSummary();_APP.renderTable();return;}rz.style.display="none";}');
+    L.push('    var p=document.getElementById("drag-placeholder");if(!p){dragRow=null;dragId=null;_APP.draggingId=null;return;}');
+    L.push('    var isTop=p.style.borderTop!=="";var tgt=null;');
+    L.push('    if(isTop){var nx=p.nextSibling;while(nx&&(!nx.getAttribute||!nx.getAttribute("data-catid")))nx=nx.nextSibling;if(nx&&nx.getAttribute("data-catid"))tgt=nx;}');
+    L.push('    else{var pv=p.previousSibling;while(pv&&(!pv.getAttribute||!pv.getAttribute("data-catid")))pv=pv.previousSibling;if(pv&&pv.getAttribute("data-catid"))tgt=pv;}');
+    L.push('    removePH();');
+    L.push('    if(!tgt||tgt===dragRow){dragRow=null;dragId=null;_APP.draggingId=null;return;}');
+    L.push('    var ok=_APP.applyDrop(dragId,tgt.getAttribute("data-catid"),tgt.getAttribute("data-parent"),isTop);');
+    L.push('    dragRow=null;dragId=null;_APP.draggingId=null;');
+    L.push('    if(ok){_APP.updatePendingSummary();_APP.renderTable();}');
+    L.push('  }');
+    L.push('  var handles=tbody.querySelectorAll(".drag-handle-icon");');
+    L.push('  for(var h=0;h<handles.length;h++){');
+    L.push('    handles[h].addEventListener("mousedown",function(e){');
+    L.push('      e.preventDefault();var row=getRow(e.target);if(!row)return;');
+    L.push('      dragRow=row;dragId=row.getAttribute("data-catid");_APP.draggingId=dragId;');
+    L.push('      dragRow.style.opacity="0.5";dragRow.style.background="#e8f4fd";');
+    L.push('      var rz=document.getElementById("root-drop-zone");if(rz)rz.style.display="block";');
+    L.push('      document.addEventListener("mousemove",onMM);document.addEventListener("mouseup",onMU);');
+    L.push('    });');
+    L.push('  }');
+    L.push('};');
+
+    L.push('_APP.finalize=function(success,message){');
+    L.push('  _APP.running=false;');
+    L.push('  var btn=document.getElementById("cat-start-btn");');
+    L.push('  if(btn){btn.disabled=false;btn.textContent=success?"Migration Complete":"Migration Failed";}');
+    L.push('  var box=document.getElementById("cat-move-status");');
+    L.push('  if(box){box.style.display="block";box.style.padding="12px 16px";box.style.borderRadius="4px";box.style.fontSize="13px";box.style.background=success?"#e8f5e9":"#fff3e0";box.style.border=success?"1px solid #2e7d32":"1px solid #ffb300";box.style.color=success?"#2e7d32":"#e65100";box.textContent=message;}');
+    L.push('};');
+
+    L.push('_APP.addToHistory=function(catId,catName,parentId,statusText){');
+    L.push('  var histEl=document.getElementById("new-cat-history");');
+    L.push('  var tbody=document.getElementById("new-cat-history-tbody");');
+    L.push('  if(!tbody)return;');
+    L.push('  var Q=String.fromCharCode(34);');
+    L.push('  var color=statusText==="XML written"?"#2e7d32":statusText==="Failed"?"#c62828":"#54698d";');
+    L.push('  var bg=statusText==="XML written"?"#e8f5e9":statusText==="Failed"?"#ffebee":"#f4f6f9";');
+    L.push('  var tdSt="padding:8px 12px;border:1px solid #dddbda;";');
+    L.push('  tbody.innerHTML+="<tr>"');
+    L.push('    +"<td"+a("style",tdSt+"font-family:monospace;font-size:11px;")+">"+catId+"</td>"');
+    L.push('    +"<td"+a("style",tdSt)+">"+catName+"</td>"');
+    L.push('    +"<td"+a("style",tdSt+"font-size:12px;color:#54698d;")+">"+(parentId==="root"?"root (L1)":parentId)+"</td>"');
+    L.push('    +"<td"+a("style",tdSt)+"><span"+a("style","background:"+bg+";color:"+color+";padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;")+">"+statusText+"</span></td>"');
+    L.push('    +"</tr>";');
+    L.push('  if(histEl)histEl.style.display="block";');
+    L.push('};');
+
+    L.push('_APP.renderParentPickerList=function(query){');
+    L.push('  var list=document.getElementById("parent-picker-list");');
+    L.push('  if(!list)return;');
+    L.push('  var Q=String.fromCharCode(34);');
+    L.push('  if(!_APP.allCategories.length){list.innerHTML="<div style="+Q+"padding:16px;color:#54698d;text-align:center;"+Q+">Load categories from CT first (Step 2).</div>";return;}');
+    L.push('  var sorted=_APP.buildSortedRows();var html="";');
+    L.push('  sorted.forEach(function(row){');
+    L.push('    if(query&&row.id.toLowerCase().indexOf(query)===-1&&row.name.toLowerCase().indexOf(query)===-1)return;');
+    L.push('    var lvlColor=_APP.getLevelColor(row.depth);var lvlLabel="L"+(row.depth+1);');
+    L.push('    html+="<div onclick="+Q+"pickParent(\'"+row.id+"\');"+Q+" style="+Q+"padding:8px 12px;cursor:pointer;border-bottom:1px solid #f0f0f0;display:flex;align-items:center;gap:10px;"+Q+" onmouseover="+Q+"this.style.background=\'#f4f6f9\';"+Q+" onmouseout="+Q+"this.style.background=\'\';"+Q+">"');
+    L.push('      +"<span"+a("style","display:inline-block;padding:1px 6px;border-radius:8px;font-size:10px;font-weight:700;color:#fff;background:"+lvlColor+";")+">"+lvlLabel+"</span>"');
+    L.push('      +"<span"+a("style","font-size:12px;font-family:monospace;color:#54698d;")+">"+row.id+"</span>"');
+    L.push('      +"<span"+a("style","font-size:13px;font-weight:600;color:#16325c;")+">"+_APP.toCamelCase(row.name)+"</span>"');
+    L.push('      +"</div>";');
+    L.push('  });');
+    L.push('  if(!html)html="<div style="+Q+"padding:16px;color:#54698d;text-align:center;"+Q+">No categories found.</div>";');
+    L.push('  list.innerHTML=html;');
+    L.push('};');
+
+    L.push('window.pickParent=function(catId){');
+    L.push('  var inp=document.getElementById("new-cat-parent");if(inp)inp.value=catId;');
+    L.push('  var modal=document.getElementById("parent-picker-modal");if(modal)modal.style.display="none";');
+    L.push('};');
+
+    // ── _APP.init ─────────────────────────────────────────────────────────────
+    L.push('_APP.init=function(){');
+    L.push('  var el;');
+
+    // Load Catalogs
+    L.push('  el=document.getElementById("btn-load-catalogs");');
+    L.push('  if(el)el.addEventListener("click",function(){');
+    L.push('    var btn=this;var status=document.getElementById("catalog-load-status");var sel=document.getElementById("cat-catalog-select");');
+    L.push('    btn.disabled=true;btn.textContent="Loading...";');
+    L.push('    if(status){status.textContent="Fetching catalogs...";status.style.color="#54698d";}');
+    L.push('    _APP.post(_APP.FETCH_CATALOGS_URL,"",function(data){');
+    L.push('      btn.disabled=false;btn.textContent="Load Catalogs";');
+    L.push('      if(!data.ok){if(status){status.textContent="Error: "+(data.error||"failed");status.style.color="#c62828";}return;}');
+    L.push('      var Q=String.fromCharCode(34);');
+    L.push('      if(sel){sel.innerHTML="<option value="+Q+Q+">-- Select a catalog --</option>";(data.catalogs||[]).forEach(function(c){sel.innerHTML+="<option value="+Q+c.id+Q+">"+c.name+" ("+c.id+")</option>";});}');
+    L.push('      if(status){status.textContent=data.total+" catalogs loaded";status.style.color="#2e7d32";}');
+    L.push('    });');
+    L.push('  });');
+
+    L.push('  el=document.getElementById("cat-catalog-select");');
+    L.push('  if(el)el.addEventListener("change",function(){var cid=document.getElementById("cat-catalog-id");if(cid&&this.value)cid.value=this.value;});');
+
+    // Step 1 - Check Attributes (checkbox-based)
+    L.push('  el=document.getElementById("btn-check-attrs");');
+    L.push('  if(el)el.addEventListener("click",function(){');
+    L.push('    var btn=this;btn.disabled=true;btn.textContent="Checking...";');
+    L.push('    _APP.post(_APP.ATTRS_URL,"",function(data){');
+    L.push('      btn.disabled=false;btn.textContent="Check Attributes";');
+    L.push('      var Q=String.fromCharCode(34);');
+    L.push('      var tbody=document.getElementById("attr-tbody");');
+    L.push('      if(tbody){');
+    L.push('        tbody.innerHTML="";');
+    L.push('        var attrs=data.attrs||[];');
+  L.push('        attrs.forEach(function(attr){');
+    L.push('          var statusColor=attr.exists?"#2e7d32":"#e65100";');
+    L.push('          var statusBg=attr.exists?"#e8f5e9":"#fff3e0";');
+    L.push('          var statusText=attr.exists?"Exists":"Missing";');
+    L.push('          var chk=!attr.exists?"checked":"";');
+    L.push('          var tdSt="padding:8px 12px;border:1px solid #dddbda;";');
+    L.push('          tbody.innerHTML+="<tr>"');
+    L.push('            +"<td"+a("style",tdSt+"text-align:center;width:52px;")+">"');
+    L.push('            +"<input type="+Q+"checkbox"+Q+" data-attrid="+Q+attr.id+Q+" data-attrtype="+Q+attr.sfccType+Q+" data-attrlabel="+Q+attr.label+Q+" "+chk+a("style","width:16px;height:16px;cursor:pointer;")+"/>"');
+    L.push('            +"</td>"');
+    L.push('            +"<td"+a("style",tdSt)+"><code>"+attr.id+"</code></td>"');
+    L.push('            +"<td"+a("style",tdSt)+">"+attr.sfccType+"</td>"');
+    L.push('            +"<td"+a("style",tdSt)+">"+attr.label+"</td>"');
+    L.push('            +"<td"+a("style",tdSt)+"><span"+a("style","background:"+statusBg+";color:"+statusColor+";padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;")+">"+statusText+"</span></td>"');
+    L.push('            +"</tr>";');
+    L.push('        });');
+    L.push('      }');
+    L.push('      var ar=document.getElementById("attr-result");if(ar)ar.style.display="block";');
+    L.push('      var ao=document.getElementById("attr-overall");if(ao){ao.textContent="Select attributes to create then click Create Selected.";ao.style.color="#54698d";}');
+    L.push('      var cb=document.getElementById("btn-create-selected-attrs");if(cb)cb.style.display="inline-block";');
+    L.push('    });');
+    L.push('  });');
+
+    // Select All
+    L.push('  el=document.getElementById("btn-select-all-attrs");');
+    L.push('  if(el)el.addEventListener("click",function(){');
+    L.push('    var boxes=document.querySelectorAll("#attr-tbody input[type=checkbox]");');
+    L.push('    for(var i=0;i<boxes.length;i++)boxes[i].checked=true;');
+    L.push('  });');
+
+    // Deselect All
+    L.push('  el=document.getElementById("btn-deselect-all-attrs");');
+    L.push('  if(el)el.addEventListener("click",function(){');
+    L.push('    var boxes=document.querySelectorAll("#attr-tbody input[type=checkbox]");');
+    L.push('    for(var i=0;i<boxes.length;i++)boxes[i].checked=false;');
+    L.push('  });');
+
+    // Revert to Default (missing = checked, existing = unchecked)
+   L.push('  el=document.getElementById("btn-revert-attrs");');
+    L.push('  if(el)el.addEventListener("click",function(){');
+    L.push('    var boxes=document.querySelectorAll("#attr-tbody input[type=checkbox]:checked");');
+    L.push('    if(!boxes.length){alert("No attributes selected to delete.");return;}');
+    L.push('    var toDelete=[];');
+    L.push('    for(var i=0;i<boxes.length;i++){toDelete.push(boxes[i].getAttribute("data-attrid"));}');
+    L.push('    if(!confirm("Delete "+toDelete.length+" attribute(s) from SFCC Category system object? This cannot be undone.\\n\\n"+toDelete.join(", ")))return;');
+    L.push('    var ao=document.getElementById("attr-overall");');
+    L.push('    if(ao){ao.textContent="Deleting "+toDelete.length+" attribute(s)...";ao.style.color="#54698d";}');
+    L.push('    _APP.post(_APP.ATTRS_URL,"delete="+encodeURIComponent(JSON.stringify(toDelete)),function(data){');
+    L.push('      if(!data.ok){if(ao){ao.textContent="Error: "+(data.error||"failed");ao.style.color="#c62828";}return;}');
+    L.push('      if(ao){ao.textContent="Deleted: "+data.deleted+" | Failed: "+data.failed;ao.style.color=data.failed>0?"#e65100":"#2e7d32";}');
+    L.push('      _APP.post(_APP.ATTRS_URL,"",function(refreshData){');
+    L.push('        if(!refreshData.ok||!refreshData.attrs)return;');
+    L.push('        var tbody2=document.getElementById("attr-tbody");');
+    L.push('        if(!tbody2)return;');
+    L.push('        var rows=tbody2.querySelectorAll("tr");');
+    L.push('        refreshData.attrs.forEach(function(attr,idx){');
+    L.push('          if(!rows[idx])return;');
+    L.push('          var statusCell=rows[idx].querySelector("span");');
+    L.push('          var checkbox=rows[idx].querySelector("input[type=checkbox]");');
+    L.push('          if(statusCell){');
+    L.push('            statusCell.textContent=attr.exists?"Exists":"Missing";');
+    L.push('            statusCell.style.background=attr.exists?"#e8f5e9":"#fff3e0";');
+    L.push('            statusCell.style.color=attr.exists?"#2e7d32":"#e65100";');
+    L.push('          }');
+    L.push('          if(checkbox){checkbox.checked=!attr.exists;}');
+    L.push('        });');
+    L.push('      });');
+    L.push('    });');
+    L.push('  });');
+
+    // Create Selected
+    L.push('  el=document.getElementById("btn-create-selected-attrs");');
+    L.push('  if(el)el.addEventListener("click",function(){');
+    L.push('    var boxes=document.querySelectorAll("#attr-tbody input[type=checkbox]:checked");');
+    L.push('    if(!boxes.length){alert("No attributes selected. Check at least one attribute to create.");return;}');
+    L.push('    var selected=[];');
+    L.push('    for(var i=0;i<boxes.length;i++){');
+    L.push('      selected.push({id:boxes[i].getAttribute("data-attrid"),sfccType:boxes[i].getAttribute("data-attrtype"),label:boxes[i].getAttribute("data-attrlabel")});');
+    L.push('    }');
+    L.push('    var btn=this;btn.disabled=true;btn.textContent="Creating...";');
+    L.push('    var ao=document.getElementById("attr-overall");');
+    L.push('    if(ao){ao.textContent="Creating "+selected.length+" attribute(s)...";ao.style.color="#54698d";}');
+    L.push('    _APP.post(_APP.ATTRS_URL,"selected="+encodeURIComponent(JSON.stringify(selected)),function(data){');
+    L.push('      btn.disabled=false;btn.textContent="Create Selected";');
+    L.push('      if(!data.ok&&data.error){if(ao){ao.textContent="Error: "+data.error;ao.style.color="#c62828";}return;}');
+L.push('      var msg="Done - "+data.created+" created, "+data.skipped+" skipped, "+data.failed+" failed.";');
+    L.push('      if(ao){ao.textContent=msg;ao.style.color=data.failed>0?"#e65100":"#2e7d32";}');
+    L.push('      if(data.errors&&data.errors.length){var eb=document.getElementById("attr-errors");if(eb){eb.style.display="block";eb.textContent="Errors: "+data.errors.join(", ");}}');
+    L.push('      _APP.post(_APP.ATTRS_URL,"",function(refreshData){');
+    L.push('        if(!refreshData.ok||!refreshData.attrs)return;');
+    L.push('        var Q=String.fromCharCode(34);');
+    L.push('        var tbody2=document.getElementById("attr-tbody");');
+    L.push('        if(!tbody2)return;');
+    L.push('        var rows=tbody2.querySelectorAll("tr");');
+    L.push('        refreshData.attrs.forEach(function(attr,idx){');
+    L.push('          if(!rows[idx])return;');
+    L.push('          var statusCell=rows[idx].querySelector("span");');
+    L.push('          var checkbox=rows[idx].querySelector("input[type=checkbox]");');
+    L.push('          if(statusCell){');
+    L.push('            statusCell.textContent=attr.exists?"Exists":"Missing";');
+    L.push('            statusCell.style.background=attr.exists?"#e8f5e9":"#fff3e0";');
+    L.push('            statusCell.style.color=attr.exists?"#2e7d32":"#e65100";');
+    L.push('          }');
+    L.push('          if(checkbox){checkbox.checked=!attr.exists;}');
+    L.push('        });');
+    L.push('      });');
+    L.push('      if(data.failed===0){setTimeout(function(){_APP.goToStep(2);},2000);}');
+    L.push('    });');
+    L.push('  });');
+
+    L.push('  el=document.getElementById("btn-skip-attrs");if(el)el.addEventListener("click",function(){_APP.goToStep(2);});');
+
+    // Step 2
+    L.push('  el=document.getElementById("btn-save-hierarchy");');
+    L.push('  if(el)el.addEventListener("click",function(){');
+    L.push('    Object.keys(_APP.pendingParent).forEach(function(k){_APP.hierarchyOverrides[k]=_APP.pendingParent[k];});');
+    L.push('    Object.keys(_APP.pendingOrder).forEach(function(k){_APP.orderOverrides[k]=_APP.pendingOrder[k];});');
+    L.push('    _APP.pendingParent={};_APP.pendingOrder={};');
+    L.push('    _APP.renderTable();');
+    L.push('    var total=Object.keys(_APP.hierarchyOverrides).length+Object.keys(_APP.orderOverrides).length;');
+    L.push('    var applied=document.getElementById("hierarchy-applied-summary");var appCnt=document.getElementById("hierarchy-applied-count");');
+    L.push('    if(appCnt)appCnt.textContent=total;');
+    L.push('    if(applied)applied.style.display="block";');
+    L.push('    document.getElementById("hierarchy-changes-summary").style.display="none";');
+    L.push('    document.getElementById("btn-save-hierarchy").style.display="none";');
+    L.push('  });');
+
+    L.push('  el=document.getElementById("btn-reset-hierarchy");');
+    L.push('  if(el)el.addEventListener("click",function(){');
+    L.push('    _APP.hierarchyOverrides={};_APP.orderOverrides={};_APP.pendingParent={};_APP.pendingOrder={};_APP.activeFilter="all";');
+    L.push('    var applied=document.getElementById("hierarchy-applied-summary");');
+    L.push('    var summary=document.getElementById("hierarchy-changes-summary");');
+    L.push('    var saveBtn=document.getElementById("btn-save-hierarchy");');
+    L.push('    if(applied)applied.style.display="none";');
+    L.push('    if(summary)summary.style.display="none";');
+    L.push('    if(saveBtn)saveBtn.style.display="none";');
+    L.push('    _APP.renderTable();');
+    L.push('  });');
+
+    L.push('  el=document.getElementById("hierarchy-search");');
+    L.push('  if(el)el.addEventListener("input",function(){');
+    L.push('    var query=this.value.toLowerCase();');
+    L.push('    var rows=document.querySelectorAll("#main-cat-tbody tr[data-catid]");');
+    L.push('    for(var i=0;i<rows.length;i++){var ms=!query||rows[i].textContent.toLowerCase().indexOf(query)>-1;var ml=_APP.activeFilter==="all"||rows[i].getAttribute("data-depth")===_APP.activeFilter;rows[i].style.display=(ms&&ml)?"":"none";}');
+    L.push('  });');
+
+    L.push('  el=document.getElementById("btn-load-categories");');
+    L.push('  if(el)el.addEventListener("click",function(){');
+    L.push('    var btn=this;var status=document.getElementById("hierarchy-fetch-status");');
+    L.push('    var locale=document.getElementById("cat-locale")?document.getElementById("cat-locale").value.trim():"en-US";');
+    L.push('    btn.disabled=true;btn.textContent="Loading...";');
+    L.push('    if(status){status.textContent="Fetching from Commercetools...";status.style.color="#54698d";}');
+    L.push('    _APP.post(_APP.FETCH_URL,"locale="+encodeURIComponent(locale||"en-US"),function(data){');
+    L.push('      btn.disabled=false;btn.textContent="Load Categories from CT";');
+    L.push('      if(!data.ok){if(status){status.textContent="Error: "+(data.error||"failed");status.style.color="#c62828";}return;}');
+    L.push('      _APP.allCategories=data.categories;_APP.catMap={};');
+    L.push('      _APP.hierarchyOverrides={};_APP.orderOverrides={};_APP.pendingParent={};_APP.pendingOrder={};_APP.activeFilter="all";');
+    L.push('      _APP.allCategories.forEach(function(c){_APP.catMap[c.id]=c;});');
+    L.push('      if(status){status.textContent=data.total+" categories loaded";status.style.color="#2e7d32";}');
+    L.push('      var applied=document.getElementById("hierarchy-applied-summary");if(applied)applied.style.display="none";');
+    L.push('      _APP.renderTable();');
+    L.push('    });');
+    L.push('  });');
+
+    L.push('  el=document.getElementById("btn-back-to-step1");if(el)el.addEventListener("click",function(){_APP.goToStep(1);});');
+    L.push('  el=document.getElementById("btn-back-to-step2");if(el)el.addEventListener("click",function(){_APP.goToStep(2);});');
+
+    L.push('  el=document.getElementById("btn-next-to-step3");');
+    L.push('  if(el)el.addEventListener("click",function(){');
+    L.push('    var pc=Object.keys(_APP.pendingParent).length+Object.keys(_APP.pendingOrder).length;');
+    L.push('    if(pc>0&&!confirm(pc+" unsaved change(s) will be discarded. Proceed?"))return;');
+    L.push('    _APP.pendingParent={};_APP.pendingOrder={};');
+    L.push('    var s=document.getElementById("step3-summary");');
+    L.push('    if(s)s.textContent="Step 3 of 3 - Export. Categories: "+_APP.allCategories.length+" | Parent changes: "+Object.keys(_APP.hierarchyOverrides).length+" | Order changes: "+Object.keys(_APP.orderOverrides).length+" | Catalog: "+(_APP.getCatalogId()||"not set");');
+    L.push('    _APP.goToStep(3);');
+    L.push('  });');
+
+    // Step 3
+    L.push('  el=document.getElementById("btn-open-impex");if(el)el.addEventListener("click",function(e){e.preventDefault();_APP.openInNewTab(_APP.IMPEX_URL);});');
+    L.push('  el=document.getElementById("btn-open-import");if(el)el.addEventListener("click",function(e){e.preventDefault();_APP.openInNewTab(_APP.IMPORT_URL);});');
+
+    L.push('  el=document.getElementById("cat-start-btn");');
+    L.push('  if(el)el.addEventListener("click",function(){');
+    L.push('    if(_APP.running)return;');
+    L.push('    var catalogId=_APP.getCatalogId();');
+    L.push('    var locale=document.getElementById("cat-locale")?document.getElementById("cat-locale").value.trim():"en-US";');
+    L.push('    if(!catalogId){alert("Please select or enter a Target Catalog ID.");return;}');
+    L.push('    if(!locale){alert("Please enter a Default Locale.");return;}');
+    L.push('    _APP.running=true;this.disabled=true;this.textContent="Running...";');
+    L.push('    var cs=document.getElementById("cat-move-status");if(cs)cs.style.display="none";');
+    L.push('    var pl=document.getElementById("cat-phase-list");if(pl)pl.style.display="block";');
+    L.push('    var xc=document.getElementById("cat-xml-controls");if(xc)xc.style.display="none";');
+    L.push('    _APP.setPhase("fetch","active","Fetching and transforming categories...",10);');
+    L.push('    _APP.setPhase("import","pending","Waiting for Phase 1...",0);');
+    L.push('    var fo={};');
+    L.push('    Object.keys(_APP.hierarchyOverrides).forEach(function(k){fo[k]={parent:_APP.hierarchyOverrides[k]};});');
+    L.push('    Object.keys(_APP.orderOverrides).forEach(function(k){if(!fo[k])fo[k]={};fo[k].position=_APP.orderOverrides[k];});');
+    L.push('    _APP.post(_APP.MIGRATE_URL,"catalogId="+encodeURIComponent(catalogId)+"&locale="+encodeURIComponent(locale)+"&mode=xml&overrides="+encodeURIComponent(JSON.stringify(fo)),function(data){');
+    L.push('      if(!data.ok){_APP.setPhase("fetch","error",data.error||"Failed",0);_APP.finalize(false,data.error||"Migration failed.");return;}');
+    L.push('      _APP.setPhase("fetch","done",data.total+" categories fetched and transformed",100);');
+    L.push('      _APP.setPhase("import","active","Writing XML to IMPEX...",50);');
+    L.push('      var xp=document.getElementById("cat-xml-path");if(xp)xp.textContent=data.xmlPath||"";');
+    L.push('      if(xc)xc.style.display="block";');
+    L.push('      _APP.setPhase("import","done","XML written - click buttons below to open IMPEX",100);');
+    L.push('      _APP.finalize(true,data.total+" categories exported to IMPEX XML. Use the buttons above to complete the import in BM.");');
+    L.push('    });');
+    L.push('  });');
+
+    // Step 4 - New Catalog
+    L.push('  el=document.getElementById("btn-create-catalog");');
+    L.push('  if(el)el.addEventListener("click",function(){');
+    L.push('    var btn=this;');
+    L.push('    var catId=document.getElementById("new-catalog-id").value.trim();');
+    L.push('    var catName=document.getElementById("new-catalog-name").value.trim();');
+    L.push('    var idErr=document.getElementById("new-catalog-id-error");');
+    L.push('    var nameErr=document.getElementById("new-catalog-name-error");');
+    L.push('    var status=document.getElementById("new-catalog-status");');
+    L.push('    var result=document.getElementById("new-catalog-result");');
+    L.push('    if(idErr)idErr.style.display="none";');
+    L.push('    if(nameErr)nameErr.style.display="none";');
+    L.push('    if(result)result.style.display="none";');
+    L.push('    if(!catId){if(idErr)idErr.style.display="block";return;}');
+    L.push('    if(!catName){if(nameErr)nameErr.style.display="block";return;}');
+    L.push('    btn.disabled=true;btn.textContent="Generating...";');
+    L.push('    if(status){status.textContent="Writing catalog XML...";status.style.color="#54698d";}');
+    L.push('    _APP.post(_APP.CREATE_CATALOG_URL,"catalogId="+encodeURIComponent(catId)+"&catalogName="+encodeURIComponent(catName),function(data){');
+    L.push('      btn.disabled=false;btn.textContent="Generate Catalog XML";');
+    L.push('      if(!data.ok){if(status){status.textContent="Error: "+(data.error||"failed");status.style.color="#c62828";}return;}');
+    L.push('      if(status){status.textContent="Done";status.style.color="#2e7d32";}');
+    L.push('      var xp=document.getElementById("new-catalog-xml-path");if(xp)xp.textContent=data.xmlPath||"";');
+    L.push('      if(result)result.style.display="block";');
+    L.push('    });');
+    L.push('  });');
+
+    L.push('  el=document.getElementById("btn-new-catalog-impex");if(el)el.addEventListener("click",function(e){e.preventDefault();_APP.openInNewTab(_APP.IMPEX_URL);});');
+    L.push('  el=document.getElementById("btn-new-catalog-import");if(el)el.addEventListener("click",function(e){e.preventDefault();_APP.openInNewTab(_APP.IMPORT_URL);});');
+
+    // Step 5 - New Category
+    L.push('  el=document.getElementById("btn-pick-parent");');
+    L.push('  if(el)el.addEventListener("click",function(){var modal=document.getElementById("parent-picker-modal");if(modal)modal.style.display="block";_APP.renderParentPickerList("");});');
+
+    L.push('  el=document.getElementById("parent-picker-search");');
+    L.push('  if(el)el.addEventListener("input",function(){_APP.renderParentPickerList(this.value.toLowerCase());});');
+
+    L.push('  el=document.getElementById("btn-close-picker");');
+    L.push('  if(el)el.addEventListener("click",function(){var m=document.getElementById("parent-picker-modal");if(m)m.style.display="none";});');
+
+    L.push('  el=document.getElementById("btn-create-category");');
+    L.push('  if(el)el.addEventListener("click",function(){');
+    L.push('    var btn=this;');
+    L.push('    var catId=document.getElementById("new-cat-id").value.trim();');
+    L.push('    var catName=document.getElementById("new-cat-name").value.trim();');
+    L.push('    var parentId=document.getElementById("new-cat-parent").value.trim()||"root";');
+    L.push('    var catalogId=_APP.getCatalogId();');
+    L.push('    var idErr=document.getElementById("new-cat-id-error");');
+    L.push('    var nameErr=document.getElementById("new-cat-name-error");');
+    L.push('    var status=document.getElementById("new-cat-status");');
+    L.push('    var result=document.getElementById("new-cat-result");');
+    L.push('    if(idErr)idErr.style.display="none";');
+    L.push('    if(nameErr)nameErr.style.display="none";');
+    L.push('    if(result)result.style.display="none";');
+    L.push('    if(!catId){if(idErr)idErr.style.display="block";return;}');
+    L.push('    if(!catName){if(nameErr)nameErr.style.display="block";return;}');
+    L.push('    if(!catalogId){alert("Please select or enter a Target Catalog ID in the config bar above.");return;}');
+    L.push('    btn.disabled=true;btn.textContent="Generating...";');
+    L.push('    if(status){status.textContent="Writing category XML...";status.style.color="#54698d";}');
+    L.push('    _APP.post(_APP.CREATE_CATEGORY_URL,"catalogId="+encodeURIComponent(catalogId)+"&categoryId="+encodeURIComponent(catId)+"&categoryName="+encodeURIComponent(catName)+"&parentId="+encodeURIComponent(parentId),function(data){');
+    L.push('      btn.disabled=false;btn.textContent="Generate Category XML";');
+    L.push('      if(result){result.style.display="block";result.style.padding="14px 16px";result.style.borderRadius="4px";}');
+    L.push('      if(!data.ok){');
+    L.push('        if(status)status.textContent="";');
+    L.push('        if(result){result.style.background="#ffebee";result.style.border="1px solid #c62828";result.style.color="#c62828";result.textContent="Error: "+(data.error||"Failed.");}');
+    L.push('        _APP.addToHistory(catId,catName,parentId,"Failed");return;');
+    L.push('      }');
+    L.push('      if(status)status.textContent="";');
+    L.push('      if(result){result.style.background="#e8f5e9";result.style.border="1px solid #2e7d32";result.style.color="#2e7d32";result.textContent=data.message||"XML written to IMPEX. Import via Administration - Site Development - Import and Export.";}');
+    L.push('      _APP.addToHistory(catId,catName,parentId,"XML written");');
+    L.push('      document.getElementById("new-cat-id").value="";');
+    L.push('      document.getElementById("new-cat-name").value="";');
+    L.push('      document.getElementById("new-cat-parent").value="";');
+    L.push('    });');
+    L.push('  });');
+
+    // Tab navigation
+    L.push('  [1,2,3,4,5].forEach(function(i){var tab=document.getElementById("tab-"+i);if(tab)tab.addEventListener("click",function(){_APP.goToStep(i);});});');
+
+    // Pre-check on load
+    L.push('  _APP.post(_APP.STATUS_URL,"",function(data){');
+    L.push('    if(!data.ok)return;');
+    L.push('    var status=data.status||{};');
+    L.push('    var missing=Object.keys(status).filter(function(k){return status[k]==="missing";});');
+    L.push('    var infoBox=document.getElementById("step1-info-box");');
+    L.push('    var skipBtn=document.getElementById("btn-skip-attrs");');
+    L.push('    if(!missing.length){');
+    L.push('      if(infoBox)infoBox.textContent="Step 1 - All 3 custom attributes (ctSlug, ctId, ctPosition) already exist. You may skip to Step 2.";');
+    L.push('      if(skipBtn){skipBtn.textContent="All exist - Skip to Step 2";skipBtn.style.background="#e8f5e9";skipBtn.style.color="#2e7d32";}');
+    L.push('    }else{');
+    L.push('      if(infoBox)infoBox.textContent="Step 1 - Missing: "+missing.join(", ")+". Click Check Attributes to review and create.";');
+    L.push('    }');
+    L.push('  });');
+
+    L.push('};');
+
+    return L.join('\n');
+}
+
+
+
+exports.CategoryMigration = function () {
+    var cfg          = require('*/cartridge/scripts/migration/configAccessor');
+    var catalogId    = (cfg.sfcc && cfg.sfcc.catalogId) ? cfg.sfcc.catalogId : 'storefront-catalog-m-en';
+    var Logger     = require('dw/system/Logger');
+    var instanceHost = request.httpHost;
+
+    // Build URLs safely - no special characters
+    var platformId = String(session.custom.migrationPlatformId || 'commercetools');
+    var pageCtx    = migrationPageContext(platformId, 'catalog');
+    var impexFolderUrl = pageCtx.impexUrl;
+    var importPageUrl  = 'https://' + instanceHost + '/on/demandware.store/Sites-Site/default%3bapp%3d__bm_merchant/ViewCatalogImpex_52-Status?SelectedMenuItem=prod-cat_impex&CurrentMenuItemId=prod-cat';
+    var checkAttrsUrl  = URLUtils.url('Accelerator-CheckCategoryAttributes').toString() || '';
+    var checkStatusUrl = URLUtils.url('Accelerator-CheckAttributeStatus').toString()    || '';
+    var fetchUrl       = URLUtils.url('Accelerator-FetchCTCategories').toString()       || '';
+    var migrateUrl     = URLUtils.url('Accelerator-RunCategoryMigration').toString()    || '';
+
+    Logger.info('CategoryMigration URLs: migrate={0} impex={1} import={2}',
+        migrateUrl, impexFolderUrl, importPageUrl);
+
+    ISML.renderTemplate('accelerator/categoryMigration', withBmFrame({
+        title          : 'Category Migration',
+        subtitle       : '',
+        catalogId      : catalogId,
+        impexPath      : pageCtx.impexPath,
+        dataWizardEntryUrl:  pageCtx.dataWizardEntryUrl,
+        dataWizardSelectUrl: pageCtx.dataWizardSelectUrl,
+        dashboardUrl   : URLUtils.url('Accelerator-Start').toString(),
+        cssUrl         : URLUtils.staticURL('/css/accelerator-migration.css').toString(),
+        checkAttrsUrl  : checkAttrsUrl,
+        checkStatusUrl : checkStatusUrl,
+        fetchUrl       : fetchUrl,
+        migrateUrl     : migrateUrl,
+        impexFolderUrl : impexFolderUrl,
+        importPageUrl  : importPageUrl,
+         fetchCatalogsUrl : URLUtils.url('Accelerator-FetchSFCCCatalogs').toString(),
+        createCatalogUrl : URLUtils.url('Accelerator-CreateCatalog').toString(),
+        createCategoryUrl: URLUtils.url('Accelerator-CreateCategory').toString(),
+        jsUrl: URLUtils.url('Accelerator-CategoryMigrationJS').toString()
+    }));
+};
+exports.CategoryMigration.public = true;
+
+
+/**
+ * Check status of required custom attribute definitions on the SFCC Category system object.
+ * Returns each attr with an `exists` flag.
+ * GET — no params required.
+ */
+exports.CheckCategoryAttributes = function () {
+    try {
+        var selectedParam = request.httpParameterMap.selected.stringValue;
+        var deleteParam   = request.httpParameterMap.delete.stringValue;
+
+        // No params — return current status
+        if (!selectedParam && !deleteParam) {
+            var categoryAttributeMgr = require('*/cartridge/scripts/catalog/categoryAttributeMgr');
+            var attrs = categoryAttributeMgr.checkAttributes();
+            response.setContentType('application/json');
+            response.writer.print(JSON.stringify({ ok: true, attrs: attrs }));
+            return;
+        }
+
+        var sfccClient = require('*/cartridge/scripts/migration/sfccClient');
+        var token      = sfccClient.getSFCCToken();
+
+        // Delete param — delete selected attributes
+        if (deleteParam) {
+            var toDelete = JSON.parse(deleteParam);
+            var deleted  = 0;
+            var dFailed  = 0;
+            var dErrors  = [];
+            for (var d = 0; d < toDelete.length; d++) {
+                try {
+                    sfccClient.deleteAttributeDefinition(token, 'Category', toDelete[d]);
+                    deleted++;
+                } catch (de) {
+                    dFailed++;
+                    dErrors.push(toDelete[d] + ': ' + (de.message || String(de)));
+                }
+            }
+            response.setContentType('application/json');
+            response.writer.print(JSON.stringify({ ok: dFailed === 0, deleted: deleted, failed: dFailed, errors: dErrors }));
+            return;
+        }
+
+        // Selected param — create selected attributes
+        var selected    = JSON.parse(selectedParam);
+        var attrBuilder = require('*/cartridge/scripts/migration/core/attrBuilder');
+        var existingIds = sfccClient.getExistingAttributeIds(token, 'Category');
+        var created = 0; var skipped = 0; var failed = 0; var errors = [];
+
+        try { sfccClient.ensureAttributeGroup(token, 'Category', 'CTPMigration', 'CTP Migration'); } catch (ge) {}
+
+        for (var i = 0; i < selected.length; i++) {
+            var a = selected[i];
+            if (existingIds[a.id]) {
+                skipped++;
+                try { sfccClient.addAttributeToGroup(token, 'Category', 'CTPMigration', a.id); } catch (age) {}
+                continue;
+            }
+            try {
+                var def = attrBuilder.buildAttrDefinition(a.id, a.sfccType, a.label);
+                sfccClient.createAttributeDefinition(token, 'Category', def);
+                sfccClient.addAttributeToGroup(token, 'Category', 'CTPMigration', a.id);
+                created++;
+            } catch (e) {
+                failed++;
+                if (errors.length < 5) errors.push(a.id + ': ' + (e.message || String(e)));
+            }
+        }
+
+        response.setContentType('application/json');
+        response.writer.print(JSON.stringify({ ok: failed === 0, created: created, skipped: skipped, failed: failed, errors: errors }));
+
+    } catch (e) {
+        response.setContentType('application/json');
+        response.writer.print(JSON.stringify({ ok: false, error: e.message || String(e) }));
+    }
+};
+exports.CheckCategoryAttributes.public = true;
+
+/**
+ * Alias used by the attribute status widget (same as CheckCategoryAttributes).
+ * GET — no params required.
+ */
+exports.CheckAttributeStatus = function () {
+    var categoryAttributeMgr = require('*/cartridge/scripts/catalog/categoryAttributeMgr');
+    try {
+        var attrs  = categoryAttributeMgr.checkAttributes();
+        var status = {};
+        for (var i = 0; i < attrs.length; i++) {
+            status[attrs[i].id] = attrs[i].exists ? 'exists' : 'missing';
+        }
+        response.setContentType('application/json');
+        response.writer.print(JSON.stringify({ ok: true, status: status }));
+    } catch (e) {
+        response.setContentType('application/json');
+        response.writer.print(JSON.stringify({ ok: false, error: e.message }));
+    }
+};
+exports.CheckAttributeStatus.public = true;
+
+
+/**
+ * Create selected category attribute definitions on the SFCC Category system object.
+ * POST: attrs=<json-array of {id, label, sfccType}>
+ */
+exports.CreateCategoryAttributes = function () {
+    var rawAttrs = getParam('attrs');
+    var attrs    = [];
+    try { attrs = JSON.parse(rawAttrs || '[]'); } catch (e) {
+        jsonResponse({ ok: false, error: 'Invalid attrs JSON' });
+        return;
+    }
+    try {
+        var catAttrs3 = require('*/cartridge/scripts/catalog/createCategoryAttributes');
+        jsonResponse({ ok: true, result: catAttrs3.createMissingAttributes() });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.CreateCategoryAttributes.public = true;
+
+// Fetch all storefront catalogs from SFCC
+exports.FetchSFCCCatalogs = function () {
+    var result = [];
+    var seen   = {};
+    try {
+        var CatalogMgr = require('dw/catalog/CatalogMgr');
+        var Site       = require('dw/system/Site');
+
+        var sites = Site.getAllSites();
+        var it    = sites.iterator();
+
+        while (it.hasNext()) {
+            var site = it.next();
+            try {
+                var prefs     = site.getPreferences();
+                var catId     = prefs ? prefs.getCustom()['storefront-catalog'] : null;
+                if (!catId) {
+                    // try common preference names
+                    try { catId = site.getCustomPreferenceValue('siteStorefrontCatalogID'); } catch(e1) {}
+                }
+                if (catId && !seen[catId]) {
+                    var cat = CatalogMgr.getCatalog(catId);
+                    if (cat) {
+                        seen[catId] = true;
+                        result.push({ id: cat.ID, name: (cat.displayName ? cat.displayName.toString() : cat.ID) + ' (' + site.getID() + ')' });
+                    }
+                }
+            } catch (siteErr) {}
+        }
+
+        // Always include current site catalog as fallback
+        var currentCat = CatalogMgr.getSiteCatalog();
+        if (currentCat && !seen[currentCat.ID]) {
+            seen[currentCat.ID] = true;
+            result.push({ id: currentCat.ID, name: currentCat.displayName ? currentCat.displayName.toString() : currentCat.ID });
+        }
+
+        response.setContentType('application/json');
+        response.writer.print(JSON.stringify({ ok: true, catalogs: result, total: result.length }));
+    } catch (e) {
+        response.setContentType('application/json');
+        response.writer.print(JSON.stringify({ ok: false, error: e.message }));
+    }
+};
+exports.FetchSFCCCatalogs.public = true;
+
+
+
+// Create new catalog XML and write to IMPEX
+exports.CreateCatalog = function () {
+    var catalogId   = request.httpParameterMap.catalogId.stringValue   || '';
+    var catalogName = request.httpParameterMap.catalogName.stringValue || '';
+
+    if (!catalogId || !catalogName) {
+        response.setContentType('application/json');
+        response.writer.print(JSON.stringify({ ok: false, error: 'catalogId and catalogName are required' }));
+        return;
+    }
+
+    try {
+        var File       = require('dw/io/File');
+        var FileWriter = require('dw/io/FileWriter');
+
+        var xml = '<?xml version="1.0" encoding="UTF-8"?>\n'
+            + '<catalog xmlns="http://www.demandware.com/xml/impex/catalog/2006-10-31" catalog-id="' + catalogId + '">\n'
+            + '    <header>\n'
+            + '        <image-settings>\n'
+            + '            <internal-location base-path="/images"/>\n'
+            + '            <view-types>\n'
+            + '                <view-type>small</view-type>\n'
+            + '                <view-type>medium</view-type>\n'
+            + '                <view-type>large</view-type>\n'
+            + '            </view-types>\n'
+            + '        </image-settings>\n'
+            + '    </header>\n'
+            + '    <category category-id="root">\n'
+            + '        <display-name xml:lang="x-default">' + catalogName + '</display-name>\n'
+            + '        <online-flag>true</online-flag>\n'
+            + '    </category>\n'
+            + '</catalog>';
+
+        var fileName = 'new-catalog-' + catalogId + '.xml';
+        var filePath = File.IMPEX + '/src/catalog/' + fileName;
+        var file     = new File(filePath);
+        var writer   = new FileWriter(file, 'UTF-8');
+        writer.write(xml);
+        writer.close();
+
+        response.setContentType('application/json');
+        response.writer.print(JSON.stringify({
+            ok     : true,
+            xmlPath: 'IMPEX/src/catalog/' + fileName
+        }));
+    } catch (e) {
+        response.setContentType('application/json');
+        response.writer.print(JSON.stringify({ ok: false, error: e.message }));
+    }
+};
+exports.CreateCatalog.public = true;
+
+// Create new category in SFCC via CatalogMgr
+exports.CreateCategory = function () {
+    var catalogId    = request.httpParameterMap.catalogId.stringValue    || '';
+    var categoryId   = request.httpParameterMap.categoryId.stringValue   || '';
+    var categoryName = request.httpParameterMap.categoryName.stringValue || '';
+    var parentId     = request.httpParameterMap.parentId.stringValue     || 'root';
+
+    if (!catalogId || !categoryId || !categoryName) {
+        response.setContentType('application/json');
+        response.writer.print(JSON.stringify({ ok: false, error: 'catalogId, categoryId and categoryName are required' }));
+        return;
+    }
+
+    try {
+        var File       = require('dw/io/File');
+        var FileWriter = require('dw/io/FileWriter');
+
+        var parentBlock = '';
+        if (parentId && parentId !== 'root') {
+            parentBlock = '        <parent>' + parentId + '</parent>\n';
+        }
+
+        var xml = '<?xml version="1.0" encoding="UTF-8"?>\n'
+            + '<catalog xmlns="http://www.demandware.com/xml/impex/catalog/2006-10-31" catalog-id="' + catalogId + '">\n'
+            + '    <category category-id="' + categoryId + '">\n'
+            + '        <display-name xml:lang="x-default">' + categoryName + '</display-name>\n'
+            + '        <online-flag>true</online-flag>\n'
+            + parentBlock
+            + '    </category>\n'
+            + '</catalog>';
+
+        var fileName = 'new-category-' + categoryId + '.xml';
+        var file     = new File(File.IMPEX + '/src/catalog/' + fileName);
+        var writer   = new FileWriter(file, 'UTF-8');
+        writer.write(xml);
+        writer.close();
+
+        response.setContentType('application/json');
+        response.writer.print(JSON.stringify({
+            ok      : true,
+            xmlPath : 'IMPEX/src/catalog/' + fileName,
+            message : 'XML written to IMPEX/src/catalog/' + fileName + '. Import via Administration - Site Development - Import and Export to create the category.'
+        }));
+    } catch (e) {
+        response.setContentType('application/json');
+        response.writer.print(JSON.stringify({ ok: false, error: e.message }));
+    }
+};
+exports.CreateCategory.public = true;
+
+exports.FetchCTCategories = function () {
+    var fetchCT   = require('~/cartridge/scripts/catalog/fetchCTCategories');
+    var transform = require('~/cartridge/scripts/catalog/transformCategories');
+    var cfg       = require('*/cartridge/scripts/migration/configAccessor');
+
+    response.setContentType('application/json');
+
+    try {
+        var defaultLocale  = request.httpParameterMap.locale.stringValue || 'en';
+        var token          = fetchCT.getCTAuthToken();
+
+        if (!token) {
+            response.writer.print(JSON.stringify({ ok: false, error: 'CT auth failed' }));
+            return;
+        }
+
+        var ctCategories   = fetchCT.fetchAllCategories(token);
+        var sfccCategories = transform.transformAll(ctCategories, defaultLocale);
+
+        // Return lightweight list for hierarchy editor
+        var list = sfccCategories.map(function (cat) {
+            return {
+                id      : cat.id,
+                name    : cat.name['x-default'] || cat.id,
+                parentId: cat.parentId
+            };
+        });
+
+        response.writer.print(JSON.stringify({ ok: true, categories: list, total: list.length }));
+    } catch (e) {
+        Logger.error('FetchCTCategories error: {0}', e.message);
+        response.writer.print(JSON.stringify({ ok: false, error: e.message }));
+    }
+};
+exports.FetchCTCategories.public = true;
+
+/**
+ * Run category migration — stub endpoint for future implementation.
+ * POST — no params required.
+ */
+// Make sure this export name matches the URL above
+exports.RunCategoryMigration = function () {
+    var Logger     = require('dw/system/Logger');
+    var fetchCT    = require('~/cartridge/scripts/catalog/fetchCTCategories');
+    var transform  = require('~/cartridge/scripts/catalog/transformCategories');
+    var xmlBuilder = require('~/cartridge/scripts/helpers/catalogXmlBuilder');
+    var importer   = require('~/cartridge/scripts/catalog/importCategories');
+    var File       = require('dw/io/File');
+    var FileWriter = require('dw/io/FileWriter');
+
+    response.setContentType('application/json');
+
+    var mode      = request.httpParameterMap.mode.stringValue      || 'xml';
+    var catalogId = request.httpParameterMap.catalogId.stringValue || 'storefront-catalog-m-en';
+    var locale    = request.httpParameterMap.locale.stringValue    || 'en-US';
+
+    var overridesRaw = request.httpParameterMap.overrides.stringValue || '{}';
+    var overrides    = {};
+    try { overrides = JSON.parse(overridesRaw); } catch (e) { overrides = {}; }
+
+    try {
+        var token = fetchCT.getCTAuthToken();
+        if (!token) {
+            response.writer.print(JSON.stringify({ ok: false, error: 'CT auth failed.' }));
+            return;
+        }
+
+        var ctCategories = fetchCT.fetchAllCategories(token);
+        if (!ctCategories || ctCategories.length === 0) {
+            response.writer.print(JSON.stringify({ ok: false, error: 'No categories returned from CT.' }));
+            return;
+        }
+
+        var sfccCategories = transform.transformAll(ctCategories, locale);
+
+        // Apply overrides
+        sfccCategories.forEach(function (cat) {
+            var ov = overrides[cat.id];
+            if (!ov) return;
+            if (ov.parent   !== undefined && ov.parent   !== null) cat.parentId = ov.parent;
+            if (ov.position !== undefined && ov.position !== null) cat.position = parseFloat(ov.position);
+        });
+
+        // Re-sort
+        var idMap = {};
+        sfccCategories.forEach(function (c) { idMap[c.id] = c; });
+
+        function getDepth(cat, visited) {
+            visited = visited || {};
+            if (visited[cat.id]) return 0;
+            visited[cat.id] = true;
+            if (!cat.parentId || cat.parentId === 'root') return 0;
+            var parent = idMap[cat.parentId];
+            return parent ? 1 + getDepth(parent, visited) : 1;
+        }
+
+        sfccCategories.sort(function (a, b) {
+            var da = getDepth(a);
+            var db = getDepth(b);
+            if (da !== db) return da - db;
+            if (a.parentId === b.parentId) return (a.position || 0) - (b.position || 0);
+            return 0;
+        });
+
+        if (mode === 'xml') {
+            var fileResolver = require('*/cartridge/scripts/migration/core/migrationFileResolver');
+            var migPaths     = require('*/cartridge/scripts/migration/core/migrationPaths');
+            var relPath      = migPaths.getRelativePath('catalog');
+            var dir          = new File(File.IMPEX + File.SEPARATOR + relPath.replace(/\//g, File.SEPARATOR));
+            if (!dir.exists()) { dir.mkdirs(); }
+
+            var fileName = fileResolver.resolveXmlFileName('catalog', 0, 1, 'local');
+            var filePath = File.IMPEX + File.SEPARATOR + relPath.replace(/\//g, File.SEPARATOR)
+                + File.SEPARATOR + fileName;
+            var writer   = new FileWriter(new File(filePath), 'UTF-8');
+            writer.write(xmlBuilder.buildCatalogXml(catalogId, sfccCategories));
+            writer.close();
+
+            response.writer.print(JSON.stringify({
+                ok:       true,
+                mode:     'xml',
+                total:    sfccCategories.length,
+                fileName: fileName,
+                impexPath: relPath,
+                xmlPath:  filePath,
+                message:  'XML exported successfully (' + sfccCategories.length + ' categories).'
+            }));
+
+        } else {
+            var ir = importer.importAllCategories(sfccCategories, catalogId);
+            response.writer.print(JSON.stringify({
+                ok     : true,
+                mode   : 'ocapi',
+                total  : sfccCategories.length,
+                success: ir.success,
+                failed : ir.failed,
+                errors : ir.errors || []
+            }));
+        }
+
+    } catch (e) {
+        Logger.error('RunCategoryMigration error: {0}\n{1}', e.message, e.stack);
+        response.writer.print(JSON.stringify({ ok: false, error: e.message }));
+    }
+};
+exports.RunCategoryMigration.public = true;
+

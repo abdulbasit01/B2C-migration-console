@@ -29,6 +29,12 @@ var ORDER_EXPORT_PHASES = [
     { id: 'package',  label: 'Package IMPEX files' }
 ];
 
+/** commercetools orderState enum values (see Order.orderState). */
+var CTP_ORDER_STATE_VALUES = ['Open', 'Confirmed', 'Complete', 'Cancelled'];
+
+/** commercetools paymentState enum values (see Order.paymentState). */
+var CTP_PAYMENT_STATE_VALUES = ['Pending', 'Failed', 'Paid', 'BalanceDue', 'CreditOwed'];
+
 var DATA_TYPES = [
     {
         id:          'order',
@@ -42,25 +48,65 @@ var DATA_TYPES = [
         id:          'customer',
         label:       'Customers',
         description: 'Migrate customer profiles, addresses, and account data into SFCC.',
-        status:      'soon',
+        status:      'ready',
         iconClass:   'acc-data-type--customer',
-        items:       ['Customer profiles', 'Addresses', 'Customer groups']
+        items:       ['Customer profiles', 'Addresses', 'Custom attributes', 'Attribute pre-flight check']
     },
     {
         id:          'product',
         label:       'Products',
         description: 'Migrate product catalog, variants, and attributes into SFCC.',
-        status:      'soon',
+        status:      'ready',
         iconClass:   'acc-data-type--product',
-        items:       ['Product master data', 'Variants & SKUs', 'Custom attributes']
+        items:       ['Product master data', 'Variants & SKUs', 'Custom attributes', 'Full XML/WebDAV import']
     },
     {
         id:          'catalog',
         label:       'Catalog',
         description: 'Migrate categories, catalog structure, and assignments into SFCC.',
-        status:      'soon',
+        status:      'ready',
         iconClass:   'acc-data-type--catalog',
         items:       ['Category hierarchy', 'Catalog assignments', 'Navigation structure']
+    },
+    {
+        id:          'shippingMethod',
+        label:       'Shipping Methods',
+        description: 'Migrate commercetools shipping methods into a selected SFCC site.',
+        status:      'ready',
+        iconClass:   'acc-data-type--shipping',
+        items:       ['Shipping method definitions', 'Zone-based rates', 'Site-specific XML export', 'Attribute pre-flight check']
+    },
+    {
+        id:          'inventory',
+        label:       'Inventory Lists',
+        description: 'Migrate commercetools inventory entries into an SFCC inventory list.',
+        status:      'ready',
+        iconClass:   'acc-data-type--inventory',
+        items:       ['SKU stock levels', 'Supply channel filter', 'Inventory-list XML export', 'Attribute pre-flight check']
+    },
+    {
+        id:          'pricebook',
+        label:       'Pricebooks',
+        description: 'Migrate commercetools standalone prices into SFCC pricebooks.',
+        status:      'ready',
+        iconClass:   'acc-data-type--pricebook',
+        items:       ['Standalone prices by currency', 'Distribution channel filter', 'Pricebook XML export', 'Attribute pre-flight check']
+    },
+    {
+        id:          'taxation',
+        label:       'Taxation',
+        description: 'Migrate commercetools tax categories and rates into SFCC tax tables.',
+        status:      'ready',
+        iconClass:   'acc-data-type--taxation',
+        items:       ['Full tax table XML export', 'Tax classes from CTP categories', 'Jurisdictions by country/state', 'Tax rate mapping']
+    },
+    {
+        id:          'store',
+        label:       'Stores',
+        description: 'Migrate commercetools stores into SFCC physical store definitions.',
+        status:      'ready',
+        iconClass:   'acc-data-type--store',
+        items:       ['Full store list XML export', 'CTP /stores mapping', 'Address enrichment from channels', 'Store locator flags']
     }
 ];
 
@@ -253,6 +299,33 @@ function getOrderExportPhases() {
     return phases;
 }
 
+function buildStatusFilters(values) {
+    var filters = [{ value: '', key: 'all' }];
+    for (var i = 0; i < values.length; i++) {
+        filters.push({
+            value: values[i],
+            key:   values[i].toLowerCase()
+        });
+    }
+    return filters;
+}
+
+function getCtpOrderStateFilters() {
+    return buildStatusFilters(CTP_ORDER_STATE_VALUES);
+}
+
+function getCtpPaymentStateFilters() {
+    return buildStatusFilters(CTP_PAYMENT_STATE_VALUES);
+}
+
+function isValidCtpOrderState(value) {
+    return !value || CTP_ORDER_STATE_VALUES.indexOf(value) >= 0;
+}
+
+function isValidCtpPaymentState(value) {
+    return !value || CTP_PAYMENT_STATE_VALUES.indexOf(value) >= 0;
+}
+
 function getDataTypes() {
     var types = [];
     for (var i = 0; i < DATA_TYPES.length; i++) {
@@ -297,7 +370,7 @@ function buildDataSelectContent() {
 
     return {
         titleSuffix: 'Select data to migrate',
-        intro:       'Choose which data to export from the source platform. All ready types are selected by default.',
+        intro:       'Choose one data type to migrate. Each type follows its own migration flow.',
         sections:    sections,
         summary:     readyCount + ' data type(s) ready'
     };
@@ -314,6 +387,10 @@ module.exports = {
     getDataWizardStep:      getDataWizardStep,
     getMaxDataStep:         getMaxDataStep,
     getOrderExportPhases:   getOrderExportPhases,
+    getCtpOrderStateFilters:   getCtpOrderStateFilters,
+    getCtpPaymentStateFilters: getCtpPaymentStateFilters,
+    isValidCtpOrderState:      isValidCtpOrderState,
+    isValidCtpPaymentState:    isValidCtpPaymentState,
     getDataTypes:           getDataTypes,
     getDataType:            getDataType,
     buildDataSelectContent: buildDataSelectContent

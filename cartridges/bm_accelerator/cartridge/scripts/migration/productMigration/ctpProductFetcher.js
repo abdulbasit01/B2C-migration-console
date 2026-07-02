@@ -54,7 +54,7 @@ function getCount() {
 function fetchBatch(offset, limit) {
     var c   = cfg.ctp;
     var tok = getToken();
-    var qs  = '?limit=' + (limit || 500) + '&offset=' + (offset || 0) + '&sort=id+asc&withTotal=true';
+    var qs  = '?limit=' + (limit || 500) + '&offset=' + (offset || 0) + '&sort=id+asc&withTotal=true&expand=productType';
 
     var res = http.get(
         c.apiUrl + '/' + c.projectKey + '/products' + qs,
@@ -69,4 +69,22 @@ function fetchBatch(offset, limit) {
     };
 }
 
-module.exports = { getCount: getCount, fetchBatch: fetchBatch };
+/**
+ * Fetch a single product from CTP by its ID (UUID).
+ * @param {string} productId
+ * @returns {Object} CTP product object
+ */
+function fetchById(productId) {
+    var c   = cfg.ctp;
+    var tok = getToken();
+    var res = http.get(
+        c.apiUrl + '/' + c.projectKey + '/products/' + encodeURIComponent(productId) + '?expand=productType',
+        { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' }
+    );
+    if (res.status !== 200) {
+        throw new Error('CTP product fetch failed for ID ' + productId + ' (' + res.status + ')');
+    }
+    return res.data;
+}
+
+module.exports = { getCount: getCount, fetchBatch: fetchBatch, fetchById: fetchById };

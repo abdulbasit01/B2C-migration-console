@@ -9,7 +9,7 @@
  * Setup (one-time in BM):
  *   Administration → Operations → Jobs → New Job
  *   Add step type: bm_accelerator/cartridge/scripts/jobsteps/importCtpCustomers
- *   Set CustomerListID parameter (or leave blank — Phase 1 writes config.json automatically)
+ *   Set CustomerListID parameter on the job step.
  *   Save the job with a known ID (e.g. "CTP-Customer-Import")
  */
 
@@ -31,29 +31,11 @@ var log = Logger.getLogger('ctp-migration', 'CustomerImport');
  * @returns {dw.system.Status}
  */
 function execute(args) {
-    var importDir = (args.ImportDirectory && String(args.ImportDirectory).trim()) || 'ctp-migration';
+    var importDir = (args.ImportDirectory && String(args.ImportDirectory).trim()) || 'src/migration/customer';
     var listId    = (args.CustomerListID  && String(args.CustomerListID).trim())  || null;
 
-    // Phase 1 writes config.json so the job always targets the correct list
-    var configFile = new File(File.IMPEX + File.SEPARATOR + 'src' + File.SEPARATOR + 'instance' + File.SEPARATOR + importDir + File.SEPARATOR + 'config.json');
-    if (configFile.exists()) {
-        var cfr = null;
-        try {
-            cfr = new FileReader(configFile, 'UTF-8');
-            var line = cfr.readLine();
-            if (line) {
-                var cfg = JSON.parse(line);
-                if (cfg.listId) { listId = cfg.listId; }
-            }
-        } catch (ce) {
-            log.warn('Could not read config.json: ' + ce.message);
-        } finally {
-            if (cfr) { try { cfr.close(); } catch (e) {} }
-        }
-    }
-
     if (!listId) {
-        log.error('CustomerListID is not set. Run Phase 1 of the migration tool first, or set it as a job parameter.');
+        log.error('CustomerListID is not set. Set it as a job parameter.');
         return new Status(Status.ERROR, 'MISSING_PARAM', 'CustomerListID not set');
     }
 
@@ -63,7 +45,7 @@ function execute(args) {
         return new Status(Status.ERROR, 'NOT_FOUND', 'Customer list not found: ' + listId);
     }
 
-    var dir = new File(File.IMPEX + File.SEPARATOR + 'src' + File.SEPARATOR + 'instance' + File.SEPARATOR + importDir);
+    var dir = new File(File.IMPEX + File.SEPARATOR + importDir.replace(/\//g, File.SEPARATOR));
     if (!dir.exists() || !dir.isDirectory()) {
         log.error('Import directory not found: ' + importDir);
         return new Status(Status.ERROR, 'NOT_FOUND', 'Directory not found: ' + importDir);

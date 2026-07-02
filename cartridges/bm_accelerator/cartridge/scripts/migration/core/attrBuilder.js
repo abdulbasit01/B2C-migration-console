@@ -19,7 +19,7 @@ function toLabel(obj) {
 /**
  * Build the SFCC OCAPI attribute definition payload.
  * @param {string} id        - attribute ID (must be a valid SFCC identifier)
- * @param {string} valueType - SFCC value_type (string, int, double, boolean, date, datetime, set_of_string)
+ * @param {string} valueType - SFCC value_type (string, text, html, int, double, boolean, date, datetime, email, enum_of_string, set_of_string, …)
  * @param {string} label     - human-readable display name
  * @returns {Object}
  */

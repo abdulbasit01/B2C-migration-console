@@ -1,13 +1,8 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8"/>
-    <meta name="viewport" content="width=device-width, initial-scale=1"/>
-    <title>${pdict.title} — ${pdict.dataType.label}</title>
-    <link rel="stylesheet" href="${pdict.cssUrl}"/>
-</head>
-<body class="acc-page">
-    <div class="acc-shell">
+<isdecorate template="application/MenuFrame">
+<iscontent type="text/html" charset="UTF-8"/>
+<link rel="stylesheet" href="${pdict.cssUrl}"/>
+<div class="acc-page">
+<div class="acc-shell">
         <isinclude template="accelerator/components/header"/>
 
         <nav class="acc-breadcrumb">
@@ -26,5 +21,5 @@
             </div>
         </section>
     </div>
-</body>
-</html>
+</div>
+</isdecorate>

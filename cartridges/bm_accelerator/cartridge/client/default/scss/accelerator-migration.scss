@@ -30,9 +30,13 @@
   box-sizing: border-box;
 }
 
+.acc-page,
 body.acc-page {
   margin: 0;
-  padding: 24px;
+  padding: 16px 24px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
   font-family: var(--acc-font);
   font-size: 14px;
   color: var(--acc-text);
@@ -40,8 +44,77 @@ body.acc-page {
   line-height: 1.5;
 }
 
+/* Standalone full-page mode only (no BM MenuFrame) */
+body.acc-page {
+  min-height: 100vh;
+}
+
+/* Business Manager — legacy table frame; prevent phantom scrollbars */
+table.main,
+table.main > tbody,
+table.main > tbody > tr,
+#bm_content_column,
+#bm_content_column table,
+#bm_content_column table tbody,
+#bm_content_column table tr {
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+#bm_content_column {
+  vertical-align: top;
+  width: 100%;
+  max-width: 100%;
+  overflow: visible !important;
+}
+
+/* Spacer column (space.gif) + content column must not exceed row width */
+#bm_content_column table table tr td:first-child {
+  width: 12px !important;
+  max-width: 12px;
+  padding: 0;
+  vertical-align: top;
+}
+
+#bm_content_column table table tr td:last-child {
+  width: auto !important;
+  max-width: none;
+  vertical-align: top;
+  overflow: visible !important;
+}
+
+#bm_content_column .acc-page {
+  width: 100%;
+  max-width: 100%;
+  min-height: 0;
+  height: auto;
+  overflow: visible;
+  overflow-x: clip;
+  margin: 0;
+  padding: 12px 16px;
+}
+
+#bm_content_column .acc-shell {
+  max-width: 100%;
+  overflow: visible;
+}
+
+#bm_content_column .acc-wizard-card,
+#bm_content_column .acc-cards,
+#bm_content_column .acc-report__stats {
+  max-width: 100%;
+}
+
+/* SLDS BM shell — page is not a standalone viewport */
+.slds-brand-band .acc-page {
+  min-height: 0;
+  overflow: visible;
+}
+
 .acc-shell {
   max-width: 1280px;
+  width: 100%;
   margin: 0 auto;
 }
 
@@ -116,8 +189,10 @@ body.acc-page {
 /* Cards grid */
 .acc-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(240px, 300px));
+  justify-content: flex-start;
   gap: 20px;
+  width: 100%;
 }
 
 .acc-card {
@@ -130,7 +205,7 @@ body.acc-page {
   border-radius: var(--acc-radius);
   box-shadow: var(--acc-shadow);
   transition: border-color 0.15s, box-shadow 0.15s;
-  min-height: 100%;
+  max-width: 300px;
 }
 
 .acc-card--ready:hover {
@@ -156,7 +231,8 @@ body.acc-page {
 .acc-card__badge {
   position: absolute;
   top: 12px;
-  left: 12px;
+  right: 12px;
+  left: auto;
   padding: 3px 8px;
   font-size: 10px;
   font-weight: 700;
@@ -175,10 +251,19 @@ body.acc-page {
   color: var(--acc-muted);
 }
 
+.acc-card__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 8px 0 6px;
+  padding-right: 64px;
+}
+
 .acc-card__icon {
+  flex-shrink: 0;
   width: 48px;
   height: 48px;
-  margin: 28px 0 12px;
+  margin: 0;
   border-radius: 8px;
 }
 
@@ -203,9 +288,12 @@ body.acc-page {
 }
 
 .acc-card__name {
-  margin: 0 0 4px;
+  flex: 1;
+  min-width: 0;
+  margin: 0;
   font-size: 16px;
   font-weight: 700;
+  line-height: 1.25;
 }
 
 .acc-card__tagline {
@@ -232,6 +320,10 @@ body.acc-page {
   font-size: 12px;
   color: var(--acc-muted);
   line-height: 1.45;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .acc-card__actions {
@@ -290,23 +382,15 @@ body.acc-page {
   transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
 
-.acc-btn--primary {
-  background: var(--acc-blue);
-  color: var(--acc-white);
-  border-color: var(--acc-blue);
-}
-
-.acc-btn--primary:hover {
-  background: #1e40af;
-}
-
+.acc-btn--primary,
 .acc-btn--secondary {
   background: var(--acc-white);
   color: var(--acc-blue);
   border-color: var(--acc-blue-light);
 }
 
-.acc-btn--secondary:hover:not(:disabled):not(.acc-card__cta--disabled) {
+.acc-btn--primary:hover:not(:disabled):not(.acc-btn--disabled),
+.acc-btn--secondary:hover:not(:disabled):not(.acc-card__cta--disabled):not(.acc-btn--disabled) {
   background: var(--acc-blue-pale);
   border-color: var(--acc-blue);
 }
@@ -367,16 +451,148 @@ body.acc-page {
 }
 
 /* Wizard layout */
+.acc-back-nav {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin: 0 0 20px;
+}
+
+.acc-back-nav__sep {
+  color: #c9c9c9;
+  font-size: 13px;
+  line-height: 1;
+  user-select: none;
+}
+
 .acc-back {
-  display: inline-block;
-  margin-bottom: 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
   color: var(--acc-blue);
   text-decoration: none;
   font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+  white-space: nowrap;
 }
 
 .acc-back:hover {
   text-decoration: underline;
+  color: #005fb2;
+}
+
+.acc-order-attr-preflight {
+  margin: 0 0 24px;
+  border: 1px solid var(--acc-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.acc-order-attr-preflight__head {
+  background: #f4f6f9;
+  border-bottom: 1px solid var(--acc-border);
+  padding: 11px 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.acc-order-attr-preflight__title {
+  font-weight: 700;
+  font-size: 14px;
+  color: #16325c;
+}
+
+.acc-order-attr-preflight__msg {
+  font-size: 13px;
+  color: var(--acc-muted);
+  font-weight: 600;
+}
+
+.acc-order-attr-preflight__body {
+  padding: 14px 20px;
+}
+
+.acc-order-attr-preflight__intro {
+  font-size: 13px;
+  color: var(--acc-muted);
+  margin: 0;
+  line-height: 1.55;
+}
+
+.acc-order-attr-preflight__results {
+  margin-top: 14px;
+}
+
+.cm-attr-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.cm-attr-table thead tr {
+  background: #f4f6f9;
+  border-bottom: 2px solid var(--acc-border);
+}
+
+.cm-attr-table th {
+  padding: 9px 14px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  color: #54698d;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+.cm-attr-table td {
+  padding: 9px 14px;
+  border-bottom: 1px solid #f0f2f8;
+  color: #3e3e3c;
+  vertical-align: middle;
+}
+
+.cm-attr-id-input {
+  background: #eaf0fb;
+  border: 1px solid #c8d6f0;
+  border-radius: 3px;
+  font-family: monospace;
+  font-size: 12px;
+  color: #16325c;
+  font-weight: 600;
+  padding: 3px 8px;
+  width: 190px;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.cm-btn {
+  padding: 7px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 4px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  display: inline-block;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.cm-btn--primary {
+  background: #0070d2;
+  color: #fff;
+  border-color: #005fb2;
+}
+
+.cm-btn--primary:disabled {
+  background: #97c3ea;
+  border-color: #97c3ea;
+  cursor: default;
 }
 
 .acc-wizard-card {
@@ -386,6 +602,8 @@ body.acc-page {
   box-shadow: var(--acc-shadow);
   padding: 24px;
   margin-bottom: 16px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .acc-wizard-footer {
@@ -1009,18 +1227,29 @@ body.acc-page {
 
 .acc-report__stats {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 16px;
   margin: 0;
+  width: 100%;
 }
 
+.acc-report__stat {
+  min-width: 0;
+}
+
+.acc-report__stat-label,
 .acc-report__stat dt {
+  display: block;
   font-size: 12px;
   color: var(--acc-muted);
   margin-bottom: 4px;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
+.acc-report__stat-value,
 .acc-report__stat dd {
+  display: block;
   margin: 0;
   font-size: 20px;
   font-weight: 700;
@@ -1071,6 +1300,26 @@ body.acc-page {
 
 .acc-data-type--catalog .acc-data-type__icon {
   background: linear-gradient(135deg, #d97706, #fbbf24);
+}
+
+.acc-data-type--shipping .acc-data-type__icon {
+  background: linear-gradient(135deg, #00838f, #00acc1);
+}
+
+.acc-data-type--inventory .acc-data-type__icon {
+  background: linear-gradient(135deg, #6a1b9a, #ab47bc);
+}
+
+.acc-data-type--pricebook .acc-data-type__icon {
+  background: linear-gradient(135deg, #e65100, #ff9800);
+}
+
+.acc-data-type--taxation .acc-data-type__icon {
+  background: linear-gradient(135deg, #1565c0, #42a5f5);
+}
+
+.acc-data-type--store .acc-data-type__icon {
+  background: linear-gradient(135deg, #2e7d32, #66bb6a);
 }
 
 .acc-data-types--enriched .acc-data-type__icon {
@@ -1170,6 +1419,53 @@ body.acc-page {
   color: var(--acc-blue);
 }
 
+.acc-order-count {
+  margin: 8px 0 0;
+  padding: 16px 18px;
+  background: var(--acc-white);
+  border: 1px solid var(--acc-border);
+  border-radius: var(--acc-radius);
+}
+
+.acc-order-count__title {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--acc-navy);
+}
+
+.acc-order-count__value {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--acc-navy);
+  line-height: 1.2;
+}
+
+.acc-order-count__value--loading,
+.acc-order-count__value--empty,
+.acc-order-count__value--idle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--acc-muted);
+}
+
+.acc-order-count__value--error {
+  font-size: 14px;
+  font-weight: 600;
+  color: #b91c1c;
+}
+
+.acc-order-count__detail {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--acc-muted);
+}
+
+.acc-order-count__btn {
+  margin-top: 12px;
+}
+
 .acc-form__hint {
   margin: 6px 0 0;
   font-size: 12px;
@@ -1222,6 +1518,7 @@ body.acc-page {
 
 .acc-report__stats--enriched {
   gap: 16px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .acc-report__stat--card {
@@ -1231,11 +1528,13 @@ body.acc-page {
   border: 1px solid var(--acc-border);
 }
 
-.acc-report__stat--success dd {
+.acc-report__stat--success dd,
+.acc-report__stat--success .acc-report__stat-value {
   color: var(--acc-green);
 }
 
-.acc-report__stat--danger dd {
+.acc-report__stat--danger dd,
+.acc-report__stat--danger .acc-report__stat-value {
   color: var(--acc-red);
 }
 
@@ -1430,9 +1729,15 @@ body.acc-page {
   box-shadow: var(--acc-shadow);
 }
 
+@media (max-width: 900px) {
+  .acc-report__stats--enriched {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 768px) {
-  body.acc-page {
-    padding: 16px;
+  .acc-page {
+    padding: 12px 16px;
   }
   .acc-stepper__list {
     flex-direction: column;

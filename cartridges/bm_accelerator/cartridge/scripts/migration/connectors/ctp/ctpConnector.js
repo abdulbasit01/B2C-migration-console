@@ -70,15 +70,35 @@ function fetchCustomTypes(token)  { return fetchAll('/types', token); }
 // ─── Connection test ──────────────────────────────────────────────────────────
 
 function testConnectionWith(creds) {
-    var token = getToken(creds);
-    var res   = http.get(
+    var c    = creds || cfg.ctp;
+    var body = 'grant_type=client_credentials';
+
+    var tokenRes = http.post(
+        c.authUrl + '/oauth/token',
+        {
+            Authorization:  'Basic ' + toBase64(c.clientId + ':' + c.clientSecret),
+            'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body
+    );
+    if (tokenRes.status !== 200 || !tokenRes.data.access_token) {
+        throw new Error('CTP auth failed (' + tokenRes.status + ')');
+    }
+
+    var token     = tokenRes.data.access_token;
+    var expiresIn = tokenRes.data.expires_in || 3600;
+    var res       = http.get(
         creds.apiUrl + '/' + creds.projectKey,
         { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }
     );
     if (res.status !== 200) {
         throw new Error('Project not found (' + res.status + '): check project key and API URL.');
     }
-    return { ok: true, project: { key: res.data.key, name: res.data.name || creds.projectKey } };
+    return {
+        ok:        true,
+        expiresIn: expiresIn,
+        project:   { key: res.data.key, name: res.data.name || creds.projectKey }
+    };
 }
 
 function testConnection() {

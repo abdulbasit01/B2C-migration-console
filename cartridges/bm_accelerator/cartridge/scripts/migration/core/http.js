@@ -19,11 +19,11 @@ function send(method, url, headers, body) {
 
     client.send(body !== undefined ? String(body) : '');
 
-    var text = client.getText();
+    var text = client.getText() || '';
     var data = {};
     try { data = JSON.parse(text || '{}'); } catch (e) { /* leave as empty object */ }
 
-    return { status: client.getStatusCode(), data: data };
+    return { status: client.getStatusCode(), data: data, text: text };
 }
 
 function get(url, headers) {
