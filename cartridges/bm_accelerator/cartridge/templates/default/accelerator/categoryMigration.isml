@@ -91,7 +91,6 @@ Create a new SFCC storefront catalog. Fill in the Catalog ID and Name then click
 <code id="new-catalog-xml-path" style="background:#e0e5ee;padding:4px 8px;border-radius:3px;font-size:12px;display:block;margin-bottom:14px;word-break:break-all;"></code>
 <div style="display:flex;gap:10px;flex-wrap:wrap;padding-top:12px;border-top:1px solid #c8e6c9;">
 <a id="btn-new-catalog-impex" href="#" class="acc-btn acc-btn--secondary" style="text-decoration:none;">Open IMPEX Folder</a>
-<a id="btn-new-catalog-import" href="#" class="acc-btn acc-btn--primary" style="text-decoration:none;margin-left:10px;">Go to Catalog Import</a>
 </div>
 </div>
 </div>

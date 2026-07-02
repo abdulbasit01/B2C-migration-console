@@ -1164,17 +1164,7 @@ exports.GetCustomerLists.public = true;
  * GET — no params required.
  */
 exports.GetProductCatalogs = function () {
-    try {
-        var config  = require('*/cartridge/scripts/migration/config');
-        var result  = [];
-        var catId   = config.sfcc && config.sfcc.catalogId;
-        if (catId) {
-            result.push({ id: catId });
-        }
-        jsonResponse({ ok: true, catalogs: result });
-    } catch (e) {
-        jsonResponse({ ok: false, error: e.message || String(e) });
-    }
+    exports.FetchSFCCCatalogs();
 };
 exports.GetProductCatalogs.public = true;
 
@@ -3188,7 +3178,6 @@ L.push('      var msg="Done - "+data.created+" created, "+data.skipped+" skipped
     L.push('  });');
 
     L.push('  el=document.getElementById("btn-new-catalog-impex");if(el)el.addEventListener("click",function(e){e.preventDefault();_APP.openInNewTab(_APP.IMPEX_URL);});');
-    L.push('  el=document.getElementById("btn-new-catalog-import");if(el)el.addEventListener("click",function(e){e.preventDefault();_APP.openInNewTab(_APP.IMPORT_URL);});');
     L.push('  el=document.getElementById("btn-open-bm-catalog");if(el)el.addEventListener("click",function(e){e.preventDefault();window.open("https://"+window.location.host+"/on/demandware.store/Sites-Site/default/ViewCatalogList_52-List");});');
 
     // Tab navigation
@@ -3250,7 +3239,7 @@ exports.CategoryMigration = function () {
         migrateUrl     : migrateUrl,
         impexFolderUrl : impexFolderUrl,
         importPageUrl  : importPageUrl,
-        fetchCatalogsUrl      : URLUtils.url('Accelerator-GetProductCatalogs').toString(),
+        fetchCatalogsUrl      : URLUtils.url('Accelerator-FetchSFCCCatalogs').toString(),
         createCatalogUrl      : URLUtils.url('Accelerator-CreateCatalog').toString(),
         createCategoryUrl     : URLUtils.url('Accelerator-CreateCategory').toString(),
         bmClientId            : (cfg.sfcc && cfg.sfcc.bmClientId)  ? cfg.sfcc.bmClientId  : '',
@@ -3386,50 +3375,53 @@ exports.CreateCategoryAttributes.public = true;
 // Fetch all available SFCC catalogs using native CatalogMgr (no credentials needed)
 exports.FetchSFCCCatalogs = function () {
     try {
-        var CatalogMgr = require('dw/catalog/CatalogMgr');
-        var Site       = require('dw/system/Site');
-        var cfg        = require('*/cartridge/scripts/migration/configAccessor');
+        var HTTPClient  = require('dw/net/HTTPClient');
+        var sfccClient  = require('*/cartridge/scripts/migration/sfccClient');
+        var cfg         = require('*/cartridge/scripts/migration/configAccessor');
+        var base        = 'https://' + request.httpHost;
+        var version     = (cfg.sfcc && cfg.sfcc.version) ? cfg.sfcc.version : 'v20_10';
+        var clientId    = (cfg.sfcc && cfg.sfcc.bmClientId) ? cfg.sfcc.bmClientId : 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 
-        var result = [];
-        var seen   = {};
+        var token = sfccClient.getSFCCToken();
+        var url   = base + '/s/-/dw/data/' + version + '/catalogs?client_id=' + encodeURIComponent(clientId) + '&count=200';
 
-        function addCatalog(cat, label) {
-            if (cat && !seen[cat.ID]) {
-                seen[cat.ID] = true;
-                var name = cat.displayName ? cat.displayName.toString() : cat.ID;
-                result.push({ id: cat.ID, name: label ? (name + ' (' + label + ')') : name });
+        var client = new HTTPClient();
+        client.setTimeout(20000);
+        client.open('GET', url);
+        client.setRequestHeader('Authorization', 'Bearer ' + token);
+        client.setRequestHeader('Content-Type', 'application/json');
+        client.send('');
+
+        var text = client.text || '';
+        var data;
+        try { data = JSON.parse(text); } catch (pe) { data = {}; }
+
+        if (client.statusCode !== 200 || !data.data) {
+            // Fallback to CatalogMgr if OCAPI fails
+            var CatalogMgr = require('dw/catalog/CatalogMgr');
+            var Site       = require('dw/system/Site');
+            var result     = [];
+            var seen       = {};
+            function addCat(cat) {
+                if (cat && !seen[cat.ID]) {
+                    seen[cat.ID] = true;
+                    result.push({ id: cat.ID, name: cat.displayName ? cat.displayName.toString() : cat.ID });
+                }
             }
+            addCat(CatalogMgr.getSiteCatalog());
+            var sites = Site.getAllSites();
+            var sit = sites.iterator();
+            while (sit.hasNext()) { try { addCat(sit.next().getCatalog()); } catch (se) {} }
+            jsonResponse({ ok: true, catalogs: result, total: result.length });
+            return;
         }
 
-        // Current site catalog
-        addCatalog(CatalogMgr.getSiteCatalog(), null);
+        var catalogs = data.data.map(function (c) {
+            var name = (c.name && (c.name['default'] || c.name['x-default'])) || c.id;
+            return { id: c.id, name: name };
+        });
 
-        // All sites' catalogs
-        var sites = Site.getAllSites();
-        var it = sites.iterator();
-        while (it.hasNext()) {
-            var site = it.next();
-            try {
-                var catId = site.getCustomPreferenceValue('storefront-catalog-id')
-                         || site.getCustomPreferenceValue('siteStorefrontCatalogID')
-                         || site.getID();
-                var cat = CatalogMgr.getCatalog(catId);
-                addCatalog(cat, site.getID());
-            } catch (se) {}
-        }
-
-        // Include catalog ID from config if known and not already in list
-        var cfgCatId = cfg.sfcc && cfg.sfcc.catalogId ? cfg.sfcc.catalogId : '';
-        if (cfgCatId && !seen[cfgCatId]) {
-            var cfgCat = CatalogMgr.getCatalog(cfgCatId);
-            addCatalog(cfgCat, 'config');
-            if (!cfgCat) {
-                seen[cfgCatId] = true;
-                result.push({ id: cfgCatId, name: cfgCatId });
-            }
-        }
-
-        jsonResponse({ ok: true, catalogs: result, total: result.length });
+        jsonResponse({ ok: true, catalogs: catalogs, total: catalogs.length });
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
     }
@@ -3471,8 +3463,13 @@ exports.CreateCatalog = function () {
             + '    </category>\n'
             + '</catalog>';
 
+        var migPaths = require('*/cartridge/scripts/migration/core/migrationPaths');
+        var relPath  = migPaths.getRelativePath('catalog');
+        var dir      = new File(File.IMPEX + File.SEPARATOR + relPath.replace(/\//g, File.SEPARATOR));
+        if (!dir.exists()) { dir.mkdirs(); }
+
         var fileName = 'new-catalog-' + catalogId + '.xml';
-        var filePath = File.IMPEX + '/src/catalog/' + fileName;
+        var filePath = File.IMPEX + File.SEPARATOR + relPath.replace(/\//g, File.SEPARATOR) + File.SEPARATOR + fileName;
         var file     = new File(filePath);
         var writer   = new FileWriter(file, 'UTF-8');
         writer.write(xml);
@@ -3481,7 +3478,7 @@ exports.CreateCatalog = function () {
         response.setContentType('application/json');
         response.writer.print(JSON.stringify({
             ok     : true,
-            xmlPath: 'IMPEX/src/catalog/' + fileName
+            xmlPath: 'IMPEX/' + relPath + '/' + fileName
         }));
     } catch (e) {
         response.setContentType('application/json');
