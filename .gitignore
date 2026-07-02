@@ -22,6 +22,5 @@ test/appium/webdriver/config.json
 .history
 *.iml
 .idea
-test
 test/acceptance/report
 test/integration/config.json

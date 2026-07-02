@@ -4,7 +4,7 @@
 (function () {
     'use strict';
 
-    var loadChannelsHandler = null;
+    var loadChannelsHandler = null; // reserved for extension hooks
 
     function readCfg() {
         var panel = document.getElementById('acc-inv-details');
@@ -109,15 +109,6 @@
             + 'supplyChannelId=' + encodeURIComponent(channelId);
     }
 
-    document.addEventListener('click', function (e) {
-        var target = e.target;
-        if (!target || !target.id) return;
-        if (target.id === 'acc-reload-channels-btn' && loadChannelsHandler) {
-            e.preventDefault();
-            loadChannelsHandler(true);
-        }
-    });
-
     function boot() {
         var cfg = readCfg();
 
@@ -189,6 +180,59 @@
             return tr;
         }
 
+        function loadEntryCounts() {
+            var cells = document.querySelectorAll('.acc-inv-count');
+            var i;
+
+            for (i = 0; i < cells.length; i++) {
+                (function (cell) {
+                    var channelId = cell.getAttribute('data-channel-id') || 'all';
+                    cell.textContent = 'Loading...';
+                    cell.style.color = '#8a9ab8';
+
+                    get(appendChannelParam(cfg.countUrl, channelId), function (data) {
+                        if (data.ok && typeof data.total === 'number') {
+                            cell.textContent = String(data.total);
+                            cell.style.color = data.total > 0 ? '#16325c' : '#e65100';
+                        } else {
+                            cell.textContent = '—';
+                            cell.style.color = '#c62828';
+                        }
+                        updateCountSummary();
+                    });
+                })(cells[i]);
+            }
+        }
+
+        function updateCountSummary() {
+            if (!invSummary) return;
+            var cells = document.querySelectorAll('.acc-inv-count');
+            var totalEntries = 0;
+            var loaded = 0;
+            var i;
+
+            for (i = 0; i < cells.length; i++) {
+                var text = cells[i].textContent;
+                if (text === 'Loading...' || text === '\u2014' || text === '—') continue;
+                var n = parseInt(text, 10);
+                if (!isNaN(n)) {
+                    loaded++;
+                    if (cells[i].getAttribute('data-export-key') === 'aggregated') {
+                        totalEntries = n;
+                    }
+                }
+            }
+
+            var selected = document.querySelectorAll('.acc-inv-export-cb:checked').length;
+            if (loaded && totalEntries > 0) {
+                invSummary.textContent = totalEntries + ' total CTP entries'
+                    + (selected ? ' — ' + selected + ' file(s) selected' : '');
+                invSummary.style.color = '#2e7d32';
+            } else {
+                updateSelectionSummary();
+            }
+        }
+
         function renderExportTable(channels) {
             if (!invTbody) return;
             invTbody.innerHTML = '';
@@ -232,8 +276,13 @@
             var cbs = document.querySelectorAll('.acc-inv-export-cb');
             var c;
             for (c = 0; c < cbs.length; c++) {
-                cbs[c].addEventListener('change', updateSelectionSummary);
+                cbs[c].addEventListener('change', function () {
+                    updateSelectionSummary();
+                    updateCountSummary();
+                });
             }
+
+            loadEntryCounts();
         }
 
         function loadChannels(fromUserClick) {
@@ -286,6 +335,19 @@
                 renderExportTable(data.channels);
             });
         }
+
+        if (reloadChannelsBtn) {
+            reloadChannelsBtn.addEventListener('click', function (e) {
+                e.preventDefault();
+                loadChannels(true);
+            });
+        }
+
+        if (invLoading) {
+            invLoading.style.display = 'block';
+            invLoading.textContent = 'Click Load Channels to fetch supply channels and CTP entry counts.';
+        }
+        if (invTableWrap) invTableWrap.style.display = 'none';
 
         loadChannelsHandler = loadChannels;
 
@@ -381,8 +443,11 @@
         function runFullBatchForTarget(target, offset, total) {
             var pct = (total > 0) ? Math.round((offset / total) * 100) : 0;
             var phaseDetail = 'File ' + (currentExportIdx + 1) + '/' + exportQueue.length
-                + ' — ' + target.label + ': ' + offset + ' / ' + (total || '?') + ' entries';
-            setPhase('full', 'build', 'active', phaseDetail, pct);
+                + ' — ' + target.label + ': '
+                + (offset === 0 && total > 0
+                    ? 'building single XML for ' + total + ' entries'
+                    : offset + ' / ' + (total || '?') + ' entries');
+            setPhase('full', 'build', 'active', phaseDetail, offset === 0 && total > 0 ? 50 : pct);
 
             post(
                 cfg.fullBatchUrl,
@@ -391,7 +456,8 @@
                 + '&supplyChannelId=' + encodeURIComponent(target.supplyChannelId)
                 + '&exportKey=' + encodeURIComponent(target.exportKey)
                 + '&fileName=' + encodeURIComponent(target.fileName)
-                + '&aggregate=' + (target.aggregate ? 'true' : 'false'),
+                + '&aggregate=' + (target.aggregate ? 'true' : 'false')
+                + '&singleFile=true',
                 function (data) {
                     if (!data.ok) {
                         setPhase('full', 'build', 'error', data.error || 'Failed', pct);
@@ -414,7 +480,7 @@
                         fullOverallEl.textContent = 'Export ' + (currentExportIdx + 1) + '/' + exportQueue.length
                             + ' — ' + fullFiles + ' file(s), ' + fullBuilt + ' record(s)';
                     }
-                    if (!data.done) {
+                    if (!data.done && data.singleFile !== true) {
                         runFullBatchForTarget(target, data.nextOffset, data.total);
                     } else {
                         currentExportIdx++;
@@ -541,10 +607,9 @@
                 var i;
                 for (i = 0; i < cbs.length; i++) cbs[i].checked = this.checked;
                 updateSelectionSummary();
+                updateCountSummary();
             });
         }
-
-        loadChannels(false);
 
         if (checkAttrsBtn) {
             checkAttrsBtn.addEventListener('click', function () {

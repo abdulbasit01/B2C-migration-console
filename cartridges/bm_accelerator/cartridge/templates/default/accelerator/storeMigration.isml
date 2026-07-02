@@ -67,14 +67,14 @@
         <div class="st-details-panel">
             <div class="st-details-panel__head">
                 <span style="font-weight:700;font-size:14px;color:#16325c;">Stores to Migrate</span>
-                <button id="acc-reload-stores-btn" type="button" class="acc-btn acc-btn--ghost">Reload from CTP</button>
+                <button id="acc-reload-stores-btn" type="button" class="acc-btn acc-btn--ghost">Load Stores</button>
                 <span id="acc-st-summary" style="font-size:13px;color:#54698d;font-weight:600;"></span>
             </div>
             <div class="st-details-panel__body">
                 <p style="font-size:13px;color:#54698d;margin:0 0 12px;">
                     Uncheck any store you want to <strong>skip</strong>. Migration only exports checked stores into one XML file.
                 </p>
-                <div id="acc-st-loading" style="font-size:13px;color:#54698d;">Loading stores from commercetools...</div>
+                <div id="acc-st-loading" style="font-size:13px;color:#54698d;">Click <strong>Load Stores</strong> to fetch stores from commercetools.</div>
                 <div id="acc-st-error" style="display:none;font-size:13px;color:#c62828;margin-bottom:10px;"></div>
                 <span id="acc-st-selection-error" class="acc-field-error" style="display:none;margin-bottom:10px;"></span>
                 <div id="acc-st-table-wrap" style="display:none;border:1px solid #e0e5ee;border-radius:4px;overflow:auto;max-height:360px;">

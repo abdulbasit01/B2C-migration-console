@@ -1573,9 +1573,10 @@ exports.ListShippingMethods = function () {
 exports.ListShippingMethods.public = true;
 
 exports.FullShippingMethodBuildBatch = function () {
-    var offset  = parseInt(getParam('offset') || '0', 10);
-    var siteId  = getParam('siteId');
-    var rawKeys = getParam('keys');
+    var offset      = parseInt(getParam('offset') || '0', 10);
+    var siteId      = getParam('siteId');
+    var rawKeys     = getParam('keys');
+    var singleFile  = getParam('singleFile') !== 'false';
 
     if (!siteId) {
         jsonResponse({ ok: false, error: 'siteId is required' });
@@ -1593,9 +1594,9 @@ exports.FullShippingMethodBuildBatch = function () {
     try {
         var fullRunner = require('*/cartridge/scripts/migration/shippingMethodMigration/fullMigrationRunner');
         if (keys && keys.length) {
-            jsonResponse(fullRunner.runBatchForKeys(keys, offset, siteId));
+            jsonResponse(fullRunner.runBatchForKeys(keys, offset, siteId, singleFile));
         } else {
-            jsonResponse(fullRunner.runBatch(offset, siteId));
+            jsonResponse(fullRunner.runBatch(offset, siteId, singleFile));
         }
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
@@ -1636,7 +1637,7 @@ exports.InventoryMigration = function () {
         impexUrl:            pageCtx.impexUrl,
         cssUrl:              URLUtils.staticURL('/css/accelerator-migration.css').toString(),
         attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString(),
-        inventoryMigrationJsUrl: URLUtils.staticURL('/js/inventory-migration.js').toString() + '?v=5',
+        inventoryMigrationJsUrl: URLUtils.staticURL('/js/inventory-migration.js').toString() + '?v=7',
         jobsUrl:             jobsUrl
     }));
 };
@@ -1721,6 +1722,7 @@ exports.FullInventoryBuildBatch = function () {
     var exportKey       = getParam('exportKey');
     var fileName        = getParam('fileName');
     var aggregate       = getParam('aggregate') === 'true';
+    var singleFile      = getParam('singleFile') !== 'false';
 
     if (!listId) {
         jsonResponse({ ok: false, error: 'listId is required' });
@@ -1733,7 +1735,7 @@ exports.FullInventoryBuildBatch = function () {
 
     try {
         var fullRunner = require('*/cartridge/scripts/migration/inventoryMigration/fullMigrationRunner');
-        jsonResponse(fullRunner.runBatch(offset, listId, supplyChannelId, exportKey, fileName, aggregate));
+        jsonResponse(fullRunner.runBatch(offset, listId, supplyChannelId, exportKey, fileName, aggregate, singleFile));
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
     }
@@ -1769,7 +1771,7 @@ exports.PricebookMigration = function () {
         impexUrl:            pageCtx.impexUrl,
         cssUrl:              URLUtils.staticURL('/css/accelerator-migration.css').toString(),
         attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString(),
-        pricebookMigrationJsUrl: URLUtils.staticURL('/js/pricebook-migration.js').toString() + '?v=5',
+        pricebookMigrationJsUrl: URLUtils.staticURL('/js/pricebook-migration.js').toString() + '?v=6',
         jobsUrl:             jobsUrl
     }));
 };
@@ -1867,6 +1869,7 @@ exports.FullPricebookBuildBatch = function () {
     var fileName     = getParam('fileName');
     var aggregate    = getParam('aggregate') === 'true';
     var source       = getParam('source') || 'standalone';
+    var singleFile   = getParam('singleFile') !== 'false';
 
     if (!pricebookId) {
         jsonResponse({ ok: false, error: 'pricebookId is required' });
@@ -1885,12 +1888,12 @@ exports.FullPricebookBuildBatch = function () {
         var fullRunner = require('*/cartridge/scripts/migration/pricebookMigration/fullMigrationRunner');
         if (source === 'embedded') {
             jsonResponse(fullRunner.runEmbeddedBatch(
-                offset, pricebookId, currency, channelId, exportKey, fileName, aggregate
+                offset, pricebookId, currency, channelId, exportKey, fileName, aggregate, singleFile
             ));
             return;
         }
         jsonResponse(fullRunner.runBatch(
-            offset, pricebookId, currency, channelId, exportKey, fileName, aggregate
+            offset, pricebookId, currency, channelId, exportKey, fileName, aggregate, singleFile
         ));
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
@@ -1925,7 +1928,7 @@ exports.TaxMigration = function () {
         impexUrl:            pageCtx.impexUrl,
         cssUrl:              URLUtils.staticURL('/css/accelerator-migration.css').toString(),
         attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString(),
-        taxMigrationJsUrl:   URLUtils.staticURL('/js/tax-migration.js').toString() + '?v=6',
+        taxMigrationJsUrl:   URLUtils.staticURL('/js/tax-migration.js').toString() + '?v=7',
         jobsUrl:             jobsUrl
     }));
 };
@@ -1994,6 +1997,7 @@ exports.FullTaxBuildBatch = function () {
     var scopeType  = getParam('scopeType') || 'full';
     var scopeId    = getParam('scopeId') || '';
     var fileName   = getParam('fileName');
+    var singleFile = getParam('singleFile') !== 'false';
 
     if (!exportKey) {
         jsonResponse({ ok: false, error: 'exportKey is required' });
@@ -2002,7 +2006,7 @@ exports.FullTaxBuildBatch = function () {
 
     try {
         var fullRunner = require('*/cartridge/scripts/migration/taxMigration/fullMigrationRunner');
-        jsonResponse(fullRunner.runBatch(offset, exportKey, scopeType, scopeId, fileName));
+        jsonResponse(fullRunner.runBatch(offset, exportKey, scopeType, scopeId, fileName, singleFile));
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
     }
@@ -2035,7 +2039,7 @@ exports.StoreMigration = function () {
         impexUrl:            pageCtx.impexUrl,
         cssUrl:              URLUtils.staticURL('/css/accelerator-migration.css').toString(),
         attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString(),
-        storeMigrationJsUrl: URLUtils.staticURL('/js/store-migration.js').toString() + '?v=4',
+        storeMigrationJsUrl: URLUtils.staticURL('/js/store-migration.js').toString() + '?v=5',
         jobsUrl:             jobsUrl
     }));
 };
@@ -2125,7 +2129,8 @@ exports.FullStoreBuildBatch = function () {
     var offset    = parseInt(getParam('offset') || '0', 10);
     var exportKey = getParam('exportKey') || 'full';
     var fileName  = getParam('fileName');
-    var rawKeys   = getParam('keys');
+    var rawKeys    = getParam('keys');
+    var singleFile = getParam('singleFile') !== 'false';
 
     var keys = null;
     if (rawKeys) {
@@ -2137,7 +2142,7 @@ exports.FullStoreBuildBatch = function () {
 
     try {
         var fullRunner = require('*/cartridge/scripts/migration/storeMigration/fullMigrationRunner');
-        jsonResponse(fullRunner.runBatch(offset, exportKey, fileName, keys));
+        jsonResponse(fullRunner.runBatch(offset, exportKey, fileName, keys, singleFile));
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
     }

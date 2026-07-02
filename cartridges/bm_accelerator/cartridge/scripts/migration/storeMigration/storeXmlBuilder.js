@@ -78,15 +78,24 @@ function buildXml(stores) {
         }
     }
 
-    var xml = '<?xml version="1.0" encoding="UTF-8"?>\n'
-        + '<stores xmlns="' + NS_STORE + '">\n'
-        + body
-        + '</stores>\n';
+    var xml = buildHeader() + body + buildFooter();
 
     return { xml: xml, built: built, failed: failed, errors: errors };
 }
 
+function buildHeader() {
+    return '<?xml version="1.0" encoding="UTF-8"?>\n'
+        + '<stores xmlns="' + NS_STORE + '">\n';
+}
+
+function buildFooter() {
+    return '</stores>\n';
+}
+
 module.exports = {
-    buildXml: buildXml,
-    NS_STORE: NS_STORE
+    buildXml:       buildXml,
+    buildHeader:    buildHeader,
+    buildFooter:    buildFooter,
+    buildStoreXml:  buildStoreXml,
+    NS_STORE:       NS_STORE
 };

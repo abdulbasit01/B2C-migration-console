@@ -31,6 +31,37 @@ function buildRecordXml(record) {
 }
 
 /**
+ * XML header through opening &lt;records&gt; tag.
+ * @param {string} listId
+ * @param {string} [description]
+ * @returns {string}
+ */
+function buildHeader(listId, description) {
+    var lid  = listId || 'inventory';
+    var desc = description || 'Commercetools inventory migration';
+    return '<?xml version="1.0" encoding="UTF-8"?>\n'
+        + '<inventory xmlns="' + NS_INVENTORY + '">\n'
+        + '    <inventory-list>\n'
+        + '        <header list-id="' + xmlEsc(lid) + '">\n'
+        + '            <default-instock>false</default-instock>\n'
+        + '            <description>' + xmlEsc(desc) + '</description>\n'
+        + '            <use-bundle-inventory-only>false</use-bundle-inventory-only>\n'
+        + '            <on-order>false</on-order>\n'
+        + '        </header>\n'
+        + '        <records>\n';
+}
+
+/**
+ * Closing tags after &lt;/records&gt;.
+ * @returns {string}
+ */
+function buildFooter() {
+    return '        </records>\n'
+        + '    </inventory-list>\n'
+        + '</inventory>\n';
+}
+
+/**
  * Build SFCC inventory-list IMPEX XML from canonical records.
  * @param {Array} records - from inventoryTransformer.aggregateBySku
  * @param {string} listId - target SFCC inventory list ID
@@ -61,25 +92,17 @@ function buildXml(records, listId, description) {
         }
     }
 
-    var xml = '<?xml version="1.0" encoding="UTF-8"?>\n'
-        + '<inventory xmlns="' + NS_INVENTORY + '">\n'
-        + '    <inventory-list>\n'
-        + '        <header list-id="' + xmlEsc(lid) + '">\n'
-        + '            <default-instock>false</default-instock>\n'
-        + '            <description>' + xmlEsc(desc) + '</description>\n'
-        + '            <use-bundle-inventory-only>false</use-bundle-inventory-only>\n'
-        + '            <on-order>false</on-order>\n'
-        + '        </header>\n'
-        + '        <records>\n'
+    var xml = buildHeader(lid, desc)
         + rows
-        + '        </records>\n'
-        + '    </inventory-list>\n'
-        + '</inventory>\n';
+        + buildFooter();
 
     return { xml: xml, built: built, failed: failed, errors: errors };
 }
 
 module.exports = {
-    buildXml:      buildXml,
-    NS_INVENTORY:  NS_INVENTORY
+    buildXml:       buildXml,
+    buildHeader:    buildHeader,
+    buildFooter:    buildFooter,
+    buildRecordXml: buildRecordXml,
+    NS_INVENTORY:   NS_INVENTORY
 };

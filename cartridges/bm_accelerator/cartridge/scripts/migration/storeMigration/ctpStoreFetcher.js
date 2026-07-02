@@ -59,6 +59,41 @@ function hasAddress(channel) {
 }
 
 /**
+ * Fetch one page of CTP stores.
+ * @param {number} offset
+ * @param {number} [limit]
+ * @returns {{ results: Array, total: number }}
+ */
+function fetchBatch(offset, limit) {
+    var c     = cfg.ctp;
+    var token = getToken();
+    var lim   = limit || 500;
+    var qs    = '?limit=' + lim + '&offset=' + (offset || 0) + '&sort=id+asc&withTotal=true';
+    var res   = http.get(
+        c.apiUrl + '/' + c.projectKey + '/stores' + qs,
+        { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }
+    );
+    if (res.status !== 200) {
+        failCtp('CTP stores fetch failed', res);
+    }
+    return {
+        results: res.data.results || [],
+        total:   res.data.total   || 0
+    };
+}
+
+/**
+ * @param {Object} store
+ * @param {Object} refSet
+ * @returns {boolean}
+ */
+function storeMatchesRef(store, refSet) {
+    if (!refSet) return true;
+    var ref = store.key || store.id || '';
+    return !!(refSet[ref] || (store.id && refSet[store.id]) || (store.key && refSet[store.key]));
+}
+
+/**
  * Fetch all CTP stores from /stores.
  * @returns {Array}
  */
@@ -194,9 +229,11 @@ function getFullStoreSummary() {
 
 module.exports = {
     fetchAllCtpStores:   fetchAllCtpStores,
+    fetchBatch:          fetchBatch,
     fetchChannelMap:     fetchChannelMap,
     findLinkedChannel:   findLinkedChannel,
     filterStoresByRefs:  filterStoresByRefs,
+    storeMatchesRef:     storeMatchesRef,
     getFullStoreSummary: getFullStoreSummary,
     exportKeySafe:       exportKeySafe,
     hasAddress:          hasAddress,

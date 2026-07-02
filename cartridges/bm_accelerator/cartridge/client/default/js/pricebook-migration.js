@@ -322,7 +322,8 @@
                     if (!data.ok) {
                         if (reloadBtn) {
                             reloadBtn.disabled = false;
-                            reloadBtn.textContent = 'Reload';
+                            reloadBtn.textContent = sec.reloadBtnId === 'acc-reload-standalone-btn'
+                                ? 'Reload Standalone' : 'Reload Embedded';
                         }
                         if (loading) loading.style.display = 'none';
                         if (errorEl) {
@@ -346,7 +347,8 @@
 
                     if (reloadBtn) {
                         reloadBtn.disabled = false;
-                        reloadBtn.textContent = 'Reload';
+                        reloadBtn.textContent = sec.reloadBtnId === 'acc-reload-standalone-btn'
+                            ? 'Reload Standalone' : 'Reload Embedded';
                     }
 
                     if (sec.source === 'embedded') {
@@ -499,7 +501,8 @@
                 + '&channelId=' + encodeURIComponent(target.channelId)
                 + '&exportKey=' + encodeURIComponent(target.exportKey)
                 + '&fileName=' + encodeURIComponent(target.fileName)
-                + '&aggregate=' + (target.aggregate ? 'true' : 'false'),
+                + '&aggregate=' + (target.aggregate ? 'true' : 'false')
+                + '&singleFile=true',
                 function (data) {
                     if (!data.ok) {
                         setPhase('full', 'build', 'error', data.error || 'Failed', pct);
@@ -521,7 +524,7 @@
                         fullOverallEl.textContent = 'Export ' + (currentExportIdx + 1) + '/' + exportQueue.length
                             + ' — ' + fullFiles + ' file(s), ' + fullBuilt + ' price(s)';
                     }
-                    if (!data.done) {
+                    if (!data.done && data.singleFile !== true) {
                         runFullBatchForTarget(target, data.nextOffset, data.total);
                     } else {
                         currentExportIdx++;
@@ -650,6 +653,16 @@
             (function (sec) {
                 var selectAll = document.getElementById(sec.selectAllId);
                 var reloadBtn = document.getElementById(sec.reloadBtnId);
+                var loadingEl = document.getElementById(sec.loadingId);
+                var tableWrap = document.getElementById(sec.tableWrapId);
+
+                if (loadingEl) {
+                    loadingEl.style.display = 'block';
+                    loadingEl.textContent = sec.source === 'embedded'
+                        ? 'Click Load Embedded to scan products for embedded prices.'
+                        : 'Click Load Standalone to scan standalone prices from commercetools.';
+                }
+                if (tableWrap) tableWrap.style.display = 'none';
 
                 if (selectAll) {
                     selectAll.addEventListener('change', function () {
@@ -666,8 +679,6 @@
                 }
             }(SECTIONS[si]));
         }
-
-        loadAllPricebooks(false);
 
         if (checkAttrsBtn) {
             checkAttrsBtn.addEventListener('click', function () {

@@ -1,5 +1,7 @@
 'use strict';
 
+var File         = require('dw/io/File');
+var FileWriter   = require('dw/io/FileWriter');
 var fetcher      = require('*/cartridge/scripts/migration/inventoryMigration/ctpInventoryFetcher');
 var transformer  = require('*/cartridge/scripts/migration/inventoryMigration/inventoryTransformer');
 var xmlBuilder   = require('*/cartridge/scripts/migration/inventoryMigration/inventoryXmlBuilder');
@@ -7,36 +9,46 @@ var uploader     = require('*/cartridge/scripts/migration/inventoryMigration/web
 var fileResolver = require('*/cartridge/scripts/migration/core/migrationFileResolver');
 var fileNaming   = require('*/cartridge/scripts/migration/inventoryMigration/inventoryFileNaming');
 
-var MODULE_KEY = 'inventory';
-var BATCH_SIZE = 500;
+var MODULE_KEY              = 'inventory';
+var BATCH_SIZE              = 500;
+var MAX_SINGLE_FILE_ENTRIES = 100000;
 
-/**
- * @param {Array} records
- * @param {string} listId
- * @param {number} offset
- * @param {number} total
- * @param {string} exportKey
- * @param {string} supplyChannelId
- * @param {string} fileName
- * @param {boolean} aggregate
- * @returns {Object}
- */
-function uploadBatchXml(records, listId, offset, total, exportKey, supplyChannelId, fileName, aggregate) {
-    if (!records || !records.length) {
-        return { ok: true, built: 0, failed: 0, errors: [], fileName: null };
-    }
-
-    var runDate   = fileResolver.getRunDate(MODULE_KEY + '_' + fileNaming.exportKeySafe(exportKey), offset);
-    var resolved  = fileNaming.resolveFileName(exportKey, offset, BATCH_SIZE, fileName);
-    var impexPath = fileResolver.getRelativePath(MODULE_KEY);
-    var desc      = 'Commercetools inventory migration';
+function buildDescription(exportKey, supplyChannelId) {
+    var desc = 'Commercetools inventory migration';
     if (exportKey === 'aggregated') {
         desc += ' (aggregated all channels)';
     } else if (supplyChannelId) {
         desc += ' (supply channel ' + supplyChannelId + ')';
     }
+    return desc;
+}
 
-    var buildResult = xmlBuilder.buildXml(records, listId, desc);
+function ensureImpexDir(relativePath) {
+    var dir = new File(File.IMPEX + File.SEPARATOR + String(relativePath).replace(/\//g, File.SEPARATOR));
+    if (!dir.exists()) {
+        dir.mkdirs();
+    }
+    return dir;
+}
+
+/**
+ * @param {Array} records
+ * @param {string} listId
+ * @param {string} exportKey
+ * @param {string} supplyChannelId
+ * @param {string} fileName
+ * @returns {Object}
+ */
+function uploadXml(records, listId, exportKey, supplyChannelId, fileName, offset) {
+    if (!records || !records.length) {
+        return { ok: true, built: 0, failed: 0, errors: [], fileName: null };
+    }
+
+    var fileOffset = offset || 0;
+    var runDate    = fileResolver.getRunDate(MODULE_KEY + '_' + fileNaming.exportKeySafe(exportKey), fileOffset);
+    var resolved   = fileNaming.resolveFileName(exportKey, fileOffset, BATCH_SIZE, fileName);
+    var impexPath  = fileResolver.getRelativePath(MODULE_KEY);
+    var buildResult = xmlBuilder.buildXml(records, listId, buildDescription(exportKey, supplyChannelId));
     var dirResult   = uploader.ensureDirectory();
     if (!dirResult.ok) {
         return { ok: false, error: 'WebDAV directory creation failed: ' + dirResult.error };
@@ -59,19 +71,145 @@ function uploadBatchXml(records, listId, offset, total, exportKey, supplyChannel
 }
 
 /**
- * Paginated inventory export from CTP to SFCC inventory-list XML.
- * @param {number} offset
- * @param {string} listId
- * @param {string} [supplyChannelId] - empty or 'all' for aggregated fetch
- * @param {string} [exportKey] - identifies export target (aggregated or channel)
- * @param {string} [fileName] - user-editable XML file name
- * @param {boolean} [aggregate] - sum SKUs across channels when true
- * @returns {Object}
+ * Stream CTP inventory into one IMPEX file without holding all entries in memory.
+ * Aggregated mode sorts by SKU and merges consecutive rows (one pending record at a time).
  */
-function runBatch(offset, listId, supplyChannelId, exportKey, fileName, aggregate) {
-    if (!listId) return { ok: false, error: 'listId is required' };
-    if (!exportKey) return { ok: false, error: 'exportKey is required' };
+function runSingleFile(listId, supplyChannelId, exportKey, fileName, aggregate) {
+    var channelId = (supplyChannelId && supplyChannelId !== 'all') ? supplyChannelId : '';
+    var impexPath = fileResolver.getRelativePath(MODULE_KEY);
+    var resolved  = fileNaming.resolveFileName(exportKey, 0, BATCH_SIZE, fileName);
+    var runDate   = fileResolver.getRunDate(MODULE_KEY + '_' + fileNaming.exportKeySafe(exportKey), 0);
+    var dir       = ensureImpexDir(impexPath);
+    var outFile   = new File(dir, resolved);
+    var writer    = null;
+    var built     = 0;
+    var failed    = 0;
+    var errors    = [];
+    var offset    = 0;
+    var total     = 0;
+    var results   = [];
+    var pending   = null;
+    var sortField = aggregate ? 'sku' : 'id';
 
+    function flushPending() {
+        if (!pending) return;
+        try {
+            writer.write(xmlBuilder.buildRecordXml(pending));
+            built++;
+        } catch (e) {
+            failed++;
+            if (errors.length < 5) {
+                errors.push((pending.sku || '?') + ': ' + (e.message || String(e)));
+            }
+        }
+        pending = null;
+    }
+
+    try {
+        var dirResult = uploader.ensureDirectory();
+        if (!dirResult.ok) {
+            return { ok: false, error: 'WebDAV directory creation failed: ' + dirResult.error };
+        }
+
+        writer = new FileWriter(outFile, 'UTF-8');
+        writer.write(xmlBuilder.buildHeader(listId, buildDescription(exportKey, channelId || null)));
+
+        do {
+            var batch = fetcher.fetchBatch(offset, BATCH_SIZE, channelId, sortField);
+            results   = batch.results || [];
+            total     = batch.total || 0;
+
+            if (offset === 0 && total > MAX_SINGLE_FILE_ENTRIES) {
+                writer.close();
+                return {
+                    ok:    false,
+                    error: 'Too many entries (' + total + ') for a single XML file. '
+                        + 'Maximum is ' + MAX_SINGLE_FILE_ENTRIES + '.'
+                };
+            }
+
+            var i;
+            for (i = 0; i < results.length; i++) {
+                try {
+                    var rec = transformer.transformEntry(results[i]);
+                    if (!rec) {
+                        failed++;
+                        continue;
+                    }
+
+                    if (aggregate) {
+                        if (pending && pending.sku === rec.sku) {
+                            transformer.mergeRecords(pending, rec);
+                        } else {
+                            flushPending();
+                            pending = rec;
+                        }
+                    } else {
+                        writer.write(xmlBuilder.buildRecordXml(rec));
+                        built++;
+                    }
+                } catch (te) {
+                    failed++;
+                    if (errors.length < 5) {
+                        errors.push('entry: ' + (te.message || String(te)));
+                    }
+                }
+            }
+
+            offset += results.length;
+        } while (offset < total && results.length > 0);
+
+        flushPending();
+        writer.write(xmlBuilder.buildFooter());
+        writer.close();
+        writer = null;
+
+        if (!built && !failed) {
+            return {
+                ok:         true,
+                singleFile: true,
+                total:      total,
+                nextOffset: 0,
+                done:       true,
+                built:      0,
+                failed:     0,
+                errors:     [],
+                impexPath:  impexPath,
+                exportKey:  exportKey
+            };
+        }
+
+        var putResult = uploader.uploadLocalFile(resolved);
+        if (!putResult.ok) {
+            return { ok: false, error: putResult.error };
+        }
+
+        return {
+            ok:         true,
+            singleFile: true,
+            total:      total,
+            nextOffset: total,
+            done:       true,
+            built:      built,
+            failed:     failed,
+            errors:     errors,
+            fileName:   resolved,
+            runDate:    runDate,
+            impexPath:  impexPath,
+            exportKey:  exportKey
+        };
+    } catch (e) {
+        if (writer) {
+            try { writer.close(); } catch (ce) { /* ignore */ }
+        }
+        return { ok: false, error: e.message || String(e) };
+    }
+}
+
+/**
+ * Paginated inventory export — one IMPEX file per batch (legacy multi-file mode).
+ */
+function runMultiFileBatch(offset, listId, supplyChannelId, exportKey, fileName, aggregate) {
     var channelId = (supplyChannelId && supplyChannelId !== 'all') ? supplyChannelId : '';
     var batch     = fetcher.fetchBatch(offset, BATCH_SIZE, channelId);
     var entries   = batch.results;
@@ -89,9 +227,7 @@ function runBatch(offset, listId, supplyChannelId, exportKey, fileName, aggregat
         ? transformer.aggregateBySku(entries)
         : entries.map(function (e) { return transformer.transformEntry(e); }).filter(function (r) { return !!r; });
 
-    var upload = uploadBatchXml(
-        records, listId, offset, total, exportKey, channelId || null, fileName, aggregate
-    );
+    var upload = uploadXml(records, listId, exportKey, channelId || null, fileName, offset);
     if (!upload.ok) {
         return { ok: false, error: upload.error };
     }
@@ -99,6 +235,7 @@ function runBatch(offset, listId, supplyChannelId, exportKey, fileName, aggregat
     var nextOffset = offset + entries.length;
     return {
         ok:         true,
+        singleFile: false,
         total:      total,
         nextOffset: nextOffset,
         done:       nextOffset >= total || entries.length === 0,
@@ -112,4 +249,45 @@ function runBatch(offset, listId, supplyChannelId, exportKey, fileName, aggregat
     };
 }
 
-module.exports = { runBatch: runBatch };
+/**
+ * @param {number} offset
+ * @param {string} listId
+ * @param {string} [supplyChannelId]
+ * @param {string} [exportKey]
+ * @param {string} [fileName]
+ * @param {boolean} [aggregate]
+ * @param {boolean} [singleFile] - default true: one IMPEX file per export target
+ * @returns {Object}
+ */
+function runBatch(offset, listId, supplyChannelId, exportKey, fileName, aggregate, singleFile) {
+    if (!listId) return { ok: false, error: 'listId is required' };
+    if (!exportKey) return { ok: false, error: 'exportKey is required' };
+
+    var useSingleFile = singleFile !== false;
+
+    if (useSingleFile) {
+        if (offset > 0) {
+            return {
+                ok:         true,
+                singleFile: true,
+                total:      offset,
+                nextOffset: offset,
+                done:       true,
+                built:      0,
+                failed:     0,
+                errors:     [],
+                impexPath:  fileResolver.getRelativePath(MODULE_KEY),
+                exportKey:  exportKey
+            };
+        }
+        return runSingleFile(listId, supplyChannelId, exportKey, fileName, aggregate);
+    }
+
+    return runMultiFileBatch(offset, listId, supplyChannelId, exportKey, fileName, aggregate);
+}
+
+module.exports = {
+    BATCH_SIZE:              BATCH_SIZE,
+    MAX_SINGLE_FILE_ENTRIES: MAX_SINGLE_FILE_ENTRIES,
+    runBatch:                runBatch
+};
