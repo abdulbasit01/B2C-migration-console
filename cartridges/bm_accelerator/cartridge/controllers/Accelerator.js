@@ -1085,6 +1085,8 @@ exports.CustomerMigration = function () {
         checkAttrsUrl:       URLUtils.url('Accelerator-CheckCustomerAttributes').toString(),
         createAttrsUrl:      URLUtils.url('Accelerator-CreateCustomerAttributes').toString(),
         deleteAttrUrl:       URLUtils.url('Accelerator-DeleteCustomerAttribute').toString(),
+        fetchGroupsUrl:      URLUtils.url('Accelerator-FetchCtpCustomerGroups').toString(),
+        createGroupsUrl:     URLUtils.url('Accelerator-CreateSfccCustomerGroups').toString(),
         jobsUrl:             jobsUrl
     }));
 };
@@ -1130,18 +1132,46 @@ exports.GetCustomerLists = function () {
 exports.GetCustomerLists.public = true;
 
 /**
+ * Fetch all customer groups from CTP and return as JSON.
+ */
+exports.FetchCtpCustomerGroups = function () {
+    try {
+        var groupFetcher = require('*/cartridge/scripts/migration/customerMigration/ctpCustomerGroupFetcher');
+        jsonResponse({ ok: true, groups: groupFetcher.fetchGroups() });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.FetchCtpCustomerGroups.public = true;
+
+/**
+ * Create selected CTP customer groups in SFCC (keeps exact CTP UUID as group ID).
+ * POST body: groups=[{"id":"...","name":"..."},...]
+ */
+exports.CreateSfccCustomerGroups = function () {
+    var raw = getParam('groups');
+    if (!raw) { jsonResponse({ ok: false, error: 'groups param is required' }); return; }
+    try {
+        var groups      = JSON.parse(raw);
+        var groupWriter = require('*/cartridge/scripts/migration/customerMigration/sfccCustomerGroupWriter');
+        jsonResponse({ ok: true, result: groupWriter.ensureGroups(groups) });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.CreateSfccCustomerGroups.public = true;
+
+/**
  * Return all SFCC catalog IDs available on the instance.
  * GET — no params required.
  */
 exports.GetProductCatalogs = function () {
     try {
-        var CatalogMgr = require('dw/catalog/CatalogMgr');
-        var allCatalogs = CatalogMgr.getAllCatalogs();
-        var result      = [];
-        var it          = allCatalogs.iterator();
-        while (it.hasNext()) {
-            var cat = it.next();
-            result.push({ id: cat.ID });
+        var config  = require('*/cartridge/scripts/migration/config');
+        var result  = [];
+        var catId   = config.sfcc && config.sfcc.catalogId;
+        if (catId) {
+            result.push({ id: catId });
         }
         jsonResponse({ ok: true, catalogs: result });
     } catch (e) {
@@ -1151,9 +1181,70 @@ exports.GetProductCatalogs = function () {
 exports.GetProductCatalogs.public = true;
 
 /**
+ * GET: fileName=<name> — streams XML file from IMPEX as a download.
+ */
+exports.DownloadProductXml = function () {
+    var fileName = getParam('fileName') || '';
+    if (!fileName || !/^[a-zA-Z0-9_\-]+\.xml$/.test(fileName)) {
+        response.setContentType('text/plain');
+        response.writer.print('Invalid or missing fileName parameter.');
+        return;
+    }
+    var File       = require('dw/io/File');
+    var FileReader = require('dw/io/FileReader');
+    var sep        = File.SEPARATOR;
+    var file       = new File(File.IMPEX + sep + 'src' + sep + 'migration' + sep + 'product' + sep + fileName);
+    if (!file.exists()) {
+        response.setContentType('text/plain');
+        response.writer.print('File not found: ' + fileName);
+        return;
+    }
+    response.setContentType('application/xml');
+    response.addHttpHeader('Content-Disposition', 'attachment; filename="' + fileName + '"');
+    var reader = new FileReader(file, 'UTF-8');
+    try {
+        var line;
+        while ((line = reader.readLine()) !== null) {
+            response.writer.println(line);
+        }
+    } finally {
+        reader.close();
+    }
+};
+exports.DownloadProductXml.public = true;
+
+/**
  * GET — Returns all CTP variant product attributes plus the saved selection from session.
  * Response: { ok, attrs: [{ name, sfccId, label, ctpType }], savedSelection: [string]|null }
  */
+/**
+ * GET — Returns CTP product types detected as Product Sets, with product count per type.
+ * Response: { ok, sets: [{ typeId, typeName, refAttrName, count }] }
+ */
+exports.GetProductSetsInfo = function () {
+    try {
+        var scanner = require('*/cartridge/scripts/migration/productMigration/ctpProductTypeScanner');
+        jsonResponse({ ok: true, sets: scanner.getProductSetsSummary() });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.GetProductSetsInfo.public = true;
+
+/**
+ * GET — Returns CTP product types detected as Bundle Products, with product count per type.
+ * Response: { ok, bundles: [{ typeId, typeName, refAttrName, quantityAttrName, count }] }
+ */
+exports.GetBundleProductsInfo = function () {
+    try {
+        var scanner = require('*/cartridge/scripts/migration/productMigration/ctpProductTypeScanner');
+        jsonResponse({ ok: true, bundles: scanner.getBundleProductsSummary() });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.GetBundleProductsInfo.public = true;
+
 exports.GetVariantAttrs = function () {
     try {
         var checker    = require('*/cartridge/scripts/migration/productMigration/productAttrChecker');
@@ -1191,18 +1282,70 @@ exports.GetVariantAttrs = function () {
 exports.GetVariantAttrs.public = true;
 
 /**
- * POST: attrs=<JSON array of attr names to include in variant XML>
- * Saves the selection to session. Pass empty array to include none; omit or null to include all.
+ * POST: attrs=<JSON array of SFCC attr IDs authorized by the user in the pre-flight panel>
+ * Saves the pre-flight authorization list to session. No attribute creation happens here.
+ */
+exports.SavePreflightSelection = function () {
+    try {
+        var attrsJson = getParam('attrs');
+        var attrs = [];
+        if (attrsJson) { try { attrs = JSON.parse(attrsJson); } catch (pe) {} }
+        session.custom.preflightSelection = JSON.stringify(attrs);
+        jsonResponse({ ok: true, authorized: attrs.length });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.SavePreflightSelection.public = true;
+
+/**
+ * POST: attrs=<JSON array of CTP attr names to include in variant XML>
+ * Validates, auto-creates missing SFCC attrs (if pre-flight authorized), then saves selection.
+ *
+ * Rules:
+ *  - Attr exists in SFCC → include directly, no pre-flight needed
+ *  - Attr missing in SFCC + pre-flight authorized → create it, then include
+ *  - Attr missing in SFCC + NOT pre-flight authorized → validation error
  */
 exports.SaveVariantAttrSelection = function () {
     try {
         var attrsJson = getParam('attrs');
-        if (!attrsJson) {
-            session.custom.selectedVariantAttrs = null;
-        } else {
-            var parsed = JSON.parse(attrsJson);
-            session.custom.selectedVariantAttrs = JSON.stringify(parsed);
+        var selected  = [];
+        if (attrsJson) { try { selected = JSON.parse(attrsJson); } catch (pe) {} }
+
+        var checker    = require('*/cartridge/scripts/migration/productMigration/productAttrChecker');
+        var sfccClient = require('*/cartridge/scripts/migration/sfccClient');
+
+        // Build ctpName → sfccId map
+        var ctpFields      = checker.getCtpProductTypeFields();
+        var ctpNameToField = {};
+        for (var fi = 0; fi < ctpFields.length; fi++) {
+            ctpNameToField[ctpFields[fi].name] = ctpFields[fi];
         }
+
+        // Check which attrs currently exist in SFCC (best-effort — if OCAPI fails, skip validation)
+        var existingIds = null;
+        try {
+            var tok = sfccClient.getSFCCToken();
+            existingIds = sfccClient.getExistingAttributeIds(tok, 'Product') || {};
+        } catch (se) {}
+
+        // Validate only when OCAPI call succeeded (existingIds is not null)
+        if (existingIds !== null && Object.keys(existingIds).length > 0) {
+            var notInSfcc = [];
+            for (var si = 0; si < selected.length; si++) {
+                var field = ctpNameToField[selected[si]];
+                if (field && !existingIds[field.sfccId]) {
+                    notInSfcc.push(selected[si]);
+                }
+            }
+            if (notInSfcc.length) {
+                jsonResponse({ ok: false, validationError: true, notInSfcc: notInSfcc });
+                return;
+            }
+        }
+
+        session.custom.selectedVariantAttrs = JSON.stringify(selected);
         jsonResponse({ ok: true });
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
@@ -2222,8 +2365,12 @@ exports.ProductWizard = function () {
         createAttrsUrl:      URLUtils.url('Accelerator-CreateProductAttributes').toString(),
         deleteAttrUrl:       URLUtils.url('Accelerator-DeleteProductAttribute').toString(),
         catalogsUrl:         URLUtils.url('Accelerator-GetProductCatalogs').toString(),
-        variantAttrsUrl:     URLUtils.url('Accelerator-GetVariantAttrs').toString(),
-        saveVariantAttrsUrl: URLUtils.url('Accelerator-SaveVariantAttrSelection').toString(),
+        downloadXmlUrl:      URLUtils.url('Accelerator-DownloadProductXml').toString(),
+        variantAttrsUrl:      URLUtils.url('Accelerator-GetVariantAttrs').toString(),
+        saveVariantAttrsUrl:  URLUtils.url('Accelerator-SaveVariantAttrSelection').toString(),
+        savePreflightUrl:     URLUtils.url('Accelerator-SavePreflightSelection').toString(),
+        productSetsUrl:      URLUtils.url('Accelerator-GetProductSetsInfo').toString(),
+        bundleProductsUrl:   URLUtils.url('Accelerator-GetBundleProductsInfo').toString(),
         dashboardUrl:        URLUtils.url('Accelerator-Start').toString(),
         cssUrl:              URLUtils.staticURL('/css/accelerator-migration.css').toString(),
         attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString()
@@ -2285,7 +2432,8 @@ exports.ProductMigrationCount.public = true;
 exports.FullProductMigrationBuildBatch = function () {
     var offset    = parseInt(getParam('offset') || '0', 10);
     var migCfg    = require('*/cartridge/scripts/migration/configAccessor');
-    var catalogId = (migCfg.sfcc && migCfg.sfcc.catalogId) ? String(migCfg.sfcc.catalogId) : '';
+    var catalogId = getParam('catalogId')
+                 || (migCfg.sfcc && migCfg.sfcc.catalogId ? String(migCfg.sfcc.catalogId) : '');
 
     if (!catalogId) {
         jsonResponse({ ok: false, error: 'sfcc.catalogId is not configured in config.js' });
@@ -2316,7 +2464,8 @@ exports.MigrateProductById = function () {
         return;
     }
     var migCfg    = require('*/cartridge/scripts/migration/configAccessor');
-    var catalogId = (migCfg.sfcc && migCfg.sfcc.catalogId) ? String(migCfg.sfcc.catalogId) : '';
+    var catalogId = getParam('catalogId')
+                 || (migCfg.sfcc && migCfg.sfcc.catalogId ? String(migCfg.sfcc.catalogId) : '');
     if (!catalogId) {
         jsonResponse({ ok: false, error: 'sfcc.catalogId is not configured in config.js' });
         return;

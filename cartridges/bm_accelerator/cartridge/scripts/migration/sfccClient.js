@@ -227,5 +227,6 @@ module.exports = {
     deleteAttributeDefinition: deleteAttributeDefinition,
     migrateObjectSchema:       migrateObjectSchema,
     ensureAttributeGroup:      ensureAttributeGroup,
-    addAttributeToGroup:       addAttributeToGroup
+    addAttributeToGroup:       addAttributeToGroup,
+    doPut:                     doPut
 };

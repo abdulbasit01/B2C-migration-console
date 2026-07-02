@@ -36,7 +36,7 @@ function buildCustomerXml(ctpCustomer) {
     var addresses   = transformed.addresses;
 
     var ctpId      = String(ctpCustomer.id);
-    var customerNo = ctpId.replace(/-/g, '');
+    var customerNo = ctpId;
     var password   = 'Rc1!' + ctpId.replace(/-/g, '').substring(0, 12);
     var login      = xmlEsc(profile.login || profile.email);
 
@@ -74,6 +74,13 @@ function buildCustomerXml(ctpCustomer) {
             xml += buildAddressXml(addresses[a]);
         }
         xml += '        </addresses>\n';
+    }
+
+    // Include customer group assignment — CTP group UUID used directly as SFCC group ID
+    if (ctpCustomer.customerGroup && ctpCustomer.customerGroup.id) {
+        xml += '        <customer-groups>\n';
+        xml += '            <customer-group group-id="' + xmlEsc(ctpCustomer.customerGroup.id) + '"/>\n';
+        xml += '        </customer-groups>\n';
     }
 
     xml += '    </customer>\n';

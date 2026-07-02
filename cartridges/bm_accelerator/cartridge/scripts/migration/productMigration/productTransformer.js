@@ -1,5 +1,178 @@
 'use strict';
 
+/**
+ * Detect whether a CTP product is a base/variant product, a product set, or a bundle.
+ * CTP doesn't have a native set/bundle type — detection is by:
+ *   1. productType.obj.name containing "bundle" or "set" (when expanded)
+ *   2. master-variant attribute whose value is an array of product references
+ *      - [{typeId:"product", id:"..."}]              → set (no quantity)
+ *      - [{product:{typeId:"product",...}, quantity}] → bundle (has quantity)
+ */
+function detectProductKind(ctpProduct, data) {
+    var ptName = '';
+    if (ctpProduct.productType && ctpProduct.productType.obj) {
+        ptName = String(ctpProduct.productType.obj.name || '').toLowerCase();
+    }
+
+    // Product type name takes priority for bundle/set classification
+    if (ptName.indexOf('bundle') !== -1) return 'bundle';
+    if (ptName.indexOf('set') !== -1)    return 'set';
+
+    // Fallback: detect by masterVariant attribute values
+    var mvAttrs = (data.masterVariant && data.masterVariant.attributes) || [];
+    for (var i = 0; i < mvAttrs.length; i++) {
+        var val = mvAttrs[i].value;
+        if (val === null || val === undefined) continue;
+
+        // Single Reference<Product>: { typeId: "product", id: "..." } — set
+        if (!Array.isArray(val) && typeof val === 'object' && val.typeId === 'product' && val.id) {
+            return 'set';
+        }
+
+        if (!Array.isArray(val) || !val.length) continue;
+        var first = val[0];
+        if (!first || typeof first !== 'object') continue;
+
+        // [{product: {typeId:"product", id:"..."}, quantity: N}] — bundle
+        if (first.product && first.product.typeId === 'product' && first.quantity != null) {
+            return 'bundle';
+        }
+        // [{typeId:"product", id:"..."}] — set (direct product refs, no quantity)
+        if (first.typeId === 'product' && first.id) {
+            return 'set';
+        }
+        // [{value: {typeId:"product", id:"..."}}] — set (nested ref)
+        if (first.value && first.value.typeId === 'product' && first.value.id) {
+            return 'set';
+        }
+    }
+
+    return 'base';
+}
+
+/**
+ * Extract member product IDs for a product set from CTP master-variant attributes.
+ * Returns [{productId: string}]
+ */
+var UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function extractSetProducts(data) {
+    var mvAttrs = (data.masterVariant && data.masterVariant.attributes) || [];
+    for (var i = 0; i < mvAttrs.length; i++) {
+        var val = mvAttrs[i].value;
+        if (val === null || val === undefined) continue;
+
+        var members = [];
+
+        if (typeof val === 'string') {
+            // Plain UUID string — attribute defined as text type storing a product UUID
+            if (UUID_RE.test(val.trim())) {
+                members.push({ productId: val.trim() });
+            }
+        } else if (!Array.isArray(val) && typeof val === 'object') {
+            if (val.typeId === 'product' && val.id) {
+                // Reference<Product>: { typeId: "product", id: "..." }
+                members.push({ productId: val.id });
+            } else {
+                // Localized text attribute storing a UUID: { "en": "9bcb6490-...", ... }
+                var keys = Object.keys(val);
+                for (var li = 0; li < keys.length; li++) {
+                    var locVal = val[keys[li]];
+                    if (typeof locVal === 'string' && UUID_RE.test(locVal.trim())) {
+                        members.push({ productId: locVal.trim() });
+                        break;
+                    }
+                }
+            }
+        } else if (Array.isArray(val) && val.length) {
+            var first = val[0];
+            if (first && typeof first === 'object') {
+                if (first.typeId === 'product' && first.id) {
+                    // [{ typeId: "product", id: "..." }, ...]
+                    for (var j = 0; j < val.length; j++) {
+                        if (val[j] && val[j].typeId === 'product' && val[j].id) {
+                            members.push({ productId: val[j].id });
+                        }
+                    }
+                } else if (first.value && first.value.typeId === 'product' && first.value.id) {
+                    // [{ value: { typeId: "product", id: "..." } }, ...]
+                    for (var k = 0; k < val.length; k++) {
+                        if (val[k] && val[k].value && val[k].value.id) {
+                            members.push({ productId: val[k].value.id });
+                        }
+                    }
+                }
+            } else if (first && typeof first === 'string' && UUID_RE.test(first.trim())) {
+                // Array of plain UUID strings
+                for (var si = 0; si < val.length; si++) {
+                    if (typeof val[si] === 'string' && UUID_RE.test(val[si].trim())) {
+                        members.push({ productId: val[si].trim() });
+                    }
+                }
+            }
+        }
+
+        if (members.length) return members;
+    }
+    return [];
+}
+
+/**
+ * Extract bundled component product IDs + quantities from CTP master-variant attributes.
+ * Returns [{productId: string, quantity: number}]
+ */
+function extractBundleProducts(data) {
+    var mvAttrs = (data.masterVariant && data.masterVariant.attributes) || [];
+    for (var i = 0; i < mvAttrs.length; i++) {
+        var val = mvAttrs[i].value;
+        if (!Array.isArray(val) || !val.length) continue;
+        var first = val[0];
+        if (!first) continue;
+
+        var components = [];
+
+        if (Array.isArray(first)) {
+            // Set<Nested(bundle-item)>: [[{name:"bundled-product",value:{...}},{name:"quantity",value:N}],...]
+            for (var ni = 0; ni < val.length; ni++) {
+                var nestedItem = val[ni];
+                if (!Array.isArray(nestedItem)) continue;
+                var productId = null;
+                var quantity  = 1;
+                for (var nj = 0; nj < nestedItem.length; nj++) {
+                    var attr = nestedItem[nj];
+                    if (!attr || !attr.name) continue;
+                    if (attr.name === 'bundled-product' && attr.value && attr.value.id) {
+                        productId = attr.value.id;
+                    } else if (attr.name === 'quantity' && attr.value != null) {
+                        quantity = Number(attr.value) || 1;
+                    }
+                }
+                if (productId) components.push({ productId: productId, quantity: quantity });
+            }
+        } else if (typeof first === 'object') {
+            if (first.product && first.product.typeId === 'product' && first.quantity != null) {
+                // [{ product: { typeId:"product", id:"..." }, quantity: N }, ...]
+                for (var j = 0; j < val.length; j++) {
+                    var item = val[j];
+                    if (item && item.product && item.product.id) {
+                        components.push({ productId: item.product.id, quantity: Number(item.quantity) || 1 });
+                    }
+                }
+            } else if (first.typeId === 'product' && first.id) {
+                // [{ typeId:"product", id:"..." }, ...] — plain refs, no quantity
+                for (var k = 0; k < val.length; k++) {
+                    if (val[k] && val[k].typeId === 'product' && val[k].id) {
+                        components.push({ productId: val[k].id, quantity: 1 });
+                    }
+                }
+            }
+        }
+
+        if (components.length) return components;
+    }
+    return [];
+}
+
 function getLocalized(obj) {
     if (!obj || typeof obj !== 'object') return '';
     return obj['en'] || obj['en-US'] || obj['en-GB']
@@ -45,6 +218,17 @@ function transformProduct(ctpProduct) {
 
     // Use staged when current has no name (unpublished products have empty current)
     var data = hasLocalized(cur.name) ? cur : staged;
+
+    var productKind    = detectProductKind(ctpProduct, data);
+    var setProducts    = [];
+    var bundleProducts = [];
+    if (productKind === 'set') {
+        setProducts = extractSetProducts(data);
+        if (!setProducts.length) setProducts = extractSetProducts(staged);
+    } else if (productKind === 'bundle') {
+        bundleProducts = extractBundleProducts(data);
+        if (!bundleProducts.length) bundleProducts = extractBundleProducts(staged);
+    }
 
     var mv      = data.masterVariant || {};
     var ctpVars = data.variants || [];
@@ -151,7 +335,10 @@ function transformProduct(ctpProduct) {
         categories:               categories,
         classificationCategory:   classificationCategory,
         variants:                 variants,
-        hasVariants:              variants.length > 0
+        hasVariants:              variants.length > 0,
+        productKind:              productKind,
+        setProducts:              setProducts,
+        bundleProducts:           bundleProducts
     };
 }
 

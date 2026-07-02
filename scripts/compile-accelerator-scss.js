@@ -26,6 +26,7 @@ const PB_MIGRATION_SRC = path.join(CARTRIDGE, 'client/default/js/pricebook-migra
 const TX_MIGRATION_SRC = path.join(CARTRIDGE, 'client/default/js/tax-migration.js');
 const ST_MIGRATION_SRC = path.join(CARTRIDGE, 'client/default/js/store-migration.js');
 const ORD_MIGRATION_SRC = path.join(CARTRIDGE, 'client/default/js/order-migration.js');
+const CAT_MIGRATION_SRC = path.join(CARTRIDGE, 'client/default/js/categoryMigration.js');
 const CSS_OUT_DIR = path.join(CARTRIDGE, 'static/default/css');
 const CSS_OUT_FILE = path.join(CSS_OUT_DIR, 'accelerator-migration.css');
 const JS_OUT_DIR = path.join(CARTRIDGE, 'static/default/js');
@@ -37,6 +38,7 @@ const PB_MIGRATION_OUT = path.join(JS_OUT_DIR, 'pricebook-migration.js');
 const TX_MIGRATION_OUT = path.join(JS_OUT_DIR, 'tax-migration.js');
 const ST_MIGRATION_OUT = path.join(JS_OUT_DIR, 'store-migration.js');
 const ORD_MIGRATION_OUT = path.join(JS_OUT_DIR, 'order-migration.js');
+const CAT_MIGRATION_OUT = path.join(JS_OUT_DIR, 'categoryMigration.js');
 
 if (!fs.existsSync(SCSS)) {
     console.error('ERROR: SCSS source not found:', SCSS);
@@ -83,4 +85,9 @@ if (fs.existsSync(ORD_MIGRATION_SRC)) {
     fs.mkdirSync(JS_OUT_DIR, { recursive: true });
     fs.copyFileSync(ORD_MIGRATION_SRC, ORD_MIGRATION_OUT);
     console.log('Copied order-migration.js →', ORD_MIGRATION_OUT);
+}
+if (fs.existsSync(CAT_MIGRATION_SRC)) {
+    fs.mkdirSync(JS_OUT_DIR, { recursive: true });
+    fs.copyFileSync(CAT_MIGRATION_SRC, CAT_MIGRATION_OUT);
+    console.log('Copied categoryMigration.js →', CAT_MIGRATION_OUT);
 }

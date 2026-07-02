@@ -1,7 +1,7 @@
 <isdecorate template="application/MenuFrame">
 <iscontent type="text/html" charset="UTF-8"/>
 <link rel="stylesheet" href="${pdict.cssUrl}"/>
-<script src="${pdict.attrPreflightJsUrl}"></script>
+    <script src="${pdict.attrPreflightJsUrl}"></script>
 <style>
         .acc-tab {
             padding: 8px 20px;
@@ -148,6 +148,7 @@
             pointer-events: none;
         }
     </style>
+
 <div class="acc-page">
 <div class="acc-shell">
 
@@ -212,6 +213,38 @@
                     Unselected attributes will be excluded. By default all attributes are included.
                 </p>
                 <div id="prod-var-attrs-results" style="display:none;margin-top:14px;"></div>
+            </div>
+        </div>
+
+        <!-- ── Product Sets Panel ── -->
+        <div id="prod-sets-panel" style="margin:0 0 28px;border:1px solid #dddbda;border-radius:6px;overflow:hidden;">
+            <div style="background:#f4f6f9;border-bottom:1px solid #dddbda;padding:11px 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                <span style="font-weight:700;font-size:14px;color:#16325c;">&#128274; Product Sets</span>
+                <button id="prod-load-sets-btn" type="button" class="acc-btn acc-btn--ghost">Load Product Sets</button>
+                <span id="prod-sets-msg" style="font-size:13px;color:#54698d;font-weight:600;"></span>
+            </div>
+            <div style="padding:14px 20px;">
+                <p style="font-size:13px;color:#54698d;margin:0;">
+                    Scans CTP product types to detect Product Set types (those with a <code>Set&lt;Reference&lt;Product&gt;&gt;</code> attribute or whose name contains &quot;set&quot;).
+                    During migration, these products generate <code>&lt;product-set-products&gt;</code> blocks in the SFCC catalog XML.
+                </p>
+                <div id="prod-sets-results" style="display:none;margin-top:14px;"></div>
+            </div>
+        </div>
+
+        <!-- ── Bundle Products Panel ── -->
+        <div id="prod-bundles-panel" style="margin:0 0 28px;border:1px solid #dddbda;border-radius:6px;overflow:hidden;">
+            <div style="background:#f4f6f9;border-bottom:1px solid #dddbda;padding:11px 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                <span style="font-weight:700;font-size:14px;color:#16325c;">&#128230; Bundle Products</span>
+                <button id="prod-load-bundles-btn" type="button" class="acc-btn acc-btn--ghost">Load Bundle Products</button>
+                <span id="prod-bundles-msg" style="font-size:13px;color:#54698d;font-weight:600;"></span>
+            </div>
+            <div style="padding:14px 20px;">
+                <p style="font-size:13px;color:#54698d;margin:0;">
+                    Scans CTP product types to detect Bundle Product types (those whose name contains &quot;bundle&quot; or that have both a product-reference attribute and a quantity attribute).
+                    During migration, these products generate <code>&lt;bundled-products&gt;</code> blocks in the SFCC catalog XML.
+                </p>
+                <div id="prod-bundles-results" style="display:none;margin-top:14px;"></div>
             </div>
         </div>
 
@@ -333,6 +366,10 @@
     var DATA_WIZARD_ENTRY_URL  = '${pdict.dataWizardEntryUrl}';
     var VARIANT_ATTRS_URL      = '${pdict.variantAttrsUrl}';
     var SAVE_VARIANT_ATTRS_URL = '${pdict.saveVariantAttrsUrl}';
+    var SAVE_PREFLIGHT_URL     = '${pdict.savePreflightUrl}';
+    var PRODUCT_SETS_URL       = '${pdict.productSetsUrl}';
+    var BUNDLE_PRODUCTS_URL    = '${pdict.bundleProductsUrl}';
+    var DOWNLOAD_XML_URL       = '${pdict.downloadXmlUrl}';
 
     // ── Load SFCC Catalogs into dropdown ─────────────────────────────────────
     var catalogSelect = document.getElementById('prod-catalog-id');
@@ -347,7 +384,7 @@
             if (!data.ok || !data.catalogs || !data.catalogs.length) {
                 var opt = document.createElement('option');
                 opt.value = '';
-                opt.textContent = data.ok ? 'No catalogs found' : 'Error loading catalogs';
+                opt.textContent = data.ok ? 'No catalogs found' : ('Error: ' + (data.error || 'unknown'));
                 catalogSelect.appendChild(opt);
                 return;
             }
@@ -442,12 +479,12 @@
     var pendingMissing = [];
 
     function handleAttrCheckResult(missing) {
-        pendingMissing     = missing;
+        pendingMissing        = missing;
         attrResults.innerHTML = '';
 
         if (!missing.length) {
             attrResults.innerHTML = '<p style="color:#2e7d32;font-size:13px;margin:0;">'
-                + '&#10003; All CTP product attributes already exist in SFCC &#8212; no action needed.</p>';
+                + '&#10003; All CTP product attributes already exist in SFCC &#8212; no pre-flight authorization needed.</p>';
             attrResults.style.display = 'block';
             attrCheckMsg.textContent  = 'All attributes in sync.';
             attrCheckMsg.style.color  = '#2e7d32';
@@ -459,7 +496,7 @@
 
         var html = '<p style="font-size:13px;color:#54698d;margin:0 0 10px;">'
             + missing.length + ' attribute(s) found in CTP but missing in SFCC. '
-            + 'Select the ones you want to create:</p>';
+            + 'Select the ones you <strong>authorize</strong> to be created — they will be created automatically when you save the Variant Attribute Selection below.</p>';
 
         html += '<div style="border:1px solid #e0e5ee;border-radius:4px;overflow:hidden;">'
             + '<table class="cm-attr-table">'
@@ -469,7 +506,6 @@
             + '<th>Label</th>'
             + '<th>CTP Type</th>'
             + '<th>SFCC Type</th>'
-            + '<th style="width:90px;">Action</th>'
             + '</tr></thead><tbody>';
 
         for (var i = 0; i < missing.length; i++) {
@@ -480,7 +516,6 @@
                 + '<td>' + (m.label || m.id) + '</td>'
                 + '<td style="color:#8a9ab8;">' + m.ctpType + '</td>'
                 + '<td>' + window.AccAttrPreflight.sfccTypeSelectHtml(m, i) + '</td>'
-                + '<td><button type="button" class="cm-btn--revert prod-attr-revert-btn" data-idx="' + i + '" disabled title="Create the attribute first to enable revert">Revert</button></td>'
                 + '</tr>';
         }
         html += '</tbody></table></div>';
@@ -498,34 +533,6 @@
             for (var c = 0; c < cbs.length; c++) { cbs[c].checked = this.checked; }
         });
 
-        var revertBtns = document.querySelectorAll('.prod-attr-revert-btn');
-        for (var rb = 0; rb < revertBtns.length; rb++) {
-            revertBtns[rb].addEventListener('click', function () {
-                var btn     = this;
-                var idx     = parseInt(btn.getAttribute('data-idx'), 10);
-                var idInput = document.querySelector('.cm-attr-id-input[data-idx="' + idx + '"]');
-                var attrId  = idInput ? idInput.value.trim() : (pendingMissing[idx] || {}).id;
-                if (!attrId) return;
-                btn.disabled    = true;
-                btn.textContent = 'Reverting...';
-                post(DELETE_ATTR_URL, 'attrId=' + encodeURIComponent(attrId), function (res) {
-                    if (res.ok) {
-                        btn.textContent       = 'Reverted';
-                        btn.style.color       = '#2e7d32';
-                        btn.style.borderColor = '#a5d6a7';
-                        btn.style.background  = '#e8f5e9';
-                        var row = document.getElementById('prod-attr-row-' + idx);
-                        if (row) row.style.opacity = '0.5';
-                    } else {
-                        btn.disabled    = false;
-                        btn.textContent = 'Revert';
-                        var msgEl = document.getElementById('prod-create-attrs-msg');
-                        if (msgEl) { msgEl.textContent = 'Revert failed: ' + (res.error || 'Unknown error'); msgEl.style.color = '#c62828'; }
-                    }
-                });
-            });
-        }
-
         document.getElementById('prod-create-attrs-btn').addEventListener('click', function () {
             var selected        = [];
             var selectedIndices = [];
@@ -537,9 +544,9 @@
                     var idInput  = document.querySelector('.cm-attr-id-input[data-idx="' + idx + '"]');
                     var editedId = (idInput && idInput.value.trim()) ? idInput.value.trim() : orig.id;
                     selected.push({
-                        id: editedId,
-                        label: orig.label,
-                        ctpType: orig.ctpType,
+                        id:       editedId,
+                        label:    orig.label,
+                        ctpType:  orig.ctpType,
                         sfccType: window.AccAttrPreflight.readSfccType(idx, orig.sfccType)
                     });
                     selectedIndices.push(idx);
@@ -562,14 +569,9 @@
                 var r    = data.result || {};
                 var text = r.created + ' created' + (r.failed ? ', ' + r.failed + ' failed' : '') + '.';
                 if (r.errors && r.errors.length) text += ' ' + r.errors[0];
-                if (btn) { btn.disabled = true; btn.textContent = '&#10003; Done'; }
+                if (btn) { btn.disabled = true; btn.innerHTML = '&#10003; Done'; }
                 if (msg) { msg.textContent = text; msg.style.color = r.failed ? '#c62828' : '#2e7d32'; }
-                for (var ri = 0; ri < selectedIndices.length; ri++) {
-                    var rv = document.querySelector('.prod-attr-revert-btn[data-idx="' + selectedIndices[ri] + '"]');
-                    if (rv) { rv.disabled = false; rv.title = ''; }
-                }
-                // Auto-reload Variant Attr panel so newly created attrs become selectable
-                if (varAttrsResults.style.display !== 'none' && allVarAttrs.length) {
+                if (loadVarAttrsBtn && varAttrsResults.style.display !== 'none' && allVarAttrs.length) {
                     loadVarAttrsBtn.click();
                 }
             });
@@ -594,8 +596,6 @@
         });
     });
 
-    });
-
     // ════════════════════════════════════════════════════════════════════════
     // VARIANT PRODUCT ATTRIBUTE SELECTION
     // ════════════════════════════════════════════════════════════════════════
@@ -615,22 +615,7 @@
             return;
         }
 
-        var sfccCount    = 0;
-        var nonSfccCount = 0;
-        for (var ci = 0; ci < attrs.length; ci++) {
-            if (attrs[ci].existsInSfcc) { sfccCount++; } else { nonSfccCount++; }
-        }
-
-        var summaryHtml = '';
-        if (nonSfccCount > 0) {
-            summaryHtml = '<div style="background:#fff8e1;border:1px solid #ffe082;border-radius:4px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#5d4037;">'
-                + '<strong>&#9888; ' + nonSfccCount + ' attribute(s) not yet in SFCC</strong> — create them via the <em>Attribute Pre-flight Check</em> above, then reload this panel. '
-                + 'Attributes not in SFCC are disabled and will be excluded from the XML regardless of selection.'
-                + '</div>';
-        }
-
-        var html = summaryHtml
-            + '<div style="border:1px solid #e0e5ee;border-radius:4px;overflow:hidden;">'
+        var html = '<div style="border:1px solid #e0e5ee;border-radius:4px;overflow:hidden;">'
             + '<table class="cm-attr-table">'
             + '<thead><tr>'
             + '<th style="width:36px;"><input type="checkbox" id="prod-var-attr-select-all"/></th>'
@@ -644,19 +629,23 @@
         for (var i = 0; i < attrs.length; i++) {
             var attr      = attrs[i];
             var inSfcc    = attr.existsInSfcc;
-            var isChecked = inSfcc && ((!savedSelection) || (savedSelection.indexOf(attr.name) !== -1));
-            var rowStyle  = inSfcc ? '' : ' style="opacity:0.5;background:#fafafa;"';
-            var cbAttr    = (inSfcc ? '' : ' disabled title="Create this attribute in SFCC via Pre-flight Check first"');
+            var isChecked = (!savedSelection) || (savedSelection.indexOf(attr.name) !== -1);
+            var rowStyle  = inSfcc ? '' : ' style="background:#fafafa;"';
+            var inSfccBadge = inSfcc
+                ? '<span style="color:#2e7d32;font-weight:700;">&#10003;</span>'
+                : '<span style="color:#c62828;font-size:11px;">&#10007;</span>';
             html += '<tr' + rowStyle + '>'
-                + '<td style="text-align:center;"><input type="checkbox" class="prod-var-attr-cb" data-name="' + attr.name + '" data-in-sfcc="' + (inSfcc ? '1' : '0') + '"' + (isChecked ? ' checked' : '') + cbAttr + '/></td>'
+                + '<td style="text-align:center;"><input type="checkbox" class="prod-var-attr-cb" data-name="' + attr.name + '" data-in-sfcc="' + (inSfcc ? '1' : '0') + '"' + (isChecked ? ' checked' : '') + '/></td>'
                 + '<td><code>' + attr.name + '</code></td>'
                 + '<td>' + (attr.label || attr.name) + '</td>'
                 + '<td style="color:#8a9ab8;">' + attr.ctpType + '</td>'
                 + '<td style="color:#0070d2;font-size:12px;font-family:monospace;">' + attr.sfccId + '</td>'
-                + '<td style="text-align:center;">' + (inSfcc ? '<span style="color:#2e7d32;font-weight:700;">&#10003;</span>' : '<span style="color:#bbb;" title="Not in SFCC">&#8212;</span>') + '</td>'
+                + '<td style="text-align:center;">' + inSfccBadge + '</td>'
                 + '</tr>';
         }
         html += '</tbody></table></div>';
+
+        html += '<div id="prod-var-validation-error" style="display:none;background:#fdecea;border:1px solid #f5c6c6;border-radius:4px;padding:10px 14px;margin-top:12px;font-size:13px;color:#c62828;"></div>';
 
         html += '<div style="margin-top:14px;display:flex;align-items:center;gap:12px;">'
             + '<button type="button" id="prod-save-var-attrs-btn" class="cm-btn cm-btn--primary">&#10003; Save Selection</button>'
@@ -667,35 +656,43 @@
         varAttrsResults.style.display = 'block';
 
         document.getElementById('prod-var-attr-select-all').addEventListener('change', function () {
-            var cbs = document.querySelectorAll('.prod-var-attr-cb:not([disabled])');
+            var cbs = document.querySelectorAll('.prod-var-attr-cb');
             for (var c = 0; c < cbs.length; c++) { cbs[c].checked = this.checked; }
         });
 
         document.getElementById('prod-save-var-attrs-btn').addEventListener('click', function () {
             var selected = [];
-            var cbs      = document.querySelectorAll('.prod-var-attr-cb');
+            var cbs = document.querySelectorAll('.prod-var-attr-cb');
             for (var c = 0; c < cbs.length; c++) {
-                if (cbs[c].checked && cbs[c].getAttribute('data-in-sfcc') === '1') {
-                    selected.push(cbs[c].getAttribute('data-name'));
-                }
+                if (cbs[c].checked) { selected.push(cbs[c].getAttribute('data-name')); }
             }
-            var saveBtn = document.getElementById('prod-save-var-attrs-btn');
-            var saveMsg = document.getElementById('prod-save-var-attrs-msg');
+            var saveBtn  = document.getElementById('prod-save-var-attrs-btn');
+            var saveMsg  = document.getElementById('prod-save-var-attrs-msg');
+            var validErr = document.getElementById('prod-var-validation-error');
             saveBtn.disabled    = true;
             saveBtn.textContent = 'Saving...';
             saveMsg.textContent = '';
+            if (validErr) validErr.style.display = 'none';
             post(SAVE_VARIANT_ATTRS_URL, 'attrs=' + encodeURIComponent(JSON.stringify(selected)), function (data) {
                 saveBtn.disabled = false;
                 if (data.ok) {
-                    saveBtn.textContent  = '&#10003; Saved';
-                    saveMsg.textContent  = selected.length + ' of ' + sfccCount + ' SFCC attribute(s) will be included in the XML.';
-                    saveMsg.style.color  = '#2e7d32';
-                    varAttrsMsg.textContent = selected.length + '/' + sfccCount + ' selected';
+                    saveBtn.innerHTML       = '&#10003; Saved';
+                    saveMsg.style.color     = '#2e7d32';
+                    saveMsg.textContent     = selected.length + ' attribute(s) will be included in the XML.';
+                    varAttrsMsg.textContent = selected.length + ' selected';
                     varAttrsMsg.style.color = '#2e7d32';
+                } else if (data.validationError) {
+                    saveBtn.textContent = 'Retry';
+                    if (validErr) {
+                        validErr.innerHTML = '<strong>&#9888; These attribute(s) do not exist in SFCC yet:</strong> '
+                            + (data.notInSfcc || []).map(function (n) { return '<code>' + n + '</code>'; }).join(', ')
+                            + '<br/><span style="font-weight:400;">Create them first using <em>Attribute Pre-flight Check</em> above, then try saving again.</span>';
+                        validErr.style.display = 'block';
+                    }
                 } else {
-                    saveBtn.textContent  = 'Retry';
-                    saveMsg.textContent  = 'Error: ' + (data.error || 'Save failed');
-                    saveMsg.style.color  = '#c62828';
+                    saveBtn.textContent = 'Retry';
+                    saveMsg.textContent = 'Error: ' + (data.error || 'Save failed');
+                    saveMsg.style.color = '#c62828';
                 }
             });
         });
@@ -731,16 +728,269 @@
     }
 
     // ════════════════════════════════════════════════════════════════════════
+    // PRODUCT SETS
+    // ════════════════════════════════════════════════════════════════════════
+
+    var loadSetsBtn    = document.getElementById('prod-load-sets-btn');
+    var setsMsgEl      = document.getElementById('prod-sets-msg');
+    var setsResultsEl  = document.getElementById('prod-sets-results');
+
+    function renderSetsTable(sets) {
+        setsResultsEl.innerHTML = '';
+        if (!sets || !sets.length) {
+            setsResultsEl.innerHTML = '<p style="color:#54698d;font-size:13px;margin:0;">'
+                + 'No Product Set types detected in CTP. Either your project has no set product types, '
+                + 'or set types use a naming/attribute convention not covered by the scanner.</p>';
+            setsResultsEl.style.display = 'block';
+            return;
+        }
+
+        var totalCount = 0;
+        for (var ci = 0; ci < sets.length; ci++) { totalCount += (sets[ci].count || 0); }
+
+        var html = '<div style="background:#e8f5e9;border:1px solid #a5d6a7;border-radius:4px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#2e7d32;">'
+            + '<strong>&#10003; ' + sets.length + ' Product Set type(s) detected — ' + totalCount + ' product(s) total.</strong> '
+            + 'These will be exported using <code>&lt;product-set-products&gt;</code> in the SFCC catalog XML.'
+            + '</div>';
+
+        html += '<div style="border:1px solid #e0e5ee;border-radius:4px;overflow:hidden;">'
+            + '<table class="cm-attr-table"><thead><tr>'
+            + '<th>CTP Product Type</th>'
+            + '<th>Ref Attribute</th>'
+            + '<th style="text-align:right;">Products</th>'
+            + '<th style="text-align:center;">SFCC XML Element</th>'
+            + '</tr></thead><tbody>';
+
+        for (var i = 0; i < sets.length; i++) {
+            var s = sets[i];
+            var rowId = 'set-products-' + i;
+            var prods = s.products || [];
+            var prodListHtml = '';
+            if (prods.length) {
+                prodListHtml = '<div id="' + rowId + '" style="display:none;margin-top:6px;background:#f4f6f9;border:1px solid #dde1ea;border-radius:4px;padding:8px 10px;font-size:11px;">'
+                    + '<table style="width:100%;border-collapse:collapse;">'
+                    + '<thead><tr>'
+                    + '<th style="text-align:left;padding:3px 6px;color:#54698d;border-bottom:1px solid #dde1ea;">CTP ID</th>'
+                    + '<th style="text-align:left;padding:3px 6px;color:#54698d;border-bottom:1px solid #dde1ea;">CTP Key</th>'
+                    + '<th style="text-align:left;padding:3px 6px;color:#54698d;border-bottom:1px solid #dde1ea;">SFCC Product ID</th>'
+                    + '</tr></thead><tbody>';
+                for (var pi = 0; pi < prods.length; pi++) {
+                    var p = prods[pi];
+                    prodListHtml += '<tr>'
+                        + '<td style="padding:3px 6px;font-family:monospace;color:#8a9ab8;">' + p.ctpId + '</td>'
+                        + '<td style="padding:3px 6px;font-family:monospace;">' + (p.ctpKey || '—') + '</td>'
+                        + '<td style="padding:3px 6px;font-family:monospace;color:#0070d2;font-weight:600;">' + p.sfccId + '</td>'
+                        + '</tr>';
+                }
+                prodListHtml += '</tbody></table></div>';
+            }
+            html += '<tr>'
+                + '<td><strong>' + s.typeName + '</strong></td>'
+                + '<td><code>' + s.refAttrName + '</code></td>'
+                + '<td style="text-align:right;font-weight:600;color:#16325c;">'
+                + (prods.length ? '<a href="javascript:void(0)" onclick="var el=document.getElementById(\'' + rowId + '\');el.style.display=el.style.display===\'none\'?\'block\':\'none\';" style="color:#0070d2;text-decoration:none;">' + (s.count || 0) + ' &#9660;</a>' : (s.count || 0))
+                + prodListHtml
+                + '</td>'
+                + '<td style="text-align:center;"><code style="color:#0070d2;">&lt;product-set-products&gt;</code></td>'
+                + '</tr>';
+        }
+        html += '</tbody></table></div>';
+        setsResultsEl.innerHTML     = html;
+        setsResultsEl.style.display = 'block';
+    }
+
+    if (loadSetsBtn) {
+        loadSetsBtn.addEventListener('click', function () {
+            loadSetsBtn.disabled    = true;
+            loadSetsBtn.textContent = 'Loading...';
+            setsMsgEl.textContent   = '';
+            setsResultsEl.style.display = 'none';
+
+            var xhr = new XMLHttpRequest();
+            xhr.open('GET', PRODUCT_SETS_URL, true);
+            xhr.onreadystatechange = function () {
+                if (xhr.readyState !== 4) return;
+                loadSetsBtn.disabled    = false;
+                loadSetsBtn.textContent = 'Reload';
+                var data;
+                try { data = JSON.parse(xhr.responseText); } catch (e) { data = { ok: false, error: 'Parse error' }; }
+                if (!data.ok) {
+                    setsMsgEl.textContent = 'Error: ' + (data.error || 'Load failed');
+                    setsMsgEl.style.color = '#c62828';
+                    return;
+                }
+                var sets = data.sets || [];
+                setsMsgEl.textContent = sets.length + ' type(s) found';
+                setsMsgEl.style.color = '#54698d';
+                renderSetsTable(sets);
+            };
+            xhr.send();
+        });
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // BUNDLE PRODUCTS
+    // ════════════════════════════════════════════════════════════════════════
+
+    var loadBundlesBtn   = document.getElementById('prod-load-bundles-btn');
+    var bundlesMsgEl     = document.getElementById('prod-bundles-msg');
+    var bundlesResultsEl = document.getElementById('prod-bundles-results');
+
+    function renderBundlesTable(bundles) {
+        bundlesResultsEl.innerHTML = '';
+        if (!bundles || !bundles.length) {
+            bundlesResultsEl.innerHTML = '<p style="color:#54698d;font-size:13px;margin:0;">'
+                + 'No Bundle Product types detected in CTP. Either your project has no bundle product types, '
+                + 'or bundle types use a naming/attribute convention not covered by the scanner.</p>';
+            bundlesResultsEl.style.display = 'block';
+            return;
+        }
+
+        var totalCount = 0;
+        for (var ci = 0; ci < bundles.length; ci++) { totalCount += (bundles[ci].count || 0); }
+
+        var html = '<div style="background:#e8f5e9;border:1px solid #a5d6a7;border-radius:4px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#2e7d32;">'
+            + '<strong>&#10003; ' + bundles.length + ' Bundle Product type(s) detected — ' + totalCount + ' product(s) total.</strong> '
+            + 'These will be exported using <code>&lt;bundled-products&gt;</code> in the SFCC catalog XML.'
+            + '</div>';
+
+        html += '<div style="border:1px solid #e0e5ee;border-radius:4px;overflow:hidden;">'
+            + '<table class="cm-attr-table"><thead><tr>'
+            + '<th>CTP Product Type</th>'
+            + '<th>Ref Attribute</th>'
+            + '<th>Quantity Attribute</th>'
+            + '<th style="text-align:right;">Products</th>'
+            + '<th style="text-align:center;">SFCC XML Element</th>'
+            + '</tr></thead><tbody>';
+
+        for (var i = 0; i < bundles.length; i++) {
+            var b = bundles[i];
+            var bRowId = 'bundle-products-' + i;
+            var bProds = b.products || [];
+            var bProdListHtml = '';
+            if (bProds.length) {
+                bProdListHtml = '<div id="' + bRowId + '" style="display:none;margin-top:6px;background:#f4f6f9;border:1px solid #dde1ea;border-radius:4px;padding:8px 10px;font-size:11px;">'
+                    + '<table style="width:100%;border-collapse:collapse;">'
+                    + '<thead><tr>'
+                    + '<th style="text-align:left;padding:3px 6px;color:#54698d;border-bottom:1px solid #dde1ea;">CTP ID</th>'
+                    + '<th style="text-align:left;padding:3px 6px;color:#54698d;border-bottom:1px solid #dde1ea;">CTP Key</th>'
+                    + '<th style="text-align:left;padding:3px 6px;color:#54698d;border-bottom:1px solid #dde1ea;">SFCC Product ID</th>'
+                    + '</tr></thead><tbody>';
+                for (var bpi = 0; bpi < bProds.length; bpi++) {
+                    var bp = bProds[bpi];
+                    bProdListHtml += '<tr>'
+                        + '<td style="padding:3px 6px;font-family:monospace;color:#8a9ab8;">' + bp.ctpId + '</td>'
+                        + '<td style="padding:3px 6px;font-family:monospace;">' + (bp.ctpKey || '—') + '</td>'
+                        + '<td style="padding:3px 6px;font-family:monospace;color:#0070d2;font-weight:600;">' + bp.sfccId + '</td>'
+                        + '</tr>';
+                }
+                bProdListHtml += '</tbody></table></div>';
+            }
+            html += '<tr>'
+                + '<td><strong>' + b.typeName + '</strong></td>'
+                + '<td><code>' + b.refAttrName + '</code></td>'
+                + '<td><code>' + b.quantityAttrName + '</code></td>'
+                + '<td style="text-align:right;font-weight:600;color:#16325c;">'
+                + (bProds.length ? '<a href="javascript:void(0)" onclick="var el=document.getElementById(\'' + bRowId + '\');el.style.display=el.style.display===\'none\'?\'block\':\'none\';" style="color:#0070d2;text-decoration:none;">' + (b.count || 0) + ' &#9660;</a>' : (b.count || 0))
+                + bProdListHtml
+                + '</td>'
+                + '<td style="text-align:center;"><code style="color:#0070d2;">&lt;bundled-products&gt;</code></td>'
+                + '</tr>';
+        }
+        html += '</tbody></table></div>';
+        bundlesResultsEl.innerHTML     = html;
+        bundlesResultsEl.style.display = 'block';
+    }
+
+    if (loadBundlesBtn) {
+        loadBundlesBtn.addEventListener('click', function () {
+            loadBundlesBtn.disabled    = true;
+            loadBundlesBtn.textContent = 'Loading...';
+            bundlesMsgEl.textContent   = '';
+            bundlesResultsEl.style.display = 'none';
+
+            var xhr = new XMLHttpRequest();
+            xhr.open('GET', BUNDLE_PRODUCTS_URL, true);
+            xhr.onreadystatechange = function () {
+                if (xhr.readyState !== 4) return;
+                loadBundlesBtn.disabled    = false;
+                loadBundlesBtn.textContent = 'Reload';
+                var data;
+                try { data = JSON.parse(xhr.responseText); } catch (e) { data = { ok: false, error: 'Parse error' }; }
+                if (!data.ok) {
+                    bundlesMsgEl.textContent = 'Error: ' + (data.error || 'Load failed');
+                    bundlesMsgEl.style.color = '#c62828';
+                    return;
+                }
+                var bundles = data.bundles || [];
+                bundlesMsgEl.textContent = bundles.length + ' type(s) found';
+                bundlesMsgEl.style.color = '#54698d';
+                renderBundlesTable(bundles);
+            };
+            xhr.send();
+        });
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
     // PARTIAL MIGRATION
     // ════════════════════════════════════════════════════════════════════════
 
-    var partialStartBtn = document.getElementById('partial-start-btn');
-    var partialOverall  = document.getElementById('partial-move-overall');
-    var partialStatus   = document.getElementById('partial-move-status');
-    var partialPhases   = document.getElementById('partial-phase-list');
-    var partialRunning  = false;
-    var partialBuilt    = 0;
-    var partialFailed   = 0;
+    var partialStartBtn  = document.getElementById('partial-start-btn');
+    var partialOverall   = document.getElementById('partial-move-overall');
+    var partialStatus    = document.getElementById('partial-move-status');
+    var partialPhases    = document.getElementById('partial-phase-list');
+    var partialRunning   = false;
+    var partialBuilt     = 0;
+    var partialFailed    = 0;
+    var partialCatalogId  = '';
+    var partialXmlFiles   = [];
+
+    function triggerBlobDownload(url, fileName) {
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', url, true);
+        xhr.responseType = 'text';
+        xhr.onload = function () {
+            var content = xhr.responseText;
+            var blob = new Blob([content], { type: 'application/xml' });
+            var objUrl = URL.createObjectURL(blob);
+            var link = document.createElement('a');
+            link.href = objUrl;
+            link.download = fileName;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            setTimeout(function () { URL.revokeObjectURL(objUrl); }, 1000);
+        };
+        xhr.send();
+    }
+
+    function renderDownloadLinks(container, fileNames) {
+        var existing = container.querySelector('.acc-xml-downloads');
+        if (existing) existing.parentNode.removeChild(existing);
+        if (!fileNames || !fileNames.length) return;
+        var wrap = document.createElement('div');
+        wrap.className = 'acc-xml-downloads';
+        wrap.style.cssText = 'margin-top:10px;display:flex;flex-wrap:wrap;gap:8px;';
+        for (var i = 0; i < fileNames.length; i++) {
+            (function (name) {
+                var btn = document.createElement('button');
+                btn.type = 'button';
+                btn.innerHTML = '&#8681; ' + name;
+                btn.style.cssText = 'padding:6px 12px;background:#1565c0;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:13px;';
+                btn.addEventListener('click', function () {
+                    btn.disabled = true;
+                    btn.textContent = 'Downloading...';
+                    triggerBlobDownload(DOWNLOAD_XML_URL + '?fileName=' + encodeURIComponent(name), name);
+                    setTimeout(function () {
+                        btn.disabled = false;
+                        btn.innerHTML = '&#8681; ' + name;
+                    }, 2000);
+                });
+                wrap.appendChild(btn);
+            }(fileNames[i]));
+        }
+        container.appendChild(wrap);
+    }
 
     function runPartialById(ids, index) {
         if (index >= ids.length) {
@@ -759,12 +1009,15 @@
         partialOverall.textContent = partialBuilt + ' imported'
             + (partialFailed ? ', ' + partialFailed + ' failed' : '');
 
-        post(PARTIAL_URL, 'ctpId=' + encodeURIComponent(ctpId), function (data) {
+        post(PARTIAL_URL, 'ctpId=' + encodeURIComponent(ctpId) + '&catalogId=' + encodeURIComponent(partialCatalogId), function (data) {
             if (!data.ok) {
                 partialFailed++;
             } else {
                 partialBuilt += (data.built || 1);
                 partialFailed += (data.failed || 0);
+                if (data.fileName && partialXmlFiles.indexOf(data.fileName) === -1) {
+                    partialXmlFiles.push(data.fileName);
+                }
             }
             runPartialById(ids, index + 1);
         });
@@ -781,9 +1034,16 @@
         partialStatus.textContent    = 'Done — '
             + partialBuilt + ' product(s) imported.'
             + (partialFailed ? ' ' + partialFailed + ' failed — check BM logs.' : '');
+        renderDownloadLinks(partialStatus, partialXmlFiles);
     }
 
     partialStartBtn.addEventListener('click', function () {
+        var selectedCatalogId = catalogSelect.value;
+        if (!selectedCatalogId) {
+            document.getElementById('prod-catalog-id-error').style.display = 'block';
+            return;
+        }
+        document.getElementById('prod-catalog-id-error').style.display = 'none';
         var rawIds = document.getElementById('prod-ctp-ids').value.trim();
         if (!rawIds) {
             showError('prod-ctp-ids', 'prod-ctp-ids-error', 'CTP Product IDs are required.');
@@ -797,9 +1057,11 @@
         clearError('prod-ctp-ids', 'prod-ctp-ids-error');
         if (partialRunning) return;
 
-        partialRunning  = true;
-        partialBuilt    = 0;
-        partialFailed   = 0;
+        partialRunning   = true;
+        partialBuilt     = 0;
+        partialFailed    = 0;
+        partialCatalogId = selectedCatalogId;
+        partialXmlFiles  = [];
         partialStartBtn.disabled    = true;
         partialStartBtn.textContent = 'Running...';
         partialStatus.style.display = 'none';
@@ -821,6 +1083,7 @@
     var fullFinished = false;
     var fullBuilt    = 0;
     var fullFailed   = 0;
+    var fullXmlFiles = [];
 
     function goToDataWizard() {
         window.location.href = DATA_WIZARD_ENTRY_URL;
@@ -832,7 +1095,7 @@
             offset + ' / ' + (total || '?') + ' — '
             + fullBuilt + ' migrated' + (fullFailed ? ', ' + fullFailed + ' failed' : ''), pct);
 
-        post(FULL_BATCH_URL, 'offset=' + offset, function (data) {
+        post(FULL_BATCH_URL, 'offset=' + offset + '&catalogId=' + encodeURIComponent(catalogSelect.value), function (data) {
             if (!data.ok) {
                 setPhase('full', 'build', 'error', data.error || 'Failed', pct);
                 finalizeFull(false);
@@ -840,6 +1103,9 @@
             }
             fullBuilt  += (data.built  || 0);
             fullFailed += (data.failed || 0);
+            if (data.fileName && fullXmlFiles.indexOf(data.fileName) === -1) {
+                fullXmlFiles.push(data.fileName);
+            }
             fullOverall.textContent = fullBuilt + ' migrated'
                 + (fullFailed ? ' — ' + fullFailed + ' failed' : '');
 
@@ -866,6 +1132,7 @@
             fullStatus.textContent = fullBuilt + ' product(s) written to XML.'
                 + (fullFailed ? ' ' + fullFailed + ' skipped.' : '')
                 + ' Now import the XML files in BM (see Phase 2 below).';
+            renderDownloadLinks(fullStatus, fullXmlFiles);
             setPhase('full', 'import', 'active', 'Ready — follow import instructions below.', null);
             var inst = document.getElementById('full-phase2-instructions');
             if (inst) inst.style.display = 'block';
@@ -883,11 +1150,17 @@
             goToDataWizard();
             return;
         }
+        if (!catalogSelect.value) {
+            document.getElementById('prod-catalog-id-error').style.display = 'block';
+            return;
+        }
+        document.getElementById('prod-catalog-id-error').style.display = 'none';
         if (fullRunning) return;
         fullFinished = false;
         fullRunning  = true;
         fullBuilt    = 0;
         fullFailed   = 0;
+        fullXmlFiles = [];
         fullStartBtn.disabled    = true;
         fullStartBtn.textContent = 'Migrating...';
         fullStatus.style.display = 'none';
