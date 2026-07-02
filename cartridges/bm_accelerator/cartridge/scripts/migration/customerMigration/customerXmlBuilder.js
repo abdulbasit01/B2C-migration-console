@@ -36,7 +36,7 @@ function buildCustomerXml(ctpCustomer) {
     var addresses   = transformed.addresses;
 
     var ctpId      = String(ctpCustomer.id);
-    var customerNo = ctpId.replace(/-/g, '');
+    var customerNo = ctpId;
     var password   = 'Rc1!' + ctpId.replace(/-/g, '').substring(0, 12);
     var login      = xmlEsc(profile.login || profile.email);
 

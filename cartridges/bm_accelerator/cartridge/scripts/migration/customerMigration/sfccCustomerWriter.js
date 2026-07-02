@@ -30,8 +30,8 @@ function createCustomer(token, listId, profile, password) {
 
         // CustomerMgr.createCustomer(login, pass, customerNo:String) sets a specific number.
         // CustomerMgr.createCustomer(login, pass, list:CustomerList) auto-generates a numeric ID.
-        // We use the CTP UUID (dashes removed) as the customer number to match full-migration XML.
-        var ctpNo    = profile.c_ctp_customer_id ? String(profile.c_ctp_customer_id).replace(/-/g, '') : null;
+        // We use the CTP UUID as-is as the customer number to match full-migration XML.
+        var ctpNo    = profile.c_ctp_customer_id ? String(profile.c_ctp_customer_id) : null;
         var customer = ctpNo
             ? CustomerMgr.createCustomer(login, password, ctpNo)
             : CustomerMgr.createCustomer(login, password, list);
