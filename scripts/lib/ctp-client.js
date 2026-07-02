@@ -4,8 +4,44 @@ var fs   = require('fs');
 var path = require('path');
 var http = require('http');
 var https = require('https');
+var dns  = require('dns');
 
 var ROOT = path.resolve(__dirname, '..', '..');
+
+var MAX_RETRIES    = 5;
+var RETRY_BASE_MS  = 1000;
+
+/**
+ * Router/corporate DNS often returns EAI_AGAIN for commercetools hosts.
+ * Override with CTP_DNS_SERVERS=8.8.8.8,1.1.1.1 in .env if needed.
+ */
+function configureDns(env) {
+    var raw = (env && env.CTP_DNS_SERVERS) ? env.CTP_DNS_SERVERS : '8.8.8.8,1.1.1.1';
+    var servers = raw.split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+    if (servers.length) {
+        dns.setServers(servers);
+    }
+}
+
+function sleep(ms) {
+    return new Promise(function (resolve) {
+        setTimeout(resolve, ms);
+    });
+}
+
+function isRetryableError(err) {
+    if (!err) return false;
+    var code = err.code || '';
+    return code === 'EAI_AGAIN'
+        || code === 'ENOTFOUND'
+        || code === 'ETIMEDOUT'
+        || code === 'ECONNRESET'
+        || code === 'ECONNREFUSED';
+}
+
+function isRetryableStatus(status) {
+    return status === 429 || status >= 500;
+}
 
 /**
  * Load key=value pairs from project .env (no dependency on dotenv).
@@ -34,6 +70,7 @@ function loadEnv() {
  */
 function getCtpConfig(env) {
     env = env || loadEnv();
+    configureDns(env);
     if (!env.CTP_PROJECT_KEY || !env.CTP_CLIENT_ID || !env.CTP_CLIENT_SECRET) {
         throw new Error('CTP_PROJECT_KEY, CTP_CLIENT_ID, and CTP_CLIENT_SECRET are required in .env');
     }
@@ -51,7 +88,7 @@ function getCtpConfig(env) {
     };
 }
 
-function requestJson(url, options, body) {
+function requestJsonOnce(url, options, body) {
     return new Promise(function (resolve, reject) {
         var parsed   = new URL(url);
         var isHttps  = parsed.protocol === 'https:';
@@ -102,6 +139,28 @@ function requestJson(url, options, body) {
         if (payload) req.write(payload);
         req.end();
     });
+}
+
+function requestJson(url, options, body) {
+    var attempt = 0;
+
+    function run() {
+        return requestJsonOnce(url, options, body).then(function (res) {
+            if (isRetryableStatus(res.status) && attempt < MAX_RETRIES - 1) {
+                attempt++;
+                return sleep(RETRY_BASE_MS * attempt).then(run);
+            }
+            return res;
+        }).catch(function (err) {
+            if (!isRetryableError(err) || attempt >= MAX_RETRIES - 1) {
+                throw err;
+            }
+            attempt++;
+            return sleep(RETRY_BASE_MS * attempt).then(run);
+        });
+    }
+
+    return run();
 }
 
 function basicAuth(clientId, clientSecret) {

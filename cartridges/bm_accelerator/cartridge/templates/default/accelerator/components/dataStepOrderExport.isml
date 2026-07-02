@@ -29,6 +29,12 @@
         </div>
     </div>
 
+    <div class="acc-info-box">
+        Fetches orders from commercetools in pages, maps and validates each order, and streams one SFCC order XML
+        to <code>/Impex/${pdict.orderImpexPath}/</code>. Then import via
+        <strong>Administration &rarr; Site Development &rarr; Import &amp; Export</strong>.
+    </div>
+
     <div id="order-export-status" class="acc-callout acc-callout--info acc-hidden" role="status"></div>
 
     <ul class="acc-phases" id="order-export-phases">
@@ -38,9 +44,20 @@
                     <span>${phase.label}</span>
                     <span class="acc-phases__status" id="order-status-${phase.id}">pending</span>
                 </div>
+                <p class="acc-phases__detail" id="order-detail-${phase.id}"><isif condition="${phase.id == 'import'}">Waiting for Phase 1&hellip;</isif></p>
                 <div class="acc-progress">
                     <div class="acc-progress__bar" id="order-bar-${phase.id}" style="width:0%"></div>
                 </div>
+                <isif condition="${phase.id == 'import'}">
+                    <div class="acc-bm-links acc-bm-links--inline">
+                        <a class="acc-btn acc-btn--secondary" href="${pdict.orderJobsUrl}" target="_blank" rel="noopener noreferrer">
+                            Open BM Import
+                        </a>
+                        <a class="acc-btn acc-btn--ghost" href="${pdict.orderImpexUrl}" target="_blank" rel="noopener noreferrer">
+                            Open IMPEX
+                        </a>
+                    </div>
+                </isif>
             </li>
         </isloop>
     </ul>
