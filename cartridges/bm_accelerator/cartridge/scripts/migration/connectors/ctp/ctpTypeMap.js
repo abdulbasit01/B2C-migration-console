@@ -3,8 +3,8 @@
 var PRODUCT_TYPE_MAP = {
     text:            'string',
     ltext:           'string',
-    enum:            'enum_of_string',
-    lenum:           'enum_of_string',
+    enum:            'string',
+    lenum:           'string',
     number:          'double',
     boolean:         'boolean',
     date:            'date',
@@ -27,8 +27,8 @@ var CUSTOM_FIELD_TYPE_MAP = {
     Time:            'string',
     DateTime:        'datetime',
     Money:           'double',
-    Enum:            'enum_of_string',
-    LocalizedEnum:   'enum_of_string',
+    Enum:            'string',
+    LocalizedEnum:   'string',
     Reference:       'string',
     Set:             'set_of_string'
 };

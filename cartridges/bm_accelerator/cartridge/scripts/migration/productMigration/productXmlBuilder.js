@@ -13,6 +13,21 @@ function xmlEsc(val) {
         .replace(/'/g,  '&apos;');
 }
 
+/**
+ * Convert a CTP member product ID (UUID) to the same SFCC product ID
+ * format used by productTransformer: 'CTP' + uuid-without-dashes.
+ * If the value is already a non-UUID slug/key it is returned as-is.
+ */
+function ctpMemberIdToSfcc(ctpId) {
+    if (!ctpId) return '';
+    var s = String(ctpId);
+    // UUID pattern: 8-4-4-4-12 hex chars with dashes
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)) {
+        return 'CTP' + s.replace(/-/g, '');
+    }
+    return s;
+}
+
 /** Self-closing tag when value is empty, otherwise wraps value. */
 function optTag(tag, val) {
     var v = val ? String(val).trim() : '';
@@ -58,18 +73,28 @@ function buildPageAttributes(t) {
  * and <variants> list.
  * Reference: <attributes> first, then <variants>.
  */
-function buildVariationsXml(t) {
+function buildVariationsXml(t, selectedVarAttrs) {
     var xml = '        <variations>\n';
+    var hasVarSelection = selectedVarAttrs && selectedVarAttrs.length;
 
     // Collect unique variation attribute names + values across all variants.
     // CTP attribute value can be a string, number, or { key, label } enum.
-    var attrMap = {}; // { attrName: { values: { key: displayVal } } }
+    // attrMap key = SFCC attr ID (ctp_ prefixed) — must match both axis ID and variant custom attr ID.
+    var attrMap = {}; // { sfccAttrId: { key: displayVal } }
     for (var vi = 0; vi < t.variants.length; vi++) {
         var attrs = t.variants[vi].attributes || [];
         for (var ai = 0; ai < attrs.length; ai++) {
             var a   = attrs[ai];
             var val = a.value;
             if (val === null || val === undefined) continue;
+            // Only include axes that are in the selected variant attrs list
+            if (hasVarSelection && selectedVarAttrs.indexOf(a.name) === -1) continue;
+
+            var axisRule   = nativeMap.getRule('commercetools', 'Product', a.name);
+            if (axisRule && axisRule.action === 'skip') continue;
+            // Use same SFCC ID as variant custom attr so axis ID and value ID match
+            var sfccAxisId = (axisRule && axisRule.action === 'custom_attr') ? axisRule.sfccField
+                : ('ctp_' + String(a.name || '').replace(/[^a-zA-Z0-9_]/g, '_'));
 
             var key     = '';
             var display = '';
@@ -94,11 +119,10 @@ function buildVariationsXml(t) {
 
             // Skip empty or whitespace-only keys (SFCC requires \S|(\S(.*)\S) pattern)
             if (!key) continue;
-            // Also skip values that are long text strings (likely descriptions, not variation axes)
-            // SFCC limits variation-attribute-value/@value to 256 chars
+            // Skip long text strings — not suitable as variation axis values (SFCC limit 256 chars)
             if (key.length > 256) continue;
-            if (!attrMap[a.name]) attrMap[a.name] = {};
-            if (!attrMap[a.name][key]) attrMap[a.name][key] = display;
+            if (!attrMap[sfccAxisId]) attrMap[sfccAxisId] = {};
+            if (!attrMap[sfccAxisId][key]) attrMap[sfccAxisId][key] = display;
         }
     }
 
@@ -106,7 +130,7 @@ function buildVariationsXml(t) {
     if (attrNames.length) {
         xml += '            <attributes>\n';
         for (var ni = 0; ni < attrNames.length; ni++) {
-            var attrName = attrNames[ni];
+            var attrName = attrNames[ni]; // SFCC attr ID (ctp_ prefixed)
             xml += '                <variation-attribute attribute-id="' + xmlEsc(attrName)
                 + '" variation-attribute-id="' + xmlEsc(attrName) + '">\n';
             xml += '                    <display-name xml:lang="x-default">'
@@ -135,6 +159,37 @@ function buildVariationsXml(t) {
     }
     xml += '            </variants>\n';
     xml += '        </variations>\n';
+    return xml;
+}
+
+/**
+ * Build <product-set-products> block per SFCC catalog XSD.
+ * XSD: complexType.Product.ProductSetProducts → unbounded <product-set-product product-id="..."/>
+ */
+function buildProductSetProductsXml(setProducts) {
+    if (!setProducts || !setProducts.length) return '';
+    var xml = '        <product-set-products>\n';
+    for (var i = 0; i < setProducts.length; i++) {
+        xml += '            <product-set-product product-id="' + xmlEsc(ctpMemberIdToSfcc(setProducts[i].productId)) + '"/>\n';
+    }
+    xml += '        </product-set-products>\n';
+    return xml;
+}
+
+/**
+ * Build <bundled-products> block per SFCC catalog XSD.
+ * XSD: complexType.Product.BundledProduct → attribute product-id + required child <quantity>
+ */
+function buildBundledProductsXml(bundleProducts) {
+    if (!bundleProducts || !bundleProducts.length) return '';
+    var xml = '        <bundled-products>\n';
+    for (var i = 0; i < bundleProducts.length; i++) {
+        var qty = bundleProducts[i].quantity || 1;
+        xml += '            <bundled-product product-id="' + xmlEsc(ctpMemberIdToSfcc(bundleProducts[i].productId)) + '">\n';
+        xml += '                <quantity>' + qty + '</quantity>\n';
+        xml += '            </bundled-product>\n';
+    }
+    xml += '        </bundled-products>\n';
     return xml;
 }
 
@@ -169,15 +224,12 @@ function buildProductXml(t, selectedVarAttrs) {
     if (t.shortDescription) productXml += '        <short-description xml:lang="x-default">'+ xmlEsc(t.shortDescription) + '</short-description>\n';
     if (t.longDescription)  productXml += '        <long-description xml:lang="x-default">' + xmlEsc(t.longDescription)  + '</long-description>\n';
 
-    productXml += '        <store-force-price-flag>false</store-force-price-flag>\n';
-    productXml += '        <store-non-inventory-flag>false</store-non-inventory-flag>\n';
-    productXml += '        <store-non-revenue-flag>false</store-non-revenue-flag>\n';
-    productXml += '        <store-non-discountable-flag>false</store-non-discountable-flag>\n';
     productXml += '        <online-flag>true</online-flag>\n';
     productXml += '        <available-flag>true</available-flag>\n';
-    productXml += '        <searchable-flag>true</searchable-flag>\n';   // reference has this on all product types
+    productXml += '        <searchable-flag>true</searchable-flag>\n';
+    productXml += '        <searchable-if-unavailable-flag>false</searchable-if-unavailable-flag>\n';
 
-    productXml += buildImagesXml(t.masterImages);
+    // Images skipped — CTP image URLs are external and incompatible with SFCC DIS path format
 
     if (t.taxClassId)       productXml += '        <tax-class-id>'       + xmlEsc(t.taxClassId)       + '</tax-class-id>\n';
     if (t.brand)            productXml += '        <brand>'              + xmlEsc(t.brand)            + '</brand>\n';
@@ -189,13 +241,21 @@ function buildProductXml(t, selectedVarAttrs) {
     // Custom attrs for CTP tracking (only written if ctp_product_id/key attrs are defined in BM)
     if (t.ctpId || t.ctpKey) {
         productXml += '        <custom-attributes>\n';
-        if (t.ctpId)  productXml += '            <custom-attribute attribute-id="ctp_product_id">'  + xmlEsc(t.ctpId)  + '</custom-attribute>\n';
-        if (t.ctpKey) productXml += '            <custom-attribute attribute-id="ctp_product_key">' + xmlEsc(t.ctpKey) + '</custom-attribute>\n';
+        if (t.ctpId)       productXml += '            <custom-attribute attribute-id="ctp_product_id">'   + xmlEsc(t.ctpId)           + '</custom-attribute>\n';
+        if (t.ctpKey)      productXml += '            <custom-attribute attribute-id="ctp_product_key">'  + xmlEsc(t.ctpKey)          + '</custom-attribute>\n';
+        if (t.productKind) productXml += '            <custom-attribute attribute-id="ctp_product_type">' + xmlEsc(t.productKind)     + '</custom-attribute>\n';
         productXml += '        </custom-attributes>\n';
     }
 
-    // Variations block (master only)
-    if (t.hasVariants) productXml += buildVariationsXml(t);
+    // XSD-enforced order: bundled-products → product-set-products → variations
+    if (t.productKind === 'bundle') {
+        productXml += buildBundledProductsXml(t.bundleProducts);
+    } else if (t.productKind === 'set') {
+        productXml += buildProductSetProductsXml(t.setProducts);
+    } else if (t.hasVariants) {
+        // base product with variants
+        productXml += buildVariationsXml(t, selectedVarAttrs);
+    }
 
     // classification-category: use first CTP category key if available
     if (t.classificationCategory) {
@@ -207,8 +267,8 @@ function buildProductXml(t, selectedVarAttrs) {
     productXml += STORE_ATTRS;
     productXml += '    </product>\n\n';
 
-    // ── Variant products ──────────────────────────────────────────────────
-    if (t.hasVariants) {
+    // ── Variant products (base products only — sets/bundles have no SFCC variants) ──
+    if (t.productKind === 'base' && t.hasVariants) {
         for (var vi = 0; vi < t.variants.length; vi++) {
             var v = t.variants[vi];
             productXml += '    <product product-id="' + xmlEsc(v.productId) + '">\n';
@@ -221,21 +281,38 @@ function buildProductXml(t, selectedVarAttrs) {
             productXml += '        <available-flag>true</available-flag>\n';
             if (v.sku) productXml += '        <manufacturer-sku>' + xmlEsc(v.sku) + '</manufacturer-sku>\n';
 
-            // Variant custom attrs
+            // Variant custom attrs — only write attrs the user explicitly selected.
+            // If no selection saved, write nothing (user must make a selection first).
             var varInner = t.ctpId ? '            <custom-attribute attribute-id="ctp_product_id">' + xmlEsc(t.ctpId) + '</custom-attribute>\n' : '';
+            var hasVarSelection = selectedVarAttrs && selectedVarAttrs.length;
             for (var ai = 0; ai < (v.attributes || []).length; ai++) {
                 var a    = v.attributes[ai];
                 var val  = a.value;
-                if (val === null || val === undefined || typeof val === 'object') continue;
-                // Skip attrs not in the user-selected variant attr list (if a selection was saved).
-                if (selectedVarAttrs && selectedVarAttrs.length && selectedVarAttrs.indexOf(a.name) === -1) continue;
-                // Use nativeFieldMap to resolve the SFCC custom attr ID.
-                // custom_attr entries have an explicit sfccField; others get ctp_<name>.
+                if (val === null || val === undefined) continue;
+                // Require explicit selection — skip if no selection or attr not selected.
+                if (!hasVarSelection || selectedVarAttrs.indexOf(a.name) === -1) continue;
+                // Use SFCC attr ID (ctp_ prefixed) — must match the variation axis ID on the master.
                 var rule = nativeMap.getRule('commercetools', 'Product', a.name);
                 if (rule && rule.action === 'skip') continue;
                 var aId  = (rule && rule.action === 'custom_attr') ? rule.sfccField
                     : ('ctp_' + String(a.name || '').replace(/[^a-zA-Z0-9_]/g, '_'));
-                varInner += '            <custom-attribute attribute-id="' + xmlEsc(aId) + '">' + xmlEsc(String(val)) + '</custom-attribute>\n';
+                var strVal;
+                if (typeof val === 'object' && !Array.isArray(val)) {
+                    // CTP enum/lenum: { key, label }
+                    if (val.key !== undefined && val.key !== null) {
+                        strVal = String(val.key);
+                    } else {
+                        // Localized string: { "en": "value" }
+                        var loc = val['en'] || val['en-US'] || (Object.keys(val).length ? val[Object.keys(val)[0]] : '');
+                        strVal = String(loc || '');
+                    }
+                } else if (Array.isArray(val)) {
+                    continue; // skip array values for custom attrs
+                } else {
+                    strVal = String(val);
+                }
+                if (!strVal) continue;
+                varInner += '            <custom-attribute attribute-id="' + xmlEsc(aId) + '">' + xmlEsc(strVal) + '</custom-attribute>\n';
             }
             if (varInner) productXml += '        <custom-attributes>\n' + varInner + '        </custom-attributes>\n';
 
