@@ -331,18 +331,29 @@ function generateOrderInnerXml(order) {
     return parts.join('\n');
 }
 
+function buildHeader() {
+    return XML_HEADER + '<orders xmlns="' + NS_ORDER + '">\n';
+}
+
+function buildFooter() {
+    return '</orders>\n';
+}
+
+/**
+ * Validate one order inner fragment wrapped in a minimal orders document.
+ * @param {string} innerXml
+ */
+function assertValidOrderDocument(innerXml) {
+    orderXmlValidator.assertValidOrderXml(buildHeader() + innerXml + buildFooter());
+}
+
 /**
  * Generate SFCC order XML for a single canonical order.
  * @param {Object} order - CanonicalOrder
  * @returns {string}
  */
 function generateOrderXml(order) {
-    var xml = [
-        XML_HEADER,
-        '<orders xmlns="' + NS_ORDER + '">',
-        generateOrderInnerXml(order),
-        '</orders>'
-    ].join('\n');
+    var xml = buildHeader() + generateOrderInnerXml(order) + buildFooter();
     orderXmlValidator.assertValidOrderXml(xml);
     return xml;
 }
@@ -366,13 +377,13 @@ function generateChunkedXml(orders, chunkSize) {
             slice.push(orders[i]);
         }
 
-        var parts = [XML_HEADER, '<orders xmlns="' + NS_ORDER + '">'];
+        var parts = [buildHeader()];
         for (var j = 0; j < slice.length; j++) {
             parts.push(generateOrderInnerXml(slice[j]));
         }
-        parts.push('</orders>');
+        parts.push(buildFooter());
 
-        var xml = parts.join('\n');
+        var xml = parts.join('');
         orderXmlValidator.assertValidOrderXml(xml);
 
         var padded = String(fileIndex);
@@ -389,13 +400,16 @@ function generateChunkedXml(orders, chunkSize) {
 }
 
 module.exports = {
-    NS_ORDER:              NS_ORDER,
-    escapeXml:             escapeXml,
-    fmtMoney:              fmtMoney,
-    formatOrderDate:       formatOrderDate,
-    prepareOrder:          prepareOrder,
-    generateOrderInnerXml: generateOrderInnerXml,
-    generateOrderXml:      generateOrderXml,
-    generateChunkedXml:    generateChunkedXml,
-    DEFAULT_CHUNK_SIZE:    5000
+    NS_ORDER:                NS_ORDER,
+    escapeXml:               escapeXml,
+    fmtMoney:                fmtMoney,
+    formatOrderDate:         formatOrderDate,
+    prepareOrder:            prepareOrder,
+    buildHeader:             buildHeader,
+    buildFooter:             buildFooter,
+    assertValidOrderDocument: assertValidOrderDocument,
+    generateOrderInnerXml:   generateOrderInnerXml,
+    generateOrderXml:        generateOrderXml,
+    generateChunkedXml:      generateChunkedXml,
+    DEFAULT_CHUNK_SIZE:      5000
 };

@@ -79,10 +79,33 @@ function uploadFile(moduleRelativePath, fileName, content, contentType) {
     return { ok: false, error: 'WebDAV PUT failed (' + status + '): ' + client.getText() };
 }
 
+/**
+ * Confirm a file was written under IMPEX (no WebDAV round-trip).
+ * Inventory streaming writes directly to File.IMPEX; BM import reads from there.
+ * @param {string} moduleRelativePath
+ * @param {string} fileName
+ * @returns {{ ok: boolean, error: string|null }}
+ */
+function uploadLocalFile(moduleRelativePath, fileName) {
+    var File = require('dw/io/File');
+    var rel  = String(moduleRelativePath).replace(/\\/g, '/');
+    var file = new File(
+        File.IMPEX + File.SEPARATOR + rel.replace(/\//g, File.SEPARATOR) + File.SEPARATOR + fileName
+    );
+    if (!file.exists() || !file.isFile()) {
+        return { ok: false, error: 'Local IMPEX file not found: ' + rel + '/' + fileName };
+    }
+    if (file.length() === 0) {
+        return { ok: false, error: 'Generated IMPEX file is empty: ' + fileName };
+    }
+    return { ok: true, error: null };
+}
+
 module.exports = {
     MIGRATION_BASE:    paths.MIGRATION_BASE,
     webdavBase:        webdavBase,
     ensureDirectory:   ensureDirectory,
     fileExists:        fileExists,
-    uploadFile:        uploadFile
+    uploadFile:        uploadFile,
+    uploadLocalFile:   uploadLocalFile
 };

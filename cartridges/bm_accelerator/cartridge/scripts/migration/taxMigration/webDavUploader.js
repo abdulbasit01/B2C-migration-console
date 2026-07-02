@@ -17,9 +17,14 @@ function uploadFile(fileName, content, contentType) {
     return coreUploader.uploadFile(REL_PATH, fileName, content, contentType);
 }
 
+function uploadLocalFile(fileName) {
+    return coreUploader.uploadLocalFile(REL_PATH, fileName);
+}
+
 module.exports = {
     ensureDirectory:      ensureDirectory,
     fileExists:           fileExists,
     uploadFile:           uploadFile,
+    uploadLocalFile:      uploadLocalFile,
     MODULE_RELATIVE_PATH: REL_PATH
 };

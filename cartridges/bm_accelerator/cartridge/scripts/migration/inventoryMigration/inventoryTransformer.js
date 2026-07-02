@@ -81,8 +81,21 @@ function aggregateBySku(entries) {
     return out;
 }
 
+/**
+ * @param {Object} target
+ * @param {Object} source
+ */
+function mergeRecords(target, source) {
+    target.allocation += source.allocation;
+    target.ats        += source.ats;
+    if (source.allocationTimestamp > target.allocationTimestamp) {
+        target.allocationTimestamp = source.allocationTimestamp;
+    }
+}
+
 module.exports = {
     transformEntry:   transformEntry,
-    aggregateBySku: aggregateBySku,
+    aggregateBySku:   aggregateBySku,
+    mergeRecords:     mergeRecords,
     getQuantity:      getQuantity
 };

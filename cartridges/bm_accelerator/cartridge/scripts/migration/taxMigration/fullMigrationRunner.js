@@ -6,6 +6,7 @@ var xmlBuilder   = require('*/cartridge/scripts/migration/taxMigration/taxXmlBui
 var uploader     = require('*/cartridge/scripts/migration/taxMigration/webDavUploader');
 var fileResolver = require('*/cartridge/scripts/migration/core/migrationFileResolver');
 var fileNaming   = require('*/cartridge/scripts/migration/taxMigration/taxFileNaming');
+var streamWriter = require('*/cartridge/scripts/migration/core/impexStreamWriter');
 
 var MODULE_KEY = 'tax';
 
@@ -30,20 +31,23 @@ function resolveFilter(scopeType, scopeId, exportKey) {
 }
 
 /**
- * Single-shot tax export — CTP tax categories are small enough for one XML file.
+ * Single-shot tax export written directly to IMPEX.
  * @param {number} offset
  * @param {string} exportKey
  * @param {string} scopeType
  * @param {string} [scopeId]
  * @param {string} [fileName]
+ * @param {boolean} [singleFile]
  * @returns {Object}
  */
-function runBatch(offset, exportKey, scopeType, scopeId, fileName) {
+function runBatch(offset, exportKey, scopeType, scopeId, fileName, singleFile) {
     if (!exportKey) return { ok: false, error: 'exportKey is required' };
 
-    if (offset > 0) {
+    var useSingleFile = singleFile !== false;
+    if (offset > 0 || !useSingleFile) {
         return {
             ok:         true,
+            singleFile: useSingleFile,
             total:      0,
             nextOffset: offset,
             done:       true,
@@ -62,6 +66,7 @@ function runBatch(offset, exportKey, scopeType, scopeId, fileName) {
     if (!model.taxClasses.length && !model.taxRates.length) {
         return {
             ok:         true,
+            singleFile: true,
             total:      0,
             nextOffset: 0,
             done:       true,
@@ -77,18 +82,33 @@ function runBatch(offset, exportKey, scopeType, scopeId, fileName) {
     var impexPath = fileResolver.getRelativePath(MODULE_KEY);
     var buildResult = xmlBuilder.buildXml(model);
     var dirResult   = uploader.ensureDirectory();
+    var writer      = null;
 
     if (!dirResult.ok) {
         return { ok: false, error: 'WebDAV directory creation failed: ' + dirResult.error };
     }
 
-    var putResult = uploader.uploadFile(resolved, buildResult.xml);
+    try {
+        var stream = streamWriter.openWriter(impexPath, resolved);
+        writer = stream.writer;
+        writer.write(buildResult.xml);
+        streamWriter.closeWriter(writer);
+        writer = null;
+    } catch (e) {
+        if (writer) {
+            streamWriter.closeWriter(writer);
+        }
+        return { ok: false, error: e.message || String(e) };
+    }
+
+    var putResult = uploader.uploadLocalFile(resolved);
     if (!putResult.ok) {
-        return { ok: false, error: 'WebDAV upload failed: ' + putResult.error };
+        return { ok: false, error: putResult.error };
     }
 
     return {
         ok:         true,
+        singleFile: true,
         total:      total,
         nextOffset: total,
         done:       true,
