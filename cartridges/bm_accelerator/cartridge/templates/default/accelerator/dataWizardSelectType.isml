@@ -11,13 +11,113 @@
 
         <footer class="acc-wizard-footer">
             <isinclude template="accelerator/components/dataWizardNavPrev"/>
-            <a id="data-type-continue" class="acc-btn acc-btn--primary" href="#">
-                ${Resource.msg('accelerator.wizard.continue', 'accelerator', null)}
-            </a>
+            <form id="acc-data-type-form" method="POST" action="<isprint value="${pdict.selectTypeUrl}" encoding="htmldoublequote"/>">
+                <input type="hidden" name="platform" value="${pdict.platform.id}" />
+                <input type="hidden" name="type" id="acc-selected-type" value="" />
+                <button type="button" id="data-type-continue" class="acc-btn acc-btn--primary">
+                    ${Resource.msg('accelerator.wizard.continue', 'accelerator', null)}
+                </button>
+            </form>
         </footer>
 
         <isinclude template="accelerator/components/dataWizardConfig"/>
     </div>
-    <script src="${pdict.dataWizardJsUrl}"></script>
+    <script>
+    (function () {
+        var MSG_NONE = '${Resource.msg('accelerator.datawizard.selectType.noneSelected', 'accelerator', null)}';
+
+        function getSelected() {
+            var radios = document.querySelectorAll('.acc-data-type-radio');
+            var i = 0;
+            while (i < radios.length) {
+                if (radios[i].checked) {
+                    return radios[i].getAttribute('data-type-id') || radios[i].value || '';
+                }
+                i += 1;
+            }
+            return '';
+        }
+
+        function syncPanelStates() {
+            var radios = document.querySelectorAll('.acc-data-type-radio');
+            var i = 0;
+            while (i < radios.length) {
+                var radio = radios[i];
+                var panel = radio.closest ? radio.closest('.acc-panel') : null;
+                if (!panel) {
+                    var el = radio.parentNode;
+                    while (el) {
+                        if (el.className && el.className.indexOf('acc-panel') >= 0) {
+                            panel = el;
+                            break;
+                        }
+                        el = el.parentNode;
+                    }
+                }
+                if (panel) {
+                    if (radio.checked) {
+                        panel.className = panel.className.replace(' acc-panel--unchecked', '');
+                    } else if (panel.className.indexOf('acc-panel--unchecked') === -1) {
+                        panel.className += ' acc-panel--unchecked';
+                    }
+                }
+                i += 1;
+            }
+        }
+
+        function init() {
+            var continueBtn = document.getElementById('data-type-continue');
+            var typeForm    = document.getElementById('acc-data-type-form');
+            var typeInput   = document.getElementById('acc-selected-type');
+            var panels      = document.querySelectorAll('#acc-data-type-panels .acc-panel--selectable');
+            var pi = 0;
+
+            while (pi < panels.length) {
+                (function (panel) {
+                    panel.addEventListener('click', function (e) {
+                        if (e.target && e.target.className && e.target.className.indexOf('acc-data-type-radio') >= 0) {
+                            return;
+                        }
+                        var radio = panel.querySelector('.acc-data-type-radio');
+                        if (radio) {
+                            radio.checked = true;
+                            syncPanelStates();
+                        }
+                    });
+                }(panels[pi]));
+                pi += 1;
+            }
+
+            var radios = document.querySelectorAll('.acc-data-type-radio');
+            var ri = 0;
+            while (ri < radios.length) {
+                radios[ri].addEventListener('change', syncPanelStates);
+                ri += 1;
+            }
+
+            if (continueBtn) {
+                continueBtn.addEventListener('click', function () {
+                    var selected = getSelected();
+                    if (!selected) {
+                        alert(MSG_NONE || 'Please select a data type.');
+                        return;
+                    }
+                    if (typeInput && typeForm) {
+                        typeInput.value = selected;
+                        typeForm.submit();
+                    }
+                });
+            }
+
+            syncPanelStates();
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
+        }
+    }());
+    </script>
 </div>
 </isdecorate>

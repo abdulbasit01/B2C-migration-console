@@ -28,13 +28,19 @@ function getToken() {
     return res.data.access_token;
 }
 
+function normalizeChannelId(supplyChannelId) {
+    if (!supplyChannelId || supplyChannelId === 'all') return '';
+    return String(supplyChannelId);
+}
+
 /**
- * @param {string} [supplyChannelId] - optional CTP supply channel UUID
+ * @param {string} [supplyChannelId]
  * @returns {string}
  */
 function buildWhereClause(supplyChannelId) {
-    if (!supplyChannelId) return '';
-    return 'supplyChannel(id="' + String(supplyChannelId).replace(/"/g, '\\"') + '")';
+    var channelId = normalizeChannelId(supplyChannelId);
+    if (!channelId) return '';
+    return 'supplyChannel(id="' + channelId.replace(/"/g, '\\"') + '")';
 }
 
 /**
@@ -76,18 +82,20 @@ function getCount(supplyChannelId) {
  * @param {number} offset
  * @param {number} limit
  * @param {string} [supplyChannelId]
+ * @param {string} [sortField] - CTP sort field, e.g. id or sku
  * @returns {{ results: Array, total: number }}
  */
-function fetchBatch(offset, limit, supplyChannelId) {
+function fetchBatch(offset, limit, supplyChannelId, sortField) {
     var c   = cfg.ctp;
     var tok = getToken();
     var qs  = inventoryBaseQs(supplyChannelId);
+    var sort = sortField || 'id';
     if (qs === '?') {
         qs += 'limit=' + (limit || 500) + '&offset=' + (offset || 0)
-            + '&sort=id+asc&withTotal=true';
+            + '&sort=' + encodeURIComponent(sort + ' asc') + '&withTotal=true';
     } else {
         qs += '&limit=' + (limit || 500) + '&offset=' + (offset || 0)
-            + '&sort=id+asc&withTotal=true';
+            + '&sort=' + encodeURIComponent(sort + ' asc') + '&withTotal=true';
     }
 
     var res = http.get(

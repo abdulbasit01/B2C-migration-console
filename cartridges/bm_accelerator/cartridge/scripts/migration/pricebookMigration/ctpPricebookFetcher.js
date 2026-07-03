@@ -100,14 +100,15 @@ function getCount(currency, channelId, aggregate) {
  * @param {boolean} [aggregate]
  * @returns {{ results: Array, total: number }}
  */
-function fetchBatch(offset, limit, currency, channelId, aggregate) {
-    var c   = cfg.ctp;
-    var tok = getToken();
-    var qs  = pricesBaseQs(currency, channelId, aggregate);
+function fetchBatch(offset, limit, currency, channelId, aggregate, sortField) {
+    var c    = cfg.ctp;
+    var tok  = getToken();
+    var qs   = pricesBaseQs(currency, channelId, aggregate);
+    var sort = sortField || (aggregate ? 'sku' : 'id');
     qs += (qs === '?' ? '' : '&')
         + 'limit=' + (limit || 500)
         + '&offset=' + (offset || 0)
-        + '&sort=id+asc&withTotal=true';
+        + '&sort=' + encodeURIComponent(sort + ' asc') + '&withTotal=true';
 
     var res = http.get(
         c.apiUrl + '/' + c.projectKey + '/standalone-prices' + qs,

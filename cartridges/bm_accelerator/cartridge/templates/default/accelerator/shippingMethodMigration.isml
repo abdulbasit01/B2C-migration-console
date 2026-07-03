@@ -75,14 +75,14 @@
         <div id="acc-methods-panel" class="sm-methods-panel">
             <div class="sm-methods-panel__head">
                 <span style="font-weight:700;font-size:14px;color:#16325c;">Shipping Methods to Migrate</span>
-                <button id="acc-reload-methods-btn" type="button" class="acc-btn acc-btn--ghost">Reload from CTP</button>
+                <button id="acc-reload-methods-btn" type="button" class="acc-btn acc-btn--ghost">Load Methods</button>
                 <span id="acc-methods-summary" style="font-size:13px;color:#54698d;font-weight:600;"></span>
             </div>
             <div class="sm-methods-panel__body">
                 <p style="font-size:13px;color:#54698d;margin:0 0 12px;">
                     Uncheck any method you want to <strong>skip</strong>. Migration only processes checked methods.
                 </p>
-                <div id="acc-methods-loading" style="font-size:13px;color:#54698d;">Loading shipping methods from commercetools...</div>
+                <div id="acc-methods-loading" style="font-size:13px;color:#54698d;">Click <strong>Load Methods</strong> to fetch shipping methods from commercetools.</div>
                 <div id="acc-methods-error" style="display:none;font-size:13px;color:#c62828;margin-bottom:10px;"></div>
                 <div id="acc-methods-table-wrap" style="display:none;border:1px solid #e0e5ee;border-radius:4px;overflow:auto;max-height:320px;">
                     <table class="sm-methods-table">
@@ -282,16 +282,27 @@
         updateMethodsSummary();
     }
 
-    function loadShippingMethods() {
+    function loadShippingMethods(fromUserClick) {
         var loadingEl = document.getElementById('acc-methods-loading');
         var errorEl   = document.getElementById('acc-methods-error');
         var wrapEl    = document.getElementById('acc-methods-table-wrap');
+        var reloadBtn = document.getElementById('acc-reload-methods-btn');
         loadingEl.style.display = 'block';
-        loadingEl.textContent = 'Loading shipping methods from commercetools...';
+        loadingEl.textContent = fromUserClick
+            ? 'Reloading shipping methods from commercetools...'
+            : 'Loading shipping methods from commercetools...';
         errorEl.style.display = 'none';
         wrapEl.style.display = 'none';
+        if (reloadBtn) {
+            reloadBtn.disabled = true;
+            reloadBtn.textContent = 'Loading...';
+        }
 
         get(LIST_METHODS_URL, function (data) {
+            if (reloadBtn) {
+                reloadBtn.disabled = false;
+                reloadBtn.textContent = 'Reload Methods';
+            }
             if (!data.ok) {
                 loadingEl.style.display = 'none';
                 errorEl.textContent = 'Failed to load methods: ' + (data.error || 'Unknown error');
@@ -304,8 +315,11 @@
         });
     }
 
-    document.getElementById('acc-reload-methods-btn').addEventListener('click', loadShippingMethods);
-    loadShippingMethods();
+    document.getElementById('acc-reload-methods-btn').addEventListener('click', function () {
+        loadShippingMethods(true);
+    });
+    document.getElementById('acc-methods-loading').style.display = 'block';
+    document.getElementById('acc-methods-table-wrap').style.display = 'none';
 
     function showError(inputId, errorId, msg) {
         var el = document.getElementById(inputId);
@@ -527,20 +541,21 @@
             FULL_BATCH_URL,
             'offset=' + offset
             + '&siteId=' + encodeURIComponent(siteId)
-            + '&keys=' + encodeURIComponent(JSON.stringify(fullSelectedKeys)),
+            + '&keys=' + encodeURIComponent(JSON.stringify(fullSelectedKeys))
+            + '&singleFile=true',
             function (data) {
             if (!data.ok) { setPhase('full', 'build', 'error', data.error || 'Failed', pct); finalizeFull(false); return; }
             fullBuilt += (data.built || 0);
             fullFailed += (data.failed || 0);
-            fullFiles++;
             if (data.fileName) {
                 lastUploadedFile = data.fileName;
+                fullFiles = 1;
             }
-            fullOverallEl.textContent = fullFiles + ' file(s), ' + fullBuilt + ' method(s) built'
-                + (lastUploadedFile ? ' — latest: ' + lastUploadedFile : '');
-            if (!data.done) { runFullBatch(data.nextOffset, data.total); }
+            fullOverallEl.textContent = '1 file, ' + fullBuilt + ' method(s) built'
+                + (lastUploadedFile ? ' — ' + lastUploadedFile : '');
+            if (!data.done && data.singleFile !== true) { runFullBatch(data.nextOffset, data.total); }
             else {
-                setPhase('full', 'build', fullFailed ? 'warning' : 'done', fullFiles + ' file(s) uploaded', 100);
+                setPhase('full', 'build', fullFailed ? 'warning' : 'done', '1 file uploaded', 100);
                 finalizeFull(true);
             }
         });

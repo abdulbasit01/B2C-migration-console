@@ -370,6 +370,12 @@
             });
         }
 
+        if (loadingEl) {
+            loadingEl.style.display = 'block';
+            loadingEl.textContent = 'Click Load from CTP to fetch tax classes and rates.';
+        }
+        if (overviewWrap) overviewWrap.style.display = 'none';
+
         if (checkAttrsBtn) {
             checkAttrsBtn.addEventListener('click', function () {
                 checkAttrsBtn.disabled = true;
@@ -430,8 +436,6 @@
                 runPreflightThenMigrate(beginMigration);
             });
         }
-
-        loadOverview(false);
     }
 
     if (document.readyState === 'loading') {

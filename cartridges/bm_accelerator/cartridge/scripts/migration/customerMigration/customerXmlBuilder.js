@@ -36,7 +36,7 @@ function buildCustomerXml(ctpCustomer) {
     var addresses   = transformed.addresses;
 
     var ctpId      = String(ctpCustomer.id);
-    var customerNo = ctpId.replace(/-/g, '');
+    var customerNo = ctpId;
     var password   = 'Rc1!' + ctpId.replace(/-/g, '').substring(0, 12);
     var login      = xmlEsc(profile.login || profile.email);
 
@@ -76,16 +76,28 @@ function buildCustomerXml(ctpCustomer) {
         xml += '        </addresses>\n';
     }
 
+    // Include customer group assignment — CTP group UUID used directly as SFCC group ID
+    if (ctpCustomer.customerGroup && ctpCustomer.customerGroup.id) {
+        xml += '        <customer-groups>\n';
+        xml += '            <customer-group group-id="' + xmlEsc(ctpCustomer.customerGroup.id) + '"/>\n';
+        xml += '        </customer-groups>\n';
+    }
+
     xml += '    </customer>\n';
     return xml;
 }
 
+var XML_HEADER = '<?xml version="1.0" encoding="UTF-8"?>\n'
+               + '<customers xmlns="http://www.demandware.com/xml/impex/customer/2006-10-31">\n';
+var XML_FOOTER = '</customers>\n';
+
 /**
- * Build SFCC customer import XML for a batch of CTP customer objects.
+ * Build just the <customer> element(s) for a batch — no XML header/root wrapper.
+ * Used so multiple batches can be concatenated into a single IMPEX file.
  * @param {Array} ctpCustomers - raw CTP customer objects from ctpCustomerFetcher
- * @returns {{ xml: string, built: number, failed: number, errors: Array }}
+ * @returns {{ body: string, built: number, failed: number, errors: Array }}
  */
-function buildXml(ctpCustomers) {
+function buildCustomerFragment(ctpCustomers) {
     var built  = 0;
     var failed = 0;
     var errors = [];
@@ -103,12 +115,27 @@ function buildXml(ctpCustomers) {
         }
     }
 
-    var xml = '<?xml version="1.0" encoding="UTF-8"?>\n'
-            + '<customers xmlns="http://www.demandware.com/xml/impex/customer/2006-10-31">\n'
-            + body
-            + '</customers>\n';
-
-    return { xml: xml, built: built, failed: failed, errors: errors };
+    return { body: body, built: built, failed: failed, errors: errors };
 }
 
-module.exports = { buildXml: buildXml };
+/**
+ * Build SFCC customer import XML for a batch of CTP customer objects.
+ * @param {Array} ctpCustomers - raw CTP customer objects from ctpCustomerFetcher
+ * @returns {{ xml: string, built: number, failed: number, errors: Array }}
+ */
+function buildXml(ctpCustomers) {
+    var fragment = buildCustomerFragment(ctpCustomers);
+    return {
+        xml:    XML_HEADER + fragment.body + XML_FOOTER,
+        built:  fragment.built,
+        failed: fragment.failed,
+        errors: fragment.errors
+    };
+}
+
+module.exports = {
+    buildXml:             buildXml,
+    buildCustomerFragment: buildCustomerFragment,
+    XML_HEADER:           XML_HEADER,
+    XML_FOOTER:           XML_FOOTER
+};

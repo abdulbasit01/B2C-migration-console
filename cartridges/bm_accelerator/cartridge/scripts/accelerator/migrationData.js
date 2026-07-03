@@ -13,22 +13,6 @@ var DATA_WIZARD_STEPS = [
     { id: 2, key: 'selectType', label: 'Select Data' }
 ];
 
-var ORDER_DATA_WIZARD_STEPS = [
-    { id: 1, key: 'connect',        label: 'Connect' },
-    { id: 2, key: 'selectType',     label: 'Select Data' },
-    { id: 3, key: 'orderConfigure', label: 'Configure' },
-    { id: 4, key: 'orderExport',    label: 'Export' },
-    { id: 5, key: 'orderReview',    label: 'Finish' }
-];
-
-var ORDER_EXPORT_PHASES = [
-    { id: 'fetch',    label: 'Fetch orders from commercetools' },
-    { id: 'map',      label: 'Map to canonical order model' },
-    { id: 'validate', label: 'Validate order data' },
-    { id: 'generate', label: 'Generate SFCC order XML' },
-    { id: 'package',  label: 'Package IMPEX files' }
-];
-
 /** commercetools orderState enum values (see Order.orderState). */
 var CTP_ORDER_STATE_VALUES = ['Open', 'Confirmed', 'Complete', 'Cancelled'];
 
@@ -258,10 +242,7 @@ function getNextStepLabel() {
 }
 
 function getDataWizardSteps(dataTypeId) {
-    if (dataTypeId === 'order') {
-        return cloneSteps(ORDER_DATA_WIZARD_STEPS);
-    }
-    if (dataTypeId) {
+    if (dataTypeId === 'product' || dataTypeId === 'catalog') {
         return cloneSteps(DATA_WIZARD_STEPS).concat([
             { id: 3, key: 'typePlaceholder', label: 'Migrate' }
         ]);
@@ -289,14 +270,6 @@ function getDataWizardStep(step, dataTypeId) {
     var steps   = getDataWizardSteps(dataTypeId);
     var stepNum = Math.min(Math.max(parseInt(String(step), 10) || 1, 1), steps.length);
     return steps[stepNum - 1];
-}
-
-function getOrderExportPhases() {
-    var phases = [];
-    for (var i = 0; i < ORDER_EXPORT_PHASES.length; i++) {
-        phases.push(ORDER_EXPORT_PHASES[i]);
-    }
-    return phases;
 }
 
 function buildStatusFilters(values) {
@@ -386,7 +359,6 @@ module.exports = {
     getDataWizardSteps:     getDataWizardSteps,
     getDataWizardStep:      getDataWizardStep,
     getMaxDataStep:         getMaxDataStep,
-    getOrderExportPhases:   getOrderExportPhases,
     getCtpOrderStateFilters:   getCtpOrderStateFilters,
     getCtpPaymentStateFilters: getCtpPaymentStateFilters,
     isValidCtpOrderState:      isValidCtpOrderState,

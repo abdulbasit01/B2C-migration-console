@@ -49,8 +49,23 @@ function aggregateBySku(entries) {
     return out;
 }
 
+/**
+ * Merge consecutive SKU rows when streaming aggregate exports (prefer no-channel price).
+ * @param {Object} pending
+ * @param {Object} rec
+ */
+function mergeRecords(pending, rec) {
+    if (!pending) return rec;
+    if (!rec.hasChannel && pending.hasChannel) {
+        pending.amount     = rec.amount;
+        pending.hasChannel = false;
+    }
+    return pending;
+}
+
 module.exports = {
     transformEntry:   transformEntry,
     aggregateBySku:   aggregateBySku,
+    mergeRecords:     mergeRecords,
     toDecimal:        toDecimal
 };

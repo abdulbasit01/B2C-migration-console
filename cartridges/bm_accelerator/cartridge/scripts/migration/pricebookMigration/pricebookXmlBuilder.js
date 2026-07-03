@@ -56,7 +56,16 @@ function buildXml(records, pricebookId, currency, description) {
         }
     }
 
-    var xml = '<?xml version="1.0" encoding="UTF-8"?>\n'
+    var xml = buildHeader(pbId, cur, desc) + rows + buildFooter();
+
+    return { xml: xml, built: built, failed: failed, errors: errors };
+}
+
+function buildHeader(pricebookId, currency, description) {
+    var pbId = pricebookId || 'list-prices';
+    var cur  = currency || 'USD';
+    var desc = description || 'Commercetools standalone-price migration';
+    return '<?xml version="1.0" encoding="UTF-8"?>\n'
         + '<pricebooks xmlns="' + NS_PRICEBOOK + '">\n'
         + '    <pricebook>\n'
         + '        <header pricebook-id="' + xmlEsc(pbId) + '">\n'
@@ -64,16 +73,19 @@ function buildXml(records, pricebookId, currency, description) {
         + '            <display-name xml:lang="x-default">' + xmlEsc(desc) + '</display-name>\n'
         + '            <online-flag>true</online-flag>\n'
         + '        </header>\n'
-        + '        <price-tables>\n'
-        + rows
-        + '        </price-tables>\n'
+        + '        <price-tables>\n';
+}
+
+function buildFooter() {
+    return '        </price-tables>\n'
         + '    </pricebook>\n'
         + '</pricebooks>\n';
-
-    return { xml: xml, built: built, failed: failed, errors: errors };
 }
 
 module.exports = {
-    buildXml:      buildXml,
-    NS_PRICEBOOK:  NS_PRICEBOOK
+    buildXml:            buildXml,
+    buildHeader:         buildHeader,
+    buildFooter:         buildFooter,
+    buildPriceTableXml:  buildPriceTableXml,
+    NS_PRICEBOOK:        NS_PRICEBOOK
 };

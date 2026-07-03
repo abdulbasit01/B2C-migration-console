@@ -31,26 +31,11 @@
             step: cfgVal('acc-dw-step'),
             testConnectionUrl: cfgVal('acc-dw-test-url'),
             wizardBaseUrl: cfgVal('acc-dw-wizard-base'),
-            exportUrl: cfgVal('acc-dw-export-url'),
-            orderCountUrl: cfgVal('acc-dw-order-count-url'),
-            orderYears: cfgVal('acc-dw-order-years') || '1',
-            orderMaxCount: cfgVal('acc-dw-order-max-count') || '',
-            orderOrderState: cfgVal('acc-dw-order-order-state') || '',
-            orderPaymentState: cfgVal('acc-dw-order-payment-state') || '',
-            exportPhaseIds: cfgVal('acc-dw-export-phases').split(',').filter(Boolean),
+            selectTypeUrl: cfgVal('acc-dw-select-type-url'),
             msgs: {
                 connectionFailed: cfgVal('acc-dw-msg-connection-failed'),
                 connectionSuccess: cfgVal('acc-dw-msg-connection-success'),
-                selectTypeNoneSelected: cfgVal('acc-dw-msg-select-none'),
-                exportRunning: cfgVal('acc-dw-msg-export-running'),
-                exportFailed: cfgVal('acc-dw-msg-export-failed'),
-                exportComplete: cfgVal('acc-dw-msg-export-complete'),
-                orderCountLoading: cfgVal('acc-dw-msg-count-loading'),
-                orderCountPrompt: cfgVal('acc-dw-msg-count-prompt'),
-                orderCountError: cfgVal('acc-dw-msg-count-error'),
-                orderCountNone: cfgVal('acc-dw-msg-count-none'),
-                orderCountMatch: cfgVal('acc-dw-msg-count-match'),
-                orderCountExport: cfgVal('acc-dw-msg-count-export')
+                selectTypeNoneSelected: cfgVal('acc-dw-msg-select-none')
             }
         };
 
@@ -58,10 +43,6 @@
 
         if (cfg.step === 'selectType') {
             initSelectType(cfg);
-        } else if (cfg.step === 'orderConfigure') {
-            initOrderConfigure(cfg, postForm);
-        } else if (cfg.step === 'orderExport') {
-            initOrderExport(cfg, postForm);
         }
     }
 
@@ -143,6 +124,19 @@
                     alert(msgs.selectTypeNoneSelected || 'Please select a data type.');
                     return;
                 }
+                var typeForm  = document.getElementById('acc-data-type-form');
+                var typeInput = document.getElementById('acc-selected-type');
+                if (typeForm && typeInput) {
+                    typeInput.value = selected;
+                    typeForm.submit();
+                    return;
+                }
+                var selectTypeUrl = cfg.selectTypeUrl || cfgVal('acc-dw-select-type-url');
+                if (selectTypeUrl) {
+                    var sep = selectTypeUrl.indexOf('?') >= 0 ? '&' : '?';
+                    window.location.href = selectTypeUrl + sep + 'type=' + encodeURIComponent(selected);
+                    return;
+                }
                 var stepThreeBase = cfgVal('acc-dw-step-three-base');
                 var nextUrl = stepThreeBase
                     ? stepThreeBase + String.fromCharCode(38) + 'type=' + encodeURIComponent(selected)
@@ -152,243 +146,6 @@
         }
 
         syncPanelStates();
-    }
-
-    function initOrderConfigure(cfg, post) {
-        var msgs = cfg.msgs || {};
-        var countValueEl  = document.getElementById('acc-order-count-value');
-        var countExportEl = document.getElementById('acc-order-count-export');
-        var countBtn      = document.getElementById('acc-order-count-btn');
-
-        function fmtNum(n) {
-            return String(n || 0).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-        }
-
-        function getYears() {
-            var radios = document.querySelectorAll('#acc-order-config-form input[name="years"]');
-            var ri = 0;
-            while (ri < radios.length) {
-                if (radios[ri].checked) return radios[ri].value;
-                ri += 1;
-            }
-            return '1';
-        }
-
-        function getFilterParams() {
-            var yearsEl = document.querySelector('#acc-order-config-form input[name="years"]:checked');
-            var stateEl = document.getElementById('order-order-state');
-            var payEl   = document.getElementById('order-payment-state');
-            var maxEl   = document.getElementById('order-max-count');
-            var body    = 'years=' + encodeURIComponent(yearsEl ? yearsEl.value : getYears());
-            if (stateEl && stateEl.value) body += '&orderState=' + encodeURIComponent(stateEl.value);
-            if (payEl && payEl.value) body += '&paymentState=' + encodeURIComponent(payEl.value);
-            if (maxEl && maxEl.value) body += '&maxCount=' + encodeURIComponent(maxEl.value);
-            return body;
-        }
-
-        function setCountExportVisible(show) {
-            if (!countExportEl) return;
-            if (show) {
-                countExportEl.className = countExportEl.className.replace(' acc-hidden', '');
-            } else if (countExportEl.className.indexOf('acc-hidden') === -1) {
-                countExportEl.className += ' acc-hidden';
-            }
-        }
-
-        function showCountIdle() {
-            if (!countValueEl) return;
-            countValueEl.textContent = msgs.orderCountPrompt || 'Set your filters, then check how many orders match.';
-            countValueEl.className = 'acc-order-count__value acc-order-count__value--idle';
-            setCountExportVisible(false);
-        }
-
-        function showCountLoading() {
-            if (!countValueEl) return;
-            countValueEl.textContent = msgs.orderCountLoading || 'Checking commercetools...';
-            countValueEl.className = 'acc-order-count__value acc-order-count__value--loading';
-            setCountExportVisible(false);
-        }
-
-        function showCountError(message) {
-            if (!countValueEl) return;
-            countValueEl.textContent = message || msgs.orderCountError || 'Unable to count orders';
-            countValueEl.className = 'acc-order-count__value acc-order-count__value--error';
-            setCountExportVisible(false);
-        }
-
-        function showCountResult(data) {
-            if (!countValueEl) return;
-            var total = data.total || 0;
-            var exportCount = data.exportCount || 0;
-            var maxEl = document.getElementById('order-max-count');
-            var maxVal = maxEl && maxEl.value ? parseInt(maxEl.value, 10) : 0;
-
-            if (total === 0) {
-                countValueEl.textContent = msgs.orderCountNone || 'No orders match your filters';
-                countValueEl.className = 'acc-order-count__value acc-order-count__value--empty';
-                setCountExportVisible(false);
-                return;
-            }
-
-            countValueEl.textContent = fmtNum(total) + ' ' + (msgs.orderCountMatch || 'orders match your filters');
-            countValueEl.className = 'acc-order-count__value';
-
-            if (maxVal > 0 && exportCount < total && countExportEl) {
-                countExportEl.textContent = fmtNum(exportCount) + ' ' + (msgs.orderCountExport || 'orders will be exported (max count applied)');
-                setCountExportVisible(true);
-            } else {
-                setCountExportVisible(false);
-            }
-        }
-
-        function fetchOrderCount() {
-            if (!cfg.orderCountUrl || !countValueEl) return;
-
-            showCountLoading();
-            if (countBtn) countBtn.disabled = true;
-
-            post(cfg.orderCountUrl, getFilterParams(), function (data) {
-                if (countBtn) countBtn.disabled = false;
-                if (!data.ok) {
-                    showCountError((msgs.orderCountError || 'Unable to count orders') + (data.error ? ': ' + data.error : ''));
-                    return;
-                }
-                showCountResult(data);
-            });
-        }
-
-        var chips = document.querySelectorAll('.acc-chip input[type="radio"]');
-        var ci = 0;
-        var chipCount = chips.length;
-        while (chipCount > ci) {
-            chips[ci].addEventListener('change', function () {
-                var labels = document.querySelectorAll('.acc-chip');
-                var li = 0;
-                var labelCount = labels.length;
-                while (labelCount > li) {
-                    labels[li].className = labels[li].className.replace(' acc-chip--selected', '');
-                    li += 1;
-                }
-                if (this.parentNode) {
-                    var cn = this.parentNode.className || '';
-                    if (cn.indexOf('acc-chip--selected') === -1) {
-                        this.parentNode.className = cn + ' acc-chip--selected';
-                    }
-                }
-                showCountIdle();
-            });
-            ci += 1;
-        }
-
-        var stateEl = document.getElementById('order-order-state');
-        var payEl   = document.getElementById('order-payment-state');
-        var maxEl   = document.getElementById('order-max-count');
-
-        if (stateEl) stateEl.addEventListener('change', showCountIdle);
-        if (payEl) payEl.addEventListener('change', showCountIdle);
-        if (maxEl) maxEl.addEventListener('input', showCountIdle);
-
-        if (countBtn) {
-            countBtn.addEventListener('click', function (e) {
-                e.preventDefault();
-                fetchOrderCount();
-            });
-        }
-    }
-
-    function initOrderExport(cfg, post) {
-        var msgs = cfg.msgs || {};
-        var exportBtn  = document.getElementById('order-export-btn');
-        var reviewLink = document.getElementById('order-review-link');
-        var statusBox  = document.getElementById('order-export-status');
-        var phaseIds   = cfg.exportPhaseIds || [];
-
-        if (!exportBtn || !statusBox) return;
-
-        function showStatus(msg, type) {
-            statusBox.textContent = msg;
-            statusBox.className = 'acc-callout acc-callout--' + (type || 'info');
-            statusBox.className = statusBox.className.replace(' acc-hidden', '');
-        }
-
-        function setPhase(id, state, pct) {
-            var li     = document.getElementById('order-phase-' + id);
-            var status = document.getElementById('order-status-' + id);
-            var bar    = document.getElementById('order-bar-' + id);
-            if (!li) return;
-            li.className = 'acc-phases__item acc-phases__item--' + state;
-            if (status) status.textContent = state;
-            if (bar) bar.style.width = (pct || 0) + '%';
-        }
-
-        function animatePhases(onComplete) {
-            var idx = 0;
-            function next() {
-                if (idx >= phaseIds.length) {
-                    if (onComplete) onComplete();
-                    return;
-                }
-                var id = phaseIds[idx];
-                setPhase(id, 'active', 35);
-                setTimeout(function () {
-                    setPhase(id, 'done', 100);
-                    idx += 1;
-                    next();
-                }, 450);
-            }
-            var pi = 0;
-            var phaseCount = phaseIds.length;
-            while (phaseCount > pi) {
-                setPhase(phaseIds[pi], 'pending', 0);
-                pi += 1;
-            }
-            next();
-        }
-
-        exportBtn.addEventListener('click', function () {
-            exportBtn.disabled = true;
-            if (reviewLink) reviewLink.className += ' acc-hidden';
-            showStatus(msgs.exportRunning || 'Export in progress...', 'info');
-
-            var body = 'years=' + encodeURIComponent(cfg.orderYears || '1');
-            if (cfg.orderMaxCount) body += '&maxCount=' + encodeURIComponent(cfg.orderMaxCount);
-            if (cfg.orderOrderState) body += '&orderState=' + encodeURIComponent(cfg.orderOrderState);
-            if (cfg.orderPaymentState) body += '&paymentState=' + encodeURIComponent(cfg.orderPaymentState);
-
-            var exportDone = false;
-            var animDone   = false;
-            var reviewUrl  = cfg.wizardBaseUrl + '&step=5';
-
-            function maybeFinish() {
-                if (exportDone && animDone) {
-                    exportBtn.disabled = false;
-                }
-            }
-
-            animatePhases(function () { animDone = true; maybeFinish(); });
-
-            post(cfg.exportUrl, body, function (data) {
-                exportDone = true;
-                if (!data.ok) {
-                    showStatus((msgs.exportFailed || 'Export failed') + ': ' + (data.error || 'Unknown error'), 'error');
-                    var ei = 0;
-                    var errCount = phaseIds.length;
-                    while (errCount > ei) {
-                        setPhase(phaseIds[ei], 'error', 0);
-                        ei += 1;
-                    }
-                    exportBtn.disabled = false;
-                    return;
-                }
-                showStatus(msgs.exportComplete || 'Export complete.', 'success');
-                if (reviewLink) {
-                    reviewLink.className = reviewLink.className.replace(' acc-hidden', '');
-                    reviewLink.href = reviewUrl;
-                }
-                maybeFinish();
-                window.location.href = reviewUrl;
-            });
-        });
     }
 
     if (document.readyState === 'loading') {

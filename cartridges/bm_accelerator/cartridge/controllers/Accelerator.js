@@ -377,6 +377,7 @@ exports.Start = function () {
         pricebookMigrationUrl:     URLUtils.url('Accelerator-PricebookMigration').toString(),
         taxMigrationUrl:           URLUtils.url('Accelerator-TaxMigration').toString(),
         storeMigrationUrl:         URLUtils.url('Accelerator-StoreMigration').toString(),
+        orderMigrationUrl:         URLUtils.url('Accelerator-OrderMigration').toString(),
         productWizardUrl:          URLUtils.url('Accelerator-ProductWizard').toString(),
         categoryMigrationUrl:      URLUtils.url('Accelerator-CategoryMigration').toString(),
         cssUrl:                    URLUtils.staticURL('/css/accelerator-migration.css').toString(),
@@ -402,10 +403,10 @@ exports.DataMigrationDashboard = function () {
 exports.DataMigrationDashboard.public = true;
 
 /**
- * Order Migration — redirect into the data wizard order flow.
+ * Order migration page — single-page flow like inventory and pricebook.
  */
 exports.OrderMigration = function () {
-    var platformId = getParam('platform') || String(session.custom.migrationPlatformId || 'commercetools');
+    var platformId = String(session.custom.migrationPlatformId || 'commercetools');
 
     if (!isDataMigrationConnected()) {
         response.redirect(URLUtils.url(
@@ -417,7 +418,29 @@ exports.OrderMigration = function () {
     }
 
     session.custom.selectedDataType = 'order';
-    response.redirect(URLUtils.url('Accelerator-DataWizard', 'platform', platformId, 'step', '3'));
+    var pageCtx        = migrationPageContext(platformId, 'order');
+    var bmLinks        = require('*/cartridge/scripts/accelerator/bmLinks');
+    var jobsUrl        = bmLinks.getImportExportUrl();
+
+    ISML.renderTemplate('accelerator/orderMigration', withBmFrame({
+        title:               Resource.msg('accelerator.ordermigration.heading', 'accelerator', null),
+        subtitle:            Resource.msg('accelerator.subtitle', 'accelerator', null),
+        impexPath:           pageCtx.impexPath,
+        dashboardUrl:        URLUtils.url('Accelerator-Start').toString(),
+        dataWizardEntryUrl:  pageCtx.dataWizardEntryUrl,
+        dataWizardSelectUrl: pageCtx.dataWizardSelectUrl,
+        countUrl:            URLUtils.url('Accelerator-CountOrders').toString(),
+        exportUrl:           URLUtils.url('Accelerator-ExportOrders').toString(),
+        checkAttrsUrl:       URLUtils.url('Accelerator-CheckOrderAttributes').toString(),
+        createAttrsUrl:      URLUtils.url('Accelerator-CreateOrderAttributes').toString(),
+        impexUrl:            pageCtx.impexUrl,
+        jobsUrl:             jobsUrl,
+        orderStateFilters:   migrationData.getCtpOrderStateFilters(),
+        paymentStateFilters: migrationData.getCtpPaymentStateFilters(),
+        cssUrl:              URLUtils.staticURL('/css/accelerator-migration.css').toString(),
+        attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString(),
+        orderMigrationJsUrl: URLUtils.staticURL('/js/order-migration.js').toString() + '?v=1'
+    }));
 };
 exports.OrderMigration.public = true;
 
@@ -426,9 +449,11 @@ exports.OrderMigration.public = true;
  * POST: years=1|2|3&maxCount=optional&orderState=optional&paymentState=optional
  */
 exports.ExportOrders = function () {
-    var years    = parseInt(getParam('years') || String(session.custom.orderExportYears || '1'), 10);
-    var maxRaw   = getParam('maxCount') || String(session.custom.orderExportMaxCount || '');
-    var maxCount = maxRaw ? parseInt(maxRaw, 10) : null;
+    var offset       = parseInt(getParam('offset') || '0', 10);
+    var singleFile   = getParam('singleFile') !== 'false';
+    var years        = parseInt(getParam('years') || String(session.custom.orderExportYears || '1'), 10);
+    var maxRaw       = getParam('maxCount') || String(session.custom.orderExportMaxCount || '');
+    var maxCount     = maxRaw ? parseInt(maxRaw, 10) : null;
     var orderState   = getParam('orderState') || String(session.custom.orderExportOrderState || '');
     var paymentState = getParam('paymentState') || String(session.custom.orderExportPaymentState || '');
 
@@ -443,32 +468,59 @@ exports.ExportOrders = function () {
     }
 
     try {
-        var runner2 = require('*/cartridge/scripts/migration/orders/orderMigrationRunner');
-        var report  = runner2.run({
+        var fullRunner = require('*/cartridge/scripts/migration/orders/fullMigrationRunner');
+        var result     = fullRunner.runBatch(offset, {
             years:        years,
             maxCount:     maxCount,
             orderState:   orderState,
             paymentState: paymentState
-        });
+        }, singleFile);
 
-        session.custom.orderMigrationReport = JSON.stringify({
-            ordersProcessed:   report.ordersProcessed,
-            ordersValidated:   report.ordersValidated,
-            ordersFailed:      report.ordersFailed,
-            xmlFilesGenerated: report.xmlFilesGenerated,
-            runId:             report.runId,
-            impexPath:         report.impexPath || 'src/migration/order'
-        });
+        if (!result.ok) {
+            jsonResponse({ ok: false, error: result.error });
+            return;
+        }
+
+        if (result.done && offset === 0) {
+            session.custom.orderMigrationReport = JSON.stringify({
+                ordersProcessed:   result.ordersProcessed,
+                ordersValidated:   result.ordersValidated,
+                ordersFailed:      result.ordersFailed,
+                xmlFilesGenerated: result.xmlFilesGenerated,
+                runId:             result.runId,
+                impexPath:         result.impexPath || 'src/migration/order',
+                fileName:          result.fileName || ''
+            });
+        }
+
+        var downloadFiles = [];
+        if (result.fileName && result.impexPath) {
+            downloadFiles.push({
+                name:         result.fileName,
+                relativePath: result.impexPath + '/' + result.fileName,
+                isZip:        false
+            });
+        }
 
         jsonResponse({
-            ok:     true,
+            ok:         true,
+            singleFile: result.singleFile,
+            done:       result.done,
+            total:      result.total,
+            nextOffset: result.nextOffset,
+            built:      result.built,
+            failed:     result.failed,
+            errors:     result.errors || [],
             report: {
-                ordersProcessed:   report.ordersProcessed,
-                ordersValidated:   report.ordersValidated,
-                ordersFailed:      report.ordersFailed,
-                xmlFilesGenerated: report.xmlFilesGenerated
+                ordersProcessed:   result.ordersProcessed,
+                ordersValidated:   result.ordersValidated,
+                ordersFailed:      result.ordersFailed,
+                xmlFilesGenerated: result.xmlFilesGenerated
             },
-            runId: report.runId
+            runId:         result.runId,
+            fileName:      result.fileName,
+            impexPath:     result.impexPath,
+            downloadFiles: downloadFiles
         });
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
@@ -670,25 +722,14 @@ exports.DataWizard = function () {
         response.redirect(URLUtils.url('Accelerator-CategoryMigration'));
         return;
     }
-
-    if (currentStep > 2 && dataTypeId !== 'order' && wizardStep.key !== 'typePlaceholder') {
-        response.redirect(URLUtils.url('Accelerator-DataWizard', 'platform', platformId, 'step', '3'));
+    if (currentStep > 2 && dataTypeId === 'order') {
+        response.redirect(URLUtils.url('Accelerator-OrderMigration'));
         return;
     }
 
-    var orderReport = null;
-    var bmImpexUrl  = '';
-    if (wizardStep.key === 'orderReview') {
-        try {
-            orderReport = JSON.parse(String(session.custom.orderMigrationReport || 'null'));
-            if (orderReport) {
-                var bmLinks  = require('*/cartridge/scripts/accelerator/bmLinks');
-                var migPaths = require('*/cartridge/scripts/migration/core/migrationPaths');
-                bmImpexUrl = bmLinks.getImpexFolderUrl(
-                    orderReport.impexPath || migPaths.getRelativePath('order')
-                );
-            }
-        } catch (e) { /* no report yet */ }
+    if (currentStep > 2 && wizardStep.key !== 'typePlaceholder') {
+        response.redirect(URLUtils.url('Accelerator-DataWizard', 'platform', platformId, 'step', '3'));
+        return;
     }
 
     var stepContent = null;
@@ -708,37 +749,18 @@ exports.DataWizard = function () {
         stepContent.summary = readyCount + ' data type(s) ready';
     }
 
-    var exportPhaseIds = [];
-    var phasesForCfg   = migrationData.getOrderExportPhases();
-    for (var pi = 0; pi < phasesForCfg.length; pi++) {
-        exportPhaseIds.push(phasesForCfg[pi].id);
-    }
-
     var dataWizardMsgs = {
         connectionFailed:       Resource.msg('accelerator.datawizard.connectionFailed', 'accelerator', null),
         connectionSuccess:      Resource.msg('accelerator.datawizard.connectionSuccess', 'accelerator', null),
         selectTypeCountSuffix:  Resource.msg('accelerator.datawizard.selectType.countSuffix', 'accelerator', null),
-        selectTypeNoneSelected: Resource.msg('accelerator.datawizard.selectType.noneSelected', 'accelerator', null),
-        exportRunning:          Resource.msg('accelerator.ordermigration.export.running', 'accelerator', null),
-        exportFailed:           Resource.msg('accelerator.ordermigration.export.failed', 'accelerator', null),
-        exportComplete:         Resource.msg('accelerator.ordermigration.export.complete', 'accelerator', null),
-        orderCountLoading:      Resource.msg('accelerator.ordermigration.count.loading', 'accelerator', null),
-        orderCountPrompt:       Resource.msg('accelerator.ordermigration.count.prompt', 'accelerator', null),
-        orderCountError:        Resource.msg('accelerator.ordermigration.count.error', 'accelerator', null),
-        orderCountNone:         Resource.msg('accelerator.ordermigration.count.none', 'accelerator', null),
-        orderCountMatch:        Resource.msg('accelerator.ordermigration.count.match', 'accelerator', null),
-        orderCountExport:       Resource.msg('accelerator.ordermigration.count.export', 'accelerator', null)
+        selectTypeNoneSelected: Resource.msg('accelerator.datawizard.selectType.noneSelected', 'accelerator', null)
     };
 
     var wizardBaseUrl = URLUtils.url('Accelerator-DataWizard', 'platform', platform.id).toString();
-    var exportPhaseCsv = exportPhaseIds.join(',');
 
     var dataWizardPages = {
         connect:        'accelerator/dataWizardConnect',
         selectType:     'accelerator/dataWizardSelectType',
-        orderConfigure: 'accelerator/dataWizardOrderConfigure',
-        orderExport:    'accelerator/dataWizardOrderExport',
-        orderReview:    'accelerator/dataWizardOrderReview',
         typePlaceholder:'accelerator/dataWizardTypePlaceholder'
     };
 
@@ -755,33 +777,14 @@ exports.DataWizard = function () {
         dataTypeId:          dataTypeId,
         dataType:            migrationData.getDataType(dataTypeId),
         wizardSteps:         migrationData.getDataWizardSteps(dataTypeId),
-        exportPhases:        migrationData.getOrderExportPhases(),
         currentStep:         currentStep,
         wizardStep:          wizardStep,
         wizardStepKey:       String(wizardStep.key),
-        exportPhaseCsv:      exportPhaseCsv,
         stepContent:         stepContent,
         msgConnectionFailed:      dataWizardMsgs.connectionFailed,
         msgConnectionSuccess:     dataWizardMsgs.connectionSuccess,
         msgSelectTypeCountSuffix: dataWizardMsgs.selectTypeCountSuffix,
         msgSelectTypeNoneSelected: dataWizardMsgs.selectTypeNoneSelected,
-        msgExportRunning:         dataWizardMsgs.exportRunning,
-        msgExportFailed:          dataWizardMsgs.exportFailed,
-        msgExportComplete:        dataWizardMsgs.exportComplete,
-        msgOrderCountLoading:     dataWizardMsgs.orderCountLoading,
-        msgOrderCountPrompt:      dataWizardMsgs.orderCountPrompt,
-        msgOrderCountError:       dataWizardMsgs.orderCountError,
-        msgOrderCountNone:        dataWizardMsgs.orderCountNone,
-        msgOrderCountMatch:       dataWizardMsgs.orderCountMatch,
-        msgOrderCountExport:      dataWizardMsgs.orderCountExport,
-        orderReport:         orderReport,
-        bmImpexUrl:          bmImpexUrl,
-        orderYears:          String(session.custom.orderExportYears || '1'),
-        orderMaxCount:       String(session.custom.orderExportMaxCount || ''),
-        orderOrderState:     String(session.custom.orderExportOrderState || ''),
-        orderPaymentState:   String(session.custom.orderExportPaymentState || ''),
-        orderStateFilters:   migrationData.getCtpOrderStateFilters(),
-        paymentStateFilters: migrationData.getCtpPaymentStateFilters(),
         prevStep:            prevStep,
         nextStep:            nextStep,
         prevStepQuery:       toStepQuery(prevStep),
@@ -793,16 +796,10 @@ exports.DataWizard = function () {
         dataWizardEntryUrl:  dataMigrationSession.dataWizardUrl(platformId),
         wizardBaseUrl:       wizardBaseUrl,
         continueUrl:         URLUtils.url('Accelerator-DataWizardContinue').toString(),
-        orderConfigUrl:      URLUtils.url('Accelerator-DataWizardSaveOrderConfig').toString(),
+        selectTypeUrl:       URLUtils.url('Accelerator-DataWizardSelectType', 'platform', platformId).toString(),
         testConnectionUrl:   URLUtils.url('Accelerator-TestConnection').toString(),
-        exportUrl:           URLUtils.url('Accelerator-ExportOrders').toString(),
-        orderCountUrl:       URLUtils.url('Accelerator-CountOrders').toString(),
-        checkAttrsUrl:       URLUtils.url('Accelerator-CheckOrderAttributes').toString(),
-        createAttrsUrl:      URLUtils.url('Accelerator-CreateOrderAttributes').toString(),
-        downloadUrl:         URLUtils.url('Accelerator-DownloadMigrationFile').toString(),
         categoryMigrationUrl: URLUtils.url('Accelerator-CategoryMigration').toString(),
-        dataWizardJsUrl:     URLUtils.staticURL('/js/data-wizard.js').toString(),
-        attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString(),
+        dataWizardJsUrl:     URLUtils.staticURL('/js/data-wizard.js').toString() + '?v=4',
         cssUrl:              URLUtils.staticURL('/css/accelerator-migration.css').toString()
     }));
 };
@@ -898,45 +895,14 @@ exports.DataWizardSelectType = function () {
         response.redirect(URLUtils.url('Accelerator-CategoryMigration'));
         return;
     }
+    if (typeId === 'order') {
+        response.redirect(URLUtils.url('Accelerator-OrderMigration'));
+        return;
+    }
 
     response.redirect(URLUtils.url('Accelerator-DataWizard', 'platform', platformId, 'step', '3'));
 };
 exports.DataWizardSelectType.public = true;
-
-/**
- * Save order export configuration and advance to export step.
- */
-exports.DataWizardSaveOrderConfig = function () {
-    var platformId = getParam('platformId') || getParam('platform') || String(session.custom.migrationPlatformId || 'commercetools');
-    var years      = parseInt(getParam('years') || '1', 10);
-    var maxRaw     = getParam('maxCount');
-    var orderState   = getParam('orderState') || '';
-    var paymentState = getParam('paymentState') || '';
-    var stepThree  = URLUtils.url('Accelerator-DataWizard', 'platform', platformId, 'step', '3');
-    var stepFour   = URLUtils.url('Accelerator-DataWizard', 'platform', platformId, 'step', '4');
-
-    if (session.custom.selectedDataType !== 'order') {
-        response.redirect(stepThree);
-        return;
-    }
-
-    if ([1, 2, 3].indexOf(years) < 0) {
-        response.redirect(stepThree);
-        return;
-    }
-
-    if (!migrationData.isValidCtpOrderState(orderState) || !migrationData.isValidCtpPaymentState(paymentState)) {
-        response.redirect(stepThree);
-        return;
-    }
-
-    session.custom.orderExportYears         = String(years);
-    session.custom.orderExportMaxCount      = maxRaw ? String(parseInt(maxRaw, 10)) : '';
-    session.custom.orderExportOrderState    = orderState;
-    session.custom.orderExportPaymentState  = paymentState;
-    response.redirect(stepFour);
-};
-exports.DataWizardSaveOrderConfig.public = true;
 
 /**
  * Placeholder for data migration flows not yet implemented.
@@ -1082,13 +1048,7 @@ exports.Wizard.public = true;
  */
 exports.CustomerMigration = function () {
     var cfg2           = require('*/cartridge/scripts/migration/configAccessor');
-    var Site           = require('dw/system/Site');
     var customerListId = (cfg2.sfcc && cfg2.sfcc.customerListId) ? cfg2.sfcc.customerListId : '';
-    var siteId         = Site.getCurrent().getID();
-    var jobsUrl        = 'https://' + request.httpHost
-                       + '/on/demandware.store/Sites-Site/default;site=' + siteId
-                       + '/ViewApplication-BM?SelectedMenuItem=jobschedules'
-                       + '#/?job#editor!id!CTCustomer!config!CTCustomer!domain!Sites';
     var platformId = String(session.custom.migrationPlatformId || 'commercetools');
     var pageCtx    = migrationPageContext(platformId, 'customer');
     var listsUrl   = URLUtils.url('Accelerator-GetCustomerLists').toString();
@@ -1115,7 +1075,8 @@ exports.CustomerMigration = function () {
         checkAttrsUrl:       URLUtils.url('Accelerator-CheckCustomerAttributes').toString(),
         createAttrsUrl:      URLUtils.url('Accelerator-CreateCustomerAttributes').toString(),
         deleteAttrUrl:       URLUtils.url('Accelerator-DeleteCustomerAttribute').toString(),
-        jobsUrl:             jobsUrl
+        fetchGroupsUrl:      URLUtils.url('Accelerator-FetchCtpCustomerGroups').toString(),
+        createGroupsUrl:     URLUtils.url('Accelerator-CreateSfccCustomerGroups').toString()
     }));
 };
 exports.CustomerMigration.public = true;
@@ -1158,6 +1119,36 @@ exports.GetCustomerLists = function () {
     }
 };
 exports.GetCustomerLists.public = true;
+
+/**
+ * Fetch all customer groups from CTP and return as JSON.
+ */
+exports.FetchCtpCustomerGroups = function () {
+    try {
+        var groupFetcher = require('*/cartridge/scripts/migration/customerMigration/ctpCustomerGroupFetcher');
+        jsonResponse({ ok: true, groups: groupFetcher.fetchGroups() });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.FetchCtpCustomerGroups.public = true;
+
+/**
+ * Create selected CTP customer groups in SFCC (keeps exact CTP UUID as group ID).
+ * POST body: groups=[{"id":"...","name":"..."},...]
+ */
+exports.CreateSfccCustomerGroups = function () {
+    var raw = getParam('groups');
+    if (!raw) { jsonResponse({ ok: false, error: 'groups param is required' }); return; }
+    try {
+        var groups      = JSON.parse(raw);
+        var groupWriter = require('*/cartridge/scripts/migration/customerMigration/sfccCustomerGroupWriter');
+        jsonResponse({ ok: true, result: groupWriter.ensureGroups(groups) });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.CreateSfccCustomerGroups.public = true;
 
 /**
  * Return all SFCC catalog IDs available on the instance.
@@ -1521,10 +1512,8 @@ exports.ShippingMethodMigration = function () {
     var siteId    = Site.getCurrent().getID();
     var platformId = String(session.custom.migrationPlatformId || 'commercetools');
     var pageCtx    = migrationPageContext(platformId, 'shippingMethod');
-    var jobsUrl = 'https://' + request.httpHost
-        + '/on/demandware.store/Sites-Site/default;site=' + siteId
-        + '/ViewApplication-BM?SelectedMenuItem=site-obj_impex'
-        + '#/?impex#import';
+    var bmLinks = require('*/cartridge/scripts/accelerator/bmLinks');
+    var jobsUrl = bmLinks.getImportExportUrl();
 
     ISML.renderTemplate('accelerator/shippingMethodMigration', withBmFrame({
         title:        Resource.msg('accelerator.title', 'accelerator', null),
@@ -1674,9 +1663,10 @@ exports.ListShippingMethods = function () {
 exports.ListShippingMethods.public = true;
 
 exports.FullShippingMethodBuildBatch = function () {
-    var offset  = parseInt(getParam('offset') || '0', 10);
-    var siteId  = getParam('siteId');
-    var rawKeys = getParam('keys');
+    var offset      = parseInt(getParam('offset') || '0', 10);
+    var siteId      = getParam('siteId');
+    var rawKeys     = getParam('keys');
+    var singleFile  = getParam('singleFile') !== 'false';
 
     if (!siteId) {
         jsonResponse({ ok: false, error: 'siteId is required' });
@@ -1694,9 +1684,9 @@ exports.FullShippingMethodBuildBatch = function () {
     try {
         var fullRunner = require('*/cartridge/scripts/migration/shippingMethodMigration/fullMigrationRunner');
         if (keys && keys.length) {
-            jsonResponse(fullRunner.runBatchForKeys(keys, offset, siteId));
+            jsonResponse(fullRunner.runBatchForKeys(keys, offset, siteId, singleFile));
         } else {
-            jsonResponse(fullRunner.runBatch(offset, siteId));
+            jsonResponse(fullRunner.runBatch(offset, siteId, singleFile));
         }
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
@@ -1711,15 +1701,11 @@ exports.FullShippingMethodBuildBatch.public = true;
  */
 exports.InventoryMigration = function () {
     var cfg2           = require('*/cartridge/scripts/migration/configAccessor');
-    var Site           = require('dw/system/Site');
-    var siteId         = Site.getCurrent().getID();
+    var bmLinks        = require('*/cartridge/scripts/accelerator/bmLinks');
     var listId         = (cfg2.sfcc && cfg2.sfcc.inventoryListId) ? cfg2.sfcc.inventoryListId : '';
     var platformId     = String(session.custom.migrationPlatformId || 'commercetools');
     var pageCtx        = migrationPageContext(platformId, 'inventory');
-    var jobsUrl        = 'https://' + request.httpHost
-        + '/on/demandware.store/Sites-Site/default;site=' + siteId
-        + '/ViewApplication-BM?SelectedMenuItem=site-obj_impex'
-        + '#/?impex#import';
+    var jobsUrl        = bmLinks.getImportExportUrl();
 
     ISML.renderTemplate('accelerator/inventoryMigration', withBmFrame({
         title:               Resource.msg('accelerator.title', 'accelerator', null),
@@ -1737,7 +1723,7 @@ exports.InventoryMigration = function () {
         impexUrl:            pageCtx.impexUrl,
         cssUrl:              URLUtils.staticURL('/css/accelerator-migration.css').toString(),
         attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString(),
-        inventoryMigrationJsUrl: URLUtils.staticURL('/js/inventory-migration.js').toString() + '?v=5',
+        inventoryMigrationJsUrl: URLUtils.staticURL('/js/inventory-migration.js').toString() + '?v=7',
         jobsUrl:             jobsUrl
     }));
 };
@@ -1822,6 +1808,7 @@ exports.FullInventoryBuildBatch = function () {
     var exportKey       = getParam('exportKey');
     var fileName        = getParam('fileName');
     var aggregate       = getParam('aggregate') === 'true';
+    var singleFile      = getParam('singleFile') !== 'false';
 
     if (!listId) {
         jsonResponse({ ok: false, error: 'listId is required' });
@@ -1834,7 +1821,7 @@ exports.FullInventoryBuildBatch = function () {
 
     try {
         var fullRunner = require('*/cartridge/scripts/migration/inventoryMigration/fullMigrationRunner');
-        jsonResponse(fullRunner.runBatch(offset, listId, supplyChannelId, exportKey, fileName, aggregate));
+        jsonResponse(fullRunner.runBatch(offset, listId, supplyChannelId, exportKey, fileName, aggregate, singleFile));
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
     }
@@ -1844,15 +1831,11 @@ exports.FullInventoryBuildBatch.public = true;
 // ─── Pricebook data migration ─────────────────────────────────────────────────
 
 exports.PricebookMigration = function () {
-    var Site           = require('dw/system/Site');
-    var siteId         = Site.getCurrent().getID();
+    var bmLinks        = require('*/cartridge/scripts/accelerator/bmLinks');
     var presetId       = 'list-prices';
     var platformId     = String(session.custom.migrationPlatformId || 'commercetools');
     var pageCtx        = migrationPageContext(platformId, 'pricebook');
-    var jobsUrl        = 'https://' + request.httpHost
-        + '/on/demandware.store/Sites-Site/default;site=' + siteId
-        + '/ViewApplication-BM?SelectedMenuItem=site-obj_impex'
-        + '#/?impex#import';
+    var jobsUrl        = bmLinks.getImportExportUrl();
 
     ISML.renderTemplate('accelerator/pricebookMigration', withBmFrame({
         title:               Resource.msg('accelerator.title', 'accelerator', null),
@@ -1870,7 +1853,7 @@ exports.PricebookMigration = function () {
         impexUrl:            pageCtx.impexUrl,
         cssUrl:              URLUtils.staticURL('/css/accelerator-migration.css').toString(),
         attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString(),
-        pricebookMigrationJsUrl: URLUtils.staticURL('/js/pricebook-migration.js').toString() + '?v=5',
+        pricebookMigrationJsUrl: URLUtils.staticURL('/js/pricebook-migration.js').toString() + '?v=6',
         jobsUrl:             jobsUrl
     }));
 };
@@ -1968,6 +1951,7 @@ exports.FullPricebookBuildBatch = function () {
     var fileName     = getParam('fileName');
     var aggregate    = getParam('aggregate') === 'true';
     var source       = getParam('source') || 'standalone';
+    var singleFile   = getParam('singleFile') !== 'false';
 
     if (!pricebookId) {
         jsonResponse({ ok: false, error: 'pricebookId is required' });
@@ -1986,12 +1970,12 @@ exports.FullPricebookBuildBatch = function () {
         var fullRunner = require('*/cartridge/scripts/migration/pricebookMigration/fullMigrationRunner');
         if (source === 'embedded') {
             jsonResponse(fullRunner.runEmbeddedBatch(
-                offset, pricebookId, currency, channelId, exportKey, fileName, aggregate
+                offset, pricebookId, currency, channelId, exportKey, fileName, aggregate, singleFile
             ));
             return;
         }
         jsonResponse(fullRunner.runBatch(
-            offset, pricebookId, currency, channelId, exportKey, fileName, aggregate
+            offset, pricebookId, currency, channelId, exportKey, fileName, aggregate, singleFile
         ));
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
@@ -2002,14 +1986,10 @@ exports.FullPricebookBuildBatch.public = true;
 // ─── Tax data migration ───────────────────────────────────────────────────────
 
 exports.TaxMigration = function () {
-    var Site           = require('dw/system/Site');
-    var siteId         = Site.getCurrent().getID();
+    var bmLinks        = require('*/cartridge/scripts/accelerator/bmLinks');
     var platformId     = String(session.custom.migrationPlatformId || 'commercetools');
     var pageCtx        = migrationPageContext(platformId, 'tax');
-    var jobsUrl        = 'https://' + request.httpHost
-        + '/on/demandware.store/Sites-Site/default;site=' + siteId
-        + '/ViewApplication-BM?SelectedMenuItem=site-obj_impex'
-        + '#/?impex#import';
+    var jobsUrl        = bmLinks.getImportExportUrl();
 
     ISML.renderTemplate('accelerator/taxMigration', withBmFrame({
         title:               Resource.msg('accelerator.title', 'accelerator', null),
@@ -2026,7 +2006,7 @@ exports.TaxMigration = function () {
         impexUrl:            pageCtx.impexUrl,
         cssUrl:              URLUtils.staticURL('/css/accelerator-migration.css').toString(),
         attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString(),
-        taxMigrationJsUrl:   URLUtils.staticURL('/js/tax-migration.js').toString() + '?v=6',
+        taxMigrationJsUrl:   URLUtils.staticURL('/js/tax-migration.js').toString() + '?v=7',
         jobsUrl:             jobsUrl
     }));
 };
@@ -2095,6 +2075,7 @@ exports.FullTaxBuildBatch = function () {
     var scopeType  = getParam('scopeType') || 'full';
     var scopeId    = getParam('scopeId') || '';
     var fileName   = getParam('fileName');
+    var singleFile = getParam('singleFile') !== 'false';
 
     if (!exportKey) {
         jsonResponse({ ok: false, error: 'exportKey is required' });
@@ -2103,7 +2084,7 @@ exports.FullTaxBuildBatch = function () {
 
     try {
         var fullRunner = require('*/cartridge/scripts/migration/taxMigration/fullMigrationRunner');
-        jsonResponse(fullRunner.runBatch(offset, exportKey, scopeType, scopeId, fileName));
+        jsonResponse(fullRunner.runBatch(offset, exportKey, scopeType, scopeId, fileName, singleFile));
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
     }
@@ -2113,14 +2094,10 @@ exports.FullTaxBuildBatch.public = true;
 // ─── Store data migration ─────────────────────────────────────────────────────
 
 exports.StoreMigration = function () {
-    var Site           = require('dw/system/Site');
-    var siteId         = Site.getCurrent().getID();
+    var bmLinks        = require('*/cartridge/scripts/accelerator/bmLinks');
     var platformId     = String(session.custom.migrationPlatformId || 'commercetools');
     var pageCtx        = migrationPageContext(platformId, 'store');
-    var jobsUrl        = 'https://' + request.httpHost
-        + '/on/demandware.store/Sites-Site/default;site=' + siteId
-        + '/ViewApplication-BM?SelectedMenuItem=site-obj_impex'
-        + '#/?impex#import';
+    var jobsUrl        = bmLinks.getImportExportUrl();
 
     ISML.renderTemplate('accelerator/storeMigration', withBmFrame({
         title:               Resource.msg('accelerator.title', 'accelerator', null),
@@ -2136,7 +2113,7 @@ exports.StoreMigration = function () {
         impexUrl:            pageCtx.impexUrl,
         cssUrl:              URLUtils.staticURL('/css/accelerator-migration.css').toString(),
         attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString(),
-        storeMigrationJsUrl: URLUtils.staticURL('/js/store-migration.js').toString() + '?v=4',
+        storeMigrationJsUrl: URLUtils.staticURL('/js/store-migration.js').toString() + '?v=5',
         jobsUrl:             jobsUrl
     }));
 };
@@ -2226,7 +2203,8 @@ exports.FullStoreBuildBatch = function () {
     var offset    = parseInt(getParam('offset') || '0', 10);
     var exportKey = getParam('exportKey') || 'full';
     var fileName  = getParam('fileName');
-    var rawKeys   = getParam('keys');
+    var rawKeys    = getParam('keys');
+    var singleFile = getParam('singleFile') !== 'false';
 
     var keys = null;
     if (rawKeys) {
@@ -2238,7 +2216,7 @@ exports.FullStoreBuildBatch = function () {
 
     try {
         var fullRunner = require('*/cartridge/scripts/migration/storeMigration/fullMigrationRunner');
-        jsonResponse(fullRunner.runBatch(offset, exportKey, fileName, keys));
+        jsonResponse(fullRunner.runBatch(offset, exportKey, fileName, keys, singleFile));
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
     }

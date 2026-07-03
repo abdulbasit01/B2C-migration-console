@@ -253,7 +253,7 @@
             get(cfg.listStoresUrl, function (data) {
                 if (reloadBtn) {
                     reloadBtn.disabled = false;
-                    reloadBtn.textContent = 'Reload from CTP';
+                    reloadBtn.textContent = 'Reload Stores';
                 }
                 if (!data.ok) {
                     if (loadingEl) loadingEl.style.display = 'none';
@@ -428,6 +428,13 @@
             });
         }
 
+        if (loadingEl) {
+            loadingEl.style.display = 'block';
+            loadingEl.textContent = 'Click Load Stores to fetch stores from commercetools.';
+        }
+        if (tableWrap) tableWrap.style.display = 'none';
+        if (fileWrap) fileWrap.style.display = 'none';
+
         if (checkAttrsBtn) {
             checkAttrsBtn.addEventListener('click', function () {
                 checkAttrsBtn.disabled = true;
@@ -488,8 +495,6 @@
                 runPreflightThenMigrate(beginMigration);
             });
         }
-
-        loadStores(false);
     }
 
     if (document.readyState === 'loading') {

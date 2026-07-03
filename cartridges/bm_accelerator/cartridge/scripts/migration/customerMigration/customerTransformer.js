@@ -67,6 +67,11 @@ function transformCustomer(ctpCustomer) {
     if (ctpCustomer.salutation)                       profile.salutation = ctpCustomer.salutation;
     else if (ctpCustomer.title)                       profile.salutation = ctpCustomer.title;
 
+    // Store CTP customer group — keep exact CTP UUID as the bridge between systems
+    if (ctpCustomer.customerGroup && ctpCustomer.customerGroup.id) {
+        profile.c_ctp_customer_group_id = ctpCustomer.customerGroup.id;
+    }
+
     // Store CTP identifiers as custom attributes for traceability after migration
     profile.c_ctp_customer_id = ctpCustomer.id;
     if (ctpCustomer.customerNumber) {
