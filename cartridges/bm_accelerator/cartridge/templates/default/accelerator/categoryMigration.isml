@@ -10,25 +10,44 @@
 <h2>Category Data Migration - Commercetools to SFCC</h2>
 </header>
 
-<div style="background:#f4f6f9;border:1px solid #dddbda;border-radius:4px;padding:16px 20px;margin-bottom:20px;">
-<div style="display:flex;align-items:flex-end;flex-wrap:wrap;gap:12px;">
+<div style="background:#f4f6f9;border:1px solid #dddbda;border-radius:4px;padding:0;margin-bottom:20px;overflow:hidden;">
+<div style="font-weight:700;font-size:13px;color:#16325c;padding:12px 20px 0;">Target Storefront Catalog</div>
+<div style="display:flex;border-bottom:2px solid #dddbda;margin:8px 0 0;">
+<div id="cat-tab-existing" onclick="_APP.setCatalogMode('existing')" style="padding:8px 20px;font-size:13px;font-weight:600;cursor:pointer;color:#0070d2;border-bottom:3px solid #0070d2;margin-bottom:-2px;">Use Existing Catalog</div>
+<div id="cat-tab-new" onclick="_APP.setCatalogMode('new')" style="padding:8px 20px;font-size:13px;font-weight:600;cursor:pointer;color:#54698d;border-bottom:3px solid transparent;margin-bottom:-2px;">Create New Catalog</div>
+</div>
 
-<div>
-<label for="cat-catalog-select" style="display:block;font-weight:600;font-size:13px;margin-bottom:4px;">Target Storefront Catalog</label>
+<div id="cat-panel-existing" style="padding:16px 20px;">
 <div style="display:flex;gap:8px;align-items:center;">
-<select id="cat-catalog-select" class="acc-form__input" style="width:280px;padding:6px 8px;font-size:13px;border:1px solid #dddbda;border-radius:4px;">
+<select id="cat-catalog-select" class="acc-form__input" style="width:300px;padding:6px 8px;font-size:13px;border:1px solid #dddbda;border-radius:4px;">
 <option value="">-- Select a catalog --</option>
 </select>
 <button type="button" id="btn-load-catalogs" class="acc-btn acc-btn--ghost" style="white-space:nowrap;font-size:12px;padding:6px 12px;">Load Catalogs</button>
 <span id="catalog-load-status" style="font-size:12px;color:#54698d;"></span>
 </div>
 </div>
+
+<div id="cat-panel-new" style="display:none;padding:16px 20px;">
+<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;">
 <div>
-<label for="cat-catalog-id" style="display:block;font-weight:600;font-size:13px;margin-bottom:4px;">Or enter Catalog ID manually</label>
-<input id="cat-catalog-id" type="text" class="acc-form__input" placeholder="e.g. storefront-catalog-m-en" value="${pdict.catalogId}" style="width:240px;"/>
+<label for="new-catalog-id" style="display:block;font-weight:600;font-size:12px;margin-bottom:4px;">Catalog ID</label>
+<input id="new-catalog-id" type="text" class="acc-form__input" placeholder="e.g. my-storefront-catalog" style="width:220px;padding:6px 10px;font-size:13px;border:1px solid #dddbda;border-radius:4px;"/>
+<div id="new-catalog-id-error" style="display:none;color:#c62828;font-size:11px;margin-top:3px;">Catalog ID is required.</div>
+</div>
+<div>
+<label for="new-catalog-name" style="display:block;font-weight:600;font-size:12px;margin-bottom:4px;">Catalog Name</label>
+<input id="new-catalog-name" type="text" class="acc-form__input" placeholder="e.g. My Storefront Catalog" style="width:220px;padding:6px 10px;font-size:13px;border:1px solid #dddbda;border-radius:4px;"/>
+<div id="new-catalog-name-error" style="display:none;color:#c62828;font-size:11px;margin-top:3px;">Catalog Name is required.</div>
+</div>
+<span id="new-catalog-status" style="font-size:12px;color:#54698d;align-self:center;"></span>
+</div>
+<div id="new-catalog-result" style="display:none;background:#e8f5e9;border:1px solid #2e7d32;border-radius:4px;padding:12px 16px;margin-top:12px;">
+<div style="font-weight:600;color:#2e7d32;margin-bottom:6px;">Catalog XML generated. <span id="new-catalog-active-label" style="font-size:12px;font-weight:400;color:#1b5e20;"></span></div>
+<div style="font-size:12px;color:#54698d;margin-bottom:4px;">File location:</div>
+<code id="new-catalog-xml-path" style="background:#e0e5ee;padding:3px 8px;border-radius:3px;font-size:12px;display:block;margin-bottom:10px;word-break:break-all;"></code>
+<a id="btn-new-catalog-impex" href="#" class="acc-btn acc-btn--secondary" style="text-decoration:none;font-size:12px;padding:5px 12px;">Open IMPEX Folder</a>
 </div>
 </div>
-<div style="margin-top:10px;font-size:12px;color:#54698d;">Selecting from dropdown will auto-fill the Catalog ID. Manual entry overrides the selection.</div>
 </div>
 
 <div style="display:flex;border-bottom:2px solid #dddbda;margin-bottom:24px;flex-wrap:wrap;">
@@ -66,34 +85,6 @@
 <span id="attr-overall" style="margin-left:14px;font-size:13px;color:#54698d;"></span>
 </div>
 
-<div style="margin-top:28px;border-top:1px solid #dddbda;padding-top:20px;">
-<div style="font-weight:600;font-size:14px;color:#16325c;margin-bottom:12px;">New Catalog</div>
-<div style="background:#f4f6f9;border:1px solid #dddbda;border-radius:4px;padding:14px 18px;font-size:13px;margin-bottom:20px;">
-Create a new SFCC storefront catalog. Fill in the Catalog ID and Name then click Generate XML to create an IMPEX file for manual import.
-</div>
-<div style="background:#fff;border:1px solid #dddbda;border-radius:4px;padding:20px 24px;margin-bottom:20px;max-width:520px;">
-<div style="margin-bottom:16px;">
-<label for="new-catalog-id" style="display:block;font-weight:600;font-size:13px;margin-bottom:6px;">Catalog ID</label>
-<input id="new-catalog-id" type="text" class="acc-form__input" placeholder="e.g. my-storefront-catalog" style="width:100%;padding:8px 10px;font-size:13px;border:1px solid #dddbda;border-radius:4px;"/>
-<div id="new-catalog-id-error" style="display:none;color:#c62828;font-size:12px;margin-top:4px;">Catalog ID is required.</div>
-</div>
-<div style="margin-bottom:20px;">
-<label for="new-catalog-name" style="display:block;font-weight:600;font-size:13px;margin-bottom:6px;">Catalog Name</label>
-<input id="new-catalog-name" type="text" class="acc-form__input" placeholder="e.g. My Storefront Catalog" style="width:100%;padding:8px 10px;font-size:13px;border:1px solid #dddbda;border-radius:4px;"/>
-<div id="new-catalog-name-error" style="display:none;color:#c62828;font-size:12px;margin-top:4px;">Catalog Name is required.</div>
-</div>
-<button type="button" id="btn-create-catalog" class="acc-btn acc-btn--primary">Generate XML (IMPEX)</button>
-<span id="new-catalog-status" style="margin-left:14px;font-size:13px;color:#54698d;"></span>
-</div>
-<div id="new-catalog-result" style="display:none;background:#e8f5e9;border:1px solid #2e7d32;border-radius:4px;padding:16px 20px;max-width:520px;">
-<div style="font-weight:600;color:#2e7d32;margin-bottom:8px;">Catalog XML generated successfully.</div>
-<div style="font-size:12px;color:#54698d;margin-bottom:6px;">File location:</div>
-<code id="new-catalog-xml-path" style="background:#e0e5ee;padding:4px 8px;border-radius:3px;font-size:12px;display:block;margin-bottom:14px;word-break:break-all;"></code>
-<div style="display:flex;gap:10px;flex-wrap:wrap;padding-top:12px;border-top:1px solid #c8e6c9;">
-<a id="btn-new-catalog-impex" href="#" class="acc-btn acc-btn--secondary" style="text-decoration:none;">Open IMPEX Folder</a>
-</div>
-</div>
-</div>
 </div>
 
 <!-- STEP 2 -->
@@ -210,7 +201,7 @@ Next steps: 1. Click Open IMPEX Folder. 2. Select the file and run the import jo
             _APP.FETCH_URL           = '${pdict.fetchUrl}';
             _APP.ATTRS_URL           = '${pdict.checkAttrsUrl}';
             _APP.STATUS_URL          = '${pdict.checkStatusUrl}';
-            _APP.IMPEX_URL           = '${pdict.impexFolderUrl}';
+            _APP.IMPEX_PATH          = '${pdict.impexPath}';
             _APP.FETCH_CATALOGS_URL  = '${pdict.fetchCatalogsUrl}';
             _APP.CREATE_CATALOG_URL       = '${pdict.createCatalogUrl}';
             _APP.CREATE_CATEGORY_URL      = '${pdict.createCategoryUrl}';
