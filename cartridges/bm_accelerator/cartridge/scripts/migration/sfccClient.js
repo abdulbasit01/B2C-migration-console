@@ -38,7 +38,7 @@ function metaUrl(path) {
 function getSFCCToken() {
     var s           = getSFCCSettings();
     var credentials = toBase64(s.bmUsername + ':' + s.bmPassword + ':' + s.bmClientId);
-    var body        = 'grant_type=urn%3Ademandware%3Aparams%3Aoauth%3Agrant-type%3Aclient-id%3Adwsid%3Adwsecuretoken&client_id=' + encodeURIComponent(s.bmClientId);
+    var body        = 'grant_type=urn%3Ademandware%3Aparams%3Aoauth%3Agrant-type%3Aclient-id%3Adwsid%3Adwsecuretoken';
 
     var client = new HTTPClient();
     client.setTimeout(30000);
@@ -47,10 +47,11 @@ function getSFCCToken() {
     client.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
     client.send(body);
 
-    var text = client.getText();
-    var data = JSON.parse(text || '{}');
-    if (client.getStatusCode() !== 200 || !data.access_token) {
-        throw new Error('SFCC token failed (' + client.getStatusCode() + '): ' + text);
+    var text = client.text || '';
+    var data;
+    try { data = JSON.parse(text || '{}'); } catch (pe) { data = {}; }
+    if (client.statusCode !== 200 || !data.access_token) {
+        throw new Error('SFCC token failed (' + client.statusCode + ') host=' + s.baseUrl + ' client=' + s.bmClientId + ' user=' + s.bmUsername + ': ' + (text || '(empty)'));
     }
     return data.access_token;
 }

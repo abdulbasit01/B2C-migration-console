@@ -1166,17 +1166,7 @@ exports.CreateSfccCustomerGroups.public = true;
  * GET — no params required.
  */
 exports.GetProductCatalogs = function () {
-    try {
-        var config  = require('*/cartridge/scripts/migration/config');
-        var result  = [];
-        var catId   = config.sfcc && config.sfcc.catalogId;
-        if (catId) {
-            result.push({ id: catId });
-        }
-        jsonResponse({ ok: true, catalogs: result });
-    } catch (e) {
-        jsonResponse({ ok: false, error: e.message || String(e) });
-    }
+    exports.FetchSFCCCatalogs();
 };
 exports.GetProductCatalogs.public = true;
 
@@ -2573,6 +2563,8 @@ function getCategoryMigrationJS() {
     L.push('_APP.pendingOrder = {};');
     L.push('_APP.running = false;');
     L.push('_APP.draggingId = null;');
+    L.push('_APP.newCatCount = 0;');
+    L.push('_APP.addedCats = [];');
     L.push('_APP.activeFilter = "all";');
     L.push('_APP.MIGRATE_URL = "";');
     L.push('_APP.FETCH_URL = "";');
@@ -2619,17 +2611,12 @@ function getCategoryMigrationJS() {
     L.push('};');
 
     L.push('_APP.goToStep=function(n){');
-    L.push('  [1,2,3,4,5].forEach(function(i){');
+    L.push('  [1,2,3].forEach(function(i){');
     L.push('    var p=document.getElementById("panel-step"+i);');
     L.push('    var t=document.getElementById("tab-"+i);');
     L.push('    if(p)p.style.display=(i===n)?"block":"none";');
     L.push('    if(t){t.style.color=(i===n)?"#0070d2":"#54698d";t.style.borderBottom=(i===n)?"3px solid #0070d2":"3px solid transparent";}');
     L.push('  });');
-    L.push('  if(n===5){');
-    L.push('    var cid=_APP.getCatalogId();');
-    L.push('    var disp=document.getElementById("new-cat-catalog-display");');
-    L.push('    if(disp){disp.textContent=cid?"Catalog: "+cid:"Use the catalog selected in the config bar above.";disp.style.color=cid?"#16325c":"#54698d";}');
-    L.push('  }');
     L.push('};');
 
     L.push('_APP.setPhase=function(id,state,detail,pct){');
@@ -2766,8 +2753,8 @@ function getCategoryMigrationJS() {
     L.push('  var s=document.getElementById("hierarchy-changes-summary");');
     L.push('  var b=document.getElementById("btn-save-hierarchy");');
     L.push('  var c=document.getElementById("hierarchy-changes-count");');
-    L.push('  if(total>0){if(s)s.style.display="block";if(b)b.style.display="inline-block";if(c)c.textContent=total;}');
-    L.push('  else{if(s)s.style.display="none";if(b)b.style.display="none";}');
+    L.push('  if(total>0){if(s)s.style.display="block";if(c)c.textContent=total;}');
+    L.push('  else{if(s)s.style.display="none";}');
     L.push('};');
 
     L.push('_APP.renderTable=function(){');
@@ -2889,46 +2876,22 @@ function getCategoryMigrationJS() {
     L.push('  if(box){box.style.display="block";box.style.padding="12px 16px";box.style.borderRadius="4px";box.style.fontSize="13px";box.style.background=success?"#e8f5e9":"#fff3e0";box.style.border=success?"1px solid #2e7d32":"1px solid #ffb300";box.style.color=success?"#2e7d32":"#e65100";box.textContent=message;}');
     L.push('};');
 
-    L.push('_APP.addToHistory=function(catId,catName,parentId,statusText){');
-    L.push('  var histEl=document.getElementById("new-cat-history");');
-    L.push('  var tbody=document.getElementById("new-cat-history-tbody");');
-    L.push('  if(!tbody)return;');
-    L.push('  var Q=String.fromCharCode(34);');
-    L.push('  var color=statusText==="XML written"?"#2e7d32":statusText==="Failed"?"#c62828":"#54698d";');
-    L.push('  var bg=statusText==="XML written"?"#e8f5e9":statusText==="Failed"?"#ffebee":"#f4f6f9";');
-    L.push('  var tdSt="padding:8px 12px;border:1px solid #dddbda;";');
-    L.push('  tbody.innerHTML+="<tr>"');
-    L.push('    +"<td"+a("style",tdSt+"font-family:monospace;font-size:11px;")+">"+catId+"</td>"');
-    L.push('    +"<td"+a("style",tdSt)+">"+catName+"</td>"');
-    L.push('    +"<td"+a("style",tdSt+"font-size:12px;color:#54698d;")+">"+(parentId==="root"?"root (L1)":parentId)+"</td>"');
-    L.push('    +"<td"+a("style",tdSt)+"><span"+a("style","background:"+bg+";color:"+color+";padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;")+">"+statusText+"</span></td>"');
-    L.push('    +"</tr>";');
-    L.push('  if(histEl)histEl.style.display="block";');
+
+    L.push('_APP.populateParentDropdown=function(){');
+    L.push('  var sel=document.getElementById("ct-new-cat-parent");');
+    L.push('  if(!sel)return;');
+    L.push('  var cur=sel.value;');
+    L.push('  sel.innerHTML="<option value=\\"\\">-- Root (no parent) --</option>";');
+    L.push('  var cats=_APP.allCategories||[];');
+    L.push('  for(var i=0;i<cats.length;i++){');
+    L.push('    var opt=document.createElement("option");');
+    L.push('    opt.value=cats[i].id;');
+    L.push('    opt.textContent=cats[i].name+" ("+cats[i].id+")";');
+    L.push('    sel.appendChild(opt);');
+    L.push('  }');
+    L.push('  sel.value=cur;');
     L.push('};');
 
-    L.push('_APP.renderParentPickerList=function(query){');
-    L.push('  var list=document.getElementById("parent-picker-list");');
-    L.push('  if(!list)return;');
-    L.push('  var Q=String.fromCharCode(34);');
-    L.push('  if(!_APP.allCategories.length){list.innerHTML="<div style="+Q+"padding:16px;color:#54698d;text-align:center;"+Q+">Load categories from CT first (Step 2).</div>";return;}');
-    L.push('  var sorted=_APP.buildSortedRows();var html="";');
-    L.push('  sorted.forEach(function(row){');
-    L.push('    if(query&&row.id.toLowerCase().indexOf(query)===-1&&row.name.toLowerCase().indexOf(query)===-1)return;');
-    L.push('    var lvlColor=_APP.getLevelColor(row.depth);var lvlLabel="L"+(row.depth+1);');
-    L.push('    html+="<div onclick="+Q+"pickParent(\'"+row.id+"\');"+Q+" style="+Q+"padding:8px 12px;cursor:pointer;border-bottom:1px solid #f0f0f0;display:flex;align-items:center;gap:10px;"+Q+" onmouseover="+Q+"this.style.background=\'#f4f6f9\';"+Q+" onmouseout="+Q+"this.style.background=\'\';"+Q+">"');
-    L.push('      +"<span"+a("style","display:inline-block;padding:1px 6px;border-radius:8px;font-size:10px;font-weight:700;color:#fff;background:"+lvlColor+";")+">"+lvlLabel+"</span>"');
-    L.push('      +"<span"+a("style","font-size:12px;font-family:monospace;color:#54698d;")+">"+row.id+"</span>"');
-    L.push('      +"<span"+a("style","font-size:13px;font-weight:600;color:#16325c;")+">"+_APP.toCamelCase(row.name)+"</span>"');
-    L.push('      +"</div>";');
-    L.push('  });');
-    L.push('  if(!html)html="<div style="+Q+"padding:16px;color:#54698d;text-align:center;"+Q+">No categories found.</div>";');
-    L.push('  list.innerHTML=html;');
-    L.push('};');
-
-    L.push('window.pickParent=function(catId){');
-    L.push('  var inp=document.getElementById("new-cat-parent");if(inp)inp.value=catId;');
-    L.push('  var modal=document.getElementById("parent-picker-modal");if(modal)modal.style.display="none";');
-    L.push('};');
 
     // ── _APP.init ─────────────────────────────────────────────────────────────
     L.push('_APP.init=function(){');
@@ -2944,8 +2907,8 @@ function getCategoryMigrationJS() {
     L.push('      btn.disabled=false;btn.textContent="Load Catalogs";');
     L.push('      if(!data.ok){if(status){status.textContent="Error: "+(data.error||"failed");status.style.color="#c62828";}return;}');
     L.push('      var Q=String.fromCharCode(34);');
-    L.push('      if(sel){sel.innerHTML="<option value="+Q+Q+">-- Select a catalog --</option>";(data.catalogs||[]).forEach(function(c){sel.innerHTML+="<option value="+Q+c.id+Q+">"+c.name+" ("+c.id+")</option>";});}');
-    L.push('      if(status){status.textContent=data.total+" catalogs loaded";status.style.color="#2e7d32";}');
+    L.push('      if(sel){sel.innerHTML="<option value="+Q+Q+">-- Select a catalog --</option>";(data.catalogs||[]).forEach(function(c){sel.innerHTML+="<option value="+Q+c.id+Q+">"+(c.name||c.id)+" ("+c.id+")</option>";});}');
+    L.push('      if(status){status.textContent=(data.total||(data.catalogs||[]).length)+" catalogs loaded";status.style.color="#2e7d32";}');
     L.push('    });');
     L.push('  });');
 
@@ -3087,7 +3050,6 @@ L.push('      var msg="Done - "+data.created+" created, "+data.skipped+" skipped
     L.push('    if(appCnt)appCnt.textContent=total;');
     L.push('    if(applied)applied.style.display="block";');
     L.push('    document.getElementById("hierarchy-changes-summary").style.display="none";');
-    L.push('    document.getElementById("btn-save-hierarchy").style.display="none";');
     L.push('  });');
 
     L.push('  el=document.getElementById("btn-reset-hierarchy");');
@@ -3098,7 +3060,6 @@ L.push('      var msg="Done - "+data.created+" created, "+data.skipped+" skipped
     L.push('    var saveBtn=document.getElementById("btn-save-hierarchy");');
     L.push('    if(applied)applied.style.display="none";');
     L.push('    if(summary)summary.style.display="none";');
-    L.push('    if(saveBtn)saveBtn.style.display="none";');
     L.push('    _APP.renderTable();');
     L.push('  });');
 
@@ -3119,12 +3080,36 @@ L.push('      var msg="Done - "+data.created+" created, "+data.skipped+" skipped
     L.push('      btn.disabled=false;btn.textContent="Load Categories from CT";');
     L.push('      if(!data.ok){if(status){status.textContent="Error: "+(data.error||"failed");status.style.color="#c62828";}return;}');
     L.push('      _APP.allCategories=data.categories;_APP.catMap={};');
-    L.push('      _APP.hierarchyOverrides={};_APP.orderOverrides={};_APP.pendingParent={};_APP.pendingOrder={};_APP.activeFilter="all";');
+    L.push('      _APP.hierarchyOverrides={};_APP.orderOverrides={};_APP.pendingParent={};_APP.pendingOrder={};_APP.activeFilter="all";_APP.newCatCount=0;_APP.addedCats=[];');
     L.push('      _APP.allCategories.forEach(function(c){_APP.catMap[c.id]=c;});');
+    L.push('      _APP.populateParentDropdown();');
     L.push('      if(status){status.textContent=data.total+" categories loaded";status.style.color="#2e7d32";}');
     L.push('      var applied=document.getElementById("hierarchy-applied-summary");if(applied)applied.style.display="none";');
     L.push('      _APP.renderTable();');
     L.push('    });');
+    L.push('  });');
+
+    L.push('  el=document.getElementById("btn-create-ct-category");');
+    L.push('  if(el)el.addEventListener("click",function(){');
+    L.push('    var key=document.getElementById("ct-new-cat-key").value.trim();');
+    L.push('    var name=document.getElementById("ct-new-cat-name").value.trim();');
+    L.push('    var parentId=document.getElementById("ct-new-cat-parent").value.trim();');
+    L.push('    var status=document.getElementById("ct-new-cat-status");');
+    L.push('    if(!key||!name){if(status){status.textContent="Key and Name are required.";status.style.color="#c62828";}return;}');
+    L.push('    if(_APP.catMap&&_APP.catMap[key]){if(status){status.textContent="A category with this key already exists.";status.style.color="#c62828";}return;}');
+    L.push('    if(!_APP.allCategories)_APP.allCategories=[];');
+    L.push('    if(!_APP.catMap)_APP.catMap={};');
+    L.push('    var newCat={id:key,name:name,parentId:parentId||""};');
+    L.push('    _APP.allCategories.push(newCat);');
+    L.push('    _APP.catMap[key]=newCat;');
+    L.push('    _APP.addedCats.push(newCat);');
+    L.push('    _APP.newCatCount++;');
+    L.push('    _APP.renderTable();');
+    L.push('    _APP.populateParentDropdown();');
+    L.push('    if(status){status.textContent="Added: "+key;status.style.color="#2e7d32";}');
+    L.push('    document.getElementById("ct-new-cat-key").value="";');
+    L.push('    document.getElementById("ct-new-cat-name").value="";');
+    L.push('    document.getElementById("ct-new-cat-parent").value="";');
     L.push('  });');
 
     L.push('  el=document.getElementById("btn-back-to-step1");if(el)el.addEventListener("click",function(){_APP.goToStep(1);});');
@@ -3136,7 +3121,8 @@ L.push('      var msg="Done - "+data.created+" created, "+data.skipped+" skipped
     L.push('    if(pc>0&&!confirm(pc+" unsaved change(s) will be discarded. Proceed?"))return;');
     L.push('    _APP.pendingParent={};_APP.pendingOrder={};');
     L.push('    var s=document.getElementById("step3-summary");');
-    L.push('    if(s)s.textContent="Step 3 of 3 - Export. Categories: "+_APP.allCategories.length+" | Parent changes: "+Object.keys(_APP.hierarchyOverrides).length+" | Order changes: "+Object.keys(_APP.orderOverrides).length+" | Catalog: "+(_APP.getCatalogId()||"not set");');
+    L.push('    var newCatPart=_APP.newCatCount>0?" | New categories: "+_APP.newCatCount:"";');
+    L.push('    if(s)s.textContent="Step 3 of 3 - Export. Categories: "+_APP.allCategories.length+" | Parent changes: "+Object.keys(_APP.hierarchyOverrides).length+" | Order changes: "+Object.keys(_APP.orderOverrides).length+newCatPart+" | Catalog: "+(_APP.getCatalogId()||"not set");');
     L.push('    _APP.goToStep(3);');
     L.push('  });');
 
@@ -3160,7 +3146,8 @@ L.push('      var msg="Done - "+data.created+" created, "+data.skipped+" skipped
     L.push('    var fo={};');
     L.push('    Object.keys(_APP.hierarchyOverrides).forEach(function(k){fo[k]={parent:_APP.hierarchyOverrides[k]};});');
     L.push('    Object.keys(_APP.orderOverrides).forEach(function(k){if(!fo[k])fo[k]={};fo[k].position=_APP.orderOverrides[k];});');
-    L.push('    _APP.post(_APP.MIGRATE_URL,"catalogId="+encodeURIComponent(catalogId)+"&locale="+encodeURIComponent(locale)+"&mode=xml&overrides="+encodeURIComponent(JSON.stringify(fo)),function(data){');
+    L.push('    var extra=(_APP.addedCats&&_APP.addedCats.length)?encodeURIComponent(JSON.stringify(_APP.addedCats)):"";');
+    L.push('    _APP.post(_APP.MIGRATE_URL,"catalogId="+encodeURIComponent(catalogId)+"&locale="+encodeURIComponent(locale)+"&mode=xml&overrides="+encodeURIComponent(JSON.stringify(fo))+"&extraCategories="+extra,function(data){');
     L.push('      if(!data.ok){_APP.setPhase("fetch","error",data.error||"Failed",0);_APP.finalize(false,data.error||"Migration failed.");return;}');
     L.push('      _APP.setPhase("fetch","done",data.total+" categories fetched and transformed",100);');
     L.push('      _APP.setPhase("import","active","Writing XML to IMPEX...",50);');
@@ -3171,7 +3158,7 @@ L.push('      var msg="Done - "+data.created+" created, "+data.skipped+" skipped
     L.push('    });');
     L.push('  });');
 
-    // Step 4 - New Catalog
+    // Generate catalog XML via IMPEX
     L.push('  el=document.getElementById("btn-create-catalog");');
     L.push('  if(el)el.addEventListener("click",function(){');
     L.push('    var btn=this;');
@@ -3189,7 +3176,7 @@ L.push('      var msg="Done - "+data.created+" created, "+data.skipped+" skipped
     L.push('    btn.disabled=true;btn.textContent="Generating...";');
     L.push('    if(status){status.textContent="Writing catalog XML...";status.style.color="#54698d";}');
     L.push('    _APP.post(_APP.CREATE_CATALOG_URL,"catalogId="+encodeURIComponent(catId)+"&catalogName="+encodeURIComponent(catName),function(data){');
-    L.push('      btn.disabled=false;btn.textContent="Generate Catalog XML";');
+    L.push('      btn.disabled=false;btn.textContent="Generate XML (IMPEX)";');
     L.push('      if(!data.ok){if(status){status.textContent="Error: "+(data.error||"failed");status.style.color="#c62828";}return;}');
     L.push('      if(status){status.textContent="Done";status.style.color="#2e7d32";}');
     L.push('      var xp=document.getElementById("new-catalog-xml-path");if(xp)xp.textContent=data.xmlPath||"";');
@@ -3198,56 +3185,10 @@ L.push('      var msg="Done - "+data.created+" created, "+data.skipped+" skipped
     L.push('  });');
 
     L.push('  el=document.getElementById("btn-new-catalog-impex");if(el)el.addEventListener("click",function(e){e.preventDefault();_APP.openInNewTab(_APP.IMPEX_URL);});');
-    L.push('  el=document.getElementById("btn-new-catalog-import");if(el)el.addEventListener("click",function(e){e.preventDefault();_APP.openInNewTab(_APP.IMPORT_URL);});');
-
-    // Step 5 - New Category
-    L.push('  el=document.getElementById("btn-pick-parent");');
-    L.push('  if(el)el.addEventListener("click",function(){var modal=document.getElementById("parent-picker-modal");if(modal)modal.style.display="block";_APP.renderParentPickerList("");});');
-
-    L.push('  el=document.getElementById("parent-picker-search");');
-    L.push('  if(el)el.addEventListener("input",function(){_APP.renderParentPickerList(this.value.toLowerCase());});');
-
-    L.push('  el=document.getElementById("btn-close-picker");');
-    L.push('  if(el)el.addEventListener("click",function(){var m=document.getElementById("parent-picker-modal");if(m)m.style.display="none";});');
-
-    L.push('  el=document.getElementById("btn-create-category");');
-    L.push('  if(el)el.addEventListener("click",function(){');
-    L.push('    var btn=this;');
-    L.push('    var catId=document.getElementById("new-cat-id").value.trim();');
-    L.push('    var catName=document.getElementById("new-cat-name").value.trim();');
-    L.push('    var parentId=document.getElementById("new-cat-parent").value.trim()||"root";');
-    L.push('    var catalogId=_APP.getCatalogId();');
-    L.push('    var idErr=document.getElementById("new-cat-id-error");');
-    L.push('    var nameErr=document.getElementById("new-cat-name-error");');
-    L.push('    var status=document.getElementById("new-cat-status");');
-    L.push('    var result=document.getElementById("new-cat-result");');
-    L.push('    if(idErr)idErr.style.display="none";');
-    L.push('    if(nameErr)nameErr.style.display="none";');
-    L.push('    if(result)result.style.display="none";');
-    L.push('    if(!catId){if(idErr)idErr.style.display="block";return;}');
-    L.push('    if(!catName){if(nameErr)nameErr.style.display="block";return;}');
-    L.push('    if(!catalogId){alert("Please select or enter a Target Catalog ID in the config bar above.");return;}');
-    L.push('    btn.disabled=true;btn.textContent="Generating...";');
-    L.push('    if(status){status.textContent="Writing category XML...";status.style.color="#54698d";}');
-    L.push('    _APP.post(_APP.CREATE_CATEGORY_URL,"catalogId="+encodeURIComponent(catalogId)+"&categoryId="+encodeURIComponent(catId)+"&categoryName="+encodeURIComponent(catName)+"&parentId="+encodeURIComponent(parentId),function(data){');
-    L.push('      btn.disabled=false;btn.textContent="Generate Category XML";');
-    L.push('      if(result){result.style.display="block";result.style.padding="14px 16px";result.style.borderRadius="4px";}');
-    L.push('      if(!data.ok){');
-    L.push('        if(status)status.textContent="";');
-    L.push('        if(result){result.style.background="#ffebee";result.style.border="1px solid #c62828";result.style.color="#c62828";result.textContent="Error: "+(data.error||"Failed.");}');
-    L.push('        _APP.addToHistory(catId,catName,parentId,"Failed");return;');
-    L.push('      }');
-    L.push('      if(status)status.textContent="";');
-    L.push('      if(result){result.style.background="#e8f5e9";result.style.border="1px solid #2e7d32";result.style.color="#2e7d32";result.textContent=data.message||"XML written to IMPEX. Import via Administration - Site Development - Import and Export.";}');
-    L.push('      _APP.addToHistory(catId,catName,parentId,"XML written");');
-    L.push('      document.getElementById("new-cat-id").value="";');
-    L.push('      document.getElementById("new-cat-name").value="";');
-    L.push('      document.getElementById("new-cat-parent").value="";');
-    L.push('    });');
-    L.push('  });');
+    L.push('  el=document.getElementById("btn-open-bm-catalog");if(el)el.addEventListener("click",function(e){e.preventDefault();window.open("https://"+window.location.host+"/on/demandware.store/Sites-Site/default/ViewCatalogList_52-List");});');
 
     // Tab navigation
-    L.push('  [1,2,3,4,5].forEach(function(i){var tab=document.getElementById("tab-"+i);if(tab)tab.addEventListener("click",function(){_APP.goToStep(i);});});');
+    L.push('  [1,2,3].forEach(function(i){var tab=document.getElementById("tab-"+i);if(tab)tab.addEventListener("click",function(){_APP.goToStep(i);});});');
 
     // Pre-check on load
     L.push('  _APP.post(_APP.STATUS_URL,"",function(data){');
@@ -3305,9 +3246,13 @@ exports.CategoryMigration = function () {
         migrateUrl     : migrateUrl,
         impexFolderUrl : impexFolderUrl,
         importPageUrl  : importPageUrl,
-         fetchCatalogsUrl : URLUtils.url('Accelerator-FetchSFCCCatalogs').toString(),
-        createCatalogUrl : URLUtils.url('Accelerator-CreateCatalog').toString(),
-        createCategoryUrl: URLUtils.url('Accelerator-CreateCategory').toString(),
+        fetchCatalogsUrl      : URLUtils.url('Accelerator-FetchSFCCCatalogs').toString(),
+        createCatalogUrl      : URLUtils.url('Accelerator-CreateCatalog').toString(),
+        createCategoryUrl     : URLUtils.url('Accelerator-CreateCategory').toString(),
+        bmClientId            : (cfg.sfcc && cfg.sfcc.bmClientId)  ? cfg.sfcc.bmClientId  : '',
+        metaVersion           : (cfg.sfcc && cfg.sfcc.metaVersion) ? cfg.sfcc.metaVersion : 'v20_10',
+        importUrl             : importPageUrl,
+        createCtCategoryUrl   : URLUtils.url('Accelerator-CreateCTCategory').toString(),
         jsUrl: URLUtils.url('Accelerator-CategoryMigrationJS').toString()
     }));
 };
@@ -3434,48 +3379,58 @@ exports.CreateCategoryAttributes = function () {
 };
 exports.CreateCategoryAttributes.public = true;
 
-// Fetch all storefront catalogs from SFCC
+// Fetch all available SFCC catalogs using native CatalogMgr (no credentials needed)
 exports.FetchSFCCCatalogs = function () {
-    var result = [];
-    var seen   = {};
     try {
-        var CatalogMgr = require('dw/catalog/CatalogMgr');
-        var Site       = require('dw/system/Site');
+        var HTTPClient  = require('dw/net/HTTPClient');
+        var sfccClient  = require('*/cartridge/scripts/migration/sfccClient');
+        var cfg         = require('*/cartridge/scripts/migration/configAccessor');
+        var base        = 'https://' + request.httpHost;
+        var version     = (cfg.sfcc && cfg.sfcc.version) ? cfg.sfcc.version : 'v20_10';
+        var clientId    = (cfg.sfcc && cfg.sfcc.bmClientId) ? cfg.sfcc.bmClientId : 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 
-        var sites = Site.getAllSites();
-        var it    = sites.iterator();
+        var token = sfccClient.getSFCCToken();
+        var url   = base + '/s/-/dw/data/' + version + '/catalogs?client_id=' + encodeURIComponent(clientId) + '&count=200';
 
-        while (it.hasNext()) {
-            var site = it.next();
-            try {
-                var prefs     = site.getPreferences();
-                var catId     = prefs ? prefs.getCustom()['storefront-catalog'] : null;
-                if (!catId) {
-                    // try common preference names
-                    try { catId = site.getCustomPreferenceValue('siteStorefrontCatalogID'); } catch(e1) {}
+        var client = new HTTPClient();
+        client.setTimeout(20000);
+        client.open('GET', url);
+        client.setRequestHeader('Authorization', 'Bearer ' + token);
+        client.setRequestHeader('Content-Type', 'application/json');
+        client.send('');
+
+        var text = client.text || '';
+        var data;
+        try { data = JSON.parse(text); } catch (pe) { data = {}; }
+
+        if (client.statusCode !== 200 || !data.data) {
+            // Fallback to CatalogMgr if OCAPI fails
+            var CatalogMgr = require('dw/catalog/CatalogMgr');
+            var Site       = require('dw/system/Site');
+            var result     = [];
+            var seen       = {};
+            function addCat(cat) {
+                if (cat && !seen[cat.ID]) {
+                    seen[cat.ID] = true;
+                    result.push({ id: cat.ID, name: cat.displayName ? cat.displayName.toString() : cat.ID });
                 }
-                if (catId && !seen[catId]) {
-                    var cat = CatalogMgr.getCatalog(catId);
-                    if (cat) {
-                        seen[catId] = true;
-                        result.push({ id: cat.ID, name: (cat.displayName ? cat.displayName.toString() : cat.ID) + ' (' + site.getID() + ')' });
-                    }
-                }
-            } catch (siteErr) {}
+            }
+            addCat(CatalogMgr.getSiteCatalog());
+            var sites = Site.getAllSites();
+            var sit = sites.iterator();
+            while (sit.hasNext()) { try { addCat(sit.next().getCatalog()); } catch (se) {} }
+            jsonResponse({ ok: true, catalogs: result, total: result.length });
+            return;
         }
 
-        // Always include current site catalog as fallback
-        var currentCat = CatalogMgr.getSiteCatalog();
-        if (currentCat && !seen[currentCat.ID]) {
-            seen[currentCat.ID] = true;
-            result.push({ id: currentCat.ID, name: currentCat.displayName ? currentCat.displayName.toString() : currentCat.ID });
-        }
+        var catalogs = data.data.map(function (c) {
+            var name = (c.name && (c.name['default'] || c.name['x-default'])) || c.id;
+            return { id: c.id, name: name };
+        });
 
-        response.setContentType('application/json');
-        response.writer.print(JSON.stringify({ ok: true, catalogs: result, total: result.length }));
+        jsonResponse({ ok: true, catalogs: catalogs, total: catalogs.length });
     } catch (e) {
-        response.setContentType('application/json');
-        response.writer.print(JSON.stringify({ ok: false, error: e.message }));
+        jsonResponse({ ok: false, error: e.message || String(e) });
     }
 };
 exports.FetchSFCCCatalogs.public = true;
@@ -3515,8 +3470,13 @@ exports.CreateCatalog = function () {
             + '    </category>\n'
             + '</catalog>';
 
+        var migPaths = require('*/cartridge/scripts/migration/core/migrationPaths');
+        var relPath  = migPaths.getRelativePath('catalog');
+        var dir      = new File(File.IMPEX + File.SEPARATOR + relPath.replace(/\//g, File.SEPARATOR));
+        if (!dir.exists()) { dir.mkdirs(); }
+
         var fileName = 'new-catalog-' + catalogId + '.xml';
-        var filePath = File.IMPEX + '/src/catalog/' + fileName;
+        var filePath = File.IMPEX + File.SEPARATOR + relPath.replace(/\//g, File.SEPARATOR) + File.SEPARATOR + fileName;
         var file     = new File(filePath);
         var writer   = new FileWriter(file, 'UTF-8');
         writer.write(xml);
@@ -3525,7 +3485,7 @@ exports.CreateCatalog = function () {
         response.setContentType('application/json');
         response.writer.print(JSON.stringify({
             ok     : true,
-            xmlPath: 'IMPEX/src/catalog/' + fileName
+            xmlPath: 'IMPEX/' + relPath + '/' + fileName
         }));
     } catch (e) {
         response.setContentType('application/json');
@@ -3533,6 +3493,120 @@ exports.CreateCatalog = function () {
     }
 };
 exports.CreateCatalog.public = true;
+
+// Create a new SFCC catalog directly via OCAPI
+exports.CreateCatalogOCAPI = function () {
+    var catalogId   = getParam('catalogId');
+    var catalogName = getParam('catalogName');
+
+    if (!catalogId || !catalogName) {
+        jsonResponse({ ok: false, error: 'catalogId and catalogName are required' });
+        return;
+    }
+
+    try {
+        var cfg        = require('*/cartridge/scripts/migration/configAccessor');
+        var creds      = require('*/cartridge/scripts/migration/sfccCredentialsAccessor');
+        var HTTPClient = require('dw/net/HTTPClient');
+        var Encoding   = require('dw/crypto/Encoding');
+        var Bytes      = require('dw/util/Bytes');
+
+        var metaVersion = (cfg.sfcc && cfg.sfcc.metaVersion) ? cfg.sfcc.metaVersion : 'v20_10';
+        var bmClientId  = (cfg.sfcc && cfg.sfcc.bmClientId)  ? cfg.sfcc.bmClientId  : '';
+        var baseUrl     = 'https://' + request.httpHost;
+        var base        = baseUrl + '/s/-/dw/data/' + metaVersion;
+        var qs          = '?client_id=' + encodeURIComponent(bmClientId);
+
+        // Forward BM session cookies so the grant gets write scope
+        var dwsid         = session.sessionID || '';
+        var dwsecuretoken = '';
+        var stCookie      = request.httpCookies['dwsecuretoken'];
+        if (stCookie) { dwsecuretoken = stCookie.value; }
+
+        // Obtain BM User Grant token
+        var credentials = Encoding.toBase64(new Bytes(creds.bmUsername + ':' + creds.bmPassword + ':' + bmClientId, 'UTF-8'));
+        var tokenClient = new HTTPClient();
+        tokenClient.setTimeout(30000);
+        tokenClient.open('POST', baseUrl + '/dw/oauth2/access_token?client_id=' + encodeURIComponent(bmClientId));
+        tokenClient.setRequestHeader('Authorization', 'Basic ' + credentials);
+        tokenClient.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+        if (dwsid) {
+            tokenClient.setRequestHeader('Cookie', 'dwsid=' + dwsid + (dwsecuretoken ? '; dwsecuretoken=' + dwsecuretoken : ''));
+        }
+        tokenClient.send('grant_type=urn%3Ademandware%3Aparams%3Aoauth%3Agrant-type%3Aclient-id%3Adwsid%3Adwsecuretoken');
+
+        var tokenText = tokenClient.text || '';
+        var tokenData;
+        try { tokenData = JSON.parse(tokenText); } catch (te) { tokenData = {}; }
+        if (tokenClient.statusCode !== 200 || !tokenData.access_token) {
+            jsonResponse({ ok: false, error: 'Token failed (' + tokenClient.statusCode + '): ' + tokenText.substring(0, 300) });
+            return;
+        }
+        var sessionToken  = tokenData.access_token;
+
+        // Also get the same token used by GetProductCatalogs (no session cookies) for comparison
+        var sfccClient   = require('*/cartridge/scripts/migration/sfccClient');
+        var readToken    = '';
+        try { readToken = sfccClient.getSFCCToken(); } catch (te) { readToken = ''; }
+
+        var payload    = JSON.stringify({ id: catalogId, name: { 'default': catalogName } });
+        var catalogUrl = base + '/catalogs/' + encodeURIComponent(catalogId) + qs;
+
+        function ocapiCall(method, url, body, tkn) {
+            var c = new HTTPClient();
+            c.setTimeout(20000);
+            c.open(method, url);
+            c.setRequestHeader('Authorization', 'Bearer ' + tkn);
+            c.setRequestHeader('Content-Type', 'application/json');
+            c.setRequestHeader('Accept', 'application/json');
+            c.send(body || '');
+            return { sc: c.statusCode, body: c.text || '' };
+        }
+
+        function faultMsg(body) {
+            try {
+                var d = JSON.parse(body);
+                return (d.fault && d.fault.message) ? d.fault.message : (body.substring(0, 300) || '(empty)');
+            } catch (fe) { return body.substring(0, 300) || '(empty)'; }
+        }
+
+        // Test GET /catalogs/{id} with read token (same as GetProductCatalogs) to confirm routing
+        var diagRead = readToken ? ocapiCall('GET', catalogUrl, '', readToken) : { sc: 0, body: 'no-read-token' };
+
+        // 1. POST /catalogs with session token
+        var r1 = ocapiCall('POST', base + '/catalogs' + qs, payload, sessionToken);
+        if (r1.sc === 200 || r1.sc === 201) {
+            jsonResponse({ ok: true, id: catalogId, name: catalogName, method: 'POST-session' });
+            return;
+        }
+
+        // 2. PUT /catalogs/{id} with session token
+        var r2 = ocapiCall('PUT', catalogUrl, payload, sessionToken);
+        if (r2.sc === 200 || r2.sc === 201) {
+            jsonResponse({ ok: true, id: catalogId, name: catalogName, method: 'PUT-session' });
+            return;
+        }
+
+        // 3. PUT /catalogs/{id} with read token (same as GetProductCatalogs)
+        var r3 = readToken ? ocapiCall('PUT', catalogUrl, payload, readToken) : { sc: 0, body: 'no-read-token' };
+        if (r3.sc === 200 || r3.sc === 201) {
+            jsonResponse({ ok: true, id: catalogId, name: catalogName, method: 'PUT-readtoken' });
+            return;
+        }
+
+        jsonResponse({
+            ok   : false,
+            error: 'GET-diag(readToken) ' + diagRead.sc + ': ' + faultMsg(diagRead.body) +
+                   ' | POST(sessionToken) ' + r1.sc + ': ' + faultMsg(r1.body) +
+                   ' | PUT(sessionToken) ' + r2.sc + ': ' + faultMsg(r2.body) +
+                   ' | PUT(readToken) ' + r3.sc + ': ' + faultMsg(r3.body)
+        });
+
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.CreateCatalogOCAPI.public = true;
 
 // Create new category in SFCC via CatalogMgr
 exports.CreateCategory = function () {
@@ -3588,6 +3662,7 @@ exports.FetchCTCategories = function () {
     var fetchCT   = require('~/cartridge/scripts/catalog/fetchCTCategories');
     var transform = require('~/cartridge/scripts/catalog/transformCategories');
     var cfg       = require('*/cartridge/scripts/migration/configAccessor');
+    var Logger    = require('dw/system/Logger');
 
     response.setContentType('application/json');
 
@@ -3621,6 +3696,77 @@ exports.FetchCTCategories = function () {
 exports.FetchCTCategories.public = true;
 
 /**
+ * Create a new category in CommerceTools.
+ * POST — params: key, name, parentId (optional)
+ */
+exports.CreateCTCategory = function () {
+    var fetchCT = require('~/cartridge/scripts/catalog/fetchCTCategories');
+    var cfg     = require('*/cartridge/scripts/migration/configAccessor');
+    var Logger  = require('dw/system/Logger');
+
+    response.setContentType('application/json');
+
+    var key      = request.httpParameterMap.key.stringValue      || '';
+    var name     = request.httpParameterMap.name.stringValue     || '';
+    var parentId = request.httpParameterMap.parentId.stringValue || '';
+
+    if (!key || !name) {
+        response.writer.print(JSON.stringify({ ok: false, error: 'key and name are required' }));
+        return;
+    }
+
+    try {
+        var token = fetchCT.getCTAuthToken();
+        if (!token) {
+            response.writer.print(JSON.stringify({ ok: false, error: 'CT auth failed' }));
+            return;
+        }
+
+        var c      = cfg.ctp;
+        var apiUrl = c.apiUrl + '/' + c.projectKey + '/categories';
+        var slug   = key.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+
+        var body = {
+            key  : key,
+            name : { 'en-US': name },
+            slug : { 'en-US': slug }
+        };
+        if (parentId) {
+            body.parent = { id: parentId, typeId: 'category' };
+        }
+
+        var HTTPClient = require('dw/net/HTTPClient');
+        var client = new HTTPClient();
+        client.setTimeout(15000);
+        client.open('POST', apiUrl);
+        client.setRequestHeader('Authorization', 'Bearer ' + token);
+        client.setRequestHeader('Content-Type', 'application/json');
+        client.send(JSON.stringify(body));
+
+        var sc   = client.statusCode;
+        var text = client.text || '';
+        var data;
+        try { data = JSON.parse(text); } catch (pe) { data = {}; }
+
+        if (sc === 200 || sc === 201) {
+            response.writer.print(JSON.stringify({
+                ok      : true,
+                id      : data.key || key,
+                name    : name,
+                parentId: parentId || ''
+            }));
+        } else {
+            var errMsg = (data.message || (data.errors && data.errors[0] && data.errors[0].message)) || ('HTTP ' + sc);
+            response.writer.print(JSON.stringify({ ok: false, error: errMsg }));
+        }
+    } catch (e) {
+        Logger.error('CreateCTCategory error: {0}', e.message);
+        response.writer.print(JSON.stringify({ ok: false, error: e.message }));
+    }
+};
+exports.CreateCTCategory.public = true;
+
+/**
  * Run category migration — stub endpoint for future implementation.
  * POST — no params required.
  */
@@ -3644,6 +3790,10 @@ exports.RunCategoryMigration = function () {
     var overrides    = {};
     try { overrides = JSON.parse(overridesRaw); } catch (e) { overrides = {}; }
 
+    var extraRaw    = request.httpParameterMap.extraCategories.stringValue || '[]';
+    var extraCats   = [];
+    try { extraCats = JSON.parse(extraRaw); } catch (e) { extraCats = []; }
+
     try {
         var token = fetchCT.getCTAuthToken();
         if (!token) {
@@ -3659,7 +3809,24 @@ exports.RunCategoryMigration = function () {
 
         var sfccCategories = transform.transformAll(ctCategories, locale);
 
-        // Apply overrides
+        // Append locally-added categories (for the selected catalog only, not saved to CT)
+        for (var ei = 0; ei < extraCats.length; ei++) {
+            var ec = extraCats[ei];
+            if (!ec || !ec.id) continue;
+            sfccCategories.push({
+                id              : ec.id,
+                parentId        : ec.parentId || 'root',
+                name            : { 'x-default': ec.name || ec.id },
+                description     : {},
+                pageTitle       : {},
+                pageDescription : {},
+                position        : sfccCategories.length + 1,
+                online          : true,
+                customAttributes: {}
+            });
+        }
+
+        // Apply overrides to all categories (CT + new) so parent changes work for both
         sfccCategories.forEach(function (cat) {
             var ov = overrides[cat.id];
             if (!ov) return;
