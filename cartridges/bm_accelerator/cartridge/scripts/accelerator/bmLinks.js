@@ -26,6 +26,18 @@ function getImpexFolderUrl(impexRelativePath) {
     return url.toString();
 }
 
+/**
+ * Business Manager "Import & Export" screen (Administration > Site Development > Import & Export).
+ * @returns {string}
+ */
+function getImportExportUrl() {
+    var url = withCsrf(URLUtils.https('ViewCustomizationImpex-Start'));
+    url.append('SelectedMenuItem', 'customization_impex');
+    url.append('CurrentMenuItemId', 'studio');
+    return url.toString();
+}
+
 module.exports = {
-    getImpexFolderUrl: getImpexFolderUrl
+    getImpexFolderUrl:  getImpexFolderUrl,
+    getImportExportUrl: getImportExportUrl
 };
