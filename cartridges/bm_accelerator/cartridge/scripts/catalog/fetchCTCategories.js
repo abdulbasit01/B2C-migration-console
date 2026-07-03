@@ -136,7 +136,44 @@ function fetchAllCategories(token) {
     return allCategories;
 }
 
+/**
+ * Fetch a single page of CT categories and return with idToKey map for parent resolution.
+ */
+function fetchCategoriesPage(token, limit, offset) {
+    var c   = cfg.ctp;
+    limit   = limit  || 500;
+    offset  = offset || 0;
+
+    var url = c.apiUrl + '/' + c.projectKey
+        + '/categories?limit=' + limit
+        + '&offset=' + offset
+        + '&withTotal=true';
+
+    var client = new dw.net.HTTPClient();
+    client.open('GET', url);
+    client.setRequestHeader('Authorization', 'Bearer ' + token);
+    client.setRequestHeader('Content-Type', 'application/json');
+    client.setTimeout(30000);
+    client.send();
+
+    if (client.statusCode !== 200) {
+        throw new Error('CT fetch failed: ' + client.statusCode + ' ' + client.text);
+    }
+
+    var data    = JSON.parse(client.text);
+    var results = data.results || [];
+
+    // Build idToKey map from this page for parent resolution
+    var idToKey = {};
+    results.forEach(function (cat) {
+        if (cat.key) { idToKey[cat.id] = cat.key; }
+    });
+
+    return { results: results, total: data.total || 0, idToKey: idToKey };
+}
+
 module.exports = {
-    getCTAuthToken    : getCTAuthToken,
-    fetchAllCategories: fetchAllCategories
+    getCTAuthToken     : getCTAuthToken,
+    fetchAllCategories : fetchAllCategories,
+    fetchCategoriesPage: fetchCategoriesPage
 };

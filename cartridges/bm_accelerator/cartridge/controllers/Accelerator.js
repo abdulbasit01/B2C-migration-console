@@ -2592,14 +2592,37 @@ function getCategoryMigrationJS() {
     L.push('  a.href=url;a.target="_blank";');
     L.push('  document.body.appendChild(a);a.click();document.body.removeChild(a);');
     L.push('};');
+    L.push('_APP.getImpexFolderUrl=function(){');
+    L.push('  var base=window.location.href.split("?")[0].replace(/\\/[^\\/]+$/,"/");');
+    L.push('  return base+"ViewStudioSetup-OpenFolder?TargetFolder="+encodeURIComponent("Sites/Impex/"+(_APP.IMPEX_PATH||"src/migration/catalog"));');
+    L.push('};');
 
     L.push('_APP.toCamelCase=function(str){');
     L.push('  if(!str)return"";');
     L.push('  return str.replace(/[-_]+/g," ").replace(/([a-z])([A-Z])/g,"$1 $2").replace(/\\b\\w/g,function(c){return c.toUpperCase();});');
     L.push('};');
 
+    L.push('_APP.catalogMode="existing";');
+    L.push('_APP.newCatalogId="";');
+    L.push('_APP.setCatalogMode=function(mode){');
+    L.push('  _APP.catalogMode=mode;');
+    L.push('  var ep=document.getElementById("cat-panel-existing");');
+    L.push('  var np=document.getElementById("cat-panel-new");');
+    L.push('  var et=document.getElementById("cat-tab-existing");');
+    L.push('  var nt=document.getElementById("cat-tab-new");');
+    L.push('  if(mode==="existing"){');
+    L.push('    if(ep)ep.style.display="block";if(np)np.style.display="none";');
+    L.push('    if(et){et.style.color="#0070d2";et.style.borderBottom="3px solid #0070d2";}');
+    L.push('    if(nt){nt.style.color="#54698d";nt.style.borderBottom="3px solid transparent";}');
+    L.push('  }else{');
+    L.push('    if(ep)ep.style.display="none";if(np)np.style.display="block";');
+    L.push('    if(et){et.style.color="#54698d";et.style.borderBottom="3px solid transparent";}');
+    L.push('    if(nt){nt.style.color="#0070d2";nt.style.borderBottom="3px solid #0070d2";}');
+    L.push('  }');
+    L.push('};');
     L.push('_APP.getCatalogId=function(){');
-    L.push('  var el=document.getElementById("cat-catalog-id");');
+    L.push('  if(_APP.catalogMode==="new"){return _APP.newCatalogId||document.getElementById("new-catalog-id").value.trim();}');
+    L.push('  var el=document.getElementById("cat-catalog-select");');
     L.push('  return el?el.value.trim():"";');
     L.push('};');
 
@@ -2750,28 +2773,112 @@ function getCategoryMigrationJS() {
     L.push('  else{if(s)s.style.display="none";}');
     L.push('};');
 
+    L.push('_APP._sharedSelCatId=null;');
+
+    L.push('_APP._applyParentPick=function(newVal){');
+    L.push('  var catId=_APP._sharedSelCatId;');
+    L.push('  var dd=document.getElementById("_parent-dd");if(dd)dd.style.display="none";');
+    L.push('  if(!catId||!newVal)return;');
+    L.push('  var origParent=_APP.catMap[catId]?(_APP.catMap[catId].parentId||"root"):"root";');
+    L.push('  if(newVal===catId){alert("A category cannot be its own parent.");return;}');
+    L.push('  if(newVal!=="root"&&_APP.isDescendant(catId,newVal)){alert("Cannot set: circular reference.");return;}');
+    L.push('  if(newVal===origParent){delete _APP.pendingParent[catId];}else{');
+    L.push('    _APP.pendingParent[catId]=newVal;');
+    L.push('    var sib=_APP.allCategories.filter(function(c){return c.id!==catId&&_APP.effectiveParentId(c.id)===newVal;}).sort(function(a,b){return _APP.getPosition(a.id)-_APP.getPosition(b.id);});');
+    L.push('    _APP.pendingOrder[catId]=sib.length+1;');
+    L.push('  }');
+    L.push('  _APP._sharedSelCatId=null;');
+    L.push('  _APP.updatePendingSummary();');
+    L.push('  _APP.renderTable();');
+    L.push('};');
+
+    L.push('_APP.buildSharedParentSelect=function(){');
+    L.push('  var dd=document.getElementById("_parent-dd");');
+    L.push('  if(dd){dd.parentNode.removeChild(dd);}');
+    L.push('  dd=document.createElement("div");');
+    L.push('  dd.id="_parent-dd";');
+    L.push('  dd.style.cssText="position:fixed;z-index:10000;background:#fff;border:1px solid #dddbda;border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,0.18);display:none;width:300px;overflow:hidden;font-family:inherit;";');
+    L.push('  dd.addEventListener("click",function(e){e.stopPropagation();});');
+    // Search input
+    L.push('  var srchWrap=document.createElement("div");srchWrap.style.cssText="padding:8px 10px;border-bottom:1px solid #f0f0f0;background:#f4f6f9;";');
+    L.push('  var srch=document.createElement("input");srch.type="text";srch.placeholder="Search...";srch.id="_parent-dd-search";');
+    L.push('  srch.style.cssText="width:100%;box-sizing:border-box;padding:5px 8px;font-size:12px;border:1px solid #dddbda;border-radius:3px;outline:none;";');
+    L.push('  srch.addEventListener("input",function(){_APP._filterParentDD(this.value);});');
+    L.push('  srch.addEventListener("click",function(e){e.stopPropagation();});');
+    L.push('  srchWrap.appendChild(srch);dd.appendChild(srchWrap);');
+    // List container
+    L.push('  var list=document.createElement("div");list.id="_parent-dd-list";list.style.cssText="max-height:240px;overflow-y:auto;";');
+    L.push('  dd.appendChild(list);');
+    L.push('  document.body.appendChild(dd);');
+    L.push('  document.addEventListener("click",function(){var d=document.getElementById("_parent-dd");if(d)d.style.display="none";});');
+    L.push('  _APP._buildParentDDItems("");');
+    L.push('};');
+
+    L.push('_APP._buildParentDDItems=function(q){');
+    L.push('  var list=document.getElementById("_parent-dd-list");if(!list)return;');
+    L.push('  var frag=document.createDocumentFragment();');
+    L.push('  function makeItem(val,label,isCurrent){');
+    L.push('    var d=document.createElement("div");');
+    L.push('    d.style.cssText="padding:7px 12px;font-size:12px;cursor:pointer;display:flex;align-items:center;gap:8px;border-bottom:1px solid #f8f8f8;"+(isCurrent?"background:#e8f4fd;font-weight:600;color:#0070d2;":"color:#16325c;");');
+    L.push('    d.onmouseover=function(){if(!isCurrent)this.style.background="#f4f6f9";};');
+    L.push('    d.onmouseout=function(){if(!isCurrent)this.style.background="";};');
+    L.push('    var badge=document.createElement("span");badge.textContent=val;badge.style.cssText="font-family:monospace;font-size:10px;background:#e8e8e8;padding:1px 5px;border-radius:10px;color:#54698d;flex-shrink:0;";');
+    L.push('    var nm=document.createElement("span");nm.textContent=label;nm.style.cssText="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;";');
+    L.push('    d.appendChild(badge);d.appendChild(nm);');
+    L.push('    d.addEventListener("mousedown",function(e){e.preventDefault();_APP._applyParentPick(val);});');
+    L.push('    return d;');
+    L.push('  }');
+    L.push('  var cur=_APP._sharedSelCatId?_APP.effectiveParentId(_APP._sharedSelCatId):"";');
+    L.push('  var ql=q.toLowerCase();');
+    L.push('  if(!ql||"root".indexOf(ql)>-1||"top level".indexOf(ql)>-1)frag.appendChild(makeItem("root","top level",cur==="root"));');
+    L.push('  var count=0;');
+    L.push('  for(var i=0;i<_APP.allCategories.length;i++){');
+    L.push('    var c=_APP.allCategories[i];');
+    L.push('    if(c.id===_APP._sharedSelCatId)continue;');
+    L.push('    if(ql&&c.id.toLowerCase().indexOf(ql)===-1&&(c.name||"").toLowerCase().indexOf(ql)===-1)continue;');
+    L.push('    frag.appendChild(makeItem(c.id,c.name||c.id,cur===c.id));');
+    L.push('    if(++count>=300)break;');
+    L.push('  }');
+    L.push('  list.innerHTML="";list.appendChild(frag);');
+    L.push('};');
+
+    L.push('_APP._filterParentDD=function(q){_APP._buildParentDDItems(q);};');
+
+    L.push('_APP.openSharedParentSelect=function(catId,currentParent,cellEl,evt){');
+    L.push('  if(evt&&evt.stopPropagation)evt.stopPropagation();');
+    L.push('  _APP._sharedSelCatId=catId;');
+    L.push('  var dd=document.getElementById("_parent-dd");if(!dd)return;');
+    L.push('  var srch=document.getElementById("_parent-dd-search");if(srch){srch.value="";}');
+    L.push('  _APP._buildParentDDItems("");');
+    L.push('  var rect=cellEl.getBoundingClientRect();');
+    L.push('  var top=rect.bottom+2;');
+    L.push('  if(top+280>window.innerHeight)top=rect.top-282;');
+    L.push('  dd.style.top=top+"px";');
+    L.push('  dd.style.left=Math.min(rect.left,window.innerWidth-310)+"px";');
+    L.push('  dd.style.display="block";');
+    L.push('  if(srch)setTimeout(function(){srch.focus();},50);');
+    L.push('};');
+
     L.push('_APP.renderTable=function(){');
     L.push('  var tbody=document.getElementById("main-cat-tbody");');
     L.push('  if(!tbody)return;');
-    L.push('  tbody.innerHTML="";');
     L.push('  var Q=String.fromCharCode(34);');
     L.push('  if(!_APP.allCategories.length){tbody.innerHTML="<tr><td colspan="+Q+"6"+Q+" style="+Q+"text-align:center;padding:30px;color:#54698d;"+Q+">Click Load Categories from CT to begin.</td></tr>";return;}');
     L.push('  var sorted=_APP.buildSortedRows();');
+    L.push('  var rows=[];');
     L.push('  sorted.forEach(function(row,idx){');
     L.push('    var catId=row.id;');
     L.push('    var isPC=_APP.pendingParent[catId]!==undefined||_APP.hierarchyOverrides[catId]!==undefined;');
     L.push('    var isOC=_APP.pendingOrder[catId]!==undefined||_APP.orderOverrides[catId]!==undefined;');
     L.push('    var isChanged=isPC||isOC;');
-    L.push('    var currentParent=row.parentId;');
+    L.push('    var currentParent=row.parentId||"root";');
     L.push('    var lvlColor=_APP.getLevelColor(row.depth);');
     L.push('    var lvlLabel="L"+(row.depth+1);');
-    L.push('    var origParent=_APP.catMap[catId]?(_APP.catMap[catId].parentId||"root"):"root";');
-    L.push('    var parentOpts=_APP.buildParentOptions(catId).replace("value="+Q+currentParent+Q,"value="+Q+currentParent+Q+" selected");');
-    L.push('    var sb=isPC?"#0070d2":"#dddbda";');
-    L.push('    var sbg=isPC?"#e8f4fd":"#fff";');
     L.push('    var pb=isOC?"background:#fff3e0;border-color:#ffb300;color:#e65100;":"";');
     L.push('    var rb=isChanged?"background:#fff8e1;":"";');
     L.push('    var tdSt="padding:7px 8px;border-bottom:1px solid #f0f0f0;";');
+    L.push('    var origParent=_APP.catMap[catId]?(_APP.catMap[catId].parentId||"root"):"root";');
+    L.push('    var cellBg=isPC?"border:1px solid #0070d2;color:#0070d2;font-weight:600;":"border:1px solid #dddbda;color:#16325c;";');
     L.push('    var trHtml="<tr"');
     L.push('      +" data-catid="+Q+catId+Q');
     L.push('      +" data-depth="+Q+row.depth+Q');
@@ -2783,12 +2890,11 @@ function getCategoryMigrationJS() {
     L.push('    trHtml+="<td"+a("style",tdSt)+"><span id="+Q+"pos-"+catId+Q+a("style","display:inline-block;background:#f4f6f9;border:1px solid #dddbda;border-radius:3px;padding:1px 6px;font-size:11px;font-family:monospace;"+pb)+">"+(idx+1)+"</span></td>";');
     L.push('    trHtml+="<td"+a("style",tdSt+"font-family:monospace;font-size:11px;")+">"+catId+"</td>";');
     L.push('    trHtml+="<td"+a("style",tdSt+"font-weight:600;color:#16325c;")+">"+_APP.toCamelCase(row.name)+"</td>";');
-    L.push('    trHtml+="<td"+a("style",tdSt)+"><select"+a("data-catid",catId)+a("data-orig",origParent)+a("style","width:100%;font-size:12px;padding:4px 6px;border:1px solid "+sb+";border-radius:3px;background:"+sbg+";")+">"+parentOpts+"</select></td>";');
+    L.push('    trHtml+="<td"+a("style",tdSt)+"><div"+a("onclick","_APP.openSharedParentSelect(\'"+catId+"\',\'"+currentParent+"\',this,event);")+a("style","display:flex;align-items:center;justify-content:space-between;gap:6px;cursor:pointer;padding:4px 8px;border-radius:4px;font-size:12px;"+cellBg)+"><span style="+Q+"overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;"+Q+">"+currentParent+"</span><span style="+Q+"font-size:10px;opacity:0.6;flex-shrink:0;"+Q+">&#9660;</span></div></td>";');
     L.push('    trHtml+="</tr>";');
-    L.push('    tbody.innerHTML+=trHtml;');
+    L.push('    rows.push(trHtml);');
     L.push('  });');
-    L.push('  var selects=tbody.querySelectorAll("select");');
-    L.push('  for(var i=0;i<selects.length;i++){selects[i].addEventListener("change",_APP.onParentDropdownChange);}');
+    L.push('  tbody.innerHTML=rows.join("");');
     L.push('  _APP.initDragDrop(tbody);');
     L.push('  _APP.buildLevelFilterTabs();');
     L.push('  _APP.applyLevelFilter();');
@@ -2905,8 +3011,6 @@ function getCategoryMigrationJS() {
     L.push('    });');
     L.push('  });');
 
-    L.push('  el=document.getElementById("cat-catalog-select");');
-    L.push('  if(el)el.addEventListener("change",function(){var cid=document.getElementById("cat-catalog-id");if(cid&&this.value)cid.value=this.value;});');
 
     // Step 1 - Check Attributes (checkbox-based)
     L.push('  el=document.getElementById("btn-check-attrs");');
@@ -3062,24 +3166,33 @@ L.push('      var msg="Done - "+data.created+" created, "+data.skipped+" skipped
     L.push('    var rows=document.querySelectorAll("#main-cat-tbody tr[data-catid]");');
     L.push('    for(var i=0;i<rows.length;i++){var ms=!query||rows[i].textContent.toLowerCase().indexOf(query)>-1;var ml=_APP.activeFilter==="all"||rows[i].getAttribute("data-depth")===_APP.activeFilter;rows[i].style.display=(ms&&ml)?"":"none";}');
     L.push('  });');
+    L.push('  window._APP=_APP;');
 
     L.push('  el=document.getElementById("btn-load-categories");');
     L.push('  if(el)el.addEventListener("click",function(){');
     L.push('    var btn=this;var status=document.getElementById("hierarchy-fetch-status");');
     L.push('    var locale=document.getElementById("cat-locale")?document.getElementById("cat-locale").value.trim():"en-US";');
     L.push('    btn.disabled=true;btn.textContent="Loading...";');
-    L.push('    if(status){status.textContent="Fetching from Commercetools...";status.style.color="#54698d";}');
-    L.push('    _APP.post(_APP.FETCH_URL,"locale="+encodeURIComponent(locale||"en-US"),function(data){');
-    L.push('      btn.disabled=false;btn.textContent="Load Categories from CT";');
-    L.push('      if(!data.ok){if(status){status.textContent="Error: "+(data.error||"failed");status.style.color="#c62828";}return;}');
-    L.push('      _APP.allCategories=data.categories;_APP.catMap={};');
-    L.push('      _APP.hierarchyOverrides={};_APP.orderOverrides={};_APP.pendingParent={};_APP.pendingOrder={};_APP.activeFilter="all";_APP.newCatCount=0;_APP.addedCats=[];');
-    L.push('      _APP.allCategories.forEach(function(c){_APP.catMap[c.id]=c;});');
-    L.push('      _APP.populateParentDropdown();');
-    L.push('      if(status){status.textContent=data.total+" categories loaded";status.style.color="#2e7d32";}');
-    L.push('      var applied=document.getElementById("hierarchy-applied-summary");if(applied)applied.style.display="none";');
-    L.push('      _APP.renderTable();');
-    L.push('    });');
+    L.push('    _APP.allCategories=[];_APP.catMap={};');
+    L.push('    _APP.hierarchyOverrides={};_APP.orderOverrides={};_APP.pendingParent={};_APP.pendingOrder={};_APP.activeFilter="all";_APP.newCatCount=0;_APP.addedCats=[];');
+    L.push('    function fetchPage(offset){');
+    L.push('      if(status){status.textContent="Loading... "+_APP.allCategories.length+" fetched";status.style.color="#54698d";}');
+    L.push('      _APP.post(_APP.FETCH_URL,"locale="+encodeURIComponent(locale||"en-US")+"&offset="+offset,function(data){');
+    L.push('        if(!data.ok){btn.disabled=false;btn.textContent="Load Categories from CT";if(status){status.textContent="Error: "+(data.error||"failed");status.style.color="#c62828";}return;}');
+    L.push('        data.categories.forEach(function(c){_APP.allCategories.push(c);_APP.catMap[c.id]=c;});');
+    L.push('        if(data.done){');
+    L.push('          btn.disabled=false;btn.textContent="Load Categories from CT";');
+    L.push('          if(status){status.textContent=_APP.allCategories.length+" categories loaded";status.style.color="#2e7d32";}');
+    L.push('          _APP.buildSharedParentSelect();');
+    L.push('          _APP.populateParentDropdown();');
+    L.push('          var applied=document.getElementById("hierarchy-applied-summary");if(applied)applied.style.display="none";');
+    L.push('          _APP.renderTable();');
+    L.push('        } else {');
+    L.push('          fetchPage(offset+data.limit);');
+    L.push('        }');
+    L.push('      });');
+    L.push('    }');
+    L.push('    fetchPage(0);');
     L.push('  });');
 
     L.push('  el=document.getElementById("btn-create-ct-category");');
@@ -3097,6 +3210,7 @@ L.push('      var msg="Done - "+data.created+" created, "+data.skipped+" skipped
     L.push('    _APP.catMap[key]=newCat;');
     L.push('    _APP.addedCats.push(newCat);');
     L.push('    _APP.newCatCount++;');
+    L.push('    _APP.buildSharedParentSelect();');
     L.push('    _APP.renderTable();');
     L.push('    _APP.populateParentDropdown();');
     L.push('    if(status){status.textContent="Added: "+key;status.style.color="#2e7d32";}');
@@ -3120,7 +3234,7 @@ L.push('      var msg="Done - "+data.created+" created, "+data.skipped+" skipped
     L.push('  });');
 
     // Step 3
-    L.push('  el=document.getElementById("btn-open-impex");if(el)el.addEventListener("click",function(e){e.preventDefault();_APP.openInNewTab(_APP.IMPEX_URL);});');
+    L.push('  el=document.getElementById("btn-open-impex");if(el)el.addEventListener("click",function(e){e.preventDefault();_APP.openInNewTab(_APP.getImpexFolderUrl());});');
     L.push('  el=document.getElementById("btn-open-import");if(el)el.addEventListener("click",function(e){e.preventDefault();_APP.openInNewTab(_APP.IMPORT_URL);});');
 
     L.push('  el=document.getElementById("cat-start-btn");');
@@ -3172,12 +3286,14 @@ L.push('      var msg="Done - "+data.created+" created, "+data.skipped+" skipped
     L.push('      btn.disabled=false;btn.textContent="Generate XML (IMPEX)";');
     L.push('      if(!data.ok){if(status){status.textContent="Error: "+(data.error||"failed");status.style.color="#c62828";}return;}');
     L.push('      if(status){status.textContent="Done";status.style.color="#2e7d32";}');
+    L.push('      _APP.newCatalogId=catId;');
     L.push('      var xp=document.getElementById("new-catalog-xml-path");if(xp)xp.textContent=data.xmlPath||"";');
+    L.push('      var lbl=document.getElementById("new-catalog-active-label");if(lbl)lbl.textContent="Catalog ID \\""+catId+"\\" will be used for category export.";');
     L.push('      if(result)result.style.display="block";');
     L.push('    });');
     L.push('  });');
 
-    L.push('  el=document.getElementById("btn-new-catalog-impex");if(el)el.addEventListener("click",function(e){e.preventDefault();_APP.openInNewTab(_APP.IMPEX_URL);});');
+    L.push('  el=document.getElementById("btn-new-catalog-impex");if(el)el.addEventListener("click",function(e){e.preventDefault();_APP.openInNewTab(_APP.getImpexFolderUrl());});');
     L.push('  el=document.getElementById("btn-open-bm-catalog");if(el)el.addEventListener("click",function(e){e.preventDefault();window.open("https://"+window.location.host+"/on/demandware.store/Sites-Site/default/ViewCatalogList_52-List");});');
 
     // Tab navigation
@@ -3654,33 +3770,37 @@ exports.CreateCategory.public = true;
 exports.FetchCTCategories = function () {
     var fetchCT   = require('~/cartridge/scripts/catalog/fetchCTCategories');
     var transform = require('~/cartridge/scripts/catalog/transformCategories');
-    var cfg       = require('*/cartridge/scripts/migration/configAccessor');
     var Logger    = require('dw/system/Logger');
 
     response.setContentType('application/json');
 
     try {
-        var defaultLocale  = request.httpParameterMap.locale.stringValue || 'en';
-        var token          = fetchCT.getCTAuthToken();
+        var defaultLocale = request.httpParameterMap.locale.stringValue  || 'en';
+        var offset        = parseInt(request.httpParameterMap.offset.stringValue || '0', 10) || 0;
+        var limit         = 500;
 
+        var token = fetchCT.getCTAuthToken();
         if (!token) {
             response.writer.print(JSON.stringify({ ok: false, error: 'CT auth failed' }));
             return;
         }
 
-        var ctCategories   = fetchCT.fetchAllCategories(token);
-        var sfccCategories = transform.transformAll(ctCategories, defaultLocale);
+        // Fetch one page only
+        var page = fetchCT.fetchCategoriesPage(token, limit, offset);
 
-        // Return lightweight list for hierarchy editor
-        var list = sfccCategories.map(function (cat) {
-            return {
-                id      : cat.id,
-                name    : cat.name['x-default'] || cat.id,
-                parentId: cat.parentId
-            };
+        var list = page.results.map(function (cat) {
+            var sfcc = transform.transformCategory(cat, defaultLocale, page.idToKey);
+            return { id: sfcc.id, name: sfcc.name['x-default'] || sfcc.id, parentId: sfcc.parentId };
         });
 
-        response.writer.print(JSON.stringify({ ok: true, categories: list, total: list.length }));
+        response.writer.print(JSON.stringify({
+            ok        : true,
+            categories: list,
+            offset    : offset,
+            limit     : limit,
+            total     : page.total,
+            done      : (offset + list.length) >= page.total
+        }));
     } catch (e) {
         Logger.error('FetchCTCategories error: {0}', e.message);
         response.writer.print(JSON.stringify({ ok: false, error: e.message }));
