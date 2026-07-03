@@ -119,9 +119,26 @@ function resolveXmlFileName(moduleKey, offset, batchSize, storage) {
     return paths.buildXmlFileName(moduleKey, runDate, version);
 }
 
+/**
+ * Resolve a single, stable XML file name for an entire multi-batch run
+ * (same name returned for every offset in the run, so batches can be
+ * merged into one file instead of one file per batch).
+ * @param {string} moduleKey
+ * @param {number} offset
+ * @param {string} [storage] - 'webdav' or 'local'
+ * @returns {string}
+ */
+function resolveRunFileName(moduleKey, offset, storage) {
+    var store   = storage || 'webdav';
+    var runDate = getRunDate(moduleKey, offset);
+    var version = getVersionStart(moduleKey, runDate, offset, store);
+    return paths.buildXmlFileName(moduleKey, runDate, version);
+}
+
 module.exports = {
     getRunDate:         getRunDate,
     resolveXmlFileName: resolveXmlFileName,
+    resolveRunFileName: resolveRunFileName,
     getRelativePath:    paths.getRelativePath,
     localFileExists:    localFileExists,
     sessionRunDateKey:  sessionRunDateKey

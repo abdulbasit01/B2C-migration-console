@@ -314,17 +314,12 @@
                 </li>
                 <li class="acc-phases__item acc-phases__item--pending" id="full-phase-import">
                     <div class="acc-phases__head">
-                        <span>Phase 2 &mdash; Run Import Job in Business Manager</span>
+                        <span>Phase 2 &mdash; Import in Business Manager</span>
                         <span class="acc-phases__status" id="full-status-import">pending</span>
                     </div>
                     <p class="acc-phases__detail" id="full-detail-import">Waiting for Phase 1&hellip;</p>
-                    <div style="margin-top:10px;">
-                        <a href="${pdict.jobsUrl}"
-                           target="_blank"
-                           class="acc-btn acc-btn--primary"
-                           style="text-decoration:none;font-size:13px;display:inline-block;padding:7px 16px;">
-                            &#x2192; Open BM Jobs
-                        </a>
+                    <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;">
+                        <a href="${pdict.impexUrl}" target="_blank" class="acc-btn acc-btn--ghost" style="text-decoration:none;font-size:13px;display:inline-block;padding:7px 16px;">Open IMPEX</a>
                     </div>
                 </li>
             </ul>
@@ -369,9 +364,9 @@
     var ADDRESS_URL      = '${pdict.addressUrl}';
     var FULL_BATCH_URL   = '${pdict.fullBatchUrl}';
     var BY_ID_URL        = '${pdict.byIdUrl}';
-    var DATA_WIZARD_ENTRY_URL = ${pdict.dataWizardEntryUrlJs};
-    var LISTS_URL        = ${pdict.customerListsUrlJs};
-    var PRESET_LIST_ID   = ${pdict.presetListIdJs};
+    var DATA_WIZARD_ENTRY_URL = '${pdict.dataWizardEntryUrl}';
+    var LISTS_URL        = '${pdict.customerListsUrl}';
+    var PRESET_LIST_ID   = '${pdict.customerListId}';
     var CHECK_ATTRS_URL   = '${pdict.checkAttrsUrl}';
     var CREATE_ATTRS_URL  = '${pdict.createAttrsUrl}';
     var DELETE_ATTR_URL   = '${pdict.deleteAttrUrl}';
@@ -1094,7 +1089,7 @@
                 ctpType: m.ctpType,
                 sfccType: window.AccAttrPreflight.readSfccType(i, m.sfccType, 'cm-attr-modal-type')
             };
-        })));
+        }))));
     });
 
     /**
@@ -1209,7 +1204,8 @@
 
     var fullBuilt      = 0;
     var fullFailed     = 0;
-    var fullFiles      = 0;
+    var fullBatches    = 0;
+    var fullFileName   = '';
     var fullRunning    = false;
     var fullFinished   = false;
 
@@ -1221,7 +1217,7 @@
         var listId = listIdEl.value.trim();
         var pct    = (total > 0) ? Math.round((offset / total) * 100) : 0;
         setPhase('full', 'build', 'active',
-            offset + ' / ' + (total || '?') + ' processed... (' + fullFiles + ' file(s) uploaded)', pct);
+            offset + ' / ' + (total || '?') + ' processed... (writing 1 file)', pct);
 
         post(
             FULL_BATCH_URL,
@@ -1235,10 +1231,10 @@
 
                 fullBuilt  += (data.built  || 0);
                 fullFailed += (data.failed || 0);
-                fullFiles++;
+                fullBatches++;
+                fullFileName = data.fileName || fullFileName;
 
-                var newPct = (data.total > 0) ? Math.round((data.nextOffset / data.total) * 100) : 100;
-                fullOverallEl.textContent = fullFiles + ' file(s) uploaded, '
+                fullOverallEl.textContent = '1 file (' + fullFileName + '), '
                     + fullBuilt + ' customer(s) built'
                     + (fullFailed ? ', ' + fullFailed + ' failed' : '');
 
@@ -1248,7 +1244,7 @@
                     var buildState = (fullFailed > 0 && fullBuilt === 0) ? 'error'
                                    : (fullFailed > 0) ? 'warning' : 'done';
                     setPhase('full', 'build', buildState,
-                        fullFiles + ' file(s) uploaded, ' + fullBuilt + ' customer(s) built'
+                        '1 file (' + fullFileName + '), ' + fullBuilt + ' customer(s) built'
                         + (fullFailed ? ', ' + fullFailed + ' skipped due to errors' : ''),
                         100);
                     finalizeFull(true);
@@ -1295,7 +1291,7 @@
 
         runPreflightThenMigrate(function () {
             fullRunning   = true;
-            fullBuilt     = 0; fullFailed = 0; fullFiles = 0;
+            fullBuilt     = 0; fullFailed = 0; fullBatches = 0; fullFileName = '';
 
             fullStartBtn.textContent    = 'Building...';
             fullStatusBox.style.display = 'none';

@@ -419,12 +419,8 @@ exports.OrderMigration = function () {
 
     session.custom.selectedDataType = 'order';
     var pageCtx        = migrationPageContext(platformId, 'order');
-    var Site           = require('dw/system/Site');
-    var siteId         = Site.getCurrent().getID();
-    var jobsUrl        = 'https://' + request.httpHost
-        + '/on/demandware.store/Sites-Site/default;site=' + siteId
-        + '/ViewApplication-BM?SelectedMenuItem=site-obj_impex'
-        + '#/?impex#import';
+    var bmLinks        = require('*/cartridge/scripts/accelerator/bmLinks');
+    var jobsUrl        = bmLinks.getImportExportUrl();
 
     ISML.renderTemplate('accelerator/orderMigration', withBmFrame({
         title:               Resource.msg('accelerator.ordermigration.heading', 'accelerator', null),
@@ -1052,13 +1048,7 @@ exports.Wizard.public = true;
  */
 exports.CustomerMigration = function () {
     var cfg2           = require('*/cartridge/scripts/migration/configAccessor');
-    var Site           = require('dw/system/Site');
     var customerListId = (cfg2.sfcc && cfg2.sfcc.customerListId) ? cfg2.sfcc.customerListId : '';
-    var siteId         = Site.getCurrent().getID();
-    var jobsUrl        = 'https://' + request.httpHost
-                       + '/on/demandware.store/Sites-Site/default;site=' + siteId
-                       + '/ViewApplication-BM?SelectedMenuItem=jobschedules'
-                       + '#/?job#editor!id!CTCustomer!config!CTCustomer!domain!Sites';
     var platformId = String(session.custom.migrationPlatformId || 'commercetools');
     var pageCtx    = migrationPageContext(platformId, 'customer');
     var listsUrl   = URLUtils.url('Accelerator-GetCustomerLists').toString();
@@ -1086,8 +1076,7 @@ exports.CustomerMigration = function () {
         createAttrsUrl:      URLUtils.url('Accelerator-CreateCustomerAttributes').toString(),
         deleteAttrUrl:       URLUtils.url('Accelerator-DeleteCustomerAttribute').toString(),
         fetchGroupsUrl:      URLUtils.url('Accelerator-FetchCtpCustomerGroups').toString(),
-        createGroupsUrl:     URLUtils.url('Accelerator-CreateSfccCustomerGroups').toString(),
-        jobsUrl:             jobsUrl
+        createGroupsUrl:     URLUtils.url('Accelerator-CreateSfccCustomerGroups').toString()
     }));
 };
 exports.CustomerMigration.public = true;
@@ -1533,10 +1522,8 @@ exports.ShippingMethodMigration = function () {
     var siteId    = Site.getCurrent().getID();
     var platformId = String(session.custom.migrationPlatformId || 'commercetools');
     var pageCtx    = migrationPageContext(platformId, 'shippingMethod');
-    var jobsUrl = 'https://' + request.httpHost
-        + '/on/demandware.store/Sites-Site/default;site=' + siteId
-        + '/ViewApplication-BM?SelectedMenuItem=site-obj_impex'
-        + '#/?impex#import';
+    var bmLinks = require('*/cartridge/scripts/accelerator/bmLinks');
+    var jobsUrl = bmLinks.getImportExportUrl();
 
     ISML.renderTemplate('accelerator/shippingMethodMigration', withBmFrame({
         title:        Resource.msg('accelerator.title', 'accelerator', null),
@@ -1724,15 +1711,11 @@ exports.FullShippingMethodBuildBatch.public = true;
  */
 exports.InventoryMigration = function () {
     var cfg2           = require('*/cartridge/scripts/migration/configAccessor');
-    var Site           = require('dw/system/Site');
-    var siteId         = Site.getCurrent().getID();
+    var bmLinks        = require('*/cartridge/scripts/accelerator/bmLinks');
     var listId         = (cfg2.sfcc && cfg2.sfcc.inventoryListId) ? cfg2.sfcc.inventoryListId : '';
     var platformId     = String(session.custom.migrationPlatformId || 'commercetools');
     var pageCtx        = migrationPageContext(platformId, 'inventory');
-    var jobsUrl        = 'https://' + request.httpHost
-        + '/on/demandware.store/Sites-Site/default;site=' + siteId
-        + '/ViewApplication-BM?SelectedMenuItem=site-obj_impex'
-        + '#/?impex#import';
+    var jobsUrl        = bmLinks.getImportExportUrl();
 
     ISML.renderTemplate('accelerator/inventoryMigration', withBmFrame({
         title:               Resource.msg('accelerator.title', 'accelerator', null),
@@ -1858,15 +1841,11 @@ exports.FullInventoryBuildBatch.public = true;
 // ─── Pricebook data migration ─────────────────────────────────────────────────
 
 exports.PricebookMigration = function () {
-    var Site           = require('dw/system/Site');
-    var siteId         = Site.getCurrent().getID();
+    var bmLinks        = require('*/cartridge/scripts/accelerator/bmLinks');
     var presetId       = 'list-prices';
     var platformId     = String(session.custom.migrationPlatformId || 'commercetools');
     var pageCtx        = migrationPageContext(platformId, 'pricebook');
-    var jobsUrl        = 'https://' + request.httpHost
-        + '/on/demandware.store/Sites-Site/default;site=' + siteId
-        + '/ViewApplication-BM?SelectedMenuItem=site-obj_impex'
-        + '#/?impex#import';
+    var jobsUrl        = bmLinks.getImportExportUrl();
 
     ISML.renderTemplate('accelerator/pricebookMigration', withBmFrame({
         title:               Resource.msg('accelerator.title', 'accelerator', null),
@@ -2017,14 +1996,10 @@ exports.FullPricebookBuildBatch.public = true;
 // ─── Tax data migration ───────────────────────────────────────────────────────
 
 exports.TaxMigration = function () {
-    var Site           = require('dw/system/Site');
-    var siteId         = Site.getCurrent().getID();
+    var bmLinks        = require('*/cartridge/scripts/accelerator/bmLinks');
     var platformId     = String(session.custom.migrationPlatformId || 'commercetools');
     var pageCtx        = migrationPageContext(platformId, 'tax');
-    var jobsUrl        = 'https://' + request.httpHost
-        + '/on/demandware.store/Sites-Site/default;site=' + siteId
-        + '/ViewApplication-BM?SelectedMenuItem=site-obj_impex'
-        + '#/?impex#import';
+    var jobsUrl        = bmLinks.getImportExportUrl();
 
     ISML.renderTemplate('accelerator/taxMigration', withBmFrame({
         title:               Resource.msg('accelerator.title', 'accelerator', null),
@@ -2129,14 +2104,10 @@ exports.FullTaxBuildBatch.public = true;
 // ─── Store data migration ─────────────────────────────────────────────────────
 
 exports.StoreMigration = function () {
-    var Site           = require('dw/system/Site');
-    var siteId         = Site.getCurrent().getID();
+    var bmLinks        = require('*/cartridge/scripts/accelerator/bmLinks');
     var platformId     = String(session.custom.migrationPlatformId || 'commercetools');
     var pageCtx        = migrationPageContext(platformId, 'store');
-    var jobsUrl        = 'https://' + request.httpHost
-        + '/on/demandware.store/Sites-Site/default;site=' + siteId
-        + '/ViewApplication-BM?SelectedMenuItem=site-obj_impex'
-        + '#/?impex#import';
+    var jobsUrl        = bmLinks.getImportExportUrl();
 
     ISML.renderTemplate('accelerator/storeMigration', withBmFrame({
         title:               Resource.msg('accelerator.title', 'accelerator', null),
