@@ -7,8 +7,9 @@ var xmlBuilder   = require('*/cartridge/scripts/migration/productMigration/produ
 var uploader     = require('*/cartridge/scripts/migration/productMigration/productWebDavUploader');
 var fileResolver = require('*/cartridge/scripts/migration/core/migrationFileResolver');
 
-var MODULE_KEY = 'product';
-var BATCH_SIZE = 500;
+var MODULE_KEY         = 'product';
+var BATCH_SIZE         = 500; // CTP batch size
+var SHOPIFY_BATCH_SIZE = 10;  // Shopify GraphQL cost limit: 10 × (50+5+5+10) = 700 pts < 1000
 
 // ─── Session keys ─────────────────────────────────────────────────────────────
 
@@ -212,65 +213,122 @@ function finalizeCtp(catalogId, total, nextOffset, impexPath, fileName) {
 
 // ─── Shopify batch accumulator ────────────────────────────────────────────────
 
-var SK_SHOPIFY_COUNT = 'shopifyProdBatchCount';
-var SK_SHOPIFY_TOTAL = 'shopifyProdTotal';
+var SK_SHOPIFY_TOTAL   = 'shopifyProdTotal';
+var SK_SHOPIFY_BUILT   = 'shopifyProdBuilt';
+var SK_SHOPIFY_FAILED  = 'shopifyProdFailed';
+var SK_SHOPIFY_SETS    = 'shopifyProdSets';
+var SK_SHOPIFY_BUNDLES = 'shopifyProdBundles';
+var SK_SHOPIFY_FILE    = 'shopifyProdFileName';
+
+var TEMP_SHOPIFY_PRODS = 'shopify-run-body.xml';
+var TEMP_SHOPIFY_CATS  = 'shopify-run-cats.xml';
 
 function runShopifyBatch(cursor, catalogId) {
     var shopifyFetcher     = require('*/cartridge/scripts/migration/productMigration/shopifyProductFetcher');
     var shopifyTransformer = require('*/cartridge/scripts/migration/productMigration/shopifyProductTransformer');
 
-    var isFirst  = (cursor === null);
-    var batchNum = isFirst ? 0 : parseInt(String(session.custom[SK_SHOPIFY_COUNT] || 0), 10);
+    var isFirst = (cursor === null);
 
-    var total = 0;
     if (isFirst) {
+        removeLocal(TEMP_SHOPIFY_PRODS);
+        removeLocal(TEMP_SHOPIFY_CATS);
+        setNum(SK_SHOPIFY_BUILT,   0);
+        setNum(SK_SHOPIFY_FAILED,  0);
+        setNum(SK_SHOPIFY_SETS,    0);
+        setNum(SK_SHOPIFY_BUNDLES, 0);
+        session.custom[SK_SHOPIFY_FILE] = '';
+
+        var total = 0;
         try { total = shopifyFetcher.getCount(); } catch (ce) {}
-        session.custom[SK_SHOPIFY_TOTAL] = String(total);
-    } else {
-        total = parseInt(String(session.custom[SK_SHOPIFY_TOTAL] || 0), 10);
+        setNum(SK_SHOPIFY_TOTAL, total);
+
+        var fileName = fileResolver.resolveXmlFileName(MODULE_KEY, 0, SHOPIFY_BATCH_SIZE, 'webdav');
+        session.custom[SK_SHOPIFY_FILE] = fileName;
     }
 
-    var batch    = shopifyFetcher.fetchBatch(cursor, BATCH_SIZE);
+    var total      = getNum(SK_SHOPIFY_TOTAL);
+    var impexPath  = fileResolver.getRelativePath(MODULE_KEY);
+    var fileName   = String(session.custom[SK_SHOPIFY_FILE] || 'shopify-product-run.xml');
+
+    var batch    = shopifyFetcher.fetchBatch(cursor, SHOPIFY_BATCH_SIZE);
     var rawProds = batch.results;
 
     if (!rawProds || !rawProds.length) {
-        return {
-            ok: true, total: total, nextOffset: 0, done: true,
-            built: 0, failed: 0, errors: [], setCount: 0, bundleCount: 0,
-            impexPath: fileResolver.getRelativePath(MODULE_KEY)
-        };
+        return finalizeShopify(catalogId, total, impexPath, fileName);
     }
 
-    var dirResult = uploader.ensureDirectory();
-    if (!dirResult.ok) {
-        return { ok: false, error: 'WebDAV directory creation failed: ' + dirResult.error };
+    var parts = xmlBuilder.buildXmlParts(rawProds, catalogId, null, shopifyTransformer.transformProduct);
+    appendLocal(TEMP_SHOPIFY_PRODS, parts.productsXml);
+    appendLocal(TEMP_SHOPIFY_CATS,  parts.categoriesXml);
+
+    addNum(SK_SHOPIFY_BUILT,   parts.built);
+    addNum(SK_SHOPIFY_FAILED,  parts.failed);
+    addNum(SK_SHOPIFY_SETS,    parts.setCount);
+    addNum(SK_SHOPIFY_BUNDLES, parts.bundleCount);
+
+    if (!batch.hasMore) {
+        return finalizeShopify(catalogId, total, impexPath, fileName);
     }
-
-    var pseudoOffset = batchNum * BATCH_SIZE;
-    var runDate      = fileResolver.getRunDate(MODULE_KEY, pseudoOffset);
-    var fileName     = fileResolver.resolveXmlFileName(MODULE_KEY, pseudoOffset, BATCH_SIZE, 'webdav');
-    var impexPath    = fileResolver.getRelativePath(MODULE_KEY);
-
-    var catalogResult = xmlBuilder.buildXml(rawProds, catalogId, null, shopifyTransformer.transformProduct);
-    var putResult     = uploader.uploadFile(fileName, catalogResult.xml);
-    if (!putResult.ok) {
-        return { ok: false, error: 'WebDAV upload failed: ' + putResult.error };
-    }
-
-    session.custom[SK_SHOPIFY_COUNT] = String(batchNum + 1);
 
     return {
         ok:          true,
         total:       total,
-        nextOffset:  batch.hasMore ? batch.nextCursor : 0,
-        done:        !batch.hasMore,
-        built:       catalogResult.built,
-        failed:      catalogResult.failed,
-        errors:      catalogResult.errors || [],
-        setCount:    catalogResult.setCount    || 0,
-        bundleCount: catalogResult.bundleCount || 0,
+        nextOffset:  batch.nextCursor,
+        done:        false,
+        built:       parts.built,
+        failed:      parts.failed,
+        errors:      parts.errors || [],
+        setCount:    parts.setCount,
+        bundleCount: parts.bundleCount
+    };
+}
+
+function finalizeShopify(catalogId, total, impexPath, fileName) {
+    var File       = require('dw/io/File');
+    var FileWriter = require('dw/io/FileWriter');
+    var paths      = require('*/cartridge/scripts/migration/core/migrationPaths');
+
+    var relDir    = paths.getRelativePath(MODULE_KEY).replace(/\//g, File.SEPARATOR);
+    var dir       = new File(File.IMPEX + File.SEPARATOR + relDir);
+    if (!dir.exists()) { dir.mkdirs(); }
+
+    var finalFile = new File(File.IMPEX + File.SEPARATOR + relDir + File.SEPARATOR + fileName);
+    var writer    = new FileWriter(finalFile, 'UTF-8', false);
+    var writeErr  = null;
+    try {
+        writer.write(xmlBuilder.xmlHeader(catalogId));
+        copyFileTo(getLocalPath(TEMP_SHOPIFY_PRODS), writer);
+        copyFileTo(getLocalPath(TEMP_SHOPIFY_CATS),  writer);
+        writer.write(xmlBuilder.XML_FOOTER);
+    } catch (we) {
+        writeErr = we;
+    } finally {
+        writer.close();
+    }
+
+    removeLocal(TEMP_SHOPIFY_PRODS);
+    removeLocal(TEMP_SHOPIFY_CATS);
+
+    if (writeErr) {
+        return { ok: false, error: 'Local IMPEX write failed: ' + (writeErr.message || String(writeErr)) };
+    }
+
+    var built   = getNum(SK_SHOPIFY_BUILT);
+    var failed  = getNum(SK_SHOPIFY_FAILED);
+    var sets    = getNum(SK_SHOPIFY_SETS);
+    var bundles = getNum(SK_SHOPIFY_BUNDLES);
+
+    return {
+        ok:          true,
+        total:       total,
+        nextOffset:  0,
+        done:        true,
+        built:       built,
+        failed:      failed,
+        errors:      [],
+        setCount:    sets,
+        bundleCount: bundles,
         fileName:    fileName,
-        runDate:     runDate,
         impexPath:   impexPath
     };
 }
@@ -334,10 +392,16 @@ function runById(prodId, catalogId, selectedVarAttrs, platform) {
 
     var fileName      = fileResolver.resolveXmlFileName(MODULE_KEY, 0, 1, 'webdav');
     var catalogResult = xmlBuilder.buildXml([product], catalogId, selectedVarAttrs, transformerFn);
-    var putResult     = uploader.uploadFile(fileName, catalogResult.xml);
-    if (!putResult.ok) {
-        return { ok: false, error: 'WebDAV upload failed: ' + putResult.error };
-    }
+
+    var File       = require('dw/io/File');
+    var FileWriter = require('dw/io/FileWriter');
+    var paths      = require('*/cartridge/scripts/migration/core/migrationPaths');
+    var relDir     = paths.getRelativePath(MODULE_KEY).replace(/\//g, File.SEPARATOR);
+    var dir        = new File(File.IMPEX + File.SEPARATOR + relDir);
+    if (!dir.exists()) { dir.mkdirs(); }
+    var singleFile = new File(File.IMPEX + File.SEPARATOR + relDir + File.SEPARATOR + fileName);
+    var sw         = new FileWriter(singleFile, 'UTF-8', false);
+    try { sw.write(catalogResult.xml); } finally { sw.close(); }
 
     return {
         ok:          true,
