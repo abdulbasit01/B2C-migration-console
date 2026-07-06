@@ -10,7 +10,7 @@ var attrBuilder = require('*/cartridge/scripts/migration/core/attrBuilder');
  * @returns {Object} SFCC attribute definition
  */
 function transformMetafieldDef(def) {
-    var shopifyType = def.type && def.type.name ? def.type.name : 'single_line_text_field';
+    var shopifyType = def.type && typeof def.type === 'object' ? def.type.name : (String(def.type || 'single_line_text_field'));
     var valueType   = typeMap.resolveMetafieldType(shopifyType);
     var rawId       = def.namespace ? def.namespace + '__' + def.key : def.key;
     var id          = rawId.replace(/[^a-zA-Z0-9_]/g, '_');

@@ -142,6 +142,7 @@ function buildConnectionCreds(platformId) {
         creds.projectKey   = creds.projectKey || cfg.ctp.projectKey || '';
     } else if (platformId === 'shopify') {
         creds.clientSecret = resolveSecret('clientSecret', cfg.shopify.clientSecret);
+        creds.accessToken  = resolveSecret('accessToken',  cfg.shopify.accessToken  || '');
     }
 
     return creds;
@@ -214,7 +215,8 @@ exports.TestConnection = function () {
             session.custom.shopifyStoreUrl     = creds.storeUrl     || '';
             session.custom.shopifyClientId     = creds.clientId     || '';
             session.custom.shopifyClientSecret = creds.clientSecret || '';
-            session.custom.shopifyApiVersion   = creds.apiVersion   || '2025-01';
+            session.custom.shopifyAccessToken  = creds.accessToken  || '';
+            session.custom.shopifyApiVersion   = creds.apiVersion   || '2026-07';
         }
         if (getParam('mode') === 'data') {
             dataMigrationSession.markConnected(platformId, result.expiresIn);
@@ -828,7 +830,8 @@ exports.DataWizardContinue = function () {
             session.custom.shopifyStoreUrl     = creds.storeUrl     || '';
             session.custom.shopifyClientId     = creds.clientId     || '';
             session.custom.shopifyClientSecret = creds.clientSecret || '';
-            session.custom.shopifyApiVersion   = creds.apiVersion   || '2025-01';
+            session.custom.shopifyAccessToken  = creds.accessToken  || '';
+            session.custom.shopifyApiVersion   = creds.apiVersion   || '2026-07';
         }
 
         response.redirect(stepTwoUrl);

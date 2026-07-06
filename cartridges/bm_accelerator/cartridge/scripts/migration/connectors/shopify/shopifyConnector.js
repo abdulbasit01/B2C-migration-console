@@ -115,10 +115,24 @@ var _tokenExpiresAt = 0;
 function fetchAccessToken(creds) {
     if (_cachedToken && Date.now() < _tokenExpiresAt - 60000) return _cachedToken;
 
+    // Prefer explicit accessToken (shpat_) over clientSecret (shpss_)
+    var directToken = String(creds.accessToken || '');
+    if (!directToken) {
+        var secret = String(creds.clientSecret || '');
+        if (secret.indexOf('shpat_') === 0) { directToken = secret; }
+    }
+    if (directToken) {
+        _cachedToken    = directToken;
+        _tokenExpiresAt = Date.now() + 86400000;
+        return _cachedToken;
+    }
+
+    // OAuth flow for public apps
     var store = (creds.storeUrl || '').replace(/\/$/, '');
+    if (store && store.indexOf('http') !== 0) { store = 'https://' + store; }
     var body  = 'grant_type=client_credentials'
               + '&client_id='     + encodeURIComponent(creds.clientId)
-              + '&client_secret=' + encodeURIComponent(creds.clientSecret);
+              + '&client_secret=' + encodeURIComponent(secret);
 
     var res = http.post(
         store + '/admin/oauth/access_token',
@@ -149,7 +163,8 @@ function fmt(n) {
 
 function adminBase(creds) {
     var store   = (creds.storeUrl || '').replace(/\/$/, '');
-    var version = creds.apiVersion || '2025-01';
+    if (store && store.indexOf('http') !== 0) { store = 'https://' + store; }
+    var version = creds.apiVersion || '2026-07';
     return store + '/admin/api/' + version;
 }
 
@@ -161,7 +176,7 @@ function authHeaders(creds) {
 
 function fetchMetafieldDefs(creds, ownerType) {
     var url   = adminBase(creds) + '/graphql.json';
-    var query = '{ metafieldDefinitions(ownerType: ' + ownerType + ', first: 250) { nodes { name key namespace type { name } } } }';
+    var query = '{ metafieldDefinitions(ownerType: ' + ownerType + ', first: 250) { nodes { name key namespace type } } }';
     var res   = http.post(url, authHeaders(creds), JSON.stringify({ query: query }));
     if (res.status !== 200 || !res.data || !res.data.data) return [];
     var mfDefs = res.data.data.metafieldDefinitions;
@@ -340,7 +355,7 @@ function buildAiMapContent(selectedTasks, existingByTask) {
             for (var di = 0; di < defs.length; di++) {
                 var def    = defs[di];
                 var mfId   = (def.namespace ? def.namespace + '__' + def.key : def.key).replace(/[^a-zA-Z0-9_]/g, '_');
-                var mfType = def.type && def.type.name ? def.type.name : 'single_line_text_field';
+                var mfType = def.type && typeof def.type === 'object' ? def.type.name : (String(def.type || 'single_line_text_field'));
                 var mfKey  = task + '__' + mfId;
                 if (seen[mfKey]) continue;
                 seen[mfKey] = true;

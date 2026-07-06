@@ -3,16 +3,25 @@
 var http = require('*/cartridge/scripts/migration/core/http');
 var cfg  = require('*/cartridge/scripts/migration/configAccessor');
 
-var BATCH_SIZE = 50;
+var BATCH_SIZE = 10;
 
 function adminBase() {
-    var c = cfg.shopify || {};
-    return String(c.storeUrl || '').replace(/\/$/, '') + '/admin/api/' + String(c.apiVersion || '2025-01');
+    var c     = cfg.shopify || {};
+    var store = String(c.storeUrl || '').replace(/\/$/, '');
+    if (!store) {
+        throw new Error('Shopify store URL is not configured. Please complete Step 1 (Test Connection) first.');
+    }
+    if (store.indexOf('http') !== 0) { store = 'https://' + store; }
+    return store + '/admin/api/' + String(c.apiVersion || '2026-07');
 }
 
 function getToken() {
-    var c = cfg.shopify || {};
-    return String(c.clientSecret || c.accessToken || '');
+    var c     = cfg.shopify || {};
+    var token = String(c.accessToken || c.clientSecret || '');
+    if (!token) {
+        throw new Error('Shopify access token is not configured. Please complete Step 1 (Test Connection) first.');
+    }
+    return token;
 }
 
 function authHeaders() {
@@ -22,11 +31,11 @@ function authHeaders() {
 function productFields() {
     return ' id handle title bodyHtml vendor productType status tags'
         + ' seo { title description }'
-        + ' variants(first: 100) { nodes { id sku price compareAtPrice barcode position'
+        + ' variants(first: 50) { nodes { id sku price compareAtPrice barcode position'
         + '   selectedOptions { name value } image { url altText } } }'
-        + ' images(first: 20) { nodes { url altText } }'
-        + ' collections(first: 10) { nodes { id handle title } }'
-        + ' metafields(first: 50) { nodes { namespace key value type { name } } }';
+        + ' images(first: 5) { nodes { url altText } }'
+        + ' collections(first: 5) { nodes { id handle title } }'
+        + ' metafields(first: 10) { nodes { namespace key value type } }';
 }
 
 /**
@@ -58,7 +67,13 @@ function fetchBatch(cursor, limit) {
         JSON.stringify({ query: query })
     );
     if (res.status !== 200 || !res.data || !res.data.data) {
-        throw new Error('Shopify products fetch failed (' + res.status + ')');
+        var gqlErr = '';
+        if (res.data && res.data.errors && res.data.errors.length) {
+            gqlErr = ': ' + res.data.errors[0].message;
+        } else if (res.text) {
+            gqlErr = ': ' + String(res.text).substring(0, 200);
+        }
+        throw new Error('Shopify products fetch failed (' + res.status + ')' + gqlErr);
     }
     var productsData = res.data.data.products || {};
     var nodes        = productsData.nodes     || [];
