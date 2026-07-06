@@ -1,7 +1,7 @@
 'use strict';
 
-var transformer = require('*/cartridge/scripts/migration/productMigration/productTransformer');
-var nativeMap   = require('*/cartridge/scripts/migration/config/nativeFieldMap');
+var ctpTransformer = require('*/cartridge/scripts/migration/productMigration/productTransformer');
+var nativeMap      = require('*/cartridge/scripts/migration/config/nativeFieldMap');
 
 function xmlEsc(val) {
     if (val === null || val === undefined) return '';
@@ -71,17 +71,20 @@ function buildPageAttributes(t) {
 }
 
 /**
- * Build <variations> block with <attributes> (variation axes from CTP variant attrs)
+ * Build <variations> block with <attributes> (variation axes from variant attrs)
  * and <variants> list.
  * Reference: <attributes> first, then <variants>.
+ * isShopify: true when the product comes from the Shopify transformer.
  */
-function buildVariationsXml(t, selectedVarAttrs) {
+function buildVariationsXml(t, selectedVarAttrs, isShopify) {
     var xml = '        <variations>\n';
     var hasVarSelection = selectedVarAttrs && selectedVarAttrs.length;
+    var attrPrefix = isShopify ? 'shopify_' : 'ctp_';
 
     // Collect unique variation attribute names + values across all variants.
-    // CTP attribute value can be a string, number, or { key, label } enum.
-    // attrMap key = SFCC attr ID (ctp_ prefixed) — must match both axis ID and variant custom attr ID.
+    // CTP: value can be string, number, or { key, label } enum.
+    // Shopify: value is always a string (selectedOptions).
+    // attrMap key = SFCC attr ID (prefixed) — must match both axis ID and variant custom attr ID.
     var attrMap = {}; // { sfccAttrId: { key: displayVal } }
     for (var vi = 0; vi < t.variants.length; vi++) {
         var attrs = t.variants[vi].attributes || [];
@@ -89,14 +92,19 @@ function buildVariationsXml(t, selectedVarAttrs) {
             var a   = attrs[ai];
             var val = a.value;
             if (val === null || val === undefined) continue;
-            // Only include axes that are in the selected variant attrs list
-            if (hasVarSelection && selectedVarAttrs.indexOf(a.name) === -1) continue;
+            // CTP: only include axes that are in the selected variant attrs list
+            // Shopify: include all (no selection step)
+            if (!isShopify && hasVarSelection && selectedVarAttrs.indexOf(a.name) === -1) continue;
+            if (!isShopify && !hasVarSelection) continue;
 
-            var axisRule   = nativeMap.getRule('commercetools', 'Product', a.name);
-            if (axisRule && axisRule.action === 'skip') continue;
+            var axisRule;
+            if (!isShopify) {
+                axisRule = nativeMap.getRule('commercetools', 'Product', a.name);
+                if (axisRule && axisRule.action === 'skip') continue;
+            }
             // Use same SFCC ID as variant custom attr so axis ID and value ID match
-            var sfccAxisId = (axisRule && axisRule.action === 'custom_attr') ? axisRule.sfccField
-                : ('ctp_' + String(a.name || '').replace(/[^a-zA-Z0-9_]/g, '_'));
+            var sfccAxisId = (!isShopify && axisRule && axisRule.action === 'custom_attr') ? axisRule.sfccField
+                : (attrPrefix + String(a.name || '').replace(/[^a-zA-Z0-9_]/g, '_'));
 
             var key     = '';
             var display = '';
@@ -240,12 +248,20 @@ function buildProductXml(t, selectedVarAttrs) {
 
     productXml += buildPageAttributes(t);
 
-    // Custom attrs for CTP tracking (only written if ctp_product_id/key attrs are defined in BM)
-    if (t.ctpId || t.ctpKey) {
+    var isShopify = !!t.shopifyId;
+
+    // Custom attrs for source-platform tracking
+    if (isShopify) {
         productXml += '        <custom-attributes>\n';
-        if (t.ctpId)       productXml += '            <custom-attribute attribute-id="ctp_product_id">'   + xmlEsc(t.ctpId)           + '</custom-attribute>\n';
-        if (t.ctpKey)      productXml += '            <custom-attribute attribute-id="ctp_product_key">'  + xmlEsc(t.ctpKey)          + '</custom-attribute>\n';
-        if (t.productKind) productXml += '            <custom-attribute attribute-id="ctp_product_type">' + xmlEsc(t.productKind)     + '</custom-attribute>\n';
+        productXml += '            <custom-attribute attribute-id="shopify_product_id">' + xmlEsc(t.shopifyId)         + '</custom-attribute>\n';
+        productXml += '            <custom-attribute attribute-id="shopify_handle">'     + xmlEsc(t.productId)         + '</custom-attribute>\n';
+        if (t.shopifyStatus)      productXml += '            <custom-attribute attribute-id="shopify_status">'       + xmlEsc(t.shopifyStatus)      + '</custom-attribute>\n';
+        productXml += '        </custom-attributes>\n';
+    } else if (t.ctpId || t.ctpKey) {
+        productXml += '        <custom-attributes>\n';
+        if (t.ctpId)       productXml += '            <custom-attribute attribute-id="ctp_product_id">'   + xmlEsc(t.ctpId)       + '</custom-attribute>\n';
+        if (t.ctpKey)      productXml += '            <custom-attribute attribute-id="ctp_product_key">'  + xmlEsc(t.ctpKey)      + '</custom-attribute>\n';
+        if (t.productKind) productXml += '            <custom-attribute attribute-id="ctp_product_type">' + xmlEsc(t.productKind) + '</custom-attribute>\n';
         productXml += '        </custom-attributes>\n';
     }
 
@@ -256,7 +272,7 @@ function buildProductXml(t, selectedVarAttrs) {
         productXml += buildProductSetProductsXml(t.setProducts);
     } else if (t.hasVariants) {
         // base product with variants
-        productXml += buildVariationsXml(t, selectedVarAttrs);
+        productXml += buildVariationsXml(t, selectedVarAttrs, isShopify);
     }
 
     // classification-category: use first CTP category key if available
@@ -271,6 +287,7 @@ function buildProductXml(t, selectedVarAttrs) {
 
     // ── Variant products (base products only — sets/bundles have no SFCC variants) ──
     if (t.productKind === 'base' && t.hasVariants) {
+        var isShopifyVar = !!t.shopifyId;
         for (var vi = 0; vi < t.variants.length; vi++) {
             var v = t.variants[vi];
             productXml += '    <product product-id="' + xmlEsc(v.productId) + '">\n';
@@ -283,39 +300,56 @@ function buildProductXml(t, selectedVarAttrs) {
             productXml += '        <available-flag>true</available-flag>\n';
             if (v.sku) productXml += '        <manufacturer-sku>' + xmlEsc(v.sku) + '</manufacturer-sku>\n';
 
-            // Variant custom attrs — only write attrs the user explicitly selected.
-            // If no selection saved, write nothing (user must make a selection first).
-            var varInner = t.ctpId ? '            <custom-attribute attribute-id="ctp_product_id">' + xmlEsc(t.ctpId) + '</custom-attribute>\n' : '';
+            var varInner;
             var hasVarSelection = selectedVarAttrs && selectedVarAttrs.length;
-            for (var ai = 0; ai < (v.attributes || []).length; ai++) {
-                var a    = v.attributes[ai];
-                var val  = a.value;
-                if (val === null || val === undefined) continue;
-                // Require explicit selection — skip if no selection or attr not selected.
-                if (!hasVarSelection || selectedVarAttrs.indexOf(a.name) === -1) continue;
-                // Use SFCC attr ID (ctp_ prefixed) — must match the variation axis ID on the master.
-                var rule = nativeMap.getRule('commercetools', 'Product', a.name);
-                if (rule && rule.action === 'skip') continue;
-                var aId  = (rule && rule.action === 'custom_attr') ? rule.sfccField
-                    : ('ctp_' + String(a.name || '').replace(/[^a-zA-Z0-9_]/g, '_'));
-                var strVal;
-                if (typeof val === 'object' && !Array.isArray(val)) {
-                    // CTP enum/lenum: { key, label }
-                    if (val.key !== undefined && val.key !== null) {
-                        strVal = String(val.key);
-                    } else {
-                        // Localized string: { "en": "value" }
-                        var loc = val['en'] || val['en-US'] || (Object.keys(val).length ? val[Object.keys(val)[0]] : '');
-                        strVal = String(loc || '');
-                    }
-                } else if (Array.isArray(val)) {
-                    continue; // skip array values for custom attrs
-                } else {
-                    strVal = String(val);
+
+            if (isShopifyVar) {
+                // Shopify: include all variant option attrs; link back to parent via shopify_product_id
+                varInner = t.shopifyId ? '            <custom-attribute attribute-id="shopify_product_id">' + xmlEsc(t.shopifyId) + '</custom-attribute>\n' : '';
+                for (var sai = 0; sai < (v.attributes || []).length; sai++) {
+                    var sa    = v.attributes[sai];
+                    var sval  = sa.value;
+                    if (sval === null || sval === undefined) continue;
+                    if (Array.isArray(sval)) continue;
+                    var saId  = 'shopify_' + String(sa.name || '').replace(/[^a-zA-Z0-9_]/g, '_');
+                    var sstr  = String(sval);
+                    if (!sstr) continue;
+                    varInner += '            <custom-attribute attribute-id="' + xmlEsc(saId) + '">' + xmlEsc(sstr) + '</custom-attribute>\n';
                 }
-                if (!strVal) continue;
-                varInner += '            <custom-attribute attribute-id="' + xmlEsc(aId) + '">' + xmlEsc(strVal) + '</custom-attribute>\n';
+            } else {
+                // CTP: only write attrs the user explicitly selected.
+                varInner = t.ctpId ? '            <custom-attribute attribute-id="ctp_product_id">' + xmlEsc(t.ctpId) + '</custom-attribute>\n' : '';
+                for (var ai = 0; ai < (v.attributes || []).length; ai++) {
+                    var a    = v.attributes[ai];
+                    var val  = a.value;
+                    if (val === null || val === undefined) continue;
+                    // Require explicit selection — skip if no selection or attr not selected.
+                    if (!hasVarSelection || selectedVarAttrs.indexOf(a.name) === -1) continue;
+                    // Use SFCC attr ID (ctp_ prefixed) — must match the variation axis ID on the master.
+                    var rule = nativeMap.getRule('commercetools', 'Product', a.name);
+                    if (rule && rule.action === 'skip') continue;
+                    var aId  = (rule && rule.action === 'custom_attr') ? rule.sfccField
+                        : ('ctp_' + String(a.name || '').replace(/[^a-zA-Z0-9_]/g, '_'));
+                    var strVal;
+                    if (typeof val === 'object' && !Array.isArray(val)) {
+                        // CTP enum/lenum: { key, label }
+                        if (val.key !== undefined && val.key !== null) {
+                            strVal = String(val.key);
+                        } else {
+                            // Localized string: { "en": "value" }
+                            var loc = val['en'] || val['en-US'] || (Object.keys(val).length ? val[Object.keys(val)[0]] : '');
+                            strVal = String(loc || '');
+                        }
+                    } else if (Array.isArray(val)) {
+                        continue; // skip array values for custom attrs
+                    } else {
+                        strVal = String(val);
+                    }
+                    if (!strVal) continue;
+                    varInner += '            <custom-attribute attribute-id="' + xmlEsc(aId) + '">' + xmlEsc(strVal) + '</custom-attribute>\n';
+                }
             }
+
             if (varInner) productXml += '        <custom-attributes>\n' + varInner + '        </custom-attributes>\n';
 
             productXml += '        <pinterest-enabled-flag>false</pinterest-enabled-flag>\n';
@@ -336,18 +370,24 @@ function buildProductXml(t, selectedVarAttrs) {
 }
 
 /**
- * Build complete SFCC catalog import XML for a batch of CTP products.
- * @param {Array}  ctpProducts
- * @param {string} catalogId
- * @returns {{ xml: string, built: number, failed: number, errors: Array }}
+ * Build product and category XML parts for a batch — no XML declaration or catalog wrapper.
+ * Returns the inner parts separately so callers can accumulate across multiple batches
+ * and write a single XML file at the end.
+ *
+ * @param {Array}    rawProducts
+ * @param {string}   catalogId        - used only for UUID→SFCC-ID map key; not written here
+ * @param {Array}    selectedVarAttrs
+ * @param {Function} [transformerFn]
+ * @returns {{ productsXml, categoriesXml, built, failed, errors, setCount, bundleCount }}
  */
-function buildXml(ctpProducts, catalogId, selectedVarAttrs) {
-    // Build UUID → SFCC product ID map so member references resolve correctly
+function buildXmlParts(rawProducts, catalogId, selectedVarAttrs, transformerFn) {
+    var transform = transformerFn || ctpTransformer.transformProduct;
+
     _uuidToSfccId = {};
-    for (var mi = 0; mi < ctpProducts.length; mi++) {
-        var cp    = ctpProducts[mi];
+    for (var mi = 0; mi < rawProducts.length; mi++) {
+        var cp    = rawProducts[mi];
         var cpId  = cp.id  || '';
-        var cpKey = cp.key || '';
+        var cpKey = cp.key || cp.handle || '';
         if (cpId) {
             _uuidToSfccId[cpId] = cpKey
                 ? String(cpKey).replace(/[^a-zA-Z0-9_-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').substring(0, 100)
@@ -358,32 +398,81 @@ function buildXml(ctpProducts, catalogId, selectedVarAttrs) {
     var built         = 0;
     var failed        = 0;
     var errors        = [];
+    var setCount      = 0;
+    var bundleCount   = 0;
     var productsXml   = '';
     var categoriesXml = '';
 
-    for (var i = 0; i < ctpProducts.length; i++) {
+    for (var i = 0; i < rawProducts.length; i++) {
         try {
-            var t      = transformer.transformProduct(ctpProducts[i]);
+            var t      = transform(rawProducts[i]);
             var result = buildProductXml(t, selectedVarAttrs);
             productsXml   += result.productXml;
             categoriesXml += result.categoryXml;
+            if (t.productKind === 'set')    setCount++;
+            else if (t.productKind === 'bundle') bundleCount++;
             built++;
         } catch (e) {
             failed++;
             if (errors.length < 10) {
-                errors.push((ctpProducts[i].key || ctpProducts[i].id) + ': ' + (e.message || String(e)));
+                errors.push((rawProducts[i].key || rawProducts[i].handle || rawProducts[i].id) + ': ' + (e.message || String(e)));
             }
         }
     }
 
+    return {
+        productsXml:   productsXml,
+        categoriesXml: categoriesXml,
+        built:         built,
+        failed:        failed,
+        errors:        errors,
+        setCount:      setCount,
+        bundleCount:   bundleCount
+    };
+}
+
+/**
+ * Build complete SFCC catalog import XML for a batch of products.
+ * For single-batch usage (partial migration or Shopify). For multi-batch CTP full migration
+ * use buildXmlParts + assemble manually to produce one file.
+ *
+ * @param {Array}    rawProducts
+ * @param {string}   catalogId
+ * @param {Array}    selectedVarAttrs
+ * @param {Function} [transformerFn]
+ * @returns {{ xml, built, failed, errors, setCount, bundleCount }}
+ */
+function buildXml(rawProducts, catalogId, selectedVarAttrs, transformerFn) {
+    var parts = buildXmlParts(rawProducts, catalogId, selectedVarAttrs, transformerFn);
+
     var xml = '<?xml version="1.0" encoding="UTF-8"?>\n'
             + '<catalog xmlns="http://www.demandware.com/xml/impex/catalog/2006-10-31"'
             + ' catalog-id="' + xmlEsc(catalogId) + '">\n\n'
-            + productsXml
-            + categoriesXml
+            + parts.productsXml
+            + parts.categoriesXml
             + '\n</catalog>\n';
 
-    return { xml: xml, built: built, failed: failed, errors: errors };
+    return {
+        xml:         xml,
+        built:       parts.built,
+        failed:      parts.failed,
+        errors:      parts.errors,
+        setCount:    parts.setCount,
+        bundleCount: parts.bundleCount
+    };
 }
 
-module.exports = { buildXml: buildXml };
+function xmlHeader(catalogId) {
+    return '<?xml version="1.0" encoding="UTF-8"?>\n'
+        + '<catalog xmlns="http://www.demandware.com/xml/impex/catalog/2006-10-31"'
+        + ' catalog-id="' + xmlEsc(catalogId) + '">\n\n';
+}
+
+var XML_FOOTER = '\n</catalog>\n';
+
+module.exports = {
+    buildXml:      buildXml,
+    buildXmlParts: buildXmlParts,
+    xmlHeader:     xmlHeader,
+    XML_FOOTER:    XML_FOOTER
+};
