@@ -82,6 +82,35 @@ function transformProduct(shopifyProduct) {
     var tags     = (p.tags && p.tags.length) ? p.tags.join(', ') : '';
     var firstVar = variantNodes[0] || {};
 
+    // Bundle detection via productType or tags (works without Shopify Bundles app)
+    var pType    = String(p.productType || '').toLowerCase();
+    var pTags    = (p.tags || []).join(' ').toLowerCase();
+    var isBundle = (pType.indexOf('bundle') !== -1) || (pTags.indexOf('bundle') !== -1);
+
+    // Bundle components via metafields (namespace: bundle, key: components — JSON array of handles)
+    var bundleProducts = [];
+    if (isBundle) {
+        var mfNodes = (p.metafields && p.metafields.nodes) || [];
+        for (var mi = 0; mi < mfNodes.length; mi++) {
+            var mf = mfNodes[mi];
+            if (mf.namespace === 'bundle' && mf.key === 'components') {
+                try {
+                    var components = JSON.parse(mf.value || '[]');
+                    for (var ci = 0; ci < components.length; ci++) {
+                        var comp = components[ci];
+                        if (comp.handle) {
+                            bundleProducts.push({
+                                productId: xmlSafeId(comp.handle),
+                                quantity:  comp.quantity || 1
+                            });
+                        }
+                    }
+                } catch (e) { /* malformed metafield — skip */ }
+                break;
+            }
+        }
+    }
+
     return {
         productId:              masterId,
         shopifyId:              extractNumericId(p.id || ''),
@@ -104,11 +133,11 @@ function transformProduct(shopifyProduct) {
         masterImages:           masterImages,
         categories:             categories,
         classificationCategory: classificationCategory,
-        variants:               variants,
-        hasVariants:            variants.length > 0,
-        productKind:            'base',
+        variants:               isBundle ? [] : variants,
+        hasVariants:            !isBundle && variants.length > 0,
+        productKind:            isBundle ? 'bundle' : 'base',
         setProducts:            [],
-        bundleProducts:         []
+        bundleProducts:         bundleProducts
     };
 }
 
