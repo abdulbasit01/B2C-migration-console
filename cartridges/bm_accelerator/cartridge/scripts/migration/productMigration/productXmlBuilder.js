@@ -191,7 +191,9 @@ function buildProductSetProductsXml(setProducts) {
  * XSD: complexType.Product.BundledProduct → attribute product-id + required child <quantity>
  */
 function buildBundledProductsXml(bundleProducts) {
-    if (!bundleProducts || !bundleProducts.length) return '';
+    if (!bundleProducts || !bundleProducts.length) {
+        return '        <bundled-products/>\n';
+    }
     var xml = '        <bundled-products>\n';
     for (var i = 0; i < bundleProducts.length; i++) {
         var qty = bundleProducts[i].quantity || 1;
