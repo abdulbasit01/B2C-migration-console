@@ -7,6 +7,7 @@ var Bytes       = require('dw/util/Bytes');
 var typeMap     = require('*/cartridge/scripts/migration/connectors/ctp/ctpTypeMap');
 var sfccClient  = require('*/cartridge/scripts/migration/sfccClient');
 var attrBuilder = require('*/cartridge/scripts/migration/core/attrBuilder');
+var nativeFieldMap = require('*/cartridge/scripts/migration/config/nativeFieldMap');
 
 // CTP built-in customer fields that have no standard SFCC equivalent.
 // Each entry maps the CTP field name to the SFCC custom attribute ID we create/populate.
@@ -82,14 +83,28 @@ function getCtpCustomerFields() {
  */
 function checkMissingAttributes() {
     // Customer profile custom attributes live on the 'Profile' system object, not 'Customer'.
-    var sfccToken   = sfccClient.getSFCCToken();
-    var existingIds = sfccClient.getExistingAttributeIds(sfccToken, 'Profile');
+    var sfccToken    = sfccClient.getSFCCToken();
+    var profileAttrs = sfccClient.getAttributeDefinitions(sfccToken, 'Profile');
+    var customerAttrs = sfccClient.getAttributeDefinitions(sfccToken, 'Customer');
+    var sysAttrs     = profileAttrs.concat(customerAttrs); // Customer + Profile — customer-related native fields span both
+    var existingIds  = {};
+    for (var pa = 0; pa < profileAttrs.length; pa++) existingIds[profileAttrs[pa].id] = true;
 
     // Ensure the attribute group exists on every check so attrs can be linked below.
     try { sfccClient.ensureAttributeGroup(sfccToken, 'Profile', CTP_ATTR_GROUP_ID, CTP_ATTR_GROUP_NAME); } catch (ge) {}
 
     var missing = [];
     var seen    = {};
+
+    function withNativeHint(entry, sourceId, sourceLabel) {
+        var rule = nativeFieldMap.getEffectiveRule('commercetools', 'Customer', sourceId, sourceLabel, sysAttrs);
+        if (rule) {
+            entry.sfccNativeField  = rule.sfccField;
+            entry.sfccNativeNote   = rule.note;
+            entry.sfccNativeAction = rule.action;
+        }
+        return entry;
+    }
 
     // 1. CTP custom type fields (dynamic — defined in CTP via the Types API)
     var ctpFields = getCtpCustomerFields();
@@ -99,11 +114,11 @@ function checkMissingAttributes() {
         if (seen[id]) continue;
         seen[id] = true;
         if (!existingIds[id]) {
-            missing.push(typeMap.enrichMissingAttribute({
+            missing.push(withNativeHint(typeMap.enrichMissingAttribute({
                 id:    field.name,
                 label: field.label,
                 ctpType: field.ctpType
-            }));
+            }), field.name, field.label));
         } else {
             // Attr exists but may not be in the group yet (e.g. created before group logic was added).
             try { sfccClient.addAttributeToGroup(sfccToken, 'Profile', CTP_ATTR_GROUP_ID, id); } catch (age) {}
@@ -116,9 +131,9 @@ function checkMissingAttributes() {
         if (seen[bf.sfccId]) continue;
         seen[bf.sfccId] = true;
         if (!existingIds[bf.sfccId]) {
-            missing.push(typeMap.enrichMissingAttribute({
+            missing.push(withNativeHint(typeMap.enrichMissingAttribute({
                 id: bf.sfccId, label: bf.label, ctpType: bf.ctpType, sfccType: 'string'
-            }));
+            }), bf.sfccId, bf.label));
         } else {
             // Attr exists but may not be in the group yet.
             try { sfccClient.addAttributeToGroup(sfccToken, 'Profile', CTP_ATTR_GROUP_ID, bf.sfccId); } catch (age) {}

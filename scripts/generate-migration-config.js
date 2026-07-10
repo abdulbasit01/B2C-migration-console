@@ -42,11 +42,11 @@ fs.readFileSync(envPath, 'utf8').split('\n').forEach(line => {
     env[key.trim()] = rest.join('=').trim();
 });
 
-const hasShopify = env.SHOPIFY_STORE_URL && env.SHOPIFY_ACCESS_TOKEN;
+const hasShopify = env.SHOPIFY_STORE_URL && env.SHOPIFY_CLIENT_ID && env.SHOPIFY_CLIENT_SECRET;
 const hasCtp     = env.CTP_PROJECT_KEY && env.CTP_CLIENT_ID && env.CTP_CLIENT_SECRET;
 if (!hasShopify && !hasCtp) {
     console.error('ERROR: At least one source platform must be configured.');
-    console.error('  For Shopify:       set SHOPIFY_STORE_URL + SHOPIFY_ACCESS_TOKEN');
+    console.error('  For Shopify:       set SHOPIFY_STORE_URL + SHOPIFY_CLIENT_ID + SHOPIFY_CLIENT_SECRET');
     console.error('  For commercetools: set CTP_PROJECT_KEY + CTP_CLIENT_ID + CTP_CLIENT_SECRET');
     process.exit(1);
 }
@@ -54,9 +54,10 @@ if (!hasShopify && !hasCtp) {
 // ── 3. Write config.js (Shopify + CTP + non-sensitive SFCC settings) ────────
 const config = {
     shopify: {
-        storeUrl:    env.SHOPIFY_STORE_URL    || '',
-        accessToken: env.SHOPIFY_ACCESS_TOKEN || '',
-        apiVersion:  env.SHOPIFY_API_VERSION  || '2025-01'
+        storeUrl:     env.SHOPIFY_STORE_URL     || '',
+        clientId:     env.SHOPIFY_CLIENT_ID     || '',
+        clientSecret: env.SHOPIFY_CLIENT_SECRET || '',
+        apiVersion:   env.SHOPIFY_API_VERSION   || '2025-01'
     },
     ctp: {
         projectKey:   env.CTP_PROJECT_KEY,

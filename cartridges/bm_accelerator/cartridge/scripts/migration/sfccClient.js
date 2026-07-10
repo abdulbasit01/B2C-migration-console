@@ -86,13 +86,14 @@ function doGet(url, token) {
 }
 
 /**
- * Get all existing custom attribute IDs for an SFCC system object type.
+ * Get every attribute definition (system-built-in and custom) for an SFCC system
+ * object type, with enough metadata to distinguish native fields from custom ones.
  * @param {string} token - SFCC access token
  * @param {string} objectType - SFCC system object (Product, Customer, Order, etc.)
- * @returns {Object} map of existing attribute IDs { id: true }
+ * @returns {Array<{ id: string, displayName: string, system: boolean }>}
  */
-function getExistingAttributeIds(token, objectType) {
-    var ids      = {};
+function getAttributeDefinitions(token, objectType) {
+    var attrs    = [];
     var start    = 0;
     var pageSize = 200;
     var total    = null;
@@ -104,10 +105,30 @@ function getExistingAttributeIds(token, objectType) {
 
         if (total === null) total = res.data.total || 0;
         var page = res.data.data || [];
-        for (var i = 0; i < page.length; i++) { ids[page[i].id] = true; }
+        for (var i = 0; i < page.length; i++) {
+            var a = page[i];
+            attrs.push({
+                id:          a.id,
+                displayName: (a.display_name && a.display_name.default) || a.id,
+                system:      !!a.system
+            });
+        }
         start += pageSize;
     } while (start < total);
 
+    return attrs;
+}
+
+/**
+ * Get all existing custom attribute IDs for an SFCC system object type.
+ * @param {string} token - SFCC access token
+ * @param {string} objectType - SFCC system object (Product, Customer, Order, etc.)
+ * @returns {Object} map of existing attribute IDs { id: true }
+ */
+function getExistingAttributeIds(token, objectType) {
+    var attrs = getAttributeDefinitions(token, objectType);
+    var ids   = {};
+    for (var i = 0; i < attrs.length; i++) { ids[attrs[i].id] = true; }
     return ids;
 }
 
@@ -222,6 +243,7 @@ module.exports = {
     getSFCCToken:              getSFCCToken,
     getSFCCSettings:           getSFCCSettings,
     doGet:                     doGet,
+    getAttributeDefinitions:   getAttributeDefinitions,
     getExistingAttributeIds:   getExistingAttributeIds,
     createAttributeDefinition: createAttributeDefinition,
     deleteAttributeDefinition: deleteAttributeDefinition,

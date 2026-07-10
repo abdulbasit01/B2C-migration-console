@@ -294,10 +294,11 @@ function toGroup(title, mappings) {
     return { title: title, total: mappings.length, existsCount: existsCount, newCount: mappings.length - existsCount, mappings: mappings };
 }
 
-function buildAiMapContent(selectedTasks, existingByTask) {
+function buildAiMapContent(selectedTasks, existingByTask, sysAttrsByTask) {
     var c          = cfg.shopify;
     validateCreds(c);
     var existing   = existingByTask || {};
+    var sysAttrs   = sysAttrsByTask  || {};
     var groups     = [];
     var totalAttrs = 0;
 
@@ -309,6 +310,7 @@ function buildAiMapContent(selectedTasks, existingByTask) {
         var seen       = {};
         var stdFields  = TASK_STANDARD_FIELDS[task] || [];
         var ownerTypes = TASK_OWNER_TYPES[task]     || [];
+        var taskSysAttrs = sysAttrs[task] || [];
 
         // Standard fields
         for (var sf = 0; sf < stdFields.length; sf++) {
@@ -317,7 +319,7 @@ function buildAiMapContent(selectedTasks, existingByTask) {
             if (seen[sKey]) continue;
             seen[sKey] = true;
             totalAttrs++;
-            var stdRule   = nativeFieldMap.getRule('shopify', task, std.key);
+            var stdRule   = nativeFieldMap.getEffectiveRule('shopify', task, std.key, std.label, taskSysAttrs);
             var stdMapping = {
                 source:      std.key + ' (' + std.type + ')',
                 attributeId: std.key,
@@ -344,13 +346,20 @@ function buildAiMapContent(selectedTasks, existingByTask) {
                 var mfKey  = task + '__' + mfId;
                 if (seen[mfKey]) continue;
                 seen[mfKey] = true;
-                mappings.push({
+                var mfMapping = {
                     source:      def.namespace + '.' + def.key + ' (' + mfType + ')',
                     attributeId: mfId,
                     target:      typeMap.resolveMetafieldType(mfType),
                     confidence:  typeMap.confidence(mfType),
                     exists:      !!(existing[task] && existing[task][mfId])
-                });
+                };
+                var mfRule = nativeFieldMap.getEffectiveRule('shopify', task, mfId, def.name || def.key, taskSysAttrs);
+                if (mfRule) {
+                    mfMapping.sfccNativeField  = mfRule.sfccField;
+                    mfMapping.sfccNativeNote   = mfRule.note;
+                    mfMapping.sfccNativeAction = mfRule.action;
+                }
+                mappings.push(mfMapping);
             }
         }
 
@@ -399,5 +408,9 @@ module.exports = {
     injectCredentials:   injectCredentials,
     getDefaultTasks:     getDefaultTasks,
     buildFetchContent:   buildFetchContent,
-    buildAiMapContent:   buildAiMapContent
+    buildAiMapContent:   buildAiMapContent,
+    // Shared low-level helpers reused by shopifyCustomer* data-migration modules
+    fetchAccessToken:    fetchAccessToken,
+    adminBase:           adminBase,
+    authHeaders:         authHeaders
 };

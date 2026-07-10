@@ -984,13 +984,24 @@ exports.Wizard = function () {
             var sfccToken3   = sfccClient3.getSFCCToken();
             var tasks3       = selectedTasks || connector.getDefaultTasks();
             var existing3    = {};
+            var sysAttrs3    = {};
+            // Customer-related native fields are split across two SFCC system objects:
+            // Customer (login/customerNo/account fields) and Profile (firstName/email/
+            // phoneMobile/etc.) — scan both when detecting native matches for Customer.
+            var NATIVE_DETECTION_OBJECTS = { Customer: ['Customer', 'Profile'] };
             for (var ti = 0; ti < tasks3.length; ti++) {
                 var tname = tasks3[ti];
                 if (SFCC_TASK_OBJECTS[tname]) {
                     existing3[tname] = sfccClient3.getExistingAttributeIds(sfccToken3, SFCC_TASK_OBJECTS[tname]);
+                    var detectObjs   = NATIVE_DETECTION_OBJECTS[tname] || [SFCC_TASK_OBJECTS[tname]];
+                    var mergedAttrs  = [];
+                    for (var doi = 0; doi < detectObjs.length; doi++) {
+                        mergedAttrs = mergedAttrs.concat(sfccClient3.getAttributeDefinitions(sfccToken3, detectObjs[doi]));
+                    }
+                    sysAttrs3[tname] = mergedAttrs;
                 }
             }
-            stepContent = connector.buildAiMapContent(selectedTasks, existing3);
+            stepContent = connector.buildAiMapContent(selectedTasks, existing3, sysAttrs3);
         } catch (e) {
             stepContent = {
                 titleSuffix: 'Schema field mapping',
@@ -1050,11 +1061,20 @@ exports.CustomerMigration = function () {
     var cfg2           = require('*/cartridge/scripts/migration/configAccessor');
     var customerListId = (cfg2.sfcc && cfg2.sfcc.customerListId) ? cfg2.sfcc.customerListId : '';
     var platformId = String(session.custom.migrationPlatformId || 'commercetools');
+    var isShopify  = platformId === 'shopify';
     var pageCtx    = migrationPageContext(platformId, 'customer');
     var listsUrl   = URLUtils.url('Accelerator-GetCustomerLists').toString();
     ISML.renderTemplate('accelerator/customerMigration', withBmFrame({
         title:          Resource.msg('accelerator.title', 'accelerator', null),
         subtitle:       Resource.msg('accelerator.subtitle', 'accelerator', null),
+        platformId:     platformId,
+        isShopify:      isShopify,
+        platformLabel:  isShopify ? 'Shopify' : 'Commercetools',
+        sourceIdLabel:  isShopify ? 'Shopify Customer ID(s)' : 'Commercetools Customer UUID(s)',
+        sourceIdPlaceholder: isShopify ? 'e.g. 8474509455577, 8474509619417, ...' : 'e.g. a1b2c3d4-e5f6-7890-abcd-ef1234567890, ...',
+        sourceIdFormatNote:  isShopify
+            ? 'Enter the numeric Shopify customer ID(s) shown in the Shopify admin URL for each customer.'
+            : 'Enter the UUID(s) from the Commercetools platform (format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx).',
         customerListId: customerListId,
         dashboardUrl:   URLUtils.url('Accelerator-Start').toString(),
         impexPath:      pageCtx.impexPath,
@@ -1121,11 +1141,15 @@ exports.GetCustomerLists = function () {
 exports.GetCustomerLists.public = true;
 
 /**
- * Fetch all customer groups from CTP and return as JSON.
+ * Fetch all customer groups from the source platform and return as JSON.
+ * CTP: actual customer groups. Shopify: derived from distinct customer tags.
  */
 exports.FetchCtpCustomerGroups = function () {
     try {
-        var groupFetcher = require('*/cartridge/scripts/migration/customerMigration/ctpCustomerGroupFetcher');
+        // Shopify has no direct customer-group concept — groups are derived from customer tags instead.
+        var groupFetcher = (resolvePlatform() === 'shopify')
+            ? require('*/cartridge/scripts/migration/customerMigration/shopifyCustomerGroupFetcher')
+            : require('*/cartridge/scripts/migration/customerMigration/ctpCustomerGroupFetcher');
         jsonResponse({ ok: true, groups: groupFetcher.fetchGroups() });
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
@@ -1349,7 +1373,9 @@ exports.SaveVariantAttrSelection.public = true;
  */
 exports.CheckCustomerAttributes = function () {
     try {
-        var checker = require('*/cartridge/scripts/migration/customerMigration/customerAttrChecker');
+        var checker = (resolvePlatform() === 'shopify')
+            ? require('*/cartridge/scripts/migration/customerMigration/shopifyCustomerAttrChecker')
+            : require('*/cartridge/scripts/migration/customerMigration/customerAttrChecker');
         jsonResponse({ ok: true, missing: checker.checkMissingAttributes() });
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
@@ -1373,7 +1399,9 @@ exports.CreateCustomerAttributes = function () {
         return;
     }
     try {
-        var checker2 = require('*/cartridge/scripts/migration/customerMigration/customerAttrChecker');
+        var checker2 = (resolvePlatform() === 'shopify')
+            ? require('*/cartridge/scripts/migration/customerMigration/shopifyCustomerAttrChecker')
+            : require('*/cartridge/scripts/migration/customerMigration/customerAttrChecker');
         jsonResponse({ ok: true, result: checker2.createAttributes(attrs) });
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
@@ -1408,8 +1436,11 @@ exports.DeleteCustomerAttribute.public = true;
  */
 exports.CustomerMigrationCount = function () {
     try {
-        var ctpFetcher = require('*/cartridge/scripts/migration/customerMigration/ctpCustomerFetcher');
-        jsonResponse({ ok: true, total: ctpFetcher.getCount() });
+        var platform = resolvePlatform();
+        var countFetcher = (platform === 'shopify')
+            ? require('*/cartridge/scripts/migration/customerMigration/shopifyCustomerFetcher')
+            : require('*/cartridge/scripts/migration/customerMigration/ctpCustomerFetcher');
+        jsonResponse({ ok: true, total: countFetcher.getCount() });
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
     }
@@ -1427,6 +1458,14 @@ exports.MigrateCustomerBatch = function () {
 
     if (!listId) {
         jsonResponse({ ok: false, error: 'listId parameter is required' });
+        return;
+    }
+    if (resolvePlatform() === 'shopify') {
+        jsonResponse({
+            ok:    false,
+            error: 'Sequential partial migration is not supported for Shopify yet — '
+                 + 'enter specific customer IDs above, or use Full Migration for the whole store.'
+        });
         return;
     }
     try {
@@ -1483,7 +1522,9 @@ exports.FullMigrationBuildBatch = function () {
         return;
     }
     try {
-        var fullRunner = require('*/cartridge/scripts/migration/customerMigration/fullMigrationRunner');
+        var fullRunner = (resolvePlatform() === 'shopify')
+            ? require('*/cartridge/scripts/migration/customerMigration/shopifyFullMigrationRunner')
+            : require('*/cartridge/scripts/migration/customerMigration/fullMigrationRunner');
         jsonResponse(fullRunner.runBatch(offset, listId));
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
@@ -1504,7 +1545,9 @@ exports.MigrateCustomerById = function () {
         return;
     }
     try {
-        var byIdRunner = require('*/cartridge/scripts/migration/customerMigration/customerMigrationRunner');
+        var byIdRunner = (resolvePlatform() === 'shopify')
+            ? require('*/cartridge/scripts/migration/customerMigration/shopifyCustomerMigrationRunner')
+            : require('*/cartridge/scripts/migration/customerMigration/customerMigrationRunner');
         jsonResponse(byIdRunner.runProfileBatchById(ctpId, listId));
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
