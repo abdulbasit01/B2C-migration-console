@@ -80,14 +80,54 @@ function getParam(name) {
  * @returns {string} platform ID
  */
 function resolvePlatform() {
-    return getParam('platform') || String(session.custom.migrationPlatformId || 'commercetools');
+    var registry = require('*/cartridge/scripts/migration/core/dataSourceRegistry');
+    return getParam('platform') || registry.getPlatformId();
 }
 
 /**
- * @returns {boolean} whether data migration connection was verified in this session
+ * Resolve the data-source fetcher for the active migration platform.
+ * @param {string} moduleKey
+ * @returns {Object}
  */
-function isDataMigrationConnected() {
-    return dataMigrationSession.isConnected();
+function getMigrationFetcher(moduleKey) {
+    var registry = require('*/cartridge/scripts/migration/core/dataSourceRegistry');
+    return registry.getFetcher(moduleKey);
+}
+
+/**
+ * @param {string} [platformId]
+ * @returns {boolean} whether data migration connection was verified for this platform
+ */
+function isDataMigrationConnected(platformId) {
+    var pid = platformId || resolvePlatform();
+    return dataMigrationSession.isConnected(pid);
+}
+
+/**
+ * Platform tiles on the dashboard — attach data-wizard connection + logout URL.
+ * @returns {Array}
+ */
+function platformsForDashboard() {
+    var platforms = migrationData.getPlatforms();
+    var result    = [];
+    var i;
+    var p;
+    var enriched;
+    var keys;
+    var k;
+
+    for (i = 0; i < platforms.length; i++) {
+        p = platforms[i];
+        enriched = {};
+        keys = Object.keys(p);
+        for (k = 0; k < keys.length; k++) {
+            enriched[keys[k]] = p[keys[k]];
+        }
+        enriched.dataConnected = dataMigrationSession.isConnected(p.id);
+        enriched.logoutUrl     = URLUtils.url('Accelerator-DataMigrationLogout', 'platform', p.id).toString();
+        result.push(enriched);
+    }
+    return result;
 }
 
 /**
@@ -97,10 +137,15 @@ function isDataMigrationConnected() {
  * @returns {Object}
  */
 function migrationPageContext(platformId, moduleKey) {
-    var migPaths = require('*/cartridge/scripts/migration/core/migrationPaths');
-    var bmLinks  = require('*/cartridge/scripts/accelerator/bmLinks');
+    var migPaths  = require('*/cartridge/scripts/migration/core/migrationPaths');
+    var bmLinks   = require('*/cartridge/scripts/accelerator/bmLinks');
+    var registry  = require('*/cartridge/scripts/migration/core/dataSourceRegistry');
     var impexPath = migPaths.getRelativePath(moduleKey);
     return {
+        platformId:         platformId,
+        sourceLabel:        registry.getSourceLabel(platformId),
+        migrationUi:        migrationData.getMigrationUi(platformId),
+        migrationUiJson:    migrationData.getMigrationUiJson(platformId),
         impexPath:          impexPath,
         impexUrl:           bmLinks.getImpexFolderUrl(impexPath),
         dataWizardEntryUrl: dataMigrationSession.dataWizardUrl(platformId),
@@ -141,8 +186,11 @@ function buildConnectionCreds(platformId) {
         creds.apiUrl       = creds.apiUrl  || cfg.ctp.apiUrl  || 'https://api.us-central1.gcp.commercetools.com';
         creds.projectKey   = creds.projectKey || cfg.ctp.projectKey || '';
     } else if (platformId === 'shopify') {
+        creds.storeUrl     = creds.storeUrl     || cfg.shopify.storeUrl     || '';
+        creds.clientId     = creds.clientId     || cfg.shopify.clientId     || '';
+        creds.apiVersion   = creds.apiVersion   || cfg.shopify.apiVersion   || '2025-01';
         creds.clientSecret = resolveSecret('clientSecret', cfg.shopify.clientSecret);
-        creds.accessToken  = resolveSecret('accessToken',  cfg.shopify.accessToken  || '');
+        creds.accessToken  = resolveSecret('accessToken', cfg.shopify.accessToken || '');
     }
 
     return creds;
@@ -369,7 +417,7 @@ exports.Start = function () {
     ISML.renderTemplate('accelerator/dashboard', withBmFrame({
         title:                     Resource.msg('accelerator.title', 'accelerator', null),
         subtitle:                  Resource.msg('accelerator.subtitle', 'accelerator', null),
-        platforms:                 migrationData.getPlatforms(),
+        platforms:                 platformsForDashboard(),
         wizardUrl:                 URLUtils.url('Accelerator-Wizard').toString(),
         dataWizardUrl:             URLUtils.url('Accelerator-DataWizard').toString(),
         dataMigrationDashboardUrl: URLUtils.url('Accelerator-DataMigrationDashboard').toString(),
@@ -392,14 +440,29 @@ exports.Start = function () {
 exports.Start.public = true;
 
 /**
+ * Clear data-migration connection for a platform (logout from source).
+ * GET platform=commercetools|shopify
+ */
+exports.DataMigrationLogout = function () {
+    var platformId = getParam('platform') || getParam('platformId') || '';
+
+    if (platformId && dataMigrationSession.isConnected(platformId)) {
+        dataMigrationSession.clearConnection();
+    }
+
+    response.redirect(URLUtils.url('Accelerator-Start'));
+};
+exports.DataMigrationLogout.public = true;
+
+/**
  * Legacy entry — redirect into the data wizard (connect → select data).
  */
 exports.DataMigrationDashboard = function () {
-    var platformId = getParam('platform') || String(session.custom.migrationPlatformId || 'commercetools');
+    var platformId = resolvePlatform();
     response.redirect(URLUtils.url(
         'Accelerator-DataWizard',
         'platform', platformId,
-        'step', dataMigrationSession.connectOrSelectStep()
+        'step', dataMigrationSession.connectOrSelectStep(platformId)
     ));
 };
 exports.DataMigrationDashboard.public = true;
@@ -408,13 +471,13 @@ exports.DataMigrationDashboard.public = true;
  * Order migration page — single-page flow like inventory and pricebook.
  */
 exports.OrderMigration = function () {
-    var platformId = String(session.custom.migrationPlatformId || 'commercetools');
+    var platformId = resolvePlatform();
 
-    if (!isDataMigrationConnected()) {
+    if (!isDataMigrationConnected(platformId)) {
         response.redirect(URLUtils.url(
             'Accelerator-DataWizard',
             'platform', platformId,
-            'step', dataMigrationSession.connectOrSelectStep()
+            'step', dataMigrationSession.connectOrSelectStep(platformId)
         ));
         return;
     }
@@ -431,14 +494,18 @@ exports.OrderMigration = function () {
         dashboardUrl:        URLUtils.url('Accelerator-Start').toString(),
         dataWizardEntryUrl:  pageCtx.dataWizardEntryUrl,
         dataWizardSelectUrl: pageCtx.dataWizardSelectUrl,
+        platformId:          pageCtx.platformId,
+        sourceLabel:         pageCtx.sourceLabel,
+        migrationUi:         pageCtx.migrationUi,
+        migrationUiJson:     pageCtx.migrationUiJson,
         countUrl:            URLUtils.url('Accelerator-CountOrders').toString(),
         exportUrl:           URLUtils.url('Accelerator-ExportOrders').toString(),
         checkAttrsUrl:       URLUtils.url('Accelerator-CheckOrderAttributes').toString(),
         createAttrsUrl:      URLUtils.url('Accelerator-CreateOrderAttributes').toString(),
         impexUrl:            pageCtx.impexUrl,
         jobsUrl:             jobsUrl,
-        orderStateFilters:   migrationData.getCtpOrderStateFilters(),
-        paymentStateFilters: migrationData.getCtpPaymentStateFilters(),
+        orderStateFilters:   migrationData.getOrderStateFilters(platformId),
+        paymentStateFilters: migrationData.getPaymentStateFilters(platformId),
         cssUrl:              URLUtils.staticURL('/css/accelerator-migration.css').toString(),
         attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString(),
         orderMigrationJsUrl: URLUtils.staticURL('/js/order-migration.js').toString() + '?v=1'
@@ -451,6 +518,7 @@ exports.OrderMigration.public = true;
  * POST: years=1|2|3&maxCount=optional&orderState=optional&paymentState=optional
  */
 exports.ExportOrders = function () {
+    var platformId   = resolvePlatform();
     var offset       = parseInt(getParam('offset') || '0', 10);
     var singleFile   = getParam('singleFile') !== 'false';
     var years        = parseInt(getParam('years') || String(session.custom.orderExportYears || '1'), 10);
@@ -464,7 +532,8 @@ exports.ExportOrders = function () {
         return;
     }
 
-    if (!migrationData.isValidCtpOrderState(orderState) || !migrationData.isValidCtpPaymentState(paymentState)) {
+    if (!migrationData.isValidOrderState(platformId, orderState)
+        || !migrationData.isValidPaymentState(platformId, paymentState)) {
         jsonResponse({ ok: false, error: 'Invalid order or payment state filter' });
         return;
     }
@@ -535,7 +604,9 @@ exports.ExportOrders.public = true;
  * POST: years=1|2|3&maxCount=optional&orderState=optional&paymentState=optional
  */
 exports.CountOrders = function () {
-    if (!isDataMigrationConnected()) {
+    var platformId = resolvePlatform();
+
+    if (!isDataMigrationConnected(platformId)) {
         jsonResponse({ ok: false, error: 'Not connected to source platform' });
         return;
     }
@@ -551,14 +622,15 @@ exports.CountOrders = function () {
         return;
     }
 
-    if (!migrationData.isValidCtpOrderState(orderState) || !migrationData.isValidCtpPaymentState(paymentState)) {
+    if (!migrationData.isValidOrderState(platformId, orderState)
+        || !migrationData.isValidPaymentState(platformId, paymentState)) {
         jsonResponse({ ok: false, error: 'Invalid order or payment state filter' });
         return;
     }
 
     try {
-        var ctpOrderConnector = require('*/cartridge/scripts/migration/orders/connectors/ctpOrderConnector');
-        var counts = ctpOrderConnector.countOrders({
+        var orderConnector = getMigrationFetcher('order');
+        var counts = orderConnector.countOrders({
             years:        years,
             maxCount:     maxCount,
             orderState:   orderState,
@@ -676,12 +748,12 @@ exports.DataWizard = function () {
 
     session.custom.migrationPlatformId = platformId;
 
-    if (currentStep === 1 && dataMigrationSession.isConnected()) {
+    if (currentStep === 1 && dataMigrationSession.isConnected(platformId)) {
         response.redirect(URLUtils.url('Accelerator-DataWizard', 'platform', platformId, 'step', '2'));
         return;
     }
 
-    if (currentStep > 1 && !isDataMigrationConnected()) {
+    if (currentStep > 1 && !dataMigrationSession.isConnected(platformId)) {
         response.redirect(URLUtils.url('Accelerator-DataWizard', 'platform', platformId, 'step', '1'));
         return;
     }
@@ -802,6 +874,8 @@ exports.DataWizard = function () {
         testConnectionUrl:   URLUtils.url('Accelerator-TestConnection').toString(),
         categoryMigrationUrl: URLUtils.url('Accelerator-CategoryMigration').toString(),
         dataWizardJsUrl:     URLUtils.staticURL('/js/data-wizard.js').toString() + '?v=4',
+        migrationUi:         migrationData.getMigrationUi(platformId),
+        migrationUiJson:     migrationData.getMigrationUiJson(platformId),
         cssUrl:              URLUtils.staticURL('/css/accelerator-migration.css').toString()
     }));
 };
@@ -846,14 +920,14 @@ exports.DataWizardContinue.public = true;
  * Select a data type and advance into its migration steps.
  */
 exports.DataWizardSelectType = function () {
-    var platformId = getParam('platform') || String(session.custom.migrationPlatformId || 'commercetools');
+    var platformId = getParam('platform') || resolvePlatform();
     var typeId     = getParam('type');
 
-    if (!isDataMigrationConnected()) {
+    if (!isDataMigrationConnected(platformId)) {
         response.redirect(URLUtils.url(
             'Accelerator-DataWizard',
             'platform', platformId,
-            'step', dataMigrationSession.connectOrSelectStep()
+            'step', dataMigrationSession.connectOrSelectStep(platformId)
         ));
         return;
     }
@@ -911,14 +985,14 @@ exports.DataWizardSelectType.public = true;
  * Placeholder for data migration flows not yet implemented.
  */
 exports.DataMigrationFlow = function () {
-    var platformId = getParam('platform') || String(session.custom.migrationPlatformId || 'commercetools');
+    var platformId = getParam('platform') || resolvePlatform();
     var typeId     = getParam('type');
 
-    if (!isDataMigrationConnected()) {
+    if (!isDataMigrationConnected(platformId)) {
         response.redirect(URLUtils.url(
             'Accelerator-DataWizard',
             'platform', platformId,
-            'step', dataMigrationSession.connectOrSelectStep()
+            'step', dataMigrationSession.connectOrSelectStep(platformId)
         ));
         return;
     }
@@ -1052,7 +1126,7 @@ exports.Wizard.public = true;
 exports.CustomerMigration = function () {
     var cfg2           = require('*/cartridge/scripts/migration/configAccessor');
     var customerListId = (cfg2.sfcc && cfg2.sfcc.customerListId) ? cfg2.sfcc.customerListId : '';
-    var platformId = String(session.custom.migrationPlatformId || 'commercetools');
+    var platformId = resolvePlatform();
     var pageCtx    = migrationPageContext(platformId, 'customer');
     var listsUrl   = URLUtils.url('Accelerator-GetCustomerLists').toString();
     ISML.renderTemplate('accelerator/customerMigration', withBmFrame({
@@ -1064,6 +1138,10 @@ exports.CustomerMigration = function () {
         impexUrl:       pageCtx.impexUrl,
         dataWizardEntryUrl:  pageCtx.dataWizardEntryUrl,
         dataWizardSelectUrl: pageCtx.dataWizardSelectUrl,
+        platformId:          pageCtx.platformId,
+        sourceLabel:         pageCtx.sourceLabel,
+        migrationUi:         pageCtx.migrationUi,
+        migrationUiJson:     pageCtx.migrationUiJson,
         dataWizardEntryUrlJs: toJsLiteral(pageCtx.dataWizardEntryUrl),
         customerListsUrlJs:   toJsLiteral(listsUrl),
         presetListIdJs:       toJsLiteral(customerListId),
@@ -1526,12 +1604,10 @@ exports.MigrateCustomerById.public = true;
 // ─── Shipping method data migration ───────────────────────────────────────────
 
 /**
- * Shipping method migration page — site-specific, mirrors customer migration flow.
+ * Shipping method migration page — IMPEX XML export (connector-agnostic).
  */
 exports.ShippingMethodMigration = function () {
-    var Site      = require('dw/system/Site');
-    var siteId    = Site.getCurrent().getID();
-    var platformId = String(session.custom.migrationPlatformId || 'commercetools');
+    var platformId = resolvePlatform();
     var pageCtx    = migrationPageContext(platformId, 'shippingMethod');
     var bmLinks = require('*/cartridge/scripts/accelerator/bmLinks');
     var jobsUrl = bmLinks.getImportExportUrl();
@@ -1539,18 +1615,20 @@ exports.ShippingMethodMigration = function () {
     ISML.renderTemplate('accelerator/shippingMethodMigration', withBmFrame({
         title:        Resource.msg('accelerator.title', 'accelerator', null),
         subtitle:     Resource.msg('accelerator.subtitle', 'accelerator', null),
-        presetSiteId: siteId,
         impexPath:    pageCtx.impexPath,
         dashboardUrl: URLUtils.url('Accelerator-Start').toString(),
         dataWizardEntryUrl:  pageCtx.dataWizardEntryUrl,
         dataWizardSelectUrl: pageCtx.dataWizardSelectUrl,
+        platformId:          pageCtx.platformId,
+        sourceLabel:         pageCtx.sourceLabel,
+        migrationUi:         pageCtx.migrationUi,
+        migrationUiJson:     pageCtx.migrationUiJson,
         impexUrl:     pageCtx.impexUrl,
         cssUrl:       URLUtils.staticURL('/css/accelerator-migration.css').toString(),
         attrPreflightJsUrl: URLUtils.staticURL('/js/attr-preflight.js').toString(),
         countUrl:          URLUtils.url('Accelerator-ShippingMethodMigrationCount').toString(),
         listMethodsUrl:    URLUtils.url('Accelerator-ListShippingMethods').toString(),
         fullBatchUrl:      URLUtils.url('Accelerator-FullShippingMethodBuildBatch').toString(),
-        sitesUrl:          URLUtils.url('Accelerator-GetSites').toString(),
         checkAttrsUrl:     URLUtils.url('Accelerator-CheckShippingMethodAttributes').toString(),
         createAttrsUrl:    URLUtils.url('Accelerator-CreateShippingMethodAttributes').toString(),
         deleteAttrUrl:     URLUtils.url('Accelerator-DeleteShippingMethodAttribute').toString(),
@@ -1653,7 +1731,7 @@ exports.DeleteShippingMethodAttribute.public = true;
 
 exports.ShippingMethodMigrationCount = function () {
     try {
-        var ctpFetcher = require('*/cartridge/scripts/migration/shippingMethodMigration/ctpShippingMethodFetcher');
+        var fetcher = getMigrationFetcher('shippingMethod');
         jsonResponse({ ok: true, total: ctpFetcher.getCount() });
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
@@ -1667,7 +1745,7 @@ exports.ShippingMethodMigrationCount.public = true;
  */
 exports.ListShippingMethods = function () {
     try {
-        var fetcher     = require('*/cartridge/scripts/migration/shippingMethodMigration/ctpShippingMethodFetcher');
+        var fetcher     = getMigrationFetcher('shippingMethod');
         var transformer = require('*/cartridge/scripts/migration/shippingMethodMigration/shippingMethodTransformer');
         var batch       = fetcher.fetchAll();
         var list        = [];
@@ -1685,14 +1763,8 @@ exports.ListShippingMethods.public = true;
 
 exports.FullShippingMethodBuildBatch = function () {
     var offset      = parseInt(getParam('offset') || '0', 10);
-    var siteId      = getParam('siteId');
     var rawKeys     = getParam('keys');
     var singleFile  = getParam('singleFile') !== 'false';
-
-    if (!siteId) {
-        jsonResponse({ ok: false, error: 'siteId is required' });
-        return;
-    }
 
     var keys = null;
     if (rawKeys) {
@@ -1705,9 +1777,9 @@ exports.FullShippingMethodBuildBatch = function () {
     try {
         var fullRunner = require('*/cartridge/scripts/migration/shippingMethodMigration/fullMigrationRunner');
         if (keys && keys.length) {
-            jsonResponse(fullRunner.runBatchForKeys(keys, offset, siteId, singleFile));
+            jsonResponse(fullRunner.runBatchForKeys(keys, offset, singleFile));
         } else {
-            jsonResponse(fullRunner.runBatch(offset, siteId, singleFile));
+            jsonResponse(fullRunner.runBatch(offset, singleFile));
         }
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
@@ -1724,7 +1796,7 @@ exports.InventoryMigration = function () {
     var cfg2           = require('*/cartridge/scripts/migration/configAccessor');
     var bmLinks        = require('*/cartridge/scripts/accelerator/bmLinks');
     var listId         = (cfg2.sfcc && cfg2.sfcc.inventoryListId) ? cfg2.sfcc.inventoryListId : '';
-    var platformId     = String(session.custom.migrationPlatformId || 'commercetools');
+    var platformId     = resolvePlatform();
     var pageCtx        = migrationPageContext(platformId, 'inventory');
     var jobsUrl        = bmLinks.getImportExportUrl();
 
@@ -1736,6 +1808,10 @@ exports.InventoryMigration = function () {
         dashboardUrl:        URLUtils.url('Accelerator-Start').toString(),
         dataWizardEntryUrl:  pageCtx.dataWizardEntryUrl,
         dataWizardSelectUrl: pageCtx.dataWizardSelectUrl,
+        platformId:          pageCtx.platformId,
+        sourceLabel:         pageCtx.sourceLabel,
+        migrationUi:         pageCtx.migrationUi,
+        migrationUiJson:     pageCtx.migrationUiJson,
         countUrl:            URLUtils.url('Accelerator-InventoryMigrationCount').toString(),
         fullBatchUrl:        URLUtils.url('Accelerator-FullInventoryBuildBatch').toString(),
         supplyChannelsUrl:   URLUtils.url('Accelerator-GetSupplyChannels').toString(),
@@ -1756,7 +1832,7 @@ exports.InventoryMigration.public = true;
  */
 exports.GetSupplyChannels = function () {
     try {
-        var fetcher = require('*/cartridge/scripts/migration/inventoryMigration/ctpInventoryFetcher');
+        var fetcher = getMigrationFetcher('inventory');
         jsonResponse({ ok: true, channels: fetcher.fetchSupplyChannels() });
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
@@ -1814,7 +1890,7 @@ exports.DeleteInventoryAttribute.public = true;
 exports.InventoryMigrationCount = function () {
     try {
         var supplyChannelId = getParam('supplyChannelId');
-        var ctpFetcher      = require('*/cartridge/scripts/migration/inventoryMigration/ctpInventoryFetcher');
+        var ctpFetcher      = getMigrationFetcher('inventory');
         jsonResponse({ ok: true, total: ctpFetcher.getCount(supplyChannelId) });
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
@@ -1854,7 +1930,7 @@ exports.FullInventoryBuildBatch.public = true;
 exports.PricebookMigration = function () {
     var bmLinks        = require('*/cartridge/scripts/accelerator/bmLinks');
     var presetId       = 'list-prices';
-    var platformId     = String(session.custom.migrationPlatformId || 'commercetools');
+    var platformId     = resolvePlatform();
     var pageCtx        = migrationPageContext(platformId, 'pricebook');
     var jobsUrl        = bmLinks.getImportExportUrl();
 
@@ -1866,6 +1942,10 @@ exports.PricebookMigration = function () {
         dashboardUrl:        URLUtils.url('Accelerator-Start').toString(),
         dataWizardEntryUrl:  pageCtx.dataWizardEntryUrl,
         dataWizardSelectUrl: pageCtx.dataWizardSelectUrl,
+        platformId:          pageCtx.platformId,
+        sourceLabel:         pageCtx.sourceLabel,
+        migrationUi:         pageCtx.migrationUi,
+        migrationUiJson:     pageCtx.migrationUiJson,
         countUrl:            URLUtils.url('Accelerator-PricebookMigrationCount').toString(),
         fullBatchUrl:        URLUtils.url('Accelerator-FullPricebookBuildBatch').toString(),
         pricebooksUrl:       URLUtils.url('Accelerator-GetPricebooks').toString(),
@@ -1887,7 +1967,7 @@ exports.GetPricebooks = function () {
     var reset   = getParam('reset') === 'true';
     try {
         if (section === 'embedded') {
-            var embeddedOnly = require('*/cartridge/scripts/migration/pricebookMigration/ctpEmbeddedPriceFetcher');
+            var embeddedOnly = getMigrationFetcher('pricebookEmbedded');
             var embResult    = embeddedOnly.discoverEmbeddedStep(offset, reset);
             jsonResponse({
                 ok:           true,
@@ -1900,7 +1980,7 @@ exports.GetPricebooks = function () {
             });
             return;
         }
-        var fetcher   = require('*/cartridge/scripts/migration/pricebookMigration/ctpPricebookFetcher');
+        var fetcher   = getMigrationFetcher('pricebook');
         var stdResult = fetcher.discoverStandaloneStep(offset, reset);
         jsonResponse({
             ok:         true,
@@ -1950,11 +2030,11 @@ exports.PricebookMigrationCount = function () {
         var channelId = getParam('channelId');
         var aggregate = getParam('aggregate') === 'true';
         if (source === 'embedded') {
-            var embedded = require('*/cartridge/scripts/migration/pricebookMigration/ctpEmbeddedPriceFetcher');
+            var embedded = getMigrationFetcher('pricebookEmbedded');
             jsonResponse({ ok: true, total: embedded.getPriceCount(currency, channelId, aggregate) });
             return;
         }
-        var fetcher = require('*/cartridge/scripts/migration/pricebookMigration/ctpPricebookFetcher');
+        var fetcher = getMigrationFetcher('pricebook');
         jsonResponse({ ok: true, total: fetcher.getCount(currency, channelId, aggregate) });
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
@@ -2008,7 +2088,7 @@ exports.FullPricebookBuildBatch.public = true;
 
 exports.TaxMigration = function () {
     var bmLinks        = require('*/cartridge/scripts/accelerator/bmLinks');
-    var platformId     = String(session.custom.migrationPlatformId || 'commercetools');
+    var platformId     = resolvePlatform();
     var pageCtx        = migrationPageContext(platformId, 'tax');
     var jobsUrl        = bmLinks.getImportExportUrl();
 
@@ -2019,6 +2099,10 @@ exports.TaxMigration = function () {
         dashboardUrl:        URLUtils.url('Accelerator-Start').toString(),
         dataWizardEntryUrl:  pageCtx.dataWizardEntryUrl,
         dataWizardSelectUrl: pageCtx.dataWizardSelectUrl,
+        platformId:          pageCtx.platformId,
+        sourceLabel:         pageCtx.sourceLabel,
+        migrationUi:         pageCtx.migrationUi,
+        migrationUiJson:     pageCtx.migrationUiJson,
         countUrl:            URLUtils.url('Accelerator-TaxMigrationCount').toString(),
         fullBatchUrl:        URLUtils.url('Accelerator-FullTaxBuildBatch').toString(),
         summaryUrl:          URLUtils.url('Accelerator-GetTaxSummary').toString(),
@@ -2027,7 +2111,7 @@ exports.TaxMigration = function () {
         impexUrl:            pageCtx.impexUrl,
         cssUrl:              URLUtils.staticURL('/css/accelerator-migration.css').toString(),
         attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString(),
-        taxMigrationJsUrl:   URLUtils.staticURL('/js/tax-migration.js').toString() + '?v=7',
+        taxMigrationJsUrl:   URLUtils.staticURL('/js/tax-migration.js').toString() + '?v=8',
         jobsUrl:             jobsUrl
     }));
 };
@@ -2068,7 +2152,7 @@ exports.CreateTaxAttributes.public = true;
 exports.GetTaxSummary = function () {
     response.setContentType('application/json');
     try {
-        var fetcher = require('*/cartridge/scripts/migration/taxMigration/ctpTaxFetcher');
+        var fetcher = getMigrationFetcher('tax');
         jsonResponse({ ok: true, overview: fetcher.getTaxOverview() });
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
@@ -2081,7 +2165,7 @@ exports.TaxMigrationCount = function () {
     try {
         var scopeType = getParam('scopeType') || 'full';
         var scopeId   = getParam('scopeId') || '';
-        var fetcher   = require('*/cartridge/scripts/migration/taxMigration/ctpTaxFetcher');
+        var fetcher   = getMigrationFetcher('tax');
         jsonResponse({ ok: true, total: fetcher.getRateCount(scopeType, scopeId) });
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
@@ -2116,7 +2200,7 @@ exports.FullTaxBuildBatch.public = true;
 
 exports.StoreMigration = function () {
     var bmLinks        = require('*/cartridge/scripts/accelerator/bmLinks');
-    var platformId     = String(session.custom.migrationPlatformId || 'commercetools');
+    var platformId     = resolvePlatform();
     var pageCtx        = migrationPageContext(platformId, 'store');
     var jobsUrl        = bmLinks.getImportExportUrl();
 
@@ -2127,6 +2211,10 @@ exports.StoreMigration = function () {
         dashboardUrl:        URLUtils.url('Accelerator-Start').toString(),
         dataWizardEntryUrl:  pageCtx.dataWizardEntryUrl,
         dataWizardSelectUrl: pageCtx.dataWizardSelectUrl,
+        platformId:          pageCtx.platformId,
+        sourceLabel:         pageCtx.sourceLabel,
+        migrationUi:         pageCtx.migrationUi,
+        migrationUiJson:     pageCtx.migrationUiJson,
         fullBatchUrl:        URLUtils.url('Accelerator-FullStoreBuildBatch').toString(),
         listStoresUrl:       URLUtils.url('Accelerator-ListStores').toString(),
         checkAttrsUrl:       URLUtils.url('Accelerator-CheckStoreAttributes').toString(),
@@ -2175,7 +2263,7 @@ exports.CreateStoreAttributes.public = true;
 exports.GetStoreSummary = function () {
     response.setContentType('application/json');
     try {
-        var fetcher = require('*/cartridge/scripts/migration/storeMigration/ctpStoreFetcher');
+        var fetcher = getMigrationFetcher('store');
         jsonResponse({ ok: true, summary: fetcher.getFullStoreSummary() });
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
@@ -2190,7 +2278,7 @@ exports.GetStoreSummary.public = true;
 exports.ListStores = function () {
     response.setContentType('application/json');
     try {
-        var fetcher     = require('*/cartridge/scripts/migration/storeMigration/ctpStoreFetcher');
+        var fetcher     = getMigrationFetcher('store');
         var transformer = require('*/cartridge/scripts/migration/storeMigration/storeTransformer');
         var stores      = fetcher.fetchAllCtpStores();
         var list        = [];
@@ -2210,7 +2298,7 @@ exports.ListStores.public = true;
 exports.StoreMigrationCount = function () {
     response.setContentType('application/json');
     try {
-        var fetcher = require('*/cartridge/scripts/migration/storeMigration/ctpStoreFetcher');
+        var fetcher = getMigrationFetcher('store');
         var summary = fetcher.getFullStoreSummary();
         jsonResponse({ ok: true, total: summary.storeCount || 0 });
     } catch (e) {
@@ -2331,7 +2419,7 @@ exports.FullMigrationJobStatus.public = true;
  * Produces SFCC catalog XML files uploaded via WebDAV, then triggers a BM import job.
  */
 exports.ProductWizard = function () {
-    var platformId = String(session.custom.migrationPlatformId || 'commercetools');
+    var platformId = resolvePlatform();
     var pageCtx    = migrationPageContext(platformId, 'product');
     ISML.renderTemplate('accelerator/productMigration', withBmFrame({
         title:          Resource.msg('accelerator.title', 'accelerator', null),
@@ -2341,6 +2429,10 @@ exports.ProductWizard = function () {
         impexUrl:       pageCtx.impexUrl,
         dataWizardEntryUrl:  pageCtx.dataWizardEntryUrl,
         dataWizardSelectUrl: pageCtx.dataWizardSelectUrl,
+        platformId:          pageCtx.platformId,
+        sourceLabel:         pageCtx.sourceLabel,
+        migrationUi:         pageCtx.migrationUi,
+        migrationUiJson:     pageCtx.migrationUiJson,
         countUrl:       URLUtils.url('Accelerator-ProductMigrationCount').toString(),
         partialUrl:     URLUtils.url('Accelerator-MigrateProductById').toString(),
         fullBatchUrl:   URLUtils.url('Accelerator-FullProductMigrationBuildBatch').toString(),
@@ -3355,7 +3447,7 @@ exports.CategoryMigration = function () {
     var instanceHost = request.httpHost;
 
     // Build URLs safely - no special characters
-    var platformId = String(session.custom.migrationPlatformId || 'commercetools');
+    var platformId = resolvePlatform();
     var pageCtx    = migrationPageContext(platformId, 'catalog');
     var impexFolderUrl = pageCtx.impexUrl;
     var importPageUrl  = 'https://' + instanceHost + '/on/demandware.store/Sites-Site/default%3bapp%3d__bm_merchant/ViewCatalogImpex_52-Status?SelectedMenuItem=prod-cat_impex&CurrentMenuItemId=prod-cat';
@@ -3374,6 +3466,10 @@ exports.CategoryMigration = function () {
         impexPath      : pageCtx.impexPath,
         dataWizardEntryUrl:  pageCtx.dataWizardEntryUrl,
         dataWizardSelectUrl: pageCtx.dataWizardSelectUrl,
+        platformId:          pageCtx.platformId,
+        sourceLabel:         pageCtx.sourceLabel,
+        migrationUi:         pageCtx.migrationUi,
+        migrationUiJson:     pageCtx.migrationUiJson,
         dashboardUrl   : URLUtils.url('Accelerator-Start').toString(),
         cssUrl         : URLUtils.staticURL('/css/accelerator-migration.css').toString(),
         checkAttrsUrl  : checkAttrsUrl,

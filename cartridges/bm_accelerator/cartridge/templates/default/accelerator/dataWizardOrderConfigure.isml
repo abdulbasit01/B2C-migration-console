@@ -104,7 +104,8 @@
 
             function showCountLoading() {
                 if (!countValueEl) return;
-                countValueEl.textContent = msgs.loading || 'Checking commercetools...';
+                countValueEl.textContent = msgs.loading || ((window.AccAttrPreflight && window.AccAttrPreflight.readMigrationUi)
+                    ? window.AccAttrPreflight.readMigrationUi().orderCountChecking : 'Checking...');
                 countValueEl.className = 'acc-order-count__value acc-order-count__value--loading';
                 setCountExportVisible(false);
             }
@@ -215,8 +216,11 @@
                 if (!attrResults) return;
                 attrResults.innerHTML = '';
                 attrResults.style.display = 'block';
+                var ui = (window.AccAttrPreflight && window.AccAttrPreflight.readMigrationUi)
+                    ? window.AccAttrPreflight.readMigrationUi() : {};
                 if (!missing.length) {
-                    attrResults.innerHTML = '<p style="color:#2e7d32;font-size:13px;margin:0;">All CTP order attributes already exist in SFCC.</p>';
+                    attrResults.innerHTML = '<p style="color:#2e7d32;font-size:13px;margin:0;">'
+                        + (ui.orderAllAttrsExist || ui.allAttrsExist || 'All attributes already exist in SFCC.') + '</p>';
                     return;
                 }
                 if (!window.AccAttrPreflight) {
@@ -226,7 +230,7 @@
                 var html = '<p style="font-size:13px;color:#54698d;margin:0 0 10px;">' + missing.length + ' attribute(s) missing in SFCC:</p>';
                 html += '<div style="border:1px solid #e0e5ee;border-radius:4px;overflow:hidden;"><table class="cm-attr-table"><thead><tr>'
                     + '<th style="width:36px;"><input type="checkbox" id="acc-attr-select-all" checked/></th>'
-                    + '<th>Attribute ID</th><th>Label</th><th>CTP Type</th><th>SFCC Type</th></tr></thead><tbody>';
+                    + '<th>Attribute ID</th><th>Label</th><th>' + (ui.sourceTypeCol || 'Source Type') + '</th><th>SFCC Type</th></tr></thead><tbody>';
                 var i;
                 for (i = 0; i < missing.length; i++) {
                     var m = missing[i];

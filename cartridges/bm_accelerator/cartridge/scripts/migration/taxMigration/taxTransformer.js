@@ -1,5 +1,7 @@
 'use strict';
 
+var platformUiMeta = require('*/cartridge/scripts/accelerator/platformUiMeta');
+var dataSourceRegistry = require('*/cartridge/scripts/migration/core/dataSourceRegistry');
 function getLocalized(obj) {
     if (!obj || typeof obj !== 'object') return '';
     return obj.en || obj['en-US'] || obj['en-GB'] || obj.default
@@ -35,12 +37,14 @@ function categoryMatches(cat, scopeId) {
 }
 
 /**
- * Build canonical tax model from CTP tax categories.
+ * Build canonical tax model from source tax categories.
  * @param {Array} categories
  * @param {{ type: string, id: string }} filter
+ * @param {string} [platformId]
  * @returns {{ taxClasses: Array, jurisdictions: Array, taxRates: Array }}
  */
-function buildTaxModel(categories, filter) {
+function buildTaxModel(categories, filter, platformId) {
+    var platform = platformId || dataSourceRegistry.getPlatformId();
     var scopeType     = (filter && filter.type) ? filter.type : 'full';
     var scopeId       = (filter && filter.id) ? filter.id : '';
     var classMap      = {};
@@ -60,7 +64,7 @@ function buildTaxModel(categories, filter) {
         }
 
         var className = getLocalized(cat.name) || classId;
-        var classDesc = cat.description || ('Commercetools tax category ' + classId);
+        var classDesc = cat.description || platformUiMeta.buildTaxCategoryDescription(platform, classId);
         var isDefault = (cat.key === 'standard' || classId === 'standard');
 
         if (!classMap[classId]) {

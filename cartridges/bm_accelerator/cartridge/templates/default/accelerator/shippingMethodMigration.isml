@@ -28,45 +28,28 @@
         .sm-methods-table code { background: #eaf0fb; padding: 2px 6px; border-radius: 3px; font-size: 11px; }
         .sm-methods-table tr.sm-methods-row--skipped { opacity: 0.55; }
     </style>
-<div class="acc-page">
+<div class="acc-page" id="acc-ship-root" data-migration-ui="<isprint value="${pdict.migrationUiJson}" encoding="htmldoublequote"/>">
 <div class="acc-shell">
     <isinclude template="accelerator/components/header"/>
     <isinclude template="accelerator/components/migrationBackLink"/>
     <section class="acc-section">
         <header class="acc-section__head">
-            <h2>Shipping Method Migration &mdash; <span class="acc-highlight">Commercetools &rarr; SFCC</span></h2>
+            <h2>Shipping Method Migration &mdash; <span class="acc-highlight">${pdict.sourceLabel} &rarr; SFCC</span></h2>
             <p style="font-size:14px;color:#54698d;margin-top:6px;max-width:720px;">
-                Select the <strong>SFCC site</strong> where shipping methods will be imported. Shipping methods are always site-specific in SFCC.
-                Migration builds site-specific IMPEX XML and uploads via WebDAV for Business Manager import.
+                <isprint value="${pdict.migrationUi.shipIntro}" encoding="off"/>
             </p>
         </header>
 
-        <div style="margin:24px 0 16px;">
-            <div style="display:flex;align-items:flex-start;flex-wrap:wrap;gap:10px;">
-                <label for="acc-site-id" style="font-weight:600;font-size:14px;white-space:nowrap;padding-top:6px;">
-                    SFCC Site <span style="color:#c62828;">*</span>
-                </label>
-                <div>
-                    <select id="acc-site-id" class="acc-form__input" style="width:260px;">
-                        <option value="">Loading sites...</option>
-                    </select>
-                    <span id="acc-site-id-error" class="acc-field-error">Site is required.</span>
-                </div>
-                <span id="acc-count-badge" style="font-size:13px;color:#54698d;padding-top:6px;"></span>
-            </div>
-        </div>
-
-        <div id="acc-attr-preflight" style="margin:0 0 28px;border:1px solid #dddbda;border-radius:6px;overflow:hidden;">
+        <div id="acc-attr-preflight" style="margin:24px 0 28px;border:1px solid #dddbda;border-radius:6px;overflow:hidden;">
+            <script type="application/json" id="acc-migration-ui-data"><isprint value="${pdict.migrationUiJson}" encoding="off"/></script>
             <div style="background:#f4f6f9;border-bottom:1px solid #dddbda;padding:11px 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
                 <span style="font-weight:700;font-size:14px;color:#16325c;">Attribute Pre-flight Check</span>
-                <button id="acc-check-attrs-btn" type="button" class="acc-btn acc-btn--ghost">Check CTP Attributes</button>
+                <button id="acc-check-attrs-btn" type="button" class="acc-btn acc-btn--ghost">${pdict.migrationUi.attrCheckBtn}</button>
                 <span id="acc-attr-check-msg" style="font-size:13px;color:#54698d;font-weight:600;"></span>
             </div>
             <div style="padding:14px 20px;">
                 <p style="font-size:13px;color:#54698d;margin:0;">
-                    Scans CTP shipping-method <strong>custom-type</strong> field definitions and checks whether matching
-                    attributes exist on the SFCC <strong>ShippingMethod</strong> system object.
-                    Standard CTP fields (key, name, rates, etc.) map to native SFCC shipping-method XML fields and are not listed here.
+                    <isprint value="${pdict.migrationUi.shipAttrScan}" encoding="off"/>
                 </p>
                 <div id="acc-attr-results" style="display:none;margin-top:14px;"></div>
             </div>
@@ -82,7 +65,7 @@
                 <p style="font-size:13px;color:#54698d;margin:0 0 12px;">
                     Uncheck any method you want to <strong>skip</strong>. Migration only processes checked methods.
                 </p>
-                <div id="acc-methods-loading" style="font-size:13px;color:#54698d;">Click <strong>Load Methods</strong> to fetch shipping methods from commercetools.</div>
+                <div id="acc-methods-loading" style="font-size:13px;color:#54698d;"><isprint value="${pdict.migrationUi.loadMethodsHint}" encoding="off"/></div>
                 <div id="acc-methods-error" style="display:none;font-size:13px;color:#c62828;margin-bottom:10px;"></div>
                 <div id="acc-methods-table-wrap" style="display:none;border:1px solid #e0e5ee;border-radius:4px;overflow:auto;max-height:320px;">
                     <table class="sm-methods-table">
@@ -90,7 +73,7 @@
                             <tr>
                                 <th style="width:36px;text-align:center;"><input type="checkbox" id="acc-methods-select-all" checked title="Select all"/></th>
                                 <th>Name</th>
-                                <th>CTP Key</th>
+                                <th>${pdict.migrationUi.shipKeyCol}</th>
                                 <th>SFCC Method ID</th>
                                 <th>Status</th>
                             </tr>
@@ -105,12 +88,12 @@
 
         <div class="acc-info-box">
             <strong>How migration works:</strong><br/>
-            Fetches shipping methods from Commercetools in batches, builds SFCC shipping import XML for site
-            <code id="full-site-label"></code>, and uploads to WebDAV at
+            <isprint value="${pdict.migrationUi.shipHowWorks}" encoding="off"/>
+            uploads to WebDAV at
             <code>/Impex/${pdict.impexPath}/</code>
             (e.g. <code>shipping-method-YYYYMMDD-v001.xml</code>).<br/>
             Then run <strong>Merchant Tools &rarr; Ordering &rarr; Import &amp; Export &rarr; Import Shipping Methods</strong>
-            for the selected site and point it at the uploaded files.
+            and point the import at the uploaded file.
         </div>
         <ul class="acc-phases" id="full-phase-list" style="display:none;margin-bottom:24px;">
             <li class="acc-phases__item acc-phases__item--pending" id="full-phase-build">
@@ -128,12 +111,6 @@
                 </div>
                 <p class="acc-phases__detail" id="full-detail-import">Waiting for Phase 1&hellip;</p>
                 <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;">
-                    <a href="${pdict.jobsUrl}"
-                       target="_blank"
-                       class="acc-btn acc-btn--primary"
-                       style="text-decoration:none;font-size:13px;display:inline-block;padding:7px 16px;">
-                        Open BM Import
-                    </a>
                     <a href="${pdict.impexUrl}"
                        target="_blank"
                        class="acc-btn acc-btn--ghost"
@@ -153,7 +130,7 @@
 
 <div id="acc-preflight-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center;">
     <div style="background:#fff;border-radius:6px;padding:28px 32px;max-width:620px;width:90%;max-height:82vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.3);">
-        <h3 style="margin:0 0 6px;color:#16325c;font-size:16px;">Missing CTP Attributes in SFCC</h3>
+        <h3 style="margin:0 0 6px;color:#16325c;font-size:16px;">${pdict.migrationUi.attrModalTitle}</h3>
         <p style="font-size:13px;color:#54698d;margin:0 0 16px;">Create missing ShippingMethod attributes now, or skip and migrate without them.</p>
         <div id="acc-modal-attr-list"></div>
         <p id="acc-modal-status" style="font-size:12px;margin:12px 0 0;min-height:16px;"></p>
@@ -168,19 +145,21 @@
 (function () {
     var LIST_METHODS_URL = '${pdict.listMethodsUrl}';
     var FULL_BATCH_URL   = '${pdict.fullBatchUrl}';
-    var SITES_URL        = '${pdict.sitesUrl}';
-    var PRESET_SITE_ID   = '${pdict.presetSiteId}';
-    var CHECK_ATTRS_URL  = '${pdict.checkAttrsUrl}';
-    var CREATE_ATTRS_URL = '${pdict.createAttrsUrl}';
+    var CHECK_ATTRS_URL  = '${pdict.checkAttrsUrl}';    var CREATE_ATTRS_URL = '${pdict.createAttrsUrl}';
     var DELETE_ATTR_URL  = '${pdict.deleteAttrUrl}';
     var DATA_WIZARD_ENTRY_URL = '${pdict.dataWizardEntryUrl}';
     var IMPEX_PATH = '${pdict.impexPath}';
 
-    var siteIdEl   = document.getElementById('acc-site-id');
-    var countBadge = document.getElementById('acc-count-badge');
-    var fullSiteLabel = document.getElementById('full-site-label');
-    var ctpMethods    = [];
+    var uiEl = document.getElementById('acc-ship-root');
+    var MIGRATION_UI = (window.AccAttrPreflight && window.AccAttrPreflight.readMigrationUi)
+        ? window.AccAttrPreflight.readMigrationUi()
+        : (function () {
+            var raw = uiEl ? uiEl.getAttribute('data-migration-ui') : '';
+            try { return raw ? JSON.parse(raw) : {}; } catch (e) { return {}; }
+        })();
+    var SRC = MIGRATION_UI.sourceShort || 'Source';
 
+    var ctpMethods = [];
     function escHtml(val) {
         if (val === null || val === undefined) return '';
         return String(val)
@@ -198,10 +177,6 @@
             summaryEl.textContent = total
                 ? checked + ' of ' + total + ' selected for migration'
                 : '';
-        }
-        if (countBadge && total) {
-            countBadge.textContent = checked + ' of ' + total + ' selected';
-            countBadge.style.color = checked ? '#2e7d32' : '#e65100';
         }
     }
 
@@ -227,7 +202,7 @@
         errorEl.style.display   = 'none';
 
         if (!ctpMethods.length) {
-            errorEl.textContent = 'No shipping methods found in commercetools.';
+            errorEl.textContent = MIGRATION_UI.noShipMethods || ('No shipping methods found in ' + SRC + '.');
             errorEl.style.display = 'block';
             wrapEl.style.display = 'none';
             updateMethodsSummary();
@@ -289,8 +264,8 @@
         var reloadBtn = document.getElementById('acc-reload-methods-btn');
         loadingEl.style.display = 'block';
         loadingEl.textContent = fromUserClick
-            ? 'Reloading shipping methods from commercetools...'
-            : 'Loading shipping methods from commercetools...';
+            ? (MIGRATION_UI.reloadingShipMethods || ('Reloading shipping methods from ' + SRC + '...'))
+            : (MIGRATION_UI.loadingShipMethods || ('Loading shipping methods from ' + SRC + '...'));
         errorEl.style.display = 'none';
         wrapEl.style.display = 'none';
         if (reloadBtn) {
@@ -321,57 +296,7 @@
     document.getElementById('acc-methods-loading').style.display = 'block';
     document.getElementById('acc-methods-table-wrap').style.display = 'none';
 
-    function showError(inputId, errorId, msg) {
-        var el = document.getElementById(inputId);
-        var err = document.getElementById(errorId);
-        if (el) el.style.borderColor = '#c62828';
-        if (err) { err.textContent = msg; err.style.display = 'block'; }
-    }
-    function clearError(inputId, errorId) {
-        var el = document.getElementById(inputId);
-        var err = document.getElementById(errorId);
-        if (el) el.style.borderColor = '';
-        if (err) { err.textContent = ''; err.style.display = 'none'; }
-    }
-
-    (function loadSites() {
-        var req = new XMLHttpRequest();
-        req.open('GET', SITES_URL, true);
-        req.onreadystatechange = function () {
-            if (req.readyState !== 4) return;
-            var data;
-            try { data = JSON.parse(req.responseText); } catch (e) { data = { ok: false }; }
-            siteIdEl.innerHTML = '';
-            if (!data.ok || !data.sites || !data.sites.length) {
-                var errOpt = document.createElement('option');
-                errOpt.value = '';
-                errOpt.textContent = data.ok ? 'No sites found' : 'Failed to load sites';
-                siteIdEl.appendChild(errOpt);
-                return;
-            }
-            var placeholder = document.createElement('option');
-            placeholder.value = '';
-            placeholder.textContent = ' Select a site ';
-            siteIdEl.appendChild(placeholder);
-            for (var i = 0; i < data.sites.length; i++) {
-                var opt = document.createElement('option');
-                opt.value = data.sites[i].id;
-                opt.textContent = data.sites[i].id;
-                if (data.sites[i].id === PRESET_SITE_ID) opt.selected = true;
-                siteIdEl.appendChild(opt);
-            }
-            fullSiteLabel.textContent = siteIdEl.value || '';
-        };
-        req.send(null);
-    }());
-
-    siteIdEl.addEventListener('change', function () {
-        clearError('acc-site-id', 'acc-site-id-error');
-        fullSiteLabel.textContent = siteIdEl.value || '';
-    });
-
-    var checkAttrsBtn = document.getElementById('acc-check-attrs-btn');
-    var attrCheckMsg  = document.getElementById('acc-attr-check-msg');
+    var checkAttrsBtn = document.getElementById('acc-check-attrs-btn');    var attrCheckMsg  = document.getElementById('acc-attr-check-msg');
     var attrResults   = document.getElementById('acc-attr-results');
     var pendingMissing = [];
 
@@ -379,11 +304,13 @@
         attrResults.innerHTML = '';
         attrResults.style.display = 'block';
         if (!missing.length) {
-            attrResults.innerHTML = '<p style="color:#2e7d32;font-size:13px;margin:0;">All CTP shipping-method attributes already exist in SFCC.</p>';
+            attrResults.innerHTML = '<p style="color:#2e7d32;font-size:13px;margin:0;">' + (MIGRATION_UI.allAttrsExist || ('All ' + SRC + ' attributes already exist in SFCC.')) + '</p>';
             return;
         }
-        var html = '<p style="font-size:13px;color:#54698d;margin:0 0 10px;">' + missing.length + ' attribute(s) missing in SFCC.</p>';
-        html += '<table class="cm-attr-table"><thead><tr><th style="width:36px;"><input type="checkbox" id="acc-attr-select-all" checked/></th><th>Attribute ID</th><th>Label</th><th>CTP Type</th><th>SFCC Type</th><th>Action</th></tr></thead><tbody>';
+        var html = '<p style="font-size:13px;color:#54698d;margin:0 0 10px;">'
+            + (window.AccAttrPreflight ? window.AccAttrPreflight.missingCountLabel(MIGRATION_UI, missing.length) : missing.length + (MIGRATION_UI.attrsMissingCount || ' attribute(s) missing in SFCC:'))
+            + '</p>';
+        html += '<table class="cm-attr-table"><thead><tr><th style="width:36px;"><input type="checkbox" id="acc-attr-select-all" checked/></th><th>Attribute ID</th><th>Label</th><th>' + (MIGRATION_UI.sourceTypeCol || 'Source Type') + '</th><th>SFCC Type</th><th>Action</th></tr></thead><tbody>';
         for (var i = 0; i < missing.length; i++) {
             var m = missing[i];
             html += '<tr id="acc-attr-row-' + i + '"><td style="text-align:center;"><input type="checkbox" class="acc-attr-cb" data-idx="' + i + '" checked/></td>'
@@ -434,18 +361,20 @@
 
     checkAttrsBtn.addEventListener('click', function () {
         checkAttrsBtn.disabled = true;
-        checkAttrsBtn.textContent = 'Checking...';
+        checkAttrsBtn.textContent = MIGRATION_UI.attrCheckingBtn || 'Checking...';
         attrCheckMsg.textContent = '';
         get(CHECK_ATTRS_URL, function (data) {
             checkAttrsBtn.disabled = false;
-            checkAttrsBtn.textContent = 'Re-check';
+            checkAttrsBtn.textContent = MIGRATION_UI.attrRecheckBtn || 'Re-check';
             if (!data.ok) {
                 attrCheckMsg.textContent = 'Error: ' + (data.error || 'Check failed');
                 attrCheckMsg.style.color = '#c62828';
                 return;
             }
             pendingMissing = data.missing || [];
-            attrCheckMsg.textContent = pendingMissing.length ? pendingMissing.length + ' missing.' : 'All in sync.';
+            attrCheckMsg.textContent = pendingMissing.length
+                ? pendingMissing.length + (MIGRATION_UI.attrsMissingBrief || ' missing.')
+                : (MIGRATION_UI.attrsAllInSync || 'All in sync.');
             attrCheckMsg.style.color = pendingMissing.length ? '#e65100' : '#2e7d32';
             renderAttrResults(pendingMissing);
         });
@@ -509,7 +438,9 @@
     function runPreflightThenMigrate(onContinue) {
         get(CHECK_ATTRS_URL, function (data) {
             if (!data.ok || !data.missing || !data.missing.length) { onContinue(); return; }
-            modalAttrList.innerHTML = '<p style="font-size:13px;color:#54698d;">' + data.missing.length + ' attribute(s) missing.</p>';
+            modalAttrList.innerHTML = '<p style="font-size:13px;color:#54698d;">'
+                + (window.AccAttrPreflight ? window.AccAttrPreflight.missingBriefLabel(MIGRATION_UI, data.missing.length) : data.missing.length + (MIGRATION_UI.attrsMissingBrief || ' attribute(s) missing.'))
+                + '</p>';
             modalCallback = onContinue;
             modalCreateBtn.style.display = '';
             preflightModal.style.display = 'flex';
@@ -534,16 +465,13 @@
     });
 
     function runFullBatch(offset, total) {
-        var siteId = siteIdEl.value.trim();
         var pct = (total > 0) ? Math.round((offset / total) * 100) : 0;
         setPhase('full', 'build', 'active', offset + ' / ' + (total || '?') + ' processed', pct);
         post(
             FULL_BATCH_URL,
             'offset=' + offset
-            + '&siteId=' + encodeURIComponent(siteId)
             + '&keys=' + encodeURIComponent(JSON.stringify(fullSelectedKeys))
-            + '&singleFile=true',
-            function (data) {
+            + '&singleFile=true',            function (data) {
             if (!data.ok) { setPhase('full', 'build', 'error', data.error || 'Failed', pct); finalizeFull(false); return; }
             fullBuilt += (data.built || 0);
             fullFailed += (data.failed || 0);
@@ -571,7 +499,7 @@
             if (lastUploadedFile) {
                 importDetail += ' Latest: ' + lastUploadedFile + '.';
             }
-            importDetail += ' Import shipping methods in Business Manager for site ' + siteIdEl.value + '.';
+            importDetail += ' ' + (MIGRATION_UI.shipImportHint || 'Import shipping methods in Business Manager and point the import at the uploaded XML file.');
             setPhase('full', 'import', 'active', importDetail, null);
         } else {
             fullFinished = false;
@@ -585,15 +513,10 @@
             return;
         }
 
-        var siteId = siteIdEl.value.trim();
         var keys   = getSelectedMethodRefs();
         var errEl  = document.getElementById('acc-ctp-keys-error');
 
-        if (!siteId) { showError('acc-site-id', 'acc-site-id-error', 'Site is required.'); return; }
-        clearError('acc-site-id', 'acc-site-id-error');
-
-        if (!keys.length) {
-            errEl.textContent = 'Select at least one shipping method in the list above.';
+        if (!keys.length) {            errEl.textContent = 'Select at least one shipping method in the list above.';
             errEl.style.display = 'block';
             return;
         }
@@ -603,7 +526,7 @@
         fullFinished = false;
         lastUploadedFile = '';
         startBtn.disabled = true;
-        startBtn.textContent = 'Checking attributes...';
+        startBtn.textContent = MIGRATION_UI.checkingAttrs || 'Checking attributes...';
         runPreflightThenMigrate(function () {
             fullRunning = true;
             fullBuilt = 0; fullFailed = 0; fullFiles = 0;
