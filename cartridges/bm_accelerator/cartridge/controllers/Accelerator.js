@@ -263,7 +263,8 @@ exports.TestConnection = function () {
             session.custom.shopifyStoreUrl     = creds.storeUrl     || '';
             session.custom.shopifyClientId     = creds.clientId     || '';
             session.custom.shopifyClientSecret = creds.clientSecret || '';
-            session.custom.shopifyApiVersion   = creds.apiVersion   || '2025-01';
+            session.custom.shopifyAccessToken  = creds.accessToken  || '';
+            session.custom.shopifyApiVersion   = creds.apiVersion   || '2026-07';
         }
         if (getParam('mode') === 'data') {
             dataMigrationSession.markConnected(platformId, result.expiresIn);
@@ -903,7 +904,8 @@ exports.DataWizardContinue = function () {
             session.custom.shopifyStoreUrl     = creds.storeUrl     || '';
             session.custom.shopifyClientId     = creds.clientId     || '';
             session.custom.shopifyClientSecret = creds.clientSecret || '';
-            session.custom.shopifyApiVersion   = creds.apiVersion   || '2025-01';
+            session.custom.shopifyAccessToken  = creds.accessToken  || '';
+            session.custom.shopifyApiVersion   = creds.apiVersion   || '2026-07';
         }
 
         response.redirect(stepTwoUrl);
@@ -1276,10 +1278,16 @@ exports.DownloadProductXml.public = true;
  * Response: { ok, attrs: [{ name, sfccId, label, ctpType }], savedSelection: [string]|null }
  */
 /**
- * GET — Returns CTP product types detected as Product Sets, with product count per type.
+ * GET — Returns product types detected as Product Sets, with product count per type.
+ * For Shopify, returns empty (set detection uses productType field at transform time).
  * Response: { ok, sets: [{ typeId, typeName, refAttrName, count }] }
  */
 exports.GetProductSetsInfo = function () {
+    var platform = String(session.custom.migrationPlatformId || 'commercetools');
+    if (platform === 'shopify') {
+        jsonResponse({ ok: true, sets: [], note: 'Shopify set/bundle detection uses the Product Type field at migration time.' });
+        return;
+    }
     try {
         var scanner = require('*/cartridge/scripts/migration/productMigration/ctpProductTypeScanner');
         jsonResponse({ ok: true, sets: scanner.getProductSetsSummary() });
@@ -1290,10 +1298,16 @@ exports.GetProductSetsInfo = function () {
 exports.GetProductSetsInfo.public = true;
 
 /**
- * GET — Returns CTP product types detected as Bundle Products, with product count per type.
+ * GET — Returns product types detected as Bundle Products, with product count per type.
+ * For Shopify, returns empty (bundle detection uses productType field at transform time).
  * Response: { ok, bundles: [{ typeId, typeName, refAttrName, quantityAttrName, count }] }
  */
 exports.GetBundleProductsInfo = function () {
+    var platform = String(session.custom.migrationPlatformId || 'commercetools');
+    if (platform === 'shopify') {
+        jsonResponse({ ok: true, bundles: [], note: 'Shopify set/bundle detection uses the Product Type field at migration time.' });
+        return;
+    }
     try {
         var scanner = require('*/cartridge/scripts/migration/productMigration/ctpProductTypeScanner');
         jsonResponse({ ok: true, bundles: scanner.getBundleProductsSummary() });
@@ -1304,6 +1318,12 @@ exports.GetBundleProductsInfo = function () {
 exports.GetBundleProductsInfo.public = true;
 
 exports.GetVariantAttrs = function () {
+    var platform = String(session.custom.migrationPlatformId || 'commercetools');
+    if (platform === 'shopify') {
+        // Shopify variant options are included automatically — no user selection needed
+        jsonResponse({ ok: true, attrs: [], savedSelection: null, shopify: true });
+        return;
+    }
     try {
         var checker    = require('*/cartridge/scripts/migration/productMigration/productAttrChecker');
         var sfccClient = require('*/cartridge/scripts/migration/sfccClient');
@@ -2404,6 +2424,7 @@ exports.ProductWizard = function () {
     ISML.renderTemplate('accelerator/productMigration', withBmFrame({
         title:          Resource.msg('accelerator.title', 'accelerator', null),
         subtitle:       Resource.msg('accelerator.subtitle', 'accelerator', null),
+        platformId:     platformId,
         impexPath:      pageCtx.impexPath,
         impexUrl:       pageCtx.impexUrl,
         dataWizardEntryUrl:  pageCtx.dataWizardEntryUrl,
@@ -2466,12 +2487,18 @@ exports.SaveProdWizardResults = function () {
 exports.SaveProdWizardResults.public = true;
 
 /**
- * Return total number of products in the CTP project.
+ * Return total number of products in the source platform (CTP or Shopify).
  */
 exports.ProductMigrationCount = function () {
+    var platform = String(session.custom.migrationPlatformId || 'commercetools');
     try {
-        var prodFetcher = require('*/cartridge/scripts/migration/productMigration/ctpProductFetcher');
-        jsonResponse({ ok: true, total: prodFetcher.getCount() });
+        if (platform === 'shopify') {
+            var shopifyFetcher = require('*/cartridge/scripts/migration/productMigration/shopifyProductFetcher');
+            jsonResponse({ ok: true, total: shopifyFetcher.getCount() });
+        } else {
+            var prodFetcher = require('*/cartridge/scripts/migration/productMigration/ctpProductFetcher');
+            jsonResponse({ ok: true, total: prodFetcher.getCount() });
+        }
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
     }
@@ -2479,12 +2506,19 @@ exports.ProductMigrationCount = function () {
 exports.ProductMigrationCount.public = true;
 
 /**
- * Full Product Migration — fetch one batch of CTP products, build catalog XML, upload via WebDAV.
- * POST: offset=<n>
- * catalogId is read from config.js (sfcc.catalogId).
+ * Full Product Migration — fetch one batch of products, build catalog XML, upload via WebDAV.
+ * POST: offset=<number> (CTP) or offset=<cursor-string> (Shopify, empty/0 = first page)
+ * catalogId is read from request param or config.js (sfcc.catalogId).
  */
 exports.FullProductMigrationBuildBatch = function () {
-    var offset    = parseInt(getParam('offset') || '0', 10);
+    var platform  = String(session.custom.migrationPlatformId || 'commercetools');
+    var offsetRaw = getParam('offset') || '0';
+
+    // For Shopify, offset is a cursor string. For CTP, parse as integer.
+    var offsetOrCursor = (platform === 'shopify')
+        ? ((offsetRaw === '0' || !offsetRaw) ? null : offsetRaw)
+        : parseInt(offsetRaw, 10);
+
     var migCfg    = require('*/cartridge/scripts/migration/configAccessor');
     var catalogId = getParam('catalogId')
                  || (migCfg.sfcc && migCfg.sfcc.catalogId ? String(migCfg.sfcc.catalogId) : '');
@@ -2500,7 +2534,7 @@ exports.FullProductMigrationBuildBatch = function () {
     } catch (pe) {}
     try {
         var prodRunner = require('*/cartridge/scripts/migration/productMigration/fullProductMigrationRunner');
-        jsonResponse(prodRunner.runBatch(offset, catalogId, selectedVarAttrs));
+        jsonResponse(prodRunner.runBatch(offsetOrCursor, catalogId, selectedVarAttrs, platform));
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
     }
@@ -2508,15 +2542,17 @@ exports.FullProductMigrationBuildBatch = function () {
 exports.FullProductMigrationBuildBatch.public = true;
 
 /**
- * Partial Product Migration — fetch one CTP product by ID, build XML, upload via WebDAV.
- * POST: ctpId=<ctp-product-id>
+ * Partial Product Migration — fetch one product by ID, build XML, upload via WebDAV.
+ * POST: prodId=<id> (accepts ctpId or shopifyId as aliases)
+ *       For CTP: UUID. For Shopify: handle, numeric ID, or GID.
  */
 exports.MigrateProductById = function () {
-    var ctpId = getParam('ctpId');
-    if (!ctpId) {
-        jsonResponse({ ok: false, error: 'ctpId is required' });
+    var prodId = getParam('prodId') || getParam('ctpId') || getParam('shopifyId');
+    if (!prodId) {
+        jsonResponse({ ok: false, error: 'prodId is required' });
         return;
     }
+    var platform  = String(session.custom.migrationPlatformId || 'commercetools');
     var migCfg    = require('*/cartridge/scripts/migration/configAccessor');
     var catalogId = getParam('catalogId')
                  || (migCfg.sfcc && migCfg.sfcc.catalogId ? String(migCfg.sfcc.catalogId) : '');
@@ -2531,7 +2567,7 @@ exports.MigrateProductById = function () {
     } catch (pe) {}
     try {
         var prodRunner = require('*/cartridge/scripts/migration/productMigration/fullProductMigrationRunner');
-        jsonResponse(prodRunner.runById(ctpId, catalogId, selectedVarAttrs));
+        jsonResponse(prodRunner.runById(prodId, catalogId, selectedVarAttrs, platform));
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
     }
@@ -2539,14 +2575,20 @@ exports.MigrateProductById = function () {
 exports.MigrateProductById.public = true;
 
 /**
- * Compare CTP product type attributes against SFCC Product attribute definitions.
- * Returns attributes present in CTP but missing in SFCC.
+ * Compare source platform product type attributes against SFCC Product attribute definitions.
+ * Returns attributes missing in SFCC.
  * GET — no params required.
  */
 exports.CheckProductAttributes = function () {
+    var platform = String(session.custom.migrationPlatformId || 'commercetools');
     try {
-        var checker = require('*/cartridge/scripts/migration/productMigration/productAttrChecker');
-        jsonResponse({ ok: true, missing: checker.checkMissingAttributes() });
+        if (platform === 'shopify') {
+            var shopifyChecker = require('*/cartridge/scripts/migration/productMigration/shopifyProductAttrChecker');
+            jsonResponse({ ok: true, missing: shopifyChecker.checkMissingAttributes() });
+        } else {
+            var checker = require('*/cartridge/scripts/migration/productMigration/productAttrChecker');
+            jsonResponse({ ok: true, missing: checker.checkMissingAttributes() });
+        }
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
     }
@@ -2568,9 +2610,15 @@ exports.CreateProductAttributes = function () {
         jsonResponse({ ok: false, error: 'No attributes provided' });
         return;
     }
+    var platform = String(session.custom.migrationPlatformId || 'commercetools');
     try {
-        var checker2 = require('*/cartridge/scripts/migration/productMigration/productAttrChecker');
-        jsonResponse({ ok: true, result: checker2.createAttributes(attrs) });
+        if (platform === 'shopify') {
+            var shopifyChecker2 = require('*/cartridge/scripts/migration/productMigration/shopifyProductAttrChecker');
+            jsonResponse({ ok: true, result: shopifyChecker2.createAttributes(attrs) });
+        } else {
+            var checker2 = require('*/cartridge/scripts/migration/productMigration/productAttrChecker');
+            jsonResponse({ ok: true, result: checker2.createAttributes(attrs) });
+        }
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
     }

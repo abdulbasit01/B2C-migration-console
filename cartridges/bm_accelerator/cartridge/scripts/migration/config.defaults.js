@@ -9,7 +9,7 @@ module.exports = {
         storeUrl:     '',
         clientId:     '',
         clientSecret: '',
-        apiVersion:   '2025-01'
+        apiVersion:   '2026-07'
     },
     ctp: {
         projectKey:   'royal-cyber-b2c-accelerator-wd',
