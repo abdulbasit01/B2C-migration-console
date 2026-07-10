@@ -12,11 +12,14 @@ function toDecimal(value) {
  * @returns {Object|null}
  */
 function transformEntry(entry) {
-    if (!entry || !entry.sku || !entry.value) return null;
+    if (!entry || !entry.value) return null;
+    var productId = entry.productId || entry.sku;
+    if (!productId) return null;
     var amount = toDecimal(entry.value);
     if (!amount) return null;
     return {
-        sku:        entry.sku,
+        sku:        productId,
+        productId:  productId,
         amount:     amount,
         currency:   entry.value.currencyCode,
         hasChannel: !!(entry.channel && entry.channel.id)

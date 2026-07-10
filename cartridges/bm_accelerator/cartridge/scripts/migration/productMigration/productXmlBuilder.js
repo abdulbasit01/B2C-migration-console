@@ -191,7 +191,9 @@ function buildProductSetProductsXml(setProducts) {
  * XSD: complexType.Product.BundledProduct → attribute product-id + required child <quantity>
  */
 function buildBundledProductsXml(bundleProducts) {
-    if (!bundleProducts || !bundleProducts.length) return '';
+    if (!bundleProducts || !bundleProducts.length) {
+        return '';
+    }
     var xml = '        <bundled-products>\n';
     for (var i = 0; i < bundleProducts.length; i++) {
         var qty = bundleProducts[i].quantity || 1;
@@ -253,9 +255,9 @@ function buildProductXml(t, selectedVarAttrs) {
     // Custom attrs for source-platform tracking
     if (isShopify) {
         productXml += '        <custom-attributes>\n';
-        productXml += '            <custom-attribute attribute-id="shopify_product_id">' + xmlEsc(t.shopifyId)         + '</custom-attribute>\n';
-        productXml += '            <custom-attribute attribute-id="shopify_handle">'     + xmlEsc(t.productId)         + '</custom-attribute>\n';
-        if (t.shopifyStatus)      productXml += '            <custom-attribute attribute-id="shopify_status">'       + xmlEsc(t.shopifyStatus)      + '</custom-attribute>\n';
+        productXml += '            <custom-attribute attribute-id="shopify_product_id">' + xmlEsc(t.shopifyId)  + '</custom-attribute>\n';
+        productXml += '            <custom-attribute attribute-id="shopify_handle">'     + xmlEsc(t.productId) + '</custom-attribute>\n';
+        if (t.shopifyStatus) productXml += '            <custom-attribute attribute-id="shopify_status">' + xmlEsc(t.shopifyStatus) + '</custom-attribute>\n';
         productXml += '        </custom-attributes>\n';
     } else if (t.ctpId || t.ctpKey) {
         productXml += '        <custom-attributes>\n';

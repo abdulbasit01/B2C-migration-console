@@ -1,6 +1,7 @@
 'use strict';
 
 var http           = require('*/cartridge/scripts/migration/core/http');
+var shopifyApi     = require('*/cartridge/scripts/migration/core/shopifyApi');
 var typeMap        = require('*/cartridge/scripts/migration/connectors/shopify/shopifyTypeMap');
 var transformer    = require('*/cartridge/scripts/migration/connectors/shopify/shopifyTransformer');
 var cfg            = require('*/cartridge/scripts/migration/configAccessor');
@@ -107,54 +108,8 @@ var TASK_TITLES = {
     CustomerGroup:          'Customer Group'
 };
 
-// ─── Token cache (per-request scope in SFCC — no persistent process memory) ──
-
-var _cachedToken    = null;
-var _tokenExpiresAt = 0;
-
-function fetchAccessToken(creds) {
-    if (_cachedToken && Date.now() < _tokenExpiresAt - 60000) return _cachedToken;
-
-    // Prefer explicit accessToken (shpat_) over clientSecret (shpss_)
-    var directToken = String(creds.accessToken || '');
-    if (!directToken) {
-        var secret = String(creds.clientSecret || '');
-        if (secret.indexOf('shpat_') === 0) { directToken = secret; }
-    }
-    if (directToken) {
-        _cachedToken    = directToken;
-        _tokenExpiresAt = Date.now() + 86400000;
-        return _cachedToken;
-    }
-
-    // OAuth flow for public apps
-    var store = (creds.storeUrl || '').replace(/\/$/, '');
-    if (store && store.indexOf('http') !== 0) { store = 'https://' + store; }
-    var body  = 'grant_type=client_credentials'
-              + '&client_id='     + encodeURIComponent(creds.clientId)
-              + '&client_secret=' + encodeURIComponent(secret);
-
-    var res = http.post(
-        store + '/admin/oauth/access_token',
-        { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body
-    );
-
-    if (res.status !== 200 || !res.data || !res.data.access_token) {
-        throw new Error('Shopify token request failed (' + res.status + '): check Client ID and Secret.');
-    }
-
-    _cachedToken    = res.data.access_token;
-    _tokenExpiresAt = Date.now() + (res.data.expires_in || 3600) * 1000;
-    return _cachedToken;
-}
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
 function validateCreds(creds) {
-    if (!creds || !creds.storeUrl || !creds.clientId || !creds.clientSecret) {
-        throw new Error('Shopify credentials are not configured. Please enter your Store URL, Client ID, and Secret in Step 1.');
-    }
+    shopifyApi.getCreds(creds);
 }
 
 function fmt(n) {
@@ -169,10 +124,10 @@ function adminBase(creds) {
 }
 
 function authHeaders(creds) {
-    return { 'X-Shopify-Access-Token': fetchAccessToken(creds), 'Content-Type': 'application/json' };
+    return shopifyApi.authHeaders(creds);
 }
 
-// ─── Metafield definitions via GraphQL ───────────────────────────────────────
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function fetchMetafieldDefs(creds, ownerType) {
     var url   = adminBase(creds) + '/graphql.json';
@@ -186,19 +141,18 @@ function fetchMetafieldDefs(creds, ownerType) {
 // ─── Connection test ──────────────────────────────────────────────────────────
 
 function testConnectionWith(creds) {
-    if (!creds.storeUrl || !creds.clientId || !creds.clientSecret) {
-        throw new Error('Store URL, Client ID, and Secret are required.');
+    if (!creds.storeUrl) {
+        throw new Error('Store URL is required.');
     }
-    fetchAccessToken(creds);
-    var expiresIn = Math.max(60, Math.floor((_tokenExpiresAt - Date.now()) / 1000));
-    var res = http.get(adminBase(creds) + '/shop.json', authHeaders(creds));
+    shopifyApi.getAccessToken(creds);
+    var res = http.get(shopifyApi.adminBase(creds) + '/shop.json', authHeaders(creds));
     if (res.status !== 200 || !res.data.shop) {
-        throw new Error('Connection failed (' + res.status + '): check store URL and access token.');
+        throw new Error('Connection failed (' + res.status + '): check store URL and credentials.');
     }
     var shop = res.data.shop;
     return {
         ok:        true,
-        expiresIn: expiresIn,
+        expiresIn: shopifyApi.isDirectToken(creds.clientSecret) ? 0 : 86399,
         project:   { key: shop.myshopify_domain || shop.domain, name: shop.name }
     };
 }

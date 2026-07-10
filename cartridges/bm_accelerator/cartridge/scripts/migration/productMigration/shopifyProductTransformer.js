@@ -25,37 +25,51 @@ function extractNumericId(gid) {
  * @returns {Object} transformed product
  */
 function transformProduct(shopifyProduct) {
-    var p       = shopifyProduct;
-    var handle  = p.handle || ('shopify-' + extractNumericId(p.id));
-    var masterId = xmlSafeId(handle) || ('shopify-' + extractNumericId(p.id));
+    var p      = shopifyProduct;
+    var handle = p.handle || ('shopify-' + extractNumericId(p.id));
 
     // Variants
     var variantNodes = (p.variants && p.variants.nodes) || [];
-    var variants     = [];
-    for (var vi = 0; vi < variantNodes.length; vi++) {
-        var v      = variantNodes[vi];
-        var varSku = v.sku || '';
-        var varId  = varSku ? xmlSafeId(varSku) : (masterId + '-v' + (vi + 1));
 
-        var varAttrs = [];
-        var opts     = v.selectedOptions || [];
-        for (var oi = 0; oi < opts.length; oi++) {
-            varAttrs.push({ name: opts[oi].name, value: opts[oi].value });
+    // Single-variant detection: 1 variant with "Default Title" = simple product (no real options)
+    var isSingleVariant = variantNodes.length === 1
+        && variantNodes[0].selectedOptions
+        && variantNodes[0].selectedOptions.length === 1
+        && variantNodes[0].selectedOptions[0].value === 'Default Title';
+
+    // masterId: for single products use variant numeric ID (matches Shopify order line item variant_id)
+    //           for multi-variant products use product numeric ID
+    var masterId = isSingleVariant
+        ? extractNumericId(variantNodes[0].id)
+        : (extractNumericId(p.id) || xmlSafeId(handle));
+
+    var variants = [];
+    if (!isSingleVariant) {
+        for (var vi = 0; vi < variantNodes.length; vi++) {
+            var v      = variantNodes[vi];
+            var varSku = v.sku || '';
+            var varId  = extractNumericId(v.id) || (masterId + '-v' + (vi + 1));
+
+            var varAttrs = [];
+            var opts     = v.selectedOptions || [];
+            for (var oi = 0; oi < opts.length; oi++) {
+                varAttrs.push({ name: opts[oi].name, value: opts[oi].value });
+            }
+            if (v.price)          varAttrs.push({ name: 'price',          value: String(v.price) });
+            if (v.compareAtPrice) varAttrs.push({ name: 'compareAtPrice', value: String(v.compareAtPrice) });
+            if (v.barcode)        varAttrs.push({ name: 'barcode',        value: String(v.barcode) });
+
+            var varImgs = [];
+            if (v.image && v.image.url) varImgs.push({ url: v.image.url });
+
+            variants.push({
+                productId:  varId,
+                sku:        varSku,
+                isDefault:  vi === 0,
+                images:     varImgs,
+                attributes: varAttrs
+            });
         }
-        if (v.price)          varAttrs.push({ name: 'price',          value: String(v.price) });
-        if (v.compareAtPrice) varAttrs.push({ name: 'compareAtPrice', value: String(v.compareAtPrice) });
-        if (v.barcode)        varAttrs.push({ name: 'barcode',        value: String(v.barcode) });
-
-        var varImgs = [];
-        if (v.image && v.image.url) varImgs.push({ url: v.image.url });
-
-        variants.push({
-            productId:  varId,
-            sku:        varSku,
-            isDefault:  vi === 0,
-            images:     varImgs,
-            attributes: varAttrs
-        });
     }
 
     // Product-level images
@@ -82,6 +96,37 @@ function transformProduct(shopifyProduct) {
     var tags     = (p.tags && p.tags.length) ? p.tags.join(', ') : '';
     var firstVar = variantNodes[0] || {};
 
+    // Bundle detection via productType or tags (works without Shopify Bundles app)
+    var pType    = String(p.productType || '').toLowerCase();
+    var pTags    = (p.tags || []).join(' ').toLowerCase();
+    var isBundle = (pType.indexOf('bundle') !== -1) || (pTags.indexOf('bundle') !== -1);
+
+    // Bundle components via metafields (namespace: bundle, key: components — JSON array of handles)
+    var bundleProducts = [];
+    if (isBundle) {
+        var mfNodes = (p.metafields && p.metafields.nodes) || [];
+        for (var mi = 0; mi < mfNodes.length; mi++) {
+            var mf = mfNodes[mi];
+            if (mf.namespace === 'bundle' && mf.key === 'components') {
+                try {
+                    var components = JSON.parse(mf.value || '[]');
+                    for (var ci = 0; ci < components.length; ci++) {
+                        var comp = components[ci];
+                        if (comp.id) {
+                            bundleProducts.push({
+                                productId: String(comp.id),
+                                quantity:  comp.quantity || 1
+                            });
+                        }
+                    }
+                } catch (e) { /* malformed metafield — skip */ }
+                break;
+            }
+        }
+    }
+
+    var firstVar = variantNodes[0] || {};
+
     return {
         productId:              masterId,
         shopifyId:              extractNumericId(p.id || ''),
@@ -104,11 +149,11 @@ function transformProduct(shopifyProduct) {
         masterImages:           masterImages,
         categories:             categories,
         classificationCategory: classificationCategory,
-        variants:               variants,
-        hasVariants:            variants.length > 0,
-        productKind:            'base',
+        variants:               isBundle ? [] : variants,
+        hasVariants:            !isBundle && variants.length > 0,
+        productKind:            isBundle ? 'bundle' : 'base',
         setProducts:            [],
-        bundleProducts:         []
+        bundleProducts:         bundleProducts
     };
 }
 

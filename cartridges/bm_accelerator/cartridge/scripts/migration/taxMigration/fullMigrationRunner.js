@@ -1,6 +1,7 @@
 'use strict';
 
-var fetcher      = require('*/cartridge/scripts/migration/taxMigration/ctpTaxFetcher');
+var registry     = require('*/cartridge/scripts/migration/core/dataSourceRegistry');
+var fetcher      = registry.getFetcher('tax');
 var transformer  = require('*/cartridge/scripts/migration/taxMigration/taxTransformer');
 var xmlBuilder   = require('*/cartridge/scripts/migration/taxMigration/taxXmlBuilder');
 var uploader     = require('*/cartridge/scripts/migration/taxMigration/webDavUploader');
@@ -60,7 +61,7 @@ function runBatch(offset, exportKey, scopeType, scopeId, fileName, singleFile) {
 
     var categories = fetcher.fetchAllTaxCategories();
     var filter     = resolveFilter(scopeType, scopeId, exportKey);
-    var model      = transformer.buildTaxModel(categories, filter);
+    var model      = transformer.buildTaxModel(categories, filter, registry.getPlatformId());
     var total      = model.taxRates.length;
 
     if (!model.taxClasses.length && !model.taxRates.length) {

@@ -17,7 +17,8 @@ function xmlEsc(val) {
  * @returns {string}
  */
 function buildPriceTableXml(record) {
-    return '            <price-table product-id="' + xmlEsc(record.sku) + '">\n'
+    var productId = record.productId || record.sku;
+    return '            <price-table product-id="' + xmlEsc(productId) + '">\n'
         + '                <amount quantity="1">' + record.amount + '</amount>\n'
         + '            </price-table>\n';
 }
@@ -33,7 +34,7 @@ function buildPriceTableXml(record) {
 function buildXml(records, pricebookId, currency, description) {
     var pbId   = pricebookId || 'list-prices';
     var cur    = currency || 'USD';
-    var desc   = description || 'Commercetools standalone-price migration';
+    var desc   = description || 'Source pricebook migration';
     var built  = 0;
     var failed = 0;
     var errors = [];
@@ -42,7 +43,7 @@ function buildXml(records, pricebookId, currency, description) {
 
     for (i = 0; i < records.length; i++) {
         try {
-            if (!records[i] || !records[i].sku || !records[i].amount) {
+            if (!records[i] || !(records[i].productId || records[i].sku) || !records[i].amount) {
                 failed++;
                 continue;
             }
@@ -64,7 +65,7 @@ function buildXml(records, pricebookId, currency, description) {
 function buildHeader(pricebookId, currency, description) {
     var pbId = pricebookId || 'list-prices';
     var cur  = currency || 'USD';
-    var desc = description || 'Commercetools standalone-price migration';
+    var desc = description || 'Source pricebook migration';
     return '<?xml version="1.0" encoding="UTF-8"?>\n'
         + '<pricebooks xmlns="' + NS_PRICEBOOK + '">\n'
         + '    <pricebook>\n'
