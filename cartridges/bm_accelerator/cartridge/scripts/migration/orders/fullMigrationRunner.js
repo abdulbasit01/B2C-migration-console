@@ -2,8 +2,9 @@
 
 var File       = require('dw/io/File');
 var FileWriter = require('dw/io/FileWriter');
-var connector  = require('*/cartridge/scripts/migration/orders/connectors/ctpOrderConnector');
-var mapper     = require('*/cartridge/scripts/migration/orders/mappers/ctpOrderMapper');
+var registry   = require('*/cartridge/scripts/migration/core/dataSourceRegistry');
+var connector  = registry.getFetcher('order');
+var mapper     = registry.getMapper('order');
 var validator  = require('*/cartridge/scripts/migration/orders/validators/orderValidator');
 var xmlGen     = require('*/cartridge/scripts/migration/orders/generators/sfccOrderXmlGenerator');
 var fileResolver = require('*/cartridge/scripts/migration/core/migrationFileResolver');
