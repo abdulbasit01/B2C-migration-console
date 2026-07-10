@@ -1,40 +1,57 @@
 'use strict';
 /**
- * Manages CTP-specific custom attribute definitions on the SFCC Category system object.
+ * Manages custom attribute definitions on the SFCC Category system object.
  * Uses OCAPI (sfccClient) — NOT the deprecated DW Script ObjectAttributeDefinition API.
+ * Attributes are platform-specific: Shopify gets level/isLeaf, CT gets ctId/ctSlug/ctPosition.
  */
 var sfccClient  = require('*/cartridge/scripts/migration/sfccClient');
 var attrBuilder = require('*/cartridge/scripts/migration/core/attrBuilder');
 
-var CATEGORY_OBJECT     = 'Category';
-var CTP_ATTR_GROUP_ID   = 'CTPMigration';
-var CTP_ATTR_GROUP_NAME = 'CTP Migration';
+var CATEGORY_OBJECT          = 'Category';
+var CTP_ATTR_GROUP_ID        = 'CTPMigration';
+var CTP_ATTR_GROUP_NAME      = 'CTP Migration';
+var SHOPIFY_ATTR_GROUP_ID    = 'ShopifyMigration';
+var SHOPIFY_ATTR_GROUP_NAME  = 'Shopify Migration';
 
-// Fixed custom attributes required on the SFCC Category system object
-// to preserve CTP category metadata after migration.
-var REQUIRED_ATTRS = [
+var SHOPIFY_ATTRS = [
+    { id: 'level',  label: 'Category Level',   sfccType: 'int'     },
+    { id: 'isLeaf', label: 'Category Is Leaf', sfccType: 'boolean' }
+];
+
+var CT_ATTRS = [
     { id: 'ctId',       label: 'CTP Category ID',       sfccType: 'string' },
     { id: 'ctSlug',     label: 'CTP Category Slug',     sfccType: 'string' },
-    { id: 'ctPosition', label: 'CTP Category Position', sfccType: 'double'    }
+    { id: 'ctPosition', label: 'CTP Category Position', sfccType: 'double' }
 ];
+
+function getRequiredAttrs(platform) {
+    return platform === 'shopify' ? SHOPIFY_ATTRS : CT_ATTRS;
+}
+
+function getAttrGroup(platform) {
+    return platform === 'shopify'
+        ? { id: SHOPIFY_ATTR_GROUP_ID, name: SHOPIFY_ATTR_GROUP_NAME }
+        : { id: CTP_ATTR_GROUP_ID,     name: CTP_ATTR_GROUP_NAME };
+}
 
 /**
  * Check which required category attributes are missing in SFCC.
+ * @param {string} platform  'shopify' | 'commercetools'
  * @returns {Array} [{ id, label, sfccType, exists: bool }]
  */
-function checkAttributes() {
+function checkAttributes(platform) {
+    var attrs       = getRequiredAttrs(platform);
+    var group       = getAttrGroup(platform);
     var token       = sfccClient.getSFCCToken();
     var existingIds = sfccClient.getExistingAttributeIds(token, CATEGORY_OBJECT);
 
-    try { sfccClient.ensureAttributeGroup(token, CATEGORY_OBJECT, CTP_ATTR_GROUP_ID, CTP_ATTR_GROUP_NAME); } catch (ge) {}
+    try { sfccClient.ensureAttributeGroup(token, CATEGORY_OBJECT, group.id, group.name); } catch (ge) {}
 
     var results = [];
-    for (var i = 0; i < REQUIRED_ATTRS.length; i++) {
-        var a      = REQUIRED_ATTRS[i];
+    for (var i = 0; i < attrs.length; i++) {
+        var a      = attrs[i];
         var exists = !!existingIds[a.id];
-        if (exists) {
-            try { sfccClient.addAttributeToGroup(token, CATEGORY_OBJECT, CTP_ATTR_GROUP_ID, a.id); } catch (age) {}
-        }
+        try { sfccClient.addAttributeToGroup(token, CATEGORY_OBJECT, group.id, a.id); } catch (age) {}
         results.push({ id: a.id, label: a.label, sfccType: a.sfccType, exists: exists });
     }
     return results;
@@ -42,9 +59,12 @@ function checkAttributes() {
 
 /**
  * Create all missing required category attributes on the SFCC Category system object.
+ * @param {string} platform  'shopify' | 'commercetools'
  * @returns {{ created: number, skipped: number, failed: number, errors: Array }}
  */
-function createMissingAttributes() {
+function createMissingAttributes(platform) {
+    var attrs       = getRequiredAttrs(platform);
+    var group       = getAttrGroup(platform);
     var token       = sfccClient.getSFCCToken();
     var existingIds = sfccClient.getExistingAttributeIds(token, CATEGORY_OBJECT);
 
@@ -53,19 +73,19 @@ function createMissingAttributes() {
     var failed  = 0;
     var errors  = [];
 
-    try { sfccClient.ensureAttributeGroup(token, CATEGORY_OBJECT, CTP_ATTR_GROUP_ID, CTP_ATTR_GROUP_NAME); } catch (ge) {}
+    try { sfccClient.ensureAttributeGroup(token, CATEGORY_OBJECT, group.id, group.name); } catch (ge) {}
 
-    for (var i = 0; i < REQUIRED_ATTRS.length; i++) {
-        var a = REQUIRED_ATTRS[i];
+    for (var i = 0; i < attrs.length; i++) {
+        var a = attrs[i];
         if (existingIds[a.id]) {
             skipped++;
-            try { sfccClient.addAttributeToGroup(token, CATEGORY_OBJECT, CTP_ATTR_GROUP_ID, a.id); } catch (age) {}
+            try { sfccClient.addAttributeToGroup(token, CATEGORY_OBJECT, group.id, a.id); } catch (age) {}
             continue;
         }
         try {
             var def = attrBuilder.buildAttrDefinition(a.id, a.sfccType, a.label);
             sfccClient.createAttributeDefinition(token, CATEGORY_OBJECT, def);
-            sfccClient.addAttributeToGroup(token, CATEGORY_OBJECT, CTP_ATTR_GROUP_ID, a.id);
+            sfccClient.addAttributeToGroup(token, CATEGORY_OBJECT, group.id, a.id);
             created++;
         } catch (e) {
             failed++;
@@ -74,6 +94,39 @@ function createMissingAttributes() {
     }
 
     return { created: created, skipped: skipped, failed: failed, errors: errors };
+}
+
+/**
+ * Create the given attribute definitions on the SFCC Category system object.
+ * @param {Array}  attrs    - [{ id, label, sfccType }]
+ * @param {string} platform - 'shopify' | 'commercetools'
+ * @returns {{ created: number, failed: number, errors: Array }}
+ */
+function createAttributes(attrs, platform) {
+    var group   = getAttrGroup(platform || 'commercetools');
+    var token   = sfccClient.getSFCCToken();
+    var created = 0;
+    var failed  = 0;
+    var errors  = [];
+
+    try { sfccClient.ensureAttributeGroup(token, CATEGORY_OBJECT, group.id, group.name); } catch (ge) {}
+
+    for (var i = 0; i < attrs.length; i++) {
+        var attr = attrs[i];
+        try {
+            if (attr.originalId && attr.originalId !== attr.id) {
+                try { sfccClient.deleteAttributeDefinition(token, CATEGORY_OBJECT, attr.originalId); } catch (de) {}
+            }
+            var def = attrBuilder.buildAttrDefinition(attr.id, attr.sfccType || 'string', attr.label || attr.id);
+            sfccClient.createAttributeDefinition(token, CATEGORY_OBJECT, def);
+            sfccClient.addAttributeToGroup(token, CATEGORY_OBJECT, group.id, attr.id);
+            created++;
+        } catch (e) {
+            failed++;
+            if (errors.length < 5) errors.push(attr.id + ': ' + (e.message || String(e)));
+        }
+    }
+    return { created: created, failed: failed, errors: errors };
 }
 
 /**
@@ -86,8 +139,11 @@ function deleteAttribute(attrId) {
 }
 
 module.exports = {
-    REQUIRED_ATTRS          : REQUIRED_ATTRS,
+    SHOPIFY_ATTRS           : SHOPIFY_ATTRS,
+    CT_ATTRS                : CT_ATTRS,
+    getRequiredAttrs        : getRequiredAttrs,
     checkAttributes         : checkAttributes,
+    createAttributes        : createAttributes,
     createMissingAttributes : createMissingAttributes,
     deleteAttribute         : deleteAttribute
 };

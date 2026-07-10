@@ -29,6 +29,16 @@
         </sub-pipelines>
     </menuaction>
 
+    <menuaction id="rc_accelerator_shopify_config" menupath="rc_accelerator_tools" site="true" position="30">
+        <name xml:lang="x-default">Shopify Configuration</name>
+        <short_description xml:lang="x-default">Save Shopify store credentials</short_description>
+        <description xml:lang="x-default">Enter and persist Shopify Admin API credentials for migration.</description>
+        <exec pipeline="Accelerator" node="ShopifyConfig"/>
+        <sub-pipelines>
+            <pipeline name="Accelerator"/>
+        </sub-pipelines>
+    </menuaction>
+
     <menuaction id="rc_accelerator_prefs_link" menupath="site-prefs" site="true" position="5">
         <name xml:lang="x-default">B2C Migration Console</name>
         <short_description xml:lang="x-default">Open migration console</short_description>

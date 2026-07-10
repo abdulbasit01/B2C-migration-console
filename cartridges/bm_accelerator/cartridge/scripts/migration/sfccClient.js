@@ -166,6 +166,10 @@ function migrateObjectSchema(token, objectType, attrDefs) {
  */
 function ensureAttributeGroup(token, objectType, groupId, displayName) {
     var url = metaUrl('/system_object_definitions/' + objectType + '/attribute_groups/' + encodeURIComponent(groupId));
+    // GET first — skip PUT if the group already exists.
+    // Unconditional PUT replaces the group resource and clears all linked attribute_definitions.
+    var getRes = doGet(url, token);
+    if (getRes.status === 200) return true;
     var res = doPut(url, token, {
         id:           groupId,
         display_name: { default: displayName || groupId },

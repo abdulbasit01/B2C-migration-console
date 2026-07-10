@@ -386,7 +386,8 @@ exports.Start = function () {
         jsUrl: URLUtils.staticURL('/js/categoryMigration.js').toString(),
         fetchCatalogsUrl : URLUtils.url('Accelerator-FetchSFCCCatalogs').toString(),
         createCatalogUrl : URLUtils.url('Accelerator-CreateCatalog').toString(),
-        createCategoryUrl: URLUtils.url('Accelerator-CreateCategory').toString()
+        createCategoryUrl:  URLUtils.url('Accelerator-CreateCategory').toString(),
+        shopifyConfigUrl:   URLUtils.url('Accelerator-ShopifyConfig').toString()
     }));
 };
 exports.Start.public = true;
@@ -895,7 +896,7 @@ exports.DataWizardSelectType = function () {
         return;
     }
     if (typeId === 'catalog') {
-        response.redirect(URLUtils.url('Accelerator-CategoryMigration'));
+        response.redirect(URLUtils.url('Accelerator-CategoryMigration', 'platform', platformId));
         return;
     }
     if (typeId === 'order') {
@@ -2595,8 +2596,91 @@ function getCategoryMigrationJS() {
     L.push('_APP.CREATE_CATALOG_URL = "";');
     L.push('_APP.CREATE_CATEGORY_URL = "";');
     L.push('_APP.IMPORT_URL = "";');
+    L.push('_APP.productCounts = {};');
+    L.push('_APP.selectedForExport = {};');
+    L.push('_APP.CHECK_PRODUCTS_URL = "";');
+    L.push('_APP.CREATE_ATTRS_URL = "";');
+
+    L.push('_APP.renderAttrTable=function(attrs){');
+    L.push('  var Q=String.fromCharCode(34);');
+    L.push('  var tbody=document.getElementById("attr-tbody");');
+    L.push('  if(!tbody)return;');
+    L.push('  var rowHtml="";');
+    L.push('  var attrsData=[];');
+    L.push('  attrs.forEach(function(attr,i){');
+    L.push('    var statusColor=attr.exists?"#2e7d32":"#e65100";');
+    L.push('    var statusBg=attr.exists?"#e8f5e9":"#fff3e0";');
+    L.push('    var statusText=attr.exists?"Exists":"Missing";');
+    L.push('    var chk=!attr.exists?" checked":"";');
+    L.push('    var typeHtml=window.AccAttrPreflight?window.AccAttrPreflight.sfccTypeSelectHtml(attr,i):"<code>"+attr.sfccType+"</code>";');
+    L.push('    rowHtml+="<tr"+a("data-rowidx",i)+">"');
+    L.push('      +"<td style="+Q+"text-align:center;padding:9px 14px;border-bottom:1px solid #f0f2f8;"+Q+">"');
+    L.push('      +"<input type="+Q+"checkbox"+Q+a("class","cat-attr-cb")+a("data-idx",i)+a("data-attrid",attr.id)+a("data-attrtype",attr.sfccType)+a("data-attrlabel",attr.label)+a("data-attrexists",attr.exists?"1":"")+chk+a("style","width:16px;height:16px;cursor:pointer;")+"/>"');
+    L.push('      +"</td>"');
+    L.push('      +"<td style="+Q+"padding:9px 14px;border-bottom:1px solid #f0f2f8;"+Q+">"');
+    L.push('      +"<input type="+Q+"text"+Q+a("class","cm-attr-id-input")+a("data-idx",i)+a("data-orig",attr.id)+a("data-canonical",attr.id)+a("value",attr.id)+"/>"');
+    L.push('      +"</td>"');
+    L.push('      +"<td style="+Q+"padding:9px 14px;border-bottom:1px solid #f0f2f8;"+Q+">"+attr.label+"</td>"');
+    L.push('      +"<td style="+Q+"padding:9px 14px;border-bottom:1px solid #f0f2f8;"+Q+">"');
+    L.push('      +"<span"+a("class","cat-status-span")+a("data-idx",i)+a("style","background:"+statusBg+";color:"+statusColor+";padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;")+">"+statusText+"</span>"');
+    L.push('      +"</td>"');
+    L.push('      +"<td style="+Q+"padding:9px 14px;border-bottom:1px solid #f0f2f8;"+Q+">"+typeHtml+"</td>"');
+    L.push('      +"<td style="+Q+"padding:9px 14px;border-bottom:1px solid #f0f2f8;"+Q+">"');
+    L.push('      +"<button type="+Q+"button"+Q+a("class","cm-btn--revert cat-attr-revert")+a("data-idx",i)+(attr.exists?"":(" disabled"+a("title","Create this attribute first to enable Revert")))+">Revert</button>"');
+    L.push('      +"</td>"');
+    L.push('      +"</tr>";');
+    L.push('    attrsData.push(attr);');
+    L.push('  });');
+    L.push('  tbody.innerHTML=rowHtml;');
+    L.push('  _APP.attrsData=attrsData;');
+    L.push('  var revBtns=tbody.querySelectorAll(".cat-attr-revert");');
+    L.push('  for(var rbi=0;rbi<revBtns.length;rbi++){');
+    L.push('    (function(rbtn,attr){');
+    L.push('      rbtn.addEventListener("click",function(){');
+    L.push('        if(rbtn.disabled)return;');
+    L.push('        var q2=String.fromCharCode(34);');
+    L.push('        var idx=rbtn.getAttribute("data-idx");');
+    L.push('        var cb2=tbody.querySelector(".cat-attr-cb[data-idx="+q2+idx+q2+"]");');
+    L.push('        var attrId=cb2?cb2.getAttribute("data-attrid"):attr.id;');
+    L.push('        if(!confirm("Delete attribute "+attrId+" from SFCC? This cannot be undone."))return;');
+    L.push('        rbtn.disabled=true;rbtn.textContent="Reverting...";');
+    L.push('        var ao=document.getElementById("attr-overall");');
+    L.push('        _APP.post(_APP.ATTRS_URL,"delete="+encodeURIComponent(JSON.stringify([attrId])),function(ddata){');
+    L.push('          if(!ddata.ok){');
+    L.push('            rbtn.disabled=false;rbtn.textContent="Revert";');
+    L.push('            if(ao){ao.textContent="Revert failed ("+attrId+"): "+(ddata.error||"failed");ao.style.color="#c62828";}');
+    L.push('            return;');
+    L.push('          }');
+    L.push('          rbtn.textContent="Reverted";rbtn.style.color="#2e7d32";rbtn.style.borderColor="#a5d6a7";rbtn.style.background="#e8f5e9";');
+    L.push('          var row2=tbody.querySelector("tr[data-rowidx="+q2+idx+q2+"]");');
+    L.push('          if(row2)row2.style.opacity="0.5";');
+    L.push('          var sp2=tbody.querySelector(".cat-status-span[data-idx="+q2+idx+q2+"]");');
+    L.push('          if(sp2){sp2.textContent="Missing";sp2.style.background="#fff3e0";sp2.style.color="#e65100";}');
+    L.push('          if(cb2){cb2.checked=true;cb2.setAttribute("data-attrexists","");}');
+    L.push('          if(_APP.attrsData&&_APP.attrsData[idx]){_APP.attrsData[idx].exists=false;}');
+    L.push('          if(ao){ao.textContent="Deleted: "+attrId;ao.style.color="#2e7d32";}');
+    L.push('        });');
+    L.push('      });');
+    L.push('    }(revBtns[rbi],attrsData[rbi]));');
+    L.push('  }');
+    L.push('};');
+    L.push('_APP.refreshAttrTable=function(){');
+    L.push('  _APP.post(_APP.ATTRS_URL,"",function(d){');
+    L.push('    if(d.ok&&d.attrs)_APP.renderAttrTable(d.attrs);');
+    L.push('  });');
+    L.push('};');
 
     L.push('function a(k,v){return " "+k+"="+String.fromCharCode(34)+v+String.fromCharCode(34);}');
+    L.push('_APP.onExportChange=function(catId,val){_APP.selectedForExport[catId]=val;};');
+    L.push('_APP.selectAllExport=function(){');
+    L.push('  if(!_APP.allCategories)return;');
+    L.push('  var hasProdData=Object.keys(_APP.productCounts||{}).length>0;');
+    L.push('  _APP.allCategories.forEach(function(c){');
+    L.push('    _APP.selectedForExport[c.id]=hasProdData?((_APP.productCounts[c.name]||0)>0):true;');
+    L.push('  });');
+    L.push('  _APP.renderTable();');
+    L.push('};');
+    L.push('_APP.deselectAllExport=function(){if(!_APP.allCategories)return;_APP.allCategories.forEach(function(c){_APP.selectedForExport[c.id]=false;});_APP.renderTable();};');
 
     L.push('_APP.post = function(url,params,onDone){');
     L.push('  var req=new XMLHttpRequest();');
@@ -2890,7 +2974,7 @@ function getCategoryMigrationJS() {
     L.push('  var tbody=document.getElementById("main-cat-tbody");');
     L.push('  if(!tbody)return;');
     L.push('  var Q=String.fromCharCode(34);');
-    L.push('  if(!_APP.allCategories.length){tbody.innerHTML="<tr><td colspan="+Q+"6"+Q+" style="+Q+"text-align:center;padding:30px;color:#54698d;"+Q+">Click Load Categories from CT to begin.</td></tr>";return;}');
+    L.push('  if(!_APP.allCategories.length){tbody.innerHTML="<tr><td colspan="+Q+"7"+Q+" style="+Q+"text-align:center;padding:30px;color:#54698d;"+Q+">Click Load Categories from CT to begin.</td></tr>";return;}');
     L.push('  var sorted=_APP.buildSortedRows();');
     L.push('  var rows=[];');
     L.push('  sorted.forEach(function(row,idx){');
@@ -2916,8 +3000,13 @@ function getCategoryMigrationJS() {
     L.push('    trHtml+="<td"+a("style",tdSt)+"><span"+a("style","display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;color:#fff;background:"+lvlColor+";")+">"+lvlLabel+"</span></td>";');
     L.push('    trHtml+="<td"+a("style",tdSt)+"><span id="+Q+"pos-"+catId+Q+a("style","display:inline-block;background:#f4f6f9;border:1px solid #dddbda;border-radius:3px;padding:1px 6px;font-size:11px;font-family:monospace;"+pb)+">"+(idx+1)+"</span></td>";');
     L.push('    trHtml+="<td"+a("style",tdSt+"font-family:monospace;font-size:11px;")+">"+catId+"</td>";');
-    L.push('    trHtml+="<td"+a("style",tdSt+"font-weight:600;color:#16325c;")+">"+_APP.toCamelCase(row.name)+"</td>";');
+    L.push('    var prodCt=(_APP.productCounts&&_APP.productCounts[row.name])||0;');
+    L.push('    var hasProductData=Object.keys(_APP.productCounts||{}).length>0;');
+    L.push('    var prodBadge=prodCt>0?"<span"+a("title",prodCt+" product(s) assigned in Shopify")+a("style","margin-left:6px;background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7;padding:1px 7px;border-radius:10px;font-size:11px;cursor:default;")+" >"+prodCt+" &#9679;</span>":"";');
+    L.push('    trHtml+="<td"+a("style",tdSt+"font-weight:600;color:#16325c;")+">"+_APP.toCamelCase(row.name)+prodBadge+"</td>";');
     L.push('    trHtml+="<td"+a("style",tdSt)+"><div"+a("onclick","_APP.openSharedParentSelect(\'"+catId+"\',\'"+currentParent+"\',this,event);")+a("style","display:flex;align-items:center;justify-content:space-between;gap:6px;cursor:pointer;padding:4px 8px;border-radius:4px;font-size:12px;"+cellBg)+"><span style="+Q+"overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;"+Q+">"+currentParent+"</span><span style="+Q+"font-size:10px;opacity:0.6;flex-shrink:0;"+Q+">&#9660;</span></div></td>";');
+    L.push('    var isExport=_APP.selectedForExport[catId]!==undefined?_APP.selectedForExport[catId]:(!hasProductData||prodCt>0);');
+    L.push('    trHtml+="<td"+a("style",tdSt+"text-align:center;")+"><input"+a("type","checkbox")+a("class","cat-export-cb")+a("data-catid",catId)+a("onchange","_APP.onExportChange(\'"+catId+"\',this.checked);")+a("title",prodCt>0?(prodCt+" product(s) assigned in Shopify"):"No products assigned")+(isExport?" checked":"")+" /></td>";');
     L.push('    trHtml+="</tr>";');
     L.push('    rows.push(trHtml);');
     L.push('  });');
@@ -3045,28 +3134,7 @@ function getCategoryMigrationJS() {
     L.push('    var btn=this;btn.disabled=true;btn.textContent="Checking...";');
     L.push('    _APP.post(_APP.ATTRS_URL,"",function(data){');
     L.push('      btn.disabled=false;btn.textContent="Check Attributes";');
-    L.push('      var Q=String.fromCharCode(34);');
-    L.push('      var tbody=document.getElementById("attr-tbody");');
-    L.push('      if(tbody){');
-    L.push('        tbody.innerHTML="";');
-    L.push('        var attrs=data.attrs||[];');
-  L.push('        attrs.forEach(function(attr){');
-    L.push('          var statusColor=attr.exists?"#2e7d32":"#e65100";');
-    L.push('          var statusBg=attr.exists?"#e8f5e9":"#fff3e0";');
-    L.push('          var statusText=attr.exists?"Exists":"Missing";');
-    L.push('          var chk=!attr.exists?"checked":"";');
-    L.push('          var tdSt="padding:8px 12px;border:1px solid #dddbda;";');
-    L.push('          tbody.innerHTML+="<tr>"');
-    L.push('            +"<td"+a("style",tdSt+"text-align:center;width:52px;")+">"');
-    L.push('            +"<input type="+Q+"checkbox"+Q+" data-attrid="+Q+attr.id+Q+" data-attrtype="+Q+attr.sfccType+Q+" data-attrlabel="+Q+attr.label+Q+" "+chk+a("style","width:16px;height:16px;cursor:pointer;")+"/>"');
-    L.push('            +"</td>"');
-    L.push('            +"<td"+a("style",tdSt)+"><code>"+attr.id+"</code></td>"');
-    L.push('            +"<td"+a("style",tdSt)+">"+attr.sfccType+"</td>"');
-    L.push('            +"<td"+a("style",tdSt)+">"+attr.label+"</td>"');
-    L.push('            +"<td"+a("style",tdSt)+"><span"+a("style","background:"+statusBg+";color:"+statusColor+";padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;")+">"+statusText+"</span></td>"');
-    L.push('            +"</tr>";');
-    L.push('        });');
-    L.push('      }');
+    L.push('      _APP.renderAttrTable(data.attrs||[]);');
     L.push('      var ar=document.getElementById("attr-result");if(ar)ar.style.display="block";');
     L.push('      var ao=document.getElementById("attr-overall");if(ao){ao.textContent="Select attributes to create then click Create Selected.";ao.style.color="#54698d";}');
     L.push('      var cb=document.getElementById("btn-create-selected-attrs");if(cb)cb.style.display="inline-block";');
@@ -3076,87 +3144,67 @@ function getCategoryMigrationJS() {
     // Select All
     L.push('  el=document.getElementById("btn-select-all-attrs");');
     L.push('  if(el)el.addEventListener("click",function(){');
-    L.push('    var boxes=document.querySelectorAll("#attr-tbody input[type=checkbox]");');
+    L.push('    var boxes=document.querySelectorAll("#attr-tbody .cat-attr-cb");');
     L.push('    for(var i=0;i<boxes.length;i++)boxes[i].checked=true;');
     L.push('  });');
 
     // Deselect All
     L.push('  el=document.getElementById("btn-deselect-all-attrs");');
     L.push('  if(el)el.addEventListener("click",function(){');
-    L.push('    var boxes=document.querySelectorAll("#attr-tbody input[type=checkbox]");');
+    L.push('    var boxes=document.querySelectorAll("#attr-tbody .cat-attr-cb");');
     L.push('    for(var i=0;i<boxes.length;i++)boxes[i].checked=false;');
-    L.push('  });');
-
-    // Revert to Default (missing = checked, existing = unchecked)
-   L.push('  el=document.getElementById("btn-revert-attrs");');
-    L.push('  if(el)el.addEventListener("click",function(){');
-    L.push('    var boxes=document.querySelectorAll("#attr-tbody input[type=checkbox]:checked");');
-    L.push('    if(!boxes.length){alert("No attributes selected to delete.");return;}');
-    L.push('    var toDelete=[];');
-    L.push('    for(var i=0;i<boxes.length;i++){toDelete.push(boxes[i].getAttribute("data-attrid"));}');
-    L.push('    if(!confirm("Delete "+toDelete.length+" attribute(s) from SFCC Category system object? This cannot be undone.\\n\\n"+toDelete.join(", ")))return;');
-    L.push('    var ao=document.getElementById("attr-overall");');
-    L.push('    if(ao){ao.textContent="Deleting "+toDelete.length+" attribute(s)...";ao.style.color="#54698d";}');
-    L.push('    _APP.post(_APP.ATTRS_URL,"delete="+encodeURIComponent(JSON.stringify(toDelete)),function(data){');
-    L.push('      if(!data.ok){if(ao){ao.textContent="Error: "+(data.error||"failed");ao.style.color="#c62828";}return;}');
-    L.push('      if(ao){ao.textContent="Deleted: "+data.deleted+" | Failed: "+data.failed;ao.style.color=data.failed>0?"#e65100":"#2e7d32";}');
-    L.push('      _APP.post(_APP.ATTRS_URL,"",function(refreshData){');
-    L.push('        if(!refreshData.ok||!refreshData.attrs)return;');
-    L.push('        var tbody2=document.getElementById("attr-tbody");');
-    L.push('        if(!tbody2)return;');
-    L.push('        var rows=tbody2.querySelectorAll("tr");');
-    L.push('        refreshData.attrs.forEach(function(attr,idx){');
-    L.push('          if(!rows[idx])return;');
-    L.push('          var statusCell=rows[idx].querySelector("span");');
-    L.push('          var checkbox=rows[idx].querySelector("input[type=checkbox]");');
-    L.push('          if(statusCell){');
-    L.push('            statusCell.textContent=attr.exists?"Exists":"Missing";');
-    L.push('            statusCell.style.background=attr.exists?"#e8f5e9":"#fff3e0";');
-    L.push('            statusCell.style.color=attr.exists?"#2e7d32":"#e65100";');
-    L.push('          }');
-    L.push('          if(checkbox){checkbox.checked=!attr.exists;}');
-    L.push('        });');
-    L.push('      });');
-    L.push('    });');
     L.push('  });');
 
     // Create Selected
     L.push('  el=document.getElementById("btn-create-selected-attrs");');
     L.push('  if(el)el.addEventListener("click",function(){');
-    L.push('    var boxes=document.querySelectorAll("#attr-tbody input[type=checkbox]:checked");');
+    L.push('    var Q=String.fromCharCode(34);');
+    L.push('    var btn=this;');
+    L.push('    var ao=document.getElementById("attr-overall");');
+    L.push('    var boxes=document.querySelectorAll("#attr-tbody .cat-attr-cb:checked");');
     L.push('    if(!boxes.length){alert("No attributes selected. Check at least one attribute to create.");return;}');
     L.push('    var selected=[];');
     L.push('    for(var i=0;i<boxes.length;i++){');
-    L.push('      selected.push({id:boxes[i].getAttribute("data-attrid"),sfccType:boxes[i].getAttribute("data-attrtype"),label:boxes[i].getAttribute("data-attrlabel")});');
+    L.push('      var bidx=boxes[i].getAttribute("data-idx");');
+    L.push('      var origId=boxes[i].getAttribute("data-attrid");');
+    L.push('      var attrExists=boxes[i].getAttribute("data-attrexists")==="1";');
+    L.push('      var idInp=document.querySelector(".cm-attr-id-input[data-idx="+Q+bidx+Q+"]");');
+    L.push('      var editedId=idInp&&idInp.value.trim()?idInp.value.trim():origId;');
+    L.push('      var sfccT=window.AccAttrPreflight?window.AccAttrPreflight.readSfccType(bidx,boxes[i].getAttribute("data-attrtype")):boxes[i].getAttribute("data-attrtype");');
+    L.push('      if(attrExists&&editedId===origId){');
+    L.push('        var skipSp=document.querySelector(".cat-status-span[data-idx="+Q+bidx+Q+"]");');
+    L.push('        if(skipSp){skipSp.textContent="Skipped";skipSp.style.background="#e3f2fd";skipSp.style.color="#1565c0";}');
+    L.push('        boxes[i].checked=false;');
+    L.push('        continue;');
+    L.push('      }');
+    L.push('      var canonicalId=idInp?idInp.getAttribute("data-canonical")||origId:origId;');
+    L.push('      selected.push({id:editedId,canonicalId:canonicalId,originalId:(attrExists&&editedId!==origId)?origId:null,sfccType:sfccT,label:boxes[i].getAttribute("data-attrlabel"),idx:bidx});');
     L.push('    }');
-    L.push('    var btn=this;btn.disabled=true;btn.textContent="Creating...";');
-    L.push('    var ao=document.getElementById("attr-overall");');
+    L.push('    if(!selected.length){if(ao){ao.textContent="All selected attributes already exist — skipped.";ao.style.color="#1565c0";}return;}');
+    L.push('    btn.disabled=true;btn.textContent="Creating...";');
     L.push('    if(ao){ao.textContent="Creating "+selected.length+" attribute(s)...";ao.style.color="#54698d";}');
-    L.push('    _APP.post(_APP.ATTRS_URL,"selected="+encodeURIComponent(JSON.stringify(selected)),function(data){');
+    L.push('    _APP.post(_APP.CREATE_ATTRS_URL,"attrs="+encodeURIComponent(JSON.stringify(selected)),function(data){');
     L.push('      btn.disabled=false;btn.textContent="Create Selected";');
-    L.push('      if(!data.ok&&data.error){if(ao){ao.textContent="Error: "+data.error;ao.style.color="#c62828";}return;}');
-L.push('      var msg="Done - "+data.created+" created, "+data.skipped+" skipped, "+data.failed+" failed.";');
-    L.push('      if(ao){ao.textContent=msg;ao.style.color=data.failed>0?"#e65100":"#2e7d32";}');
-    L.push('      if(data.errors&&data.errors.length){var eb=document.getElementById("attr-errors");if(eb){eb.style.display="block";eb.textContent="Errors: "+data.errors.join(", ");}}');
-    L.push('      _APP.post(_APP.ATTRS_URL,"",function(refreshData){');
-    L.push('        if(!refreshData.ok||!refreshData.attrs)return;');
-    L.push('        var Q=String.fromCharCode(34);');
-    L.push('        var tbody2=document.getElementById("attr-tbody");');
-    L.push('        if(!tbody2)return;');
-    L.push('        var rows=tbody2.querySelectorAll("tr");');
-    L.push('        refreshData.attrs.forEach(function(attr,idx){');
-    L.push('          if(!rows[idx])return;');
-    L.push('          var statusCell=rows[idx].querySelector("span");');
-    L.push('          var checkbox=rows[idx].querySelector("input[type=checkbox]");');
-    L.push('          if(statusCell){');
-    L.push('            statusCell.textContent=attr.exists?"Exists":"Missing";');
-    L.push('            statusCell.style.background=attr.exists?"#e8f5e9":"#fff3e0";');
-    L.push('            statusCell.style.color=attr.exists?"#2e7d32":"#e65100";');
-    L.push('          }');
-    L.push('          if(checkbox){checkbox.checked=!attr.exists;}');
-    L.push('        });');
-    L.push('      });');
-    L.push('      if(data.failed===0){setTimeout(function(){_APP.goToStep(2);},2000);}');
+    L.push('      if(!data.ok){if(ao){ao.textContent="Error: "+(data.error||"failed");ao.style.color="#c62828";}return;}');
+    L.push('      var res=data.result||{};');
+    L.push('      var msg="Done - "+(res.created||0)+" created, "+(res.failed||0)+" failed.";');
+    L.push('      if(ao){ao.textContent=msg;ao.style.color=(res.failed||0)>0?"#e65100":"#2e7d32";}');
+    L.push('      if(res.errors&&res.errors.length){var eb=document.getElementById("attr-errors");if(eb){eb.style.display="block";eb.textContent="Errors: "+res.errors.join(", ");}}');
+    L.push('      var Q2=String.fromCharCode(34);');
+    L.push('      for(var si=0;si<selected.length;si++){');
+    L.push('        var sidx=selected[si].idx;');
+    L.push('        var scb=document.querySelector(".cat-attr-cb[data-idx="+Q2+sidx+Q2+"]");');
+    L.push('        var ssp=document.querySelector(".cat-status-span[data-idx="+Q2+sidx+Q2+"]");');
+    L.push('        var sinp=document.querySelector(".cm-attr-id-input[data-idx="+Q2+sidx+Q2+"]");');
+    L.push('        if(ssp){ssp.textContent="Exists";ssp.style.background="#e8f5e9";ssp.style.color="#2e7d32";}');
+    L.push('        if(scb){scb.checked=false;scb.setAttribute("data-attrexists","1");scb.setAttribute("data-attrid",selected[si].id);}');
+    L.push('        if(sinp){sinp.setAttribute("data-orig",selected[si].id);sinp.value=selected[si].id;}');
+    L.push('        if(_APP.attrsData&&_APP.attrsData[sidx]){_APP.attrsData[sidx].exists=true;_APP.attrsData[sidx].id=selected[si].id;}');
+    L.push('        var Q3=String.fromCharCode(34);');
+    L.push('        var rBtn=document.querySelector(".cat-attr-revert[data-idx="+Q3+sidx+Q3+"]");');
+    L.push('        if(rBtn){rBtn.disabled=false;rBtn.title="";}');
+    L.push('      }');
+    L.push('      if((res.failed||0)===0){setTimeout(function(){_APP.goToStep(2);},2000);}');
     L.push('    });');
     L.push('  });');
 
@@ -3175,6 +3223,10 @@ L.push('      var msg="Done - "+data.created+" created, "+data.skipped+" skipped
     L.push('    if(applied)applied.style.display="block";');
     L.push('    document.getElementById("hierarchy-changes-summary").style.display="none";');
     L.push('  });');
+
+    L.push('  el=document.getElementById("btn-select-all-export");if(el)el.addEventListener("click",function(){_APP.selectAllExport();});');
+    L.push('  el=document.getElementById("btn-select-all-export-all");if(el)el.addEventListener("click",function(){if(!_APP.allCategories)return;_APP.allCategories.forEach(function(c){_APP.selectedForExport[c.id]=true;});_APP.renderTable();});');
+    L.push('  el=document.getElementById("btn-deselect-all-export");if(el)el.addEventListener("click",function(){_APP.deselectAllExport();});');
 
     L.push('  el=document.getElementById("btn-reset-hierarchy");');
     L.push('  if(el)el.addEventListener("click",function(){');
@@ -3195,6 +3247,7 @@ L.push('      var msg="Done - "+data.created+" created, "+data.skipped+" skipped
     L.push('  });');
     L.push('  window._APP=_APP;');
 
+    // CT load handler — unchanged
     L.push('  el=document.getElementById("btn-load-categories");');
     L.push('  if(el)el.addEventListener("click",function(){');
     L.push('    var btn=this;var status=document.getElementById("hierarchy-fetch-status");');
@@ -3221,6 +3274,47 @@ L.push('      var msg="Done - "+data.created+" created, "+data.skipped+" skipped
     L.push('    }');
     L.push('    fetchPage(0);');
     L.push('  });');
+    // Shopify override — only replaces the handler when platform is shopify
+    L.push('  if(_APP.PLATFORM==="shopify"){');
+    L.push('    el=document.getElementById("btn-load-categories");');
+    L.push('    if(el){');
+    L.push('      el.textContent="Load Categories from Shopify";');
+    L.push('      var _clone=el.cloneNode(true);el.parentNode.replaceChild(_clone,el);el=_clone;');
+    L.push('      el.addEventListener("click",function(){');
+    L.push('        var btn=this;var status=document.getElementById("hierarchy-fetch-status");');
+    L.push('        btn.disabled=true;btn.textContent="Loading...";');
+    L.push('        _APP.allCategories=[];_APP.catMap={};');
+    L.push('        _APP.hierarchyOverrides={};_APP.orderOverrides={};_APP.pendingParent={};_APP.pendingOrder={};_APP.activeFilter="all";_APP.newCatCount=0;_APP.addedCats=[];');
+    L.push('        function fetchShopifyPage(cursor){');
+    L.push('          if(status){status.textContent="Loading categories... "+_APP.allCategories.length+" so far";status.style.color="#54698d";}');
+    L.push('          _APP.post(_APP.FETCH_URL,"offset="+encodeURIComponent(cursor),function(data){');
+    L.push('            if(!data.ok){btn.disabled=false;btn.textContent="Load Categories from Shopify";if(status){status.textContent="Error: "+(data.error||"failed");status.style.color="#c62828";}return;}');
+    L.push('            data.categories.forEach(function(c){_APP.allCategories.push(c);_APP.catMap[c.id]=c;});');
+    L.push('            _APP.renderTable();');
+    L.push('            if(data.done){');
+    L.push('              btn.disabled=false;btn.textContent="Load Categories from Shopify";');
+    L.push('              if(status){status.textContent=_APP.allCategories.length+" categories loaded";status.style.color="#2e7d32";}');
+    L.push('              _APP.buildSharedParentSelect();');
+    L.push('              _APP.populateParentDropdown();');
+    L.push('              var applied=document.getElementById("hierarchy-applied-summary");if(applied)applied.style.display="none";');
+    L.push('              if(_APP.CHECK_PRODUCTS_URL){');
+    L.push('                if(status){status.textContent="Checking product assignments...";status.style.color="#1565c0";}');
+    L.push('                _APP.post(_APP.CHECK_PRODUCTS_URL,"",function(pdata){');
+    L.push('                  if(pdata&&pdata.ok&&pdata.counts){_APP.productCounts=pdata.counts;}');
+    L.push('                  if(status){status.textContent=_APP.allCategories.length+" categories loaded";status.style.color="#2e7d32";}');
+    L.push('                  _APP.renderTable();');
+    L.push('                });');
+    L.push('              }');
+    L.push('            } else {');
+    L.push('              if(!data.nextOffset){btn.disabled=false;btn.textContent="Load Categories from Shopify";if(status){status.textContent="Error: server returned no next cursor";status.style.color="#c62828";}return;}');
+    L.push('              setTimeout(function(){fetchShopifyPage(data.nextOffset);},0);');
+    L.push('            }');
+    L.push('          });');
+    L.push('        }');
+    L.push('        fetchShopifyPage(0);');
+    L.push('      });');
+    L.push('    }');
+    L.push('  }');
 
     L.push('  el=document.getElementById("btn-create-ct-category");');
     L.push('  if(el)el.addEventListener("click",function(){');
@@ -3281,7 +3375,35 @@ L.push('      var msg="Done - "+data.created+" created, "+data.skipped+" skipped
     L.push('    Object.keys(_APP.hierarchyOverrides).forEach(function(k){fo[k]={parent:_APP.hierarchyOverrides[k]};});');
     L.push('    Object.keys(_APP.orderOverrides).forEach(function(k){if(!fo[k])fo[k]={};fo[k].position=_APP.orderOverrides[k];});');
     L.push('    var extra=(_APP.addedCats&&_APP.addedCats.length)?encodeURIComponent(JSON.stringify(_APP.addedCats)):"";');
-    L.push('    _APP.post(_APP.MIGRATE_URL,"catalogId="+encodeURIComponent(catalogId)+"&locale="+encodeURIComponent(locale)+"&mode=xml&overrides="+encodeURIComponent(JSON.stringify(fo))+"&extraCategories="+extra,function(data){');
+    L.push('    var selIds=[];');
+    L.push('    var exportCbs=document.querySelectorAll("#main-cat-tbody .cat-export-cb");');
+    L.push('    for(var cbi=0;cbi<exportCbs.length;cbi++){if(exportCbs[cbi].checked)selIds.push(exportCbs[cbi].getAttribute("data-catid"));}');
+    L.push('    if(selIds.length===0){alert("Please select at least one category to export using the Export checkboxes in Step 2.");_APP.running=false;this.disabled=false;this.textContent="Run Migration";return;}');
+    L.push('    var selSet={};for(var si=0;si<selIds.length;si++){selSet[selIds[si]]=true;}');
+    L.push('    var missingParents=[];');
+    L.push('    for(var mi=0;mi<selIds.length;mi++){');
+    L.push('      var mpId=_APP.effectiveParentId(selIds[mi]);');
+    L.push('      if(mpId&&mpId!=="root"&&!selSet[mpId]){');
+    L.push('        var mpCat=_APP.catMap[mpId];');
+    L.push('        var mpName=mpCat?mpCat.name:mpId;');
+    L.push('        if(missingParents.indexOf(mpName)===-1)missingParents.push(mpName);');
+    L.push('      }');
+    L.push('    }');
+    L.push('    if(missingParents.length>0){');
+    L.push('      var mpMsg="The following parent categories are not selected for export:\\n\\n"+missingParents.join("\\n")+"\\n\\nPlease select the parent categories too before exporting.";');
+    L.push('      alert(mpMsg);_APP.running=false;this.disabled=false;this.textContent="Run Migration";return;');
+    L.push('    }');
+    L.push('    var selIdsParam=encodeURIComponent(JSON.stringify(selIds));');
+    L.push('    var catsParam=(_APP.PLATFORM==="shopify"&&_APP.allCategories&&_APP.allCategories.length)?encodeURIComponent(JSON.stringify(_APP.allCategories)):"";');
+    L.push('    var attrIdMap={};');
+    L.push('    var aInps=document.querySelectorAll("#attr-tbody .cm-attr-id-input");');
+    L.push('    for(var ai=0;ai<aInps.length;ai++){');
+    L.push('      var canonicalId=aInps[ai].getAttribute("data-canonical");');
+    L.push('      var editedId=aInps[ai].value.trim()||canonicalId;');
+    L.push('      if(canonicalId&&editedId&&canonicalId!==editedId){attrIdMap[canonicalId]=editedId;}');
+    L.push('    }');
+    L.push('    var attrIdsParam=encodeURIComponent(JSON.stringify(attrIdMap));');
+    L.push('    _APP.post(_APP.MIGRATE_URL,"catalogId="+encodeURIComponent(catalogId)+"&locale="+encodeURIComponent(locale)+"&mode=xml&platform="+encodeURIComponent(_APP.PLATFORM||"commercetools")+"&overrides="+encodeURIComponent(JSON.stringify(fo))+"&extraCategories="+extra+"&selectedIds="+selIdsParam+"&attrIds="+attrIdsParam+(catsParam?"&categoriesData="+catsParam:""),function(data){');
     L.push('      if(!data.ok){_APP.setPhase("fetch","error",data.error||"Failed",0);_APP.finalize(false,data.error||"Migration failed.");return;}');
     L.push('      _APP.setPhase("fetch","done",data.total+" categories fetched and transformed",100);');
     L.push('      _APP.setPhase("import","active","Writing XML to IMPEX...",50);');
@@ -3334,7 +3456,7 @@ L.push('      var msg="Done - "+data.created+" created, "+data.skipped+" skipped
     L.push('    var infoBox=document.getElementById("step1-info-box");');
     L.push('    var skipBtn=document.getElementById("btn-skip-attrs");');
     L.push('    if(!missing.length){');
-    L.push('      if(infoBox)infoBox.textContent="Step 1 - All 3 custom attributes (ctSlug, ctId, ctPosition) already exist. You may skip to Step 2.";');
+    L.push('      var attrNames=Object.keys(status).join(", ");if(infoBox)infoBox.textContent="Step 1 - All required custom attributes ("+attrNames+") already exist. You may skip to Step 2.";');
     L.push('      if(skipBtn){skipBtn.textContent="All exist - Skip to Step 2";skipBtn.style.background="#e8f5e9";skipBtn.style.color="#2e7d32";}');
     L.push('    }else{');
     L.push('      if(infoBox)infoBox.textContent="Step 1 - Missing: "+missing.join(", ")+". Click Check Attributes to review and create.";');
@@ -3355,13 +3477,16 @@ exports.CategoryMigration = function () {
     var instanceHost = request.httpHost;
 
     // Build URLs safely - no special characters
-    var platformId = String(session.custom.migrationPlatformId || 'commercetools');
+    var platformId = getParam('platform') || String(session.custom.migrationPlatformId || 'commercetools');
+    session.custom.migrationPlatformId = platformId;
     var pageCtx    = migrationPageContext(platformId, 'catalog');
     var impexFolderUrl = pageCtx.impexUrl;
     var importPageUrl  = 'https://' + instanceHost + '/on/demandware.store/Sites-Site/default%3bapp%3d__bm_merchant/ViewCatalogImpex_52-Status?SelectedMenuItem=prod-cat_impex&CurrentMenuItemId=prod-cat';
     var checkAttrsUrl  = URLUtils.url('Accelerator-CheckCategoryAttributes').toString() || '';
     var checkStatusUrl = URLUtils.url('Accelerator-CheckAttributeStatus').toString()    || '';
-    var fetchUrl       = URLUtils.url('Accelerator-FetchCTCategories').toString()       || '';
+    var fetchUrl       = platformId === 'shopify'
+        ? URLUtils.url('Accelerator-FetchShopifyCategories').toString()
+        : URLUtils.url('Accelerator-FetchCTCategories').toString();
     var migrateUrl     = URLUtils.url('Accelerator-RunCategoryMigration').toString()    || '';
 
     Logger.info('CategoryMigration URLs: migrate={0} impex={1} import={2}',
@@ -3379,6 +3504,7 @@ exports.CategoryMigration = function () {
         checkAttrsUrl  : checkAttrsUrl,
         checkStatusUrl : checkStatusUrl,
         fetchUrl       : fetchUrl,
+        platform       : platformId,
         migrateUrl     : migrateUrl,
         impexFolderUrl : impexFolderUrl,
         importPageUrl  : importPageUrl,
@@ -3389,7 +3515,10 @@ exports.CategoryMigration = function () {
         metaVersion           : (cfg.sfcc && cfg.sfcc.metaVersion) ? cfg.sfcc.metaVersion : 'v20_10',
         importUrl             : importPageUrl,
         createCtCategoryUrl   : URLUtils.url('Accelerator-CreateCTCategory').toString(),
-        jsUrl: URLUtils.url('Accelerator-CategoryMigrationJS').toString()
+        checkProductsUrl      : URLUtils.url('Accelerator-CheckCategoryProducts').toString(),
+        attrPreflightJsUrl    : URLUtils.staticURL('/js/attr-preflight.js').toString(),
+        createAttrsUrl        : URLUtils.url('Accelerator-CreateCategoryAttributes').toString(),
+        jsUrl: URLUtils.url('Accelerator-CategoryMigrationJS').toString() + '?v=' + new Date().getTime()
     }));
 };
 exports.CategoryMigration.public = true;
@@ -3408,7 +3537,8 @@ exports.CheckCategoryAttributes = function () {
         // No params — return current status
         if (!selectedParam && !deleteParam) {
             var categoryAttributeMgr = require('*/cartridge/scripts/catalog/categoryAttributeMgr');
-            var attrs = categoryAttributeMgr.checkAttributes();
+            var catPlatform = String(session.custom.migrationPlatformId || 'commercetools');
+            var attrs = categoryAttributeMgr.checkAttributes(catPlatform);
             response.setContentType('application/json');
             response.writer.print(JSON.stringify({ ok: true, attrs: attrs }));
             return;
@@ -3474,13 +3604,54 @@ exports.CheckCategoryAttributes = function () {
 exports.CheckCategoryAttributes.public = true;
 
 /**
+ * Create selected attribute definitions on the SFCC Category system object.
+ * POST: attrs=<json-array of {id, label, sfccType}>
+ */
+exports.CreateCategoryAttributes = function () {
+    var rawAttrs = getParam('attrs');
+    var attrs    = [];
+    try { attrs = JSON.parse(rawAttrs || '[]'); } catch (e) {
+        jsonResponse({ ok: false, error: 'Invalid attrs JSON' });
+        return;
+    }
+    if (!attrs.length) {
+        jsonResponse({ ok: false, error: 'No attributes provided' });
+        return;
+    }
+    try {
+        var catAttrMgr   = require('*/cartridge/scripts/catalog/categoryAttributeMgr');
+        var catPlatform  = String(session.custom.migrationPlatformId || 'commercetools');
+        var result = catAttrMgr.createAttributes(attrs, catPlatform);
+        // Persist canonical→actual ID mapping in session so RunCategoryMigration
+        // can remap customAttribute keys even when the user navigates across pages.
+        // Always write the session key (even when no rename) so stale mappings are
+        // cleared if the user re-creates an attribute back under its canonical name.
+        for (var i = 0; i < attrs.length; i++) {
+            var canonicalAttrId = attrs[i].canonicalId || attrs[i].id;
+            if (canonicalAttrId) {
+                if (attrs[i].id && attrs[i].id !== canonicalAttrId) {
+                    session.custom['catAttrMap_' + canonicalAttrId] = attrs[i].id;
+                } else {
+                    session.custom['catAttrMap_' + canonicalAttrId] = '';
+                }
+            }
+        }
+        jsonResponse({ ok: true, result: result });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.CreateCategoryAttributes.public = true;
+
+/**
  * Alias used by the attribute status widget (same as CheckCategoryAttributes).
  * GET — no params required.
  */
 exports.CheckAttributeStatus = function () {
     var categoryAttributeMgr = require('*/cartridge/scripts/catalog/categoryAttributeMgr');
     try {
-        var attrs  = categoryAttributeMgr.checkAttributes();
+        var statusPlatform = String(session.custom.migrationPlatformId || 'commercetools');
+        var attrs  = categoryAttributeMgr.checkAttributes(statusPlatform);
         var status = {};
         for (var i = 0; i < attrs.length; i++) {
             status[attrs[i].id] = attrs[i].exists ? 'exists' : 'missing';
@@ -3495,25 +3666,6 @@ exports.CheckAttributeStatus = function () {
 exports.CheckAttributeStatus.public = true;
 
 
-/**
- * Create selected category attribute definitions on the SFCC Category system object.
- * POST: attrs=<json-array of {id, label, sfccType}>
- */
-exports.CreateCategoryAttributes = function () {
-    var rawAttrs = getParam('attrs');
-    var attrs    = [];
-    try { attrs = JSON.parse(rawAttrs || '[]'); } catch (e) {
-        jsonResponse({ ok: false, error: 'Invalid attrs JSON' });
-        return;
-    }
-    try {
-        var catAttrs3 = require('*/cartridge/scripts/catalog/createCategoryAttributes');
-        jsonResponse({ ok: true, result: catAttrs3.createMissingAttributes() });
-    } catch (e) {
-        jsonResponse({ ok: false, error: e.message || String(e) });
-    }
-};
-exports.CreateCategoryAttributes.public = true;
 
 // Fetch all available SFCC catalogs using native CatalogMgr (no credentials needed)
 exports.FetchSFCCCatalogs = function () {
@@ -3835,6 +3987,172 @@ exports.FetchCTCategories = function () {
 };
 exports.FetchCTCategories.public = true;
 
+exports.FetchShopifyCategories = function () {
+    var fetchShopify = require('~/cartridge/scripts/catalog/fetchShopifyCategories');
+    var Logger       = require('dw/system/Logger');
+
+    response.setContentType('application/json');
+
+    try {
+        var cursor = request.httpParameterMap.offset.stringValue || '0';
+        var page   = fetchShopify.fetchCollectionsPage(cursor);
+
+        response.writer.print(JSON.stringify({
+            ok         : true,
+            categories : page.results,
+            nextOffset : page.nextCursor || '',
+            done       : page.done
+        }));
+    } catch (e) {
+        Logger.error('FetchShopifyCategories error: {0}', e.message);
+        response.writer.print(JSON.stringify({ ok: false, error: e.message }));
+    }
+};
+exports.FetchShopifyCategories.public = true;
+
+/**
+ * Check which categories have products assigned in Shopify.
+ * Queries products and their category assignments via GraphQL.
+ * Returns { ok: true, counts: { "Category Name": productCount } }
+ */
+exports.CheckCategoryProducts = function () {
+    var connector   = require('~/cartridge/scripts/migration/connectors/shopify/shopifyConnector');
+    var cfgAccessor = require('*/cartridge/scripts/migration/configAccessor');
+    var http        = require('*/cartridge/scripts/migration/core/http');
+    var Logger      = require('dw/system/Logger');
+
+    response.setContentType('application/json');
+
+    try {
+        var creds   = cfgAccessor.shopify || {};
+        var base    = connector.getAdminBase(creds);
+        var hdrs    = connector.getAuthHeaders(creds);
+        var counts  = {};
+        var cursor  = null;
+        var hasMore = true;
+        var maxPages = 10;
+
+        while (hasMore && maxPages-- > 0) {
+            var afterClause = cursor
+                ? '(first:250,after:"' + cursor + '")'
+                : '(first:250)';
+            var query = '{ products' + afterClause + ' { nodes { id category { id name fullName } } pageInfo { hasNextPage endCursor } } }';
+            var res   = http.post(base + '/graphql.json', hdrs, JSON.stringify({ query: query }));
+
+            if (res.status !== 200) { break; }
+            var resData  = res.data || {};
+            if (resData.errors && resData.errors.length) { break; }
+            var prods    = (resData.data && resData.data.products && resData.data.products.nodes) || [];
+            var pageInfo = (resData.data && resData.data.products && resData.data.products.pageInfo) || {};
+
+            for (var pi = 0; pi < prods.length; pi++) {
+                var prod = prods[pi];
+                if (prod.category && prod.category.name) {
+                    var catName = String(prod.category.name);
+                    counts[catName] = (counts[catName] || 0) + 1;
+                }
+            }
+
+            hasMore = !!pageInfo.hasNextPage;
+            cursor  = pageInfo.endCursor || null;
+        }
+
+        Logger.info('CheckCategoryProducts: {0} categories have products', Object.keys(counts).length);
+        response.writer.print(JSON.stringify({ ok: true, counts: counts }));
+    } catch (e) {
+        Logger.error('CheckCategoryProducts error: {0}', e.message);
+        response.writer.print(JSON.stringify({ ok: false, error: e.message, counts: {} }));
+    }
+};
+exports.CheckCategoryProducts.public = true;
+
+
+
+// ─── Shopify Configuration ─────────────────────────────────────────────────────
+
+/**
+ * Render the Shopify Configuration page.
+ * Pre-fills form with credentials from saved config file or session.
+ */
+exports.ShopifyConfig = function () {
+    var cfg    = require('*/cartridge/scripts/migration/configAccessor');
+    var saved  = cfg.shopify || {};
+
+    ISML.renderTemplate('accelerator/shopifyConfig', withBmFrame({
+        title          : 'Shopify Configuration',
+        subtitle       : 'Enter and save your Shopify store credentials',
+        cssUrl         : URLUtils.staticURL('/css/accelerator-migration.css').toString(),
+        dashboardUrl   : URLUtils.url('Accelerator-Start').toString(),
+        saveConfigUrl  : URLUtils.url('Accelerator-SaveShopifyConfig').toString(),
+        storeUrl       : saved.storeUrl   || '',
+        clientId       : saved.clientId   || '',
+        hasSecret      : !!(saved.clientSecret),
+        apiVersion     : saved.apiVersion || '2025-01'
+    }));
+};
+exports.ShopifyConfig.public = true;
+
+/**
+ * Save Shopify credentials to IMPEX file for persistence across sessions.
+ * POST: storeUrl, clientId, clientSecret, apiVersion
+ */
+exports.SaveShopifyConfig = function () {
+    var File       = require('dw/io/File');
+    var FileWriter = require('dw/io/FileWriter');
+    var registry   = require('*/cartridge/scripts/migration/connectors/registry');
+    var Logger     = require('dw/system/Logger');
+
+    response.setContentType('application/json');
+
+    try {
+        var params  = request.httpParameterMap;
+        var storeUrl     = (params.storeUrl.stringValue     || '').replace(/\/+$/, '');
+        var clientId     = params.clientId.stringValue      || '';
+        var clientSecret = params.clientSecret.stringValue  || '';
+        var apiVersion   = params.apiVersion.stringValue    || '2025-01';
+
+        if (!storeUrl || !clientId || !clientSecret) {
+            response.writer.print(JSON.stringify({ ok: false, error: 'Store URL, Client ID, and Access Token are required.' }));
+            return;
+        }
+
+        // Validate credentials against Shopify
+        var connector = registry.get('shopify');
+        var result    = connector.testConnectionWith({ storeUrl: storeUrl, clientId: clientId, clientSecret: clientSecret, apiVersion: apiVersion });
+
+        // Ensure directory exists
+        var dir = new File(File.IMPEX + '/src/migration');
+        if (!dir.exists()) { dir.mkdirs(); }
+
+        // Write config file
+        var configFile = new File(File.IMPEX + '/src/migration/shopify-config.json');
+        var fw = new FileWriter(configFile, 'UTF-8');
+        fw.writeLine(JSON.stringify({
+            storeUrl    : storeUrl,
+            clientId    : clientId,
+            clientSecret: clientSecret,
+            apiVersion  : apiVersion
+        }));
+        fw.flush();
+        fw.close();
+
+        // Persist to session for immediate use
+        session.custom.shopifyStoreUrl      = storeUrl;
+        session.custom.shopifyClientId      = clientId;
+        session.custom.shopifyClientSecret  = clientSecret;
+        session.custom.shopifyAccessToken   = clientSecret;
+        session.custom.shopifyApiVersion    = apiVersion;
+        session.custom.migrationPlatformId  = 'shopify';
+
+        Logger.info('SaveShopifyConfig: saved for store={0}', result.project ? result.project.key : storeUrl);
+        response.writer.print(JSON.stringify({ ok: true, project: result.project }));
+    } catch (e) {
+        Logger.error('SaveShopifyConfig error: {0}', e.message);
+        response.writer.print(JSON.stringify({ ok: false, error: e.message }));
+    }
+};
+exports.SaveShopifyConfig.public = true;
+
 /**
  * Create a new category in CommerceTools.
  * POST — params: key, name, parentId (optional)
@@ -3925,6 +4243,7 @@ exports.RunCategoryMigration = function () {
     var mode      = request.httpParameterMap.mode.stringValue      || 'xml';
     var catalogId = request.httpParameterMap.catalogId.stringValue || 'storefront-catalog-m-en';
     var locale    = request.httpParameterMap.locale.stringValue    || 'en-US';
+    var platform  = request.httpParameterMap.platform.stringValue  || String(session.custom.migrationPlatformId || 'commercetools');
 
     var overridesRaw = request.httpParameterMap.overrides.stringValue || '{}';
     var overrides    = {};
@@ -3934,35 +4253,183 @@ exports.RunCategoryMigration = function () {
     var extraCats   = [];
     try { extraCats = JSON.parse(extraRaw); } catch (e) { extraCats = []; }
 
+    var selectedIdsRaw = request.httpParameterMap.selectedIds.stringValue || '';
+    var selectedIds    = [];
+    try { if (selectedIdsRaw) { selectedIds = JSON.parse(selectedIdsRaw); } } catch (sie) { selectedIds = []; }
+
+    var categoriesDataRaw = request.httpParameterMap.categoriesData.stringValue || '';
+    var clientCategories  = [];
+    try { if (categoriesDataRaw) { clientCategories = JSON.parse(categoriesDataRaw); } } catch (cde) { clientCategories = []; }
+
     try {
-        var token = fetchCT.getCTAuthToken();
-        if (!token) {
-            response.writer.print(JSON.stringify({ ok: false, error: 'CT auth failed.' }));
-            return;
+        var sfccCategories = [];
+
+        if (platform === 'shopify') {
+            // ── Shopify path ──────────────────────────────────────────────────
+            var fetchShopify = require('~/cartridge/scripts/catalog/fetchShopifyCategories');
+            var taxonomyData = require('~/cartridge/scripts/catalog/shopifyTaxonomyData');
+
+            var allTaxonomy = [];
+
+            if (clientCategories.length > 0) {
+                // Client already fetched all levels in Step 2 — use that data directly.
+                // This avoids re-fetching from Shopify server-side, which would hit
+                // SFCC's 16 HTTP calls/request limit for large taxonomies.
+                allTaxonomy = clientCategories;
+                Logger.info('RunCategoryMigration: using {0} client-sent categories', allTaxonomy.length);
+            } else {
+                var connector   = require('~/cartridge/scripts/migration/connectors/shopify/shopifyConnector');
+                var cfgAccessor = require('*/cartridge/scripts/migration/configAccessor');
+                try {
+                    var creds    = cfgAccessor.shopify || {};
+                    var base     = connector.getAdminBase(creds);
+                    var hdrs     = connector.getAuthHeaders(creds);
+                    var allNodes = fetchShopify.fetchAllAPINodes(base, hdrs);
+
+                    if (allNodes.length > 0 && fetchShopify.hasSubcategories(allNodes)) {
+                        allTaxonomy = fetchShopify.transformAPINodes(allNodes);
+                        Logger.info('RunCategoryMigration: API multi-level, {0} categories', allTaxonomy.length);
+                    } else {
+                        allTaxonomy = taxonomyData.TAXONOMY.slice();
+                        if (allNodes.length > 0) {
+                            var staticIds = {};
+                            allTaxonomy.forEach(function (c) { staticIds[c.id] = true; });
+                            allNodes.forEach(function (n) {
+                                var slug = String(n.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+                                if (slug && !staticIds[slug]) {
+                                    allTaxonomy.push({ id: slug, name: String(n.name || ''), parentId: '' });
+                                }
+                            });
+                        }
+                        Logger.info('RunCategoryMigration: static taxonomy, {0} categories', allTaxonomy.length);
+                    }
+                } catch (apiErr) {
+                    Logger.warn('RunCategoryMigration Shopify API fetch error: {0} — falling back to static taxonomy', apiErr.message);
+                    allTaxonomy = taxonomyData.TAXONOMY.slice();
+                }
+            }
+
+            // Filter to user-selected categories if a selection was provided
+            if (selectedIds.length > 0) {
+                var selSet = {};
+                for (var si = 0; si < selectedIds.length; si++) { selSet[selectedIds[si]] = true; }
+                allTaxonomy = allTaxonomy.filter(function (tc) { return selSet[tc.id]; });
+            }
+
+            // Build lookup map and child-presence map for level + isLeaf computation
+            var taxMap      = {};
+            var hasChildren = {};
+            for (var ti2 = 0; ti2 < allTaxonomy.length; ti2++) {
+                taxMap[allTaxonomy[ti2].id] = allTaxonomy[ti2];
+            }
+            for (var ti3 = 0; ti3 < allTaxonomy.length; ti3++) {
+                var pid = allTaxonomy[ti3].parentId;
+                if (pid) { hasChildren[pid] = true; }
+            }
+
+            function getTaxLevel(id, visited) {
+                if (!id || visited[id]) return 1;
+                visited[id] = true;
+                var node = taxMap[id];
+                if (!node || !node.parentId) return 1;
+                return 1 + getTaxLevel(node.parentId, visited);
+            }
+
+            // Transform flat taxonomy into SFCC category format
+            for (var ti = 0; ti < allTaxonomy.length; ti++) {
+                var tc = allTaxonomy[ti];
+                var nameObj = {};
+                nameObj[locale] = tc.name || tc.id;
+                sfccCategories.push({
+                    id              : tc.id,
+                    parentId        : tc.parentId || 'root',
+                    name            : nameObj,
+                    description     : {},
+                    pageTitle       : {},
+                    pageDescription : {},
+                    position        : ti + 1,
+                    online          : true,
+                    customAttributes: {
+                        level : getTaxLevel(tc.id, {}),
+                        isLeaf: !hasChildren[tc.id]
+                    }
+                });
+            }
+
+            Logger.info('RunCategoryMigration Shopify: {0} categories', sfccCategories.length);
+
+        } else {
+            // ── CommerceTools path ────────────────────────────────────────────
+            var token = fetchCT.getCTAuthToken();
+            if (!token) {
+                response.writer.print(JSON.stringify({ ok: false, error: 'CT auth failed.' }));
+                return;
+            }
+
+            var ctCategories = fetchCT.fetchAllCategories(token);
+            if (!ctCategories || ctCategories.length === 0) {
+                response.writer.print(JSON.stringify({ ok: false, error: 'No categories returned from CT.' }));
+                return;
+            }
+
+            sfccCategories = transform.transformAll(ctCategories, locale);
+
+            // Filter to user-selected categories if a selection was provided
+            if (selectedIds.length > 0) {
+                var selSet2 = {};
+                for (var si2 = 0; si2 < selectedIds.length; si2++) { selSet2[selectedIds[si2]] = true; }
+                sfccCategories = sfccCategories.filter(function (cat) { return selSet2[cat.id]; });
+            }
         }
 
-        var ctCategories = fetchCT.fetchAllCategories(token);
-        if (!ctCategories || ctCategories.length === 0) {
-            response.writer.print(JSON.stringify({ ok: false, error: 'No categories returned from CT.' }));
-            return;
-        }
-
-        var sfccCategories = transform.transformAll(ctCategories, locale);
-
-        // Append locally-added categories (for the selected catalog only, not saved to CT)
+        // Append locally-added categories
         for (var ei = 0; ei < extraCats.length; ei++) {
             var ec = extraCats[ei];
             if (!ec || !ec.id) continue;
+            var ecName = {};
+            ecName[locale] = ec.name || ec.id;
             sfccCategories.push({
                 id              : ec.id,
                 parentId        : ec.parentId || 'root',
-                name            : { 'x-default': ec.name || ec.id },
+                name            : ecName,
                 description     : {},
                 pageTitle       : {},
                 pageDescription : {},
                 position        : sfccCategories.length + 1,
                 online          : true,
                 customAttributes: {}
+            });
+        }
+
+        // Apply user-edited attribute ID mapping (from Step 1 edits)
+        var attrIdsRaw = request.httpParameterMap.attrIds.stringValue || '{}';
+        var attrIds    = {};
+        try { attrIds = JSON.parse(attrIdsRaw); } catch (aie) {}
+
+        // Merge session-stored mapping as fallback for keys not provided by client.
+        // This handles the cross-session case where the user navigates away after Step 1
+        // and returns directly to Step 3 — the attr table is empty so client sends no mapping.
+        var CANONICAL_ATTRS = ['ctId', 'ctSlug', 'ctPosition', 'level', 'isLeaf'];
+        for (var cai = 0; cai < CANONICAL_ATTRS.length; cai++) {
+            var cKey = CANONICAL_ATTRS[cai];
+            if (!attrIds[cKey]) {
+                var sessionMapped = String(session.custom['catAttrMap_' + cKey] || '');
+                if (sessionMapped && sessionMapped !== cKey) {
+                    attrIds[cKey] = sessionMapped;
+                }
+            }
+        }
+
+        var attrIdKeys = Object.keys(attrIds);
+        if (attrIdKeys.length > 0) {
+            sfccCategories.forEach(function (cat) {
+                var ca    = cat.customAttributes || {};
+                var newCa = {};
+                Object.keys(ca).forEach(function (origKey) {
+                    var mappedKey = attrIds[origKey];
+                    newCa[mappedKey && mappedKey.trim() ? mappedKey.trim() : origKey] = ca[origKey];
+                });
+                cat.customAttributes = newCa;
             });
         }
 

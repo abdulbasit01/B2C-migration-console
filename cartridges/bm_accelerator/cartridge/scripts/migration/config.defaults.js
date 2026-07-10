@@ -6,9 +6,9 @@
  */
 module.exports = {
     shopify: {
-        storeUrl:     '',
-        clientId:     '',
-        clientSecret: '',
+        storeUrl:     'https://sfcc-migration-dev-store.myshopify.com/',
+        clientId:     '80dbef0316a5176b9399ed7aeb240717',
+        clientSecret: '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',
         apiVersion:   '2026-07'
     },
     ctp: {

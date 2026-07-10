@@ -414,5 +414,7 @@ module.exports = {
     injectCredentials:   injectCredentials,
     getDefaultTasks:     getDefaultTasks,
     buildFetchContent:   buildFetchContent,
-    buildAiMapContent:   buildAiMapContent
+    buildAiMapContent:   buildAiMapContent,
+    getAuthHeaders:      authHeaders,
+    getAdminBase:        adminBase
 };

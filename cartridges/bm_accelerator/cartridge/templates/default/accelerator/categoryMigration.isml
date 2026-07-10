@@ -1,13 +1,27 @@
 <isdecorate template="application/MenuFrame">
 <iscontent type="text/html" charset="UTF-8"/>
 <link rel="stylesheet" href="${pdict.cssUrl}"/>
+<script src="${pdict.attrPreflightJsUrl}"></script>
+<style>
+.cm-attr-table{width:100%;border-collapse:collapse;font-size:13px;}
+.cm-attr-table thead tr{background:#f4f6f9;border-bottom:2px solid #dddbda;}
+.cm-attr-table th{padding:9px 14px;text-align:left;font-size:11px;font-weight:700;color:#54698d;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap;}
+.cm-attr-table td{padding:9px 14px;border-bottom:1px solid #f0f2f8;color:#3e3e3c;vertical-align:middle;}
+.cm-attr-table tbody tr:last-child td{border-bottom:none;}
+.cm-attr-table tbody tr:hover{background:#f8f9fb;}
+.cm-attr-id-input{background:#eaf0fb;border:1px solid #c8d6f0;border-radius:3px;font-family:monospace;font-size:12px;color:#16325c;font-weight:600;padding:3px 8px;width:190px;outline:none;box-sizing:border-box;}
+.cm-attr-id-input:focus{border-color:#0070d2;background:#fff;box-shadow:0 0 0 2px rgba(0,112,210,.15);}
+.cm-attr-type-select{font-size:12px;padding:4px 6px;border:1px solid #c8d6f0;border-radius:3px;background:#fff;color:#16325c;min-width:140px;max-width:180px;}
+.cm-btn--revert{background:#fff;color:#c62828;border:1px solid #f0b4b4;padding:4px 12px;font-size:12px;font-weight:600;border-radius:4px;cursor:pointer;white-space:nowrap;}
+.cm-btn--revert:hover{background:#fdecea;border-color:#c62828;}
+</style>
 <div class="acc-page">
 <div class="acc-shell">
 <isinclude template="accelerator/components/header"/>
 <isinclude template="accelerator/components/migrationBackLink"/>
 <section class="acc-section">
 <header class="acc-section__head">
-<h2>Category Data Migration - Commercetools to SFCC</h2>
+<h2>Category Data Migration - <isif condition="${pdict.platform === 'shopify'}">Shopify<iselse/>Commercetools</isif> to SFCC</h2>
 </header>
 
 <div style="background:#f4f6f9;border:1px solid #dddbda;border-radius:4px;padding:0;margin-bottom:20px;overflow:hidden;">
@@ -60,20 +74,22 @@
 <div id="panel-step1">
 <div id="step1-info-box" style="background:#f4f6f9;border:1px solid #dddbda;border-radius:4px;padding:14px 18px;font-size:13px;margin-bottom:16px;">Click Check Attributes to see which custom attributes exist on the Category system object.</div>
 <div id="attr-result" style="display:none;margin-bottom:16px;">
-<table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:10px;">
+<div style="border:1px solid #e0e5ee;border-radius:4px;overflow:hidden;margin-bottom:10px;">
+<table class="cm-attr-table">
 <thead><tr>
-<th style="background:#f4f6f9;padding:8px 12px;text-align:center;border:1px solid #dddbda;font-weight:600;color:#16325c;width:52px;">Create</th>
-<th style="background:#f4f6f9;padding:8px 12px;text-align:left;border:1px solid #dddbda;font-weight:600;color:#16325c;">Attribute ID</th>
-<th style="background:#f4f6f9;padding:8px 12px;text-align:left;border:1px solid #dddbda;font-weight:600;color:#16325c;">Type</th>
-<th style="background:#f4f6f9;padding:8px 12px;text-align:left;border:1px solid #dddbda;font-weight:600;color:#16325c;">Label</th>
-<th style="background:#f4f6f9;padding:8px 12px;text-align:left;border:1px solid #dddbda;font-weight:600;color:#16325c;">Status</th>
+<th style="width:36px;text-align:center;">Create</th>
+<th>Attribute ID</th>
+<th>Label</th>
+<th>Status</th>
+<th>SFCC Type</th>
+<th style="width:90px;">Action</th>
 </tr></thead>
 <tbody id="attr-tbody"></tbody>
 </table>
+</div>
 <div style="display:flex;gap:8px;margin-bottom:12px;">
 <button type="button" id="btn-select-all-attrs" class="acc-btn acc-btn--ghost" style="font-size:12px;padding:4px 12px;">Select All</button>
 <button type="button" id="btn-deselect-all-attrs" class="acc-btn acc-btn--ghost" style="font-size:12px;padding:4px 12px;">Deselect All</button>
-<button type="button" id="btn-revert-attrs" class="acc-btn acc-btn--ghost" style="font-size:12px;padding:4px 12px;">Revert to Default</button>
 </div>
 <div id="attr-warnings" style="display:none;background:#fff3e0;border:1px solid #ffb300;border-radius:4px;padding:10px 14px;font-size:13px;margin-bottom:8px;color:#e65100;"></div>
 <div id="attr-errors"   style="display:none;background:#ffebee;border:1px solid #c62828;border-radius:4px;padding:10px 14px;font-size:13px;margin-bottom:8px;color:#c62828;"></div>
@@ -101,9 +117,14 @@ Click Save and Apply Changes to confirm.
 </div>
 <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
 <input type="text" id="hierarchy-search" placeholder="Search by name or ID" style="width:220px;padding:6px 10px;font-size:13px;border:1px solid #dddbda;border-radius:4px;"/>
-<button type="button" id="btn-load-categories" class="acc-btn acc-btn--secondary">Load Categories from CT</button>
+<button type="button" id="btn-load-categories" class="acc-btn acc-btn--secondary">Load Categories from <isif condition="${pdict.platform === 'shopify'}">Shopify<iselse/>CT</isif></button>
 <button type="button" id="btn-reset-hierarchy" class="acc-btn acc-btn--ghost">Reset All</button>
 <button type="button" id="btn-save-hierarchy" class="acc-btn acc-btn--primary">Save and Apply Changes</button>
+<span style="border-left:1px solid #dddbda;height:24px;display:inline-block;vertical-align:middle;"></span>
+<span style="font-size:12px;color:#54698d;font-weight:600;">Export:</span>
+<isif condition="${pdict.platform === 'shopify'}"><button type="button" id="btn-select-all-export" class="acc-btn acc-btn--ghost" style="font-size:12px;padding:4px 10px;" title="Select categories that have products assigned">&#10003; With Products</button></isif>
+<button type="button" id="btn-select-all-export-all" class="acc-btn acc-btn--ghost" style="font-size:12px;padding:4px 10px;" title="Select all categories">&#10003; All</button>
+<button type="button" id="btn-deselect-all-export" class="acc-btn acc-btn--ghost" style="font-size:12px;padding:4px 10px;" title="Uncheck all export checkboxes">&#10007; None</button>
 <span id="hierarchy-fetch-status" style="font-size:13px;color:#54698d;"></span>
 </div>
 <div style="display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;margin-bottom:12px;padding:12px 14px;background:#f4f6f9;border:1px solid #dddbda;border-radius:4px;">
@@ -143,9 +164,10 @@ Drop here to make Root (L1) category
 <th style="background:#f4f6f9;padding:8px 10px;text-align:left;border-bottom:2px solid #dddbda;font-weight:600;color:#16325c;font-size:12px;">Category ID</th>
 <th style="background:#f4f6f9;padding:8px 10px;text-align:left;border-bottom:2px solid #dddbda;font-weight:600;color:#16325c;font-size:12px;">Name</th>
 <th style="background:#f4f6f9;padding:8px 10px;text-align:left;border-bottom:2px solid #dddbda;font-weight:600;color:#16325c;font-size:12px;">Parent</th>
+<th style="background:#f4f6f9;padding:8px 10px;text-align:center;border-bottom:2px solid #dddbda;font-weight:600;color:#16325c;font-size:12px;width:60px;" title="Check categories to include in XML export">Export</th>
 </tr></thead>
 <tbody id="main-cat-tbody">
-<tr><td colspan="6" style="text-align:center;padding:30px;color:#54698d;">Click Load Categories from CT to begin.</td></tr>
+<tr><td colspan="7" style="text-align:center;padding:30px;color:#54698d;">Click Load Categories from <isif condition="${pdict.platform === 'shopify'}">Shopify<iselse/>CT</isif> to begin.</td></tr>
 </tbody>
 </table>
 </div>
@@ -202,6 +224,7 @@ Next steps: 1. Click Open IMPEX Folder. 2. Select the file and run the import jo
             _APP.ATTRS_URL           = '${pdict.checkAttrsUrl}';
             _APP.STATUS_URL          = '${pdict.checkStatusUrl}';
             _APP.IMPEX_PATH          = '${pdict.impexPath}';
+            _APP.PLATFORM            = '${pdict.platform}';
             _APP.FETCH_CATALOGS_URL  = '${pdict.fetchCatalogsUrl}';
             _APP.CREATE_CATALOG_URL       = '${pdict.createCatalogUrl}';
             _APP.CREATE_CATEGORY_URL      = '${pdict.createCategoryUrl}';
@@ -209,6 +232,8 @@ Next steps: 1. Click Open IMPEX Folder. 2. Select the file and run the import jo
             _APP.META_VERSION             = '${pdict.metaVersion}';
             _APP.IMPORT_URL              = '${pdict.importUrl}';
             _APP.CREATE_CT_CATEGORY_URL  = '${pdict.createCtCategoryUrl}';
+            _APP.CHECK_PRODUCTS_URL      = '${pdict.checkProductsUrl}';
+            _APP.CREATE_ATTRS_URL        = '${pdict.createAttrsUrl}';
             _APP.init();
         } else {
             setTimeout(initApp, 50);
