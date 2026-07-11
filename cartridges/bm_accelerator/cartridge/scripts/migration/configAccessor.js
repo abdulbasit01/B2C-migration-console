@@ -23,15 +23,13 @@ try {
         var sessionUrl    = String(session.custom.shopifyStoreUrl     || '');
         var sessionId     = String(session.custom.shopifyClientId     || '');
         var sessionSecret = String(session.custom.shopifyClientSecret || '');
-        var sessionToken  = String(session.custom.shopifyAccessToken  || '');
         var sessionVer    = String(session.custom.shopifyApiVersion   || '');
-        if (sessionUrl || sessionId || sessionToken) {
+        if (sessionUrl || sessionId) {
             cfg.shopify = {
                 storeUrl:     sessionUrl    || (base.shopify ? base.shopify.storeUrl     : ''),
                 clientId:     sessionId     || (base.shopify ? base.shopify.clientId     : ''),
                 clientSecret: sessionSecret || (base.shopify ? base.shopify.clientSecret : ''),
-                accessToken:  sessionToken  || (base.shopify ? base.shopify.accessToken  : ''),
-                apiVersion:   sessionVer    || (base.shopify ? base.shopify.apiVersion   : '2026-07')
+                apiVersion:   sessionVer    || (base.shopify ? base.shopify.apiVersion   : '2025-01')
             };
         }
     }

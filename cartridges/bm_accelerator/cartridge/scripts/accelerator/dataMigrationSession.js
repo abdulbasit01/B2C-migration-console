@@ -4,14 +4,12 @@ var URLUtils = require('dw/web/URLUtils');
 
 /**
  * Persist a successful data-wizard connection with optional OAuth TTL.
- * Connection is scoped to one platform — switching platforms requires reconnect.
  * @param {string} platformId
  * @param {number} [expiresInSeconds]
  */
 function markConnected(platformId, expiresInSeconds) {
-    session.custom.dataMigrationConnected         = 'true';
-    session.custom.dataMigrationConnectedPlatform = String(platformId || '');
-    session.custom.migrationPlatformId          = String(platformId || '');
+    session.custom.dataMigrationConnected = 'true';
+    session.custom.migrationPlatformId    = platformId;
     if (expiresInSeconds && expiresInSeconds > 0) {
         session.custom.dataMigrationTokenExpiresAt = String(Date.now() + (expiresInSeconds * 1000));
     } else {
@@ -19,43 +17,19 @@ function markConnected(platformId, expiresInSeconds) {
     }
 }
 
-function clearShopifySessionCreds() {
-    delete session.custom.shopifyStoreUrl;
-    delete session.custom.shopifyClientId;
-    delete session.custom.shopifyClientSecret;
-    delete session.custom.shopifyApiVersion;
-}
-
 function clearConnection() {
     session.custom.dataMigrationConnected = 'false';
-    delete session.custom.dataMigrationConnectedPlatform;
-    delete session.custom.migrationPlatformId;
     delete session.custom.dataMigrationTokenExpiresAt;
-    delete session.custom.selectedDataType;
-    clearShopifySessionCreds();
 }
 
 /**
- * @returns {string}
- */
-function getConnectedPlatform() {
-    return String(session.custom.dataMigrationConnectedPlatform || '');
-}
-
-/**
- * @param {string} [platformId] - when provided, connection must match this platform
  * @returns {boolean} whether connect step can be skipped
  */
-function isConnected(platformId) {
+function isConnected() {
     var flag = session.custom.dataMigrationConnected;
     if (flag !== true && flag !== 'true') {
         return false;
     }
-
-    if (platformId && getConnectedPlatform() !== String(platformId)) {
-        return false;
-    }
-
     var expiresAt = session.custom.dataMigrationTokenExpiresAt;
     if (!expiresAt) {
         return true;
@@ -69,11 +43,10 @@ function isConnected(platformId) {
 
 /**
  * Step param for Data Wizard entry when connect may be skipped.
- * @param {string} platformId
  * @returns {string} '1' or '2'
  */
-function connectOrSelectStep(platformId) {
-    return isConnected(platformId) ? '2' : '1';
+function connectOrSelectStep() {
+    return isConnected() ? '2' : '1';
 }
 
 /**
@@ -84,7 +57,7 @@ function dataWizardUrl(platformId) {
     return URLUtils.url(
         'Accelerator-DataWizard',
         'platform', platformId,
-        'step', connectOrSelectStep(platformId)
+        'step', connectOrSelectStep()
     ).toString();
 }
 
@@ -103,7 +76,6 @@ function dataWizardSelectUrl(platformId) {
 module.exports = {
     markConnected:       markConnected,
     clearConnection:     clearConnection,
-    getConnectedPlatform: getConnectedPlatform,
     isConnected:         isConnected,
     connectOrSelectStep: connectOrSelectStep,
     dataWizardUrl:       dataWizardUrl,

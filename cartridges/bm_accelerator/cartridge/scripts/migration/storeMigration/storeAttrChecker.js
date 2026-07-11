@@ -4,11 +4,23 @@ var http        = require('*/cartridge/scripts/migration/core/http');
 var cfg         = require('*/cartridge/scripts/migration/configAccessor');
 var Encoding    = require('dw/crypto/Encoding');
 var Bytes       = require('dw/util/Bytes');
+var typeMap     = require('*/cartridge/scripts/migration/connectors/ctp/ctpTypeMap');
+var sfccClient  = require('*/cartridge/scripts/migration/sfccClient');
 var attrBuilder = require('*/cartridge/scripts/migration/core/attrBuilder');
-var sourceAttrIds = require('*/cartridge/scripts/migration/core/sourceAttrIds');
-var runner      = require('*/cartridge/scripts/migration/core/attrPreflightRunner');
 
-var SFCC_OBJECT_TYPE = 'Store';
+var CTP_ATTR_GROUP_ID   = 'CTPMigration';
+var CTP_ATTR_GROUP_NAME = 'CTP Migration';
+var SFCC_OBJECT_TYPE    = 'Store';
+
+// Standard store fields (name, address, geo, flags) map to native SFCC store XML.
+var MIGRATION_ATTRS = [
+    { name: 'countryCodeValue', label: 'Country Code Value', ctpType: 'String' },
+    { name: 'inventoryListId',  label: 'Inventory List ID',  ctpType: 'String' },
+    { name: 'ctpStoreId',       label: 'CTP Store ID',       ctpType: 'String' },
+    { name: 'ctpStoreKey',      label: 'CTP Store Key',      ctpType: 'String' },
+    { name: 'ctpChannelId',     label: 'CTP Channel ID',     ctpType: 'String' },
+    { name: 'ctpChannelKey',    label: 'CTP Channel Key',    ctpType: 'String' }
+];
 
 function toBase64(str) {
     return Encoding.toBase64(new Bytes(str, 'UTF-8'));
@@ -31,6 +43,10 @@ function getCtpToken() {
     return res.data.access_token;
 }
 
+/**
+ * Fetch custom field definitions for store resource type from CTP Types API.
+ * @returns {Array}
+ */
 function getCtpStoreFields() {
     var c   = cfg.ctp;
     var tok = getCtpToken();
@@ -63,24 +79,90 @@ function getCtpStoreFields() {
     return fields;
 }
 
-function getStoreTraceAttrs(platformId) {
-    var shopify = platformId === 'shopify';
-    return [
-        { sfccId: 'countryCodeValue', label: 'Country Code Value', sourceType: 'String' },
-        { sfccId: 'inventoryListId',  label: 'Inventory List ID',  sourceType: 'String' },
-        sourceAttrIds.traceAttr('StoreId', shopify ? 'Shopify Location ID' : 'CTP Store ID', 'String', platformId),
-        sourceAttrIds.traceAttr('StoreKey', shopify ? 'Shopify Location Key' : 'CTP Store Key', 'String', platformId),
-        sourceAttrIds.traceAttr('ChannelId', shopify ? 'Shopify Location ID' : 'CTP Channel ID', 'String', platformId),
-        sourceAttrIds.traceAttr('ChannelKey', shopify ? 'Shopify Location Key' : 'CTP Channel Key', 'String', platformId)
-    ];
+function collectRequiredFields() {
+    var fields = [];
+    var i;
+
+    for (i = 0; i < MIGRATION_ATTRS.length; i++) {
+        fields.push(MIGRATION_ATTRS[i]);
+    }
+
+    var ctpFields = getCtpStoreFields();
+    for (i = 0; i < ctpFields.length; i++) {
+        fields.push(ctpFields[i]);
+    }
+    return fields;
 }
 
+/**
+ * Compare CTP store fields and migration attrs against SFCC Store attribute definitions.
+ * @returns {Array}
+ */
 function checkMissingAttributes() {
-    return runner.checkMissing(SFCC_OBJECT_TYPE, getCtpStoreFields, getStoreTraceAttrs);
+    var sfccToken   = sfccClient.getSFCCToken();
+    var existingIds = sfccClient.getExistingAttributeIds(sfccToken, SFCC_OBJECT_TYPE);
+
+    try {
+        sfccClient.ensureAttributeGroup(sfccToken, SFCC_OBJECT_TYPE, CTP_ATTR_GROUP_ID, CTP_ATTR_GROUP_NAME);
+    } catch (ge) {}
+
+    var missing = [];
+    var seen    = {};
+    var required = collectRequiredFields();
+    var i;
+
+    for (i = 0; i < required.length; i++) {
+        var field = required[i];
+        var id    = field.name;
+        if (seen[id]) continue;
+        seen[id] = true;
+        if (!existingIds[id]) {
+            missing.push(typeMap.enrichMissingAttribute({
+                id:      field.name,
+                label:   field.label,
+                ctpType: field.ctpType
+            }));
+        } else {
+            try { sfccClient.addAttributeToGroup(sfccToken, SFCC_OBJECT_TYPE, CTP_ATTR_GROUP_ID, id); } catch (age) {}
+        }
+    }
+
+    return missing;
 }
 
+/**
+ * Create attribute definitions on SFCC Store system object.
+ * @param {Array} attrs
+ * @returns {{ created: number, failed: number, errors: Array }}
+ */
 function createAttributes(attrs) {
-    return runner.createAttributes(SFCC_OBJECT_TYPE, attrs);
+    var sfccToken = sfccClient.getSFCCToken();
+    var created   = 0;
+    var failed    = 0;
+    var errors    = [];
+
+    try {
+        sfccClient.ensureAttributeGroup(sfccToken, SFCC_OBJECT_TYPE, CTP_ATTR_GROUP_ID, CTP_ATTR_GROUP_NAME);
+    } catch (ge) {}
+
+    var i;
+    for (i = 0; i < attrs.length; i++) {
+        var attr = attrs[i];
+        try {
+            var def = attrBuilder.buildAttrDefinition(
+                attr.id,
+                attr.sfccType || 'string',
+                attr.label    || attr.id
+            );
+            sfccClient.createAttributeDefinition(sfccToken, SFCC_OBJECT_TYPE, def);
+            sfccClient.addAttributeToGroup(sfccToken, SFCC_OBJECT_TYPE, CTP_ATTR_GROUP_ID, attr.id);
+            created++;
+        } catch (e) {
+            failed++;
+            if (errors.length < 5) errors.push(attr.id + ': ' + (e.message || String(e)));
+        }
+    }
+    return { created: created, failed: failed, errors: errors };
 }
 
 module.exports = {

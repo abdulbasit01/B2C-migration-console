@@ -10,50 +10,33 @@
 <h2>Category Data Migration - Commercetools to SFCC</h2>
 </header>
 
-<div style="background:#f4f6f9;border:1px solid #dddbda;border-radius:4px;padding:0;margin-bottom:20px;overflow:hidden;">
-<div style="font-weight:700;font-size:13px;color:#16325c;padding:12px 20px 0;">Target Storefront Catalog</div>
-<div style="display:flex;border-bottom:2px solid #dddbda;margin:8px 0 0;">
-<div id="cat-tab-existing" onclick="_APP.setCatalogMode('existing')" style="padding:8px 20px;font-size:13px;font-weight:600;cursor:pointer;color:#0070d2;border-bottom:3px solid #0070d2;margin-bottom:-2px;">Use Existing Catalog</div>
-<div id="cat-tab-new" onclick="_APP.setCatalogMode('new')" style="padding:8px 20px;font-size:13px;font-weight:600;cursor:pointer;color:#54698d;border-bottom:3px solid transparent;margin-bottom:-2px;">Create New Catalog</div>
-</div>
+<div style="background:#f4f6f9;border:1px solid #dddbda;border-radius:4px;padding:16px 20px;margin-bottom:20px;">
+<div style="display:flex;align-items:flex-end;flex-wrap:wrap;gap:12px;">
 
-<div id="cat-panel-existing" style="padding:16px 20px;">
+<div>
+<label for="cat-catalog-select" style="display:block;font-weight:600;font-size:13px;margin-bottom:4px;">Target Storefront Catalog</label>
 <div style="display:flex;gap:8px;align-items:center;">
-<select id="cat-catalog-select" class="acc-form__input" style="width:300px;padding:6px 8px;font-size:13px;border:1px solid #dddbda;border-radius:4px;">
+<select id="cat-catalog-select" class="acc-form__input" style="width:280px;padding:6px 8px;font-size:13px;border:1px solid #dddbda;border-radius:4px;">
 <option value="">-- Select a catalog --</option>
 </select>
 <button type="button" id="btn-load-catalogs" class="acc-btn acc-btn--ghost" style="white-space:nowrap;font-size:12px;padding:6px 12px;">Load Catalogs</button>
 <span id="catalog-load-status" style="font-size:12px;color:#54698d;"></span>
 </div>
 </div>
-
-<div id="cat-panel-new" style="display:none;padding:16px 20px;">
-<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;">
 <div>
-<label for="new-catalog-id" style="display:block;font-weight:600;font-size:12px;margin-bottom:4px;">Catalog ID</label>
-<input id="new-catalog-id" type="text" class="acc-form__input" placeholder="e.g. my-storefront-catalog" style="width:220px;padding:6px 10px;font-size:13px;border:1px solid #dddbda;border-radius:4px;"/>
-<div id="new-catalog-id-error" style="display:none;color:#c62828;font-size:11px;margin-top:3px;">Catalog ID is required.</div>
-</div>
-<div>
-<label for="new-catalog-name" style="display:block;font-weight:600;font-size:12px;margin-bottom:4px;">Catalog Name</label>
-<input id="new-catalog-name" type="text" class="acc-form__input" placeholder="e.g. My Storefront Catalog" style="width:220px;padding:6px 10px;font-size:13px;border:1px solid #dddbda;border-radius:4px;"/>
-<div id="new-catalog-name-error" style="display:none;color:#c62828;font-size:11px;margin-top:3px;">Catalog Name is required.</div>
-</div>
-<span id="new-catalog-status" style="font-size:12px;color:#54698d;align-self:center;"></span>
-</div>
-<div id="new-catalog-result" style="display:none;background:#e8f5e9;border:1px solid #2e7d32;border-radius:4px;padding:12px 16px;margin-top:12px;">
-<div style="font-weight:600;color:#2e7d32;margin-bottom:6px;">Catalog XML generated. <span id="new-catalog-active-label" style="font-size:12px;font-weight:400;color:#1b5e20;"></span></div>
-<div style="font-size:12px;color:#54698d;margin-bottom:4px;">File location:</div>
-<code id="new-catalog-xml-path" style="background:#e0e5ee;padding:3px 8px;border-radius:3px;font-size:12px;display:block;margin-bottom:10px;word-break:break-all;"></code>
-<a id="btn-new-catalog-impex" href="#" class="acc-btn acc-btn--secondary" style="text-decoration:none;font-size:12px;padding:5px 12px;">Open IMPEX Folder</a>
+<label for="cat-catalog-id" style="display:block;font-weight:600;font-size:13px;margin-bottom:4px;">Or enter Catalog ID manually</label>
+<input id="cat-catalog-id" type="text" class="acc-form__input" placeholder="e.g. storefront-catalog-m-en" value="${pdict.catalogId}" style="width:240px;"/>
 </div>
 </div>
+<div style="margin-top:10px;font-size:12px;color:#54698d;">Selecting from dropdown will auto-fill the Catalog ID. Manual entry overrides the selection.</div>
 </div>
 
 <div style="display:flex;border-bottom:2px solid #dddbda;margin-bottom:24px;flex-wrap:wrap;">
 <div id="tab-1" style="padding:10px 20px;font-size:13px;font-weight:600;color:#0070d2;border-bottom:3px solid #0070d2;cursor:pointer;margin-bottom:-2px;">Step 1 - Check Attributes</div>
 <div id="tab-2" style="padding:10px 20px;font-size:13px;font-weight:600;color:#54698d;cursor:pointer;margin-bottom:-2px;">Step 2 - Edit Hierarchy</div>
 <div id="tab-3" style="padding:10px 20px;font-size:13px;font-weight:600;color:#54698d;cursor:pointer;margin-bottom:-2px;">Step 3 - Export</div>
+<div id="tab-4" style="padding:10px 20px;font-size:13px;font-weight:600;color:#54698d;cursor:pointer;margin-bottom:-2px;">New Catalog</div>
+<div id="tab-5" style="padding:10px 20px;font-size:13px;font-weight:600;color:#54698d;cursor:pointer;margin-bottom:-2px;">New Category</div>
 </div>
 
 <!-- STEP 1 -->
@@ -84,7 +67,6 @@
 <button type="button" id="btn-skip-attrs" class="acc-btn acc-btn--ghost" style="margin-left:10px;">Skip to Step 2</button>
 <span id="attr-overall" style="margin-left:14px;font-size:13px;color:#54698d;"></span>
 </div>
-
 </div>
 
 <!-- STEP 2 -->
@@ -103,26 +85,8 @@ Click Save and Apply Changes to confirm.
 <input type="text" id="hierarchy-search" placeholder="Search by name or ID" style="width:220px;padding:6px 10px;font-size:13px;border:1px solid #dddbda;border-radius:4px;"/>
 <button type="button" id="btn-load-categories" class="acc-btn acc-btn--secondary">Load Categories from CT</button>
 <button type="button" id="btn-reset-hierarchy" class="acc-btn acc-btn--ghost">Reset All</button>
-<button type="button" id="btn-save-hierarchy" class="acc-btn acc-btn--primary">Save and Apply Changes</button>
+<button type="button" id="btn-save-hierarchy" class="acc-btn acc-btn--primary" style="display:none;">Save and Apply Changes</button>
 <span id="hierarchy-fetch-status" style="font-size:13px;color:#54698d;"></span>
-</div>
-<div style="display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;margin-bottom:12px;padding:12px 14px;background:#f4f6f9;border:1px solid #dddbda;border-radius:4px;">
-<div>
-<label for="ct-new-cat-key" style="display:block;font-size:12px;font-weight:600;margin-bottom:4px;">Category Key</label>
-<input id="ct-new-cat-key" type="text" placeholder="e.g. new-bedding" style="padding:6px 8px;font-size:13px;border:1px solid #dddbda;border-radius:4px;width:160px;"/>
-</div>
-<div>
-<label for="ct-new-cat-name" style="display:block;font-size:12px;font-weight:600;margin-bottom:4px;">Display Name</label>
-<input id="ct-new-cat-name" type="text" placeholder="e.g. Bedding" style="padding:6px 8px;font-size:13px;border:1px solid #dddbda;border-radius:4px;width:160px;"/>
-</div>
-<div>
-<label for="ct-new-cat-parent" style="display:block;font-size:12px;font-weight:600;margin-bottom:4px;">Parent Category (optional)</label>
-<select id="ct-new-cat-parent" style="padding:6px 8px;font-size:13px;border:1px solid #dddbda;border-radius:4px;width:200px;">
-<option value="">-- Root (no parent) --</option>
-</select>
-</div>
-<button type="button" id="btn-create-ct-category" class="acc-btn acc-btn--primary" style="white-space:nowrap;">Add to List</button>
-<span id="ct-new-cat-status" style="font-size:12px;color:#54698d;"></span>
 </div>
 <div id="level-filter-tabs" style="display:none;gap:6px;flex-wrap:wrap;margin-bottom:12px;"></div>
 <div id="hierarchy-changes-summary" style="display:none;background:#e8f4fd;border:1px solid #0070d2;border-radius:4px;padding:10px 14px;font-size:13px;margin-bottom:10px;color:#0070d2;">
@@ -174,9 +138,10 @@ Drop here to make Root (L1) category
 <code id="cat-xml-path" style="background:#e0e5ee;padding:4px 8px;border-radius:3px;font-size:12px;display:block;margin-bottom:14px;word-break:break-all;"></code>
 <div style="display:flex;gap:10px;flex-wrap:wrap;padding-top:12px;border-top:1px solid #dddbda;">
 <a id="btn-open-impex" href="#" class="acc-btn acc-btn--secondary" style="text-decoration:none;">Open IMPEX Folder</a>
+<a id="btn-open-import" href="#" class="acc-btn acc-btn--primary" style="text-decoration:none;margin-left:10px;">Go to Catalog Import</a>
 </div>
 <div style="margin-top:12px;font-size:12px;color:#54698d;line-height:1.8;">
-Next steps: 1. Click Open IMPEX Folder. 2. Select the file and run the import job via Administration - Site Development - Import and Export.
+Next steps: 1. Click Open IMPEX Folder. 2. Click Go to Catalog Import. 3. Select the file and run the import job.
 </div>
 </div>
 </li>
@@ -189,6 +154,92 @@ Next steps: 1. Click Open IMPEX Folder. 2. Select the file and run the import jo
 </div>
 </div>
 
+<!-- STEP 4 - New Catalog -->
+<div id="panel-step4" style="display:none;">
+<div style="background:#f4f6f9;border:1px solid #dddbda;border-radius:4px;padding:14px 18px;font-size:13px;margin-bottom:20px;">
+Create a new SFCC storefront catalog by exporting an XML file to IMPEX. Fill in the Catalog ID and Name then click Generate Catalog XML. After the XML is generated import it via Administration - Site Development - Import and Export.
+</div>
+<div style="background:#fff;border:1px solid #dddbda;border-radius:4px;padding:20px 24px;margin-bottom:20px;max-width:520px;">
+<div style="margin-bottom:16px;">
+<label for="new-catalog-id" style="display:block;font-weight:600;font-size:13px;margin-bottom:6px;">Catalog ID</label>
+<input id="new-catalog-id" type="text" class="acc-form__input" placeholder="e.g. my-storefront-catalog" style="width:100%;padding:8px 10px;font-size:13px;border:1px solid #dddbda;border-radius:4px;"/>
+<div id="new-catalog-id-error" style="display:none;color:#c62828;font-size:12px;margin-top:4px;">Catalog ID is required.</div>
+</div>
+<div style="margin-bottom:20px;">
+<label for="new-catalog-name" style="display:block;font-weight:600;font-size:13px;margin-bottom:6px;">Catalog Name</label>
+<input id="new-catalog-name" type="text" class="acc-form__input" placeholder="e.g. My Storefront Catalog" style="width:100%;padding:8px 10px;font-size:13px;border:1px solid #dddbda;border-radius:4px;"/>
+<div id="new-catalog-name-error" style="display:none;color:#c62828;font-size:12px;margin-top:4px;">Catalog Name is required.</div>
+</div>
+<button type="button" id="btn-create-catalog" class="acc-btn acc-btn--primary">Generate Catalog XML</button>
+<span id="new-catalog-status" style="margin-left:14px;font-size:13px;color:#54698d;"></span>
+</div>
+<div id="new-catalog-result" style="display:none;background:#e8f5e9;border:1px solid #2e7d32;border-radius:4px;padding:16px 20px;max-width:520px;">
+<div style="font-weight:600;color:#2e7d32;margin-bottom:8px;">Catalog XML generated successfully.</div>
+<div style="font-size:12px;color:#54698d;margin-bottom:6px;">File location:</div>
+<code id="new-catalog-xml-path" style="background:#e0e5ee;padding:4px 8px;border-radius:3px;font-size:12px;display:block;margin-bottom:14px;word-break:break-all;"></code>
+<div style="display:flex;gap:10px;flex-wrap:wrap;padding-top:12px;border-top:1px solid #c8e6c9;">
+<a id="btn-new-catalog-impex" href="#" class="acc-btn acc-btn--secondary" style="text-decoration:none;">Open IMPEX Folder</a>
+<a id="btn-new-catalog-import" href="#" class="acc-btn acc-btn--primary" style="text-decoration:none;margin-left:10px;">Go to Catalog Import</a>
+</div>
+</div>
+</div>
+
+<!-- STEP 5 - New Category -->
+<div id="panel-step5" style="display:none;">
+<div style="background:#f4f6f9;border:1px solid #dddbda;border-radius:4px;padding:14px 18px;font-size:13px;margin-bottom:20px;">
+Create a new category by generating an XML file and importing it via Administration - Site Development - Import and Export.
+Fill in the Category ID, Name, and optionally a Parent Category ID then click Generate Category XML.
+</div>
+<div style="background:#fff;border:1px solid #dddbda;border-radius:4px;padding:20px 24px;margin-bottom:20px;max-width:520px;">
+<div style="margin-bottom:16px;">
+<label for="new-cat-id" style="display:block;font-weight:600;font-size:13px;margin-bottom:6px;">Category ID</label>
+<input id="new-cat-id" type="text" class="acc-form__input" placeholder="e.g. new-bedding" style="width:100%;padding:8px 10px;font-size:13px;border:1px solid #dddbda;border-radius:4px;"/>
+<div id="new-cat-id-error" style="display:none;color:#c62828;font-size:12px;margin-top:4px;">Category ID is required.</div>
+</div>
+<div style="margin-bottom:16px;">
+<label for="new-cat-name" style="display:block;font-weight:600;font-size:13px;margin-bottom:6px;">Category Name</label>
+<input id="new-cat-name" type="text" class="acc-form__input" placeholder="e.g. Bedding" style="width:100%;padding:8px 10px;font-size:13px;border:1px solid #dddbda;border-radius:4px;"/>
+<div id="new-cat-name-error" style="display:none;color:#c62828;font-size:12px;margin-top:4px;">Category Name is required.</div>
+</div>
+<div style="margin-bottom:20px;">
+<label for="new-cat-parent" style="display:block;font-weight:600;font-size:13px;margin-bottom:6px;">Parent Category (optional)</label>
+<div style="display:flex;gap:8px;">
+<input id="new-cat-parent" type="text" class="acc-form__input" placeholder="e.g. home-decor (leave blank for root)" style="flex:1;padding:8px 10px;font-size:13px;border:1px solid #dddbda;border-radius:4px;"/>
+<button type="button" id="btn-pick-parent" class="acc-btn acc-btn--ghost" style="white-space:nowrap;font-size:12px;padding:6px 12px;">Pick from loaded</button>
+</div>
+<div style="font-size:12px;color:#54698d;margin-top:4px;">Leave blank to create as a root (L1) category.</div>
+</div>
+<div style="margin-bottom:20px;padding:12px;background:#f4f6f9;border-radius:4px;border:1px solid #dddbda;">
+<div style="font-size:12px;font-weight:600;color:#16325c;margin-bottom:6px;">Target Catalog</div>
+<div id="new-cat-catalog-display" style="font-size:13px;color:#54698d;">Use the catalog selected in the config bar above.</div>
+</div>
+<button type="button" id="btn-create-category" class="acc-btn acc-btn--primary">Generate Category XML</button>
+<span id="new-cat-status" style="margin-left:14px;font-size:13px;color:#54698d;"></span>
+</div>
+<div id="new-cat-result" style="display:none;max-width:520px;padding:14px 16px;border-radius:4px;font-size:13px;"></div>
+<div id="new-cat-history" style="display:none;margin-top:20px;">
+<div style="font-weight:600;font-size:13px;color:#16325c;margin-bottom:10px;">Generated in this session:</div>
+<table style="width:100%;border-collapse:collapse;font-size:13px;max-width:640px;">
+<thead><tr>
+<th style="background:#f4f6f9;padding:8px 12px;text-align:left;border:1px solid #dddbda;font-weight:600;color:#16325c;">Category ID</th>
+<th style="background:#f4f6f9;padding:8px 12px;text-align:left;border:1px solid #dddbda;font-weight:600;color:#16325c;">Name</th>
+<th style="background:#f4f6f9;padding:8px 12px;text-align:left;border:1px solid #dddbda;font-weight:600;color:#16325c;">Parent</th>
+<th style="background:#f4f6f9;padding:8px 12px;text-align:left;border:1px solid #dddbda;font-weight:600;color:#16325c;">Status</th>
+</tr></thead>
+<tbody id="new-cat-history-tbody"></tbody>
+</table>
+</div>
+<div id="parent-picker-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.4);z-index:9999;">
+<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border-radius:6px;padding:24px;width:480px;max-height:80vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.2);">
+<div style="font-weight:600;font-size:15px;color:#16325c;margin-bottom:14px;">Pick Parent Category</div>
+<input type="text" id="parent-picker-search" placeholder="Search categories..." style="width:100%;padding:8px 10px;font-size:13px;border:1px solid #dddbda;border-radius:4px;margin-bottom:12px;box-sizing:border-box;"/>
+<div id="parent-picker-list" style="font-size:13px;"></div>
+<div style="margin-top:16px;text-align:right;">
+<button type="button" id="btn-close-picker" class="acc-btn acc-btn--ghost">Cancel</button>
+</div>
+</div>
+</div>
+</div>
 
 </section>
 </div>
@@ -201,14 +252,11 @@ Next steps: 1. Click Open IMPEX Folder. 2. Select the file and run the import jo
             _APP.FETCH_URL           = '${pdict.fetchUrl}';
             _APP.ATTRS_URL           = '${pdict.checkAttrsUrl}';
             _APP.STATUS_URL          = '${pdict.checkStatusUrl}';
-            _APP.IMPEX_PATH          = '${pdict.impexPath}';
+            _APP.IMPEX_URL           = '${pdict.impexFolderUrl}';
             _APP.FETCH_CATALOGS_URL  = '${pdict.fetchCatalogsUrl}';
-            _APP.CREATE_CATALOG_URL       = '${pdict.createCatalogUrl}';
-            _APP.CREATE_CATEGORY_URL      = '${pdict.createCategoryUrl}';
-            _APP.BM_CLIENT_ID             = ('${pdict.bmClientId}'.replace(/a/g,'').length === 0) ? 'aacf8c92-9166-479f-ba97-a7df6360a1ad' : '${pdict.bmClientId}';
-            _APP.META_VERSION             = '${pdict.metaVersion}';
-            _APP.IMPORT_URL              = '${pdict.importUrl}';
-            _APP.CREATE_CT_CATEGORY_URL  = '${pdict.createCtCategoryUrl}';
+            _APP.CREATE_CATALOG_URL  = '${pdict.createCatalogUrl}';
+            _APP.CREATE_CATEGORY_URL = '${pdict.createCategoryUrl}';
+            _APP.IMPORT_URL          = 'https://zzkc-002.dx.commercecloud.salesforce.com/on/demandware.store/Sites-Site/default%3bapp%3d__bm_merchant/ViewCatalogImpex_52-Status?SelectedMenuItem=prod-cat_impex&CurrentMenuItemId=prod-cat';
             _APP.init();
         } else {
             setTimeout(initApp, 50);

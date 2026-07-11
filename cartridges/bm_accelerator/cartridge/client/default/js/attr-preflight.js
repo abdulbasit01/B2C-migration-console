@@ -48,50 +48,8 @@
         return sel ? sel.value : fallback;
     }
 
-    /**
-     * Platform-aware labels from migrationUi JSON (script tag or data attribute).
-     * @returns {Object}
-     */
-    function readMigrationUi() {
-        var el = document.getElementById('acc-migration-ui-data');
-        if (el && el.textContent) {
-            try {
-                return JSON.parse(el.textContent);
-            } catch (e1) { /* fall through */ }
-        }
-        var root = document.querySelector('[data-migration-ui]');
-        if (root) {
-            try {
-                var raw = root.getAttribute('data-migration-ui');
-                return raw ? JSON.parse(raw) : {};
-            } catch (e2) { return {}; }
-        }
-        return {};
-    }
-
-    /**
-     * @param {Object} ui
-     * @param {number} count
-     * @returns {string}
-     */
-    function missingCountLabel(ui, count) {
-        return count + ((ui && ui.attrsMissingCount) || ' attribute(s) missing in SFCC:');
-    }
-
-    /**
-     * @param {Object} ui
-     * @param {number} count
-     * @returns {string}
-     */
-    function missingBriefLabel(ui, count) {
-        return count + ((ui && ui.attrsMissingBrief) || ' attribute(s) missing.');
-    }
-
     global.AccAttrPreflight = {
         sfccTypeSelectHtml: sfccTypeSelectHtml,
-        readSfccType:       readSfccType,
-        readMigrationUi:    readMigrationUi,
-        missingCountLabel:  missingCountLabel,
-        missingBriefLabel:  missingBriefLabel
+        readSfccType:       readSfccType
     };
 }(typeof window !== 'undefined' ? window : this));

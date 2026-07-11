@@ -1,7 +1,6 @@
 'use strict';
 
-var registry     = require('*/cartridge/scripts/migration/core/dataSourceRegistry');
-var fetcher      = registry.getFetcher('shippingMethod');
+var fetcher      = require('*/cartridge/scripts/migration/shippingMethodMigration/ctpShippingMethodFetcher');
 var xmlBuilder   = require('*/cartridge/scripts/migration/shippingMethodMigration/shippingMethodXmlBuilder');
 var uploader     = require('*/cartridge/scripts/migration/shippingMethodMigration/webDavUploader');
 var fileResolver = require('*/cartridge/scripts/migration/core/migrationFileResolver');
@@ -162,7 +161,9 @@ function runSingleFile(keys) {
     }
 }
 
-function runMultiFileBatch(offset) {
+function runMultiFileBatch(offset, siteId) {
+    if (!siteId) return { ok: false, error: 'siteId is required' };
+
     var batch   = fetcher.fetchBatch(offset, BATCH_SIZE);
     var methods = batch.results;
     var total   = batch.total;
@@ -196,7 +197,9 @@ function runMultiFileBatch(offset) {
     };
 }
 
-function runBatch(offset, singleFile) {
+function runBatch(offset, siteId, singleFile) {
+    if (!siteId) return { ok: false, error: 'siteId is required' };
+
     var useSingleFile = singleFile !== false;
     if (useSingleFile) {
         if (offset > 0) {
@@ -215,10 +218,12 @@ function runBatch(offset, singleFile) {
         return runSingleFile(null);
     }
 
-    return runMultiFileBatch(offset);
+    return runMultiFileBatch(offset, siteId);
 }
 
-function runBatchForKeys(keys, offset, singleFile) {
+function runBatchForKeys(keys, offset, siteId, singleFile) {
+    if (!siteId) return { ok: false, error: 'siteId is required' };
+
     var refs  = keys || [];
     var total = refs.length;
     var useSingleFile = singleFile !== false;

@@ -1,7 +1,6 @@
 'use strict';
 
-var registry     = require('*/cartridge/scripts/migration/core/dataSourceRegistry');
-var fetcher      = registry.getFetcher('store');
+var fetcher      = require('*/cartridge/scripts/migration/storeMigration/ctpStoreFetcher');
 var transformer  = require('*/cartridge/scripts/migration/storeMigration/storeTransformer');
 var xmlBuilder   = require('*/cartridge/scripts/migration/storeMigration/storeXmlBuilder');
 var uploader     = require('*/cartridge/scripts/migration/storeMigration/webDavUploader');

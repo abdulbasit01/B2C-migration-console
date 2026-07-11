@@ -38,13 +38,10 @@ function getTimestamp(entry) {
  * @returns {Object|null}
  */
 function transformEntry(entry) {
-    if (!entry) return null;
-    var productId = entry.productId || entry.sku;
-    if (!productId) return null;
+    if (!entry || !entry.sku) return null;
     var qty = getQuantity(entry);
     return {
-        sku:                    productId,
-        productId:              productId,
+        sku:                    entry.sku,
         allocation:             qty,
         ats:                    qty,
         perpetual:              false,

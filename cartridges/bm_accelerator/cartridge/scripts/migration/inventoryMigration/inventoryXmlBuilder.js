@@ -17,8 +17,7 @@ function xmlEsc(val) {
  * @returns {string}
  */
 function buildRecordXml(record) {
-    var productId = record.productId || record.sku;
-    var xml = '            <record product-id="' + xmlEsc(productId) + '">\n';
+    var xml = '            <record product-id="' + xmlEsc(record.sku) + '">\n';
     xml += '                <allocation>' + record.allocation + '</allocation>\n';
     xml += '                <allocation-timestamp>' + xmlEsc(record.allocationTimestamp) + '</allocation-timestamp>\n';
     xml += '                <perpetual>' + (record.perpetual ? 'true' : 'false') + '</perpetual>\n';
@@ -71,7 +70,7 @@ function buildFooter() {
  */
 function buildXml(records, listId, description) {
     var lid    = listId || 'inventory';
-    var desc   = description || 'Source inventory migration';
+    var desc   = description || 'Commercetools inventory migration';
     var built  = 0;
     var failed = 0;
     var errors = [];
@@ -79,7 +78,7 @@ function buildXml(records, listId, description) {
 
     for (var i = 0; i < records.length; i++) {
         try {
-            if (!records[i] || !(records[i].productId || records[i].sku)) {
+            if (!records[i] || !records[i].sku) {
                 failed++;
                 continue;
             }

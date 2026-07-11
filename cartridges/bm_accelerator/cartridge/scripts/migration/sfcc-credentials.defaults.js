@@ -4,6 +4,6 @@
  * Placeholder BM credentials — overridden by sfcc-credentials.js after config:generate.
  */
 module.exports = {
-    bmUsername: 'habiba.ayaz@royalcyber.com',
-    bmPassword: 'CyberCommerce@1195'
+    bmUsername: 'arsalan.ahmed@royalcyber.com',
+    bmPassword: 'Roy@l@321$#!'
 };

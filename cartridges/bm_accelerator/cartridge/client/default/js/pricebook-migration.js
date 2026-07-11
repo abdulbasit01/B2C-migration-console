@@ -1,36 +1,8 @@
 /**
- * Pricebook migration — standalone + embedded product prices from source platform.
+ * Pricebook migration — standalone + embedded product prices from CTP.
  */
 (function () {
     'use strict';
-
-    function readUi(root) {
-        if (window.AccAttrPreflight && window.AccAttrPreflight.readMigrationUi) {
-            var fromJson = window.AccAttrPreflight.readMigrationUi();
-            if (fromJson && fromJson.sourceShort) return fromJson;
-        }
-        if (!root) return {};
-        try {
-            var raw = root.getAttribute('data-migration-ui');
-            return raw ? JSON.parse(raw) : {};
-        } catch (e) { return {}; }
-    }
-
-    function readCfg() {
-        var root = document.getElementById('acc-pb-root');
-        if (!root) return { ui: {} };
-        return {
-            countUrl:           root.getAttribute('data-count-url') || '',
-            fullBatchUrl:       root.getAttribute('data-full-batch-url') || '',
-            pricebooksUrl:      root.getAttribute('data-pricebooks-url') || '',
-            checkAttrsUrl:      root.getAttribute('data-check-attrs-url') || '',
-            createAttrsUrl:     root.getAttribute('data-create-attrs-url') || '',
-            dataWizardEntryUrl: root.getAttribute('data-wizard-entry-url') || '',
-            impexPath:          root.getAttribute('data-impex-path') || '',
-            presetPricebookId:  root.getAttribute('data-preset-pricebook-id') || '',
-            ui:                 readUi(root)
-        };
-    }
 
     var SECTIONS = [
         {
@@ -62,6 +34,21 @@
             idPrefix:    'product-'
         }
     ];
+
+    function readCfg() {
+        var root = document.getElementById('acc-pb-root');
+        if (!root) return {};
+        return {
+            countUrl:           root.getAttribute('data-count-url') || '',
+            fullBatchUrl:       root.getAttribute('data-full-batch-url') || '',
+            pricebooksUrl:      root.getAttribute('data-pricebooks-url') || '',
+            checkAttrsUrl:      root.getAttribute('data-check-attrs-url') || '',
+            createAttrsUrl:     root.getAttribute('data-create-attrs-url') || '',
+            dataWizardEntryUrl: root.getAttribute('data-wizard-entry-url') || '',
+            impexPath:          root.getAttribute('data-impex-path') || '',
+            presetPricebookId:  root.getAttribute('data-preset-pricebook-id') || ''
+        };
+    }
 
     function escHtml(val) {
         if (val === null || val === undefined) return '';
@@ -185,7 +172,6 @@
 
     function boot() {
         var cfg = readCfg();
-        var ui  = cfg.ui || {};
         var pbSelectionErr = document.getElementById('acc-pb-selection-error');
         var startBtn = document.getElementById('full-start-btn');
         var fullOverallEl = document.getElementById('full-move-overall');
@@ -275,8 +261,8 @@
                 if (errorEl) {
                     errorEl.style.display = 'block';
                     errorEl.textContent = sec.source === 'embedded'
-                        ? (ui.pbNoEmbedded || 'No embedded prices found.')
-                        : (ui.pbNoStandalone || 'No standalone prices found.');
+                        ? 'No embedded prices found on CTP products.'
+                        : 'No standalone prices found in commercetools.';
                 }
                 updateSectionSummary(sec);
                 return;
@@ -471,8 +457,7 @@
                 }
                 if (modalAttrList) {
                     modalAttrList.innerHTML = '<p style="font-size:13px;color:#54698d;">'
-                        + (window.AccAttrPreflight ? window.AccAttrPreflight.missingBriefLabel(ui, data.missing.length) : data.missing.length + (ui.attrsMissingBrief || ' attribute(s) missing.'))
-                        + '</p>';
+                        + data.missing.length + ' attribute(s) missing.</p>';
                 }
                 modalCallback = onContinue;
                 if (preflightModal) preflightModal.style.display = 'flex';
@@ -595,19 +580,17 @@
             attrResults.innerHTML = '';
             attrResults.style.display = 'block';
             if (!missing.length) {
-                attrResults.innerHTML = '<p style="color:#2e7d32;font-size:13px;margin:0;">' + (ui.allAttrsExist || 'All attributes already exist in SFCC.') + '</p>';
+                attrResults.innerHTML = '<p style="color:#2e7d32;font-size:13px;margin:0;">All CTP pricebook attributes already exist in SFCC.</p>';
                 return;
             }
             if (!window.AccAttrPreflight) {
                 attrResults.innerHTML = '<p style="color:#c62828;font-size:13px;margin:0;">Attribute helper script failed to load.</p>';
                 return;
             }
-            var html = '<p style="font-size:13px;color:#54698d;margin:0 0 10px;">'
-                + (window.AccAttrPreflight ? window.AccAttrPreflight.missingCountLabel(ui, missing.length) : missing.length + (ui.attrsMissingCount || ' attribute(s) missing in SFCC:'))
-                + '</p>';
+            var html = '<p style="font-size:13px;color:#54698d;margin:0 0 10px;">' + missing.length + ' attribute(s) missing in SFCC:</p>';
             html += '<div style="border:1px solid #e0e5ee;border-radius:4px;overflow:hidden;"><table class="cm-attr-table"><thead><tr>'
                 + '<th style="width:36px;"><input type="checkbox" id="acc-attr-select-all" checked/></th>'
-                + '<th>Attribute ID</th><th>Label</th><th>' + (ui.sourceTypeCol || 'Source Type') + '</th><th>SFCC Type</th></tr></thead><tbody>';
+                + '<th>Attribute ID</th><th>Label</th><th>CTP Type</th><th>SFCC Type</th></tr></thead><tbody>';
             var i;
             for (i = 0; i < missing.length; i++) {
                 var m = missing[i];
@@ -676,8 +659,8 @@
                 if (loadingEl) {
                     loadingEl.style.display = 'block';
                     loadingEl.textContent = sec.source === 'embedded'
-                        ? (ui.pbEmbeddedLoading || 'Click Load Embedded to scan products.')
-                        : (ui.pbStandaloneLoading || 'Click Load Standalone to scan prices.');
+                        ? 'Click Load Embedded to scan products for embedded prices.'
+                        : 'Click Load Standalone to scan standalone prices from commercetools.';
                 }
                 if (tableWrap) tableWrap.style.display = 'none';
 
@@ -700,11 +683,11 @@
         if (checkAttrsBtn) {
             checkAttrsBtn.addEventListener('click', function () {
                 checkAttrsBtn.disabled = true;
-                checkAttrsBtn.textContent = ui.attrCheckingBtn || 'Checking...';
+                checkAttrsBtn.textContent = 'Checking...';
                 if (attrCheckMsg) attrCheckMsg.textContent = '';
                 get(cfg.checkAttrsUrl, function (data) {
                     checkAttrsBtn.disabled = false;
-                    checkAttrsBtn.textContent = ui.attrRecheckBtn || 'Re-check';
+                    checkAttrsBtn.textContent = 'Re-check';
                     if (!data.ok) {
                         if (attrCheckMsg) {
                             attrCheckMsg.textContent = 'Error: ' + (data.error || 'Check failed');
@@ -714,9 +697,7 @@
                     }
                     pendingMissing = data.missing || [];
                     if (attrCheckMsg) {
-                        attrCheckMsg.textContent = pendingMissing.length
-                            ? pendingMissing.length + (ui.attrsMissingBrief || ' missing.')
-                            : (ui.attrsAllInSync || 'All in sync.');
+                        attrCheckMsg.textContent = pendingMissing.length ? pendingMissing.length + ' missing.' : 'All in sync.';
                         attrCheckMsg.style.color = pendingMissing.length ? '#e65100' : '#2e7d32';
                     }
                     renderAttrResults(pendingMissing);
@@ -755,7 +736,7 @@
                 if (fullRunning) return;
                 fullFinished = false;
                 startBtn.disabled = true;
-                startBtn.textContent = ui.checkingAttrs || 'Checking attributes...';
+                startBtn.textContent = 'Checking attributes...';
                 runPreflightThenMigrate(beginMigration);
             });
         }

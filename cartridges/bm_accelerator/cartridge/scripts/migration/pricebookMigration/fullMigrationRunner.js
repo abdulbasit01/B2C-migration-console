@@ -1,8 +1,7 @@
 'use strict';
 
-var registry     = require('*/cartridge/scripts/migration/core/dataSourceRegistry');
-var fetcher      = registry.getFetcher('pricebook');
-var embedded     = registry.getFetcher('pricebookEmbedded');
+var fetcher      = require('*/cartridge/scripts/migration/pricebookMigration/ctpPricebookFetcher');
+var embedded     = require('*/cartridge/scripts/migration/pricebookMigration/ctpEmbeddedPriceFetcher');
 var transformer  = require('*/cartridge/scripts/migration/pricebookMigration/pricebookTransformer');
 var xmlBuilder   = require('*/cartridge/scripts/migration/pricebookMigration/pricebookXmlBuilder');
 var uploader     = require('*/cartridge/scripts/migration/pricebookMigration/webDavUploader');
@@ -14,11 +13,16 @@ var MODULE_KEY              = 'pricebook';
 var BATCH_SIZE              = 500;
 var MAX_SINGLE_FILE_ENTRIES = 100000;
 
-function buildDescription(currency, channelId, aggregate, embeddedSource, platformId) {
-    var registry = require('*/cartridge/scripts/migration/core/dataSourceRegistry');
-    var platformUiMeta = require('*/cartridge/scripts/accelerator/platformUiMeta');
-    var id = platformId || registry.getPlatformId();
-    return platformUiMeta.buildPricebookDescription(id, currency, channelId, aggregate, embeddedSource);
+function buildDescription(currency, channelId, aggregate, embeddedSource) {
+    var desc = embeddedSource
+        ? ('Commercetools embedded product prices (' + currency + ')')
+        : ('Commercetools standalone-price migration (' + currency + ')');
+    if (aggregate) {
+        desc += ' — all channels';
+    } else if (channelId) {
+        desc += ' — channel ' + channelId;
+    }
+    return desc;
 }
 
 function uploadBatchXml(records, pricebookId, currency, offset, exportKey, channelId, fileName, aggregate, description) {
@@ -55,7 +59,7 @@ function uploadBatchXml(records, pricebookId, currency, offset, exportKey, chann
 
 function writeRecord(writer, rec, stats) {
     try {
-        if (!rec || !(rec.productId || rec.sku) || !rec.amount) {
+        if (!rec || !rec.sku || !rec.amount) {
             stats.failed++;
             return;
         }
@@ -64,7 +68,7 @@ function writeRecord(writer, rec, stats) {
     } catch (e) {
         stats.failed++;
         if (stats.errors.length < 5) {
-            stats.errors.push((rec.productId || rec.sku || '?') + ': ' + (e.message || String(e)));
+            stats.errors.push((rec.sku || '?') + ': ' + (e.message || String(e)));
         }
     }
 }

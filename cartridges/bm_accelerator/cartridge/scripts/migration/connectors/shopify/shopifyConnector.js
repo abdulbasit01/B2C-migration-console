@@ -1,7 +1,6 @@
 'use strict';
 
 var http           = require('*/cartridge/scripts/migration/core/http');
-var shopifyApi     = require('*/cartridge/scripts/migration/core/shopifyApi');
 var typeMap        = require('*/cartridge/scripts/migration/connectors/shopify/shopifyTypeMap');
 var transformer    = require('*/cartridge/scripts/migration/connectors/shopify/shopifyTransformer');
 var cfg            = require('*/cartridge/scripts/migration/configAccessor');
@@ -108,8 +107,40 @@ var TASK_TITLES = {
     CustomerGroup:          'Customer Group'
 };
 
+// ─── Token cache (per-request scope in SFCC — no persistent process memory) ──
+
+var _cachedToken    = null;
+var _tokenExpiresAt = 0;
+
+function fetchAccessToken(creds) {
+    if (_cachedToken && Date.now() < _tokenExpiresAt - 60000) return _cachedToken;
+
+    var store = (creds.storeUrl || '').replace(/\/$/, '');
+    var body  = 'grant_type=client_credentials'
+              + '&client_id='     + encodeURIComponent(creds.clientId)
+              + '&client_secret=' + encodeURIComponent(creds.clientSecret);
+
+    var res = http.post(
+        store + '/admin/oauth/access_token',
+        { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body
+    );
+
+    if (res.status !== 200 || !res.data || !res.data.access_token) {
+        throw new Error('Shopify token request failed (' + res.status + '): check Client ID and Secret.');
+    }
+
+    _cachedToken    = res.data.access_token;
+    _tokenExpiresAt = Date.now() + (res.data.expires_in || 3600) * 1000;
+    return _cachedToken;
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
 function validateCreds(creds) {
-    shopifyApi.getCreds(creds);
+    if (!creds || !creds.storeUrl || !creds.clientId || !creds.clientSecret) {
+        throw new Error('Shopify credentials are not configured. Please enter your Store URL, Client ID, and Secret in Step 1.');
+    }
 }
 
 function fmt(n) {
@@ -118,20 +149,19 @@ function fmt(n) {
 
 function adminBase(creds) {
     var store   = (creds.storeUrl || '').replace(/\/$/, '');
-    if (store && store.indexOf('http') !== 0) { store = 'https://' + store; }
-    var version = creds.apiVersion || '2026-07';
+    var version = creds.apiVersion || '2025-01';
     return store + '/admin/api/' + version;
 }
 
 function authHeaders(creds) {
-    return shopifyApi.authHeaders(creds);
+    return { 'X-Shopify-Access-Token': fetchAccessToken(creds), 'Content-Type': 'application/json' };
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// ─── Metafield definitions via GraphQL ───────────────────────────────────────
 
 function fetchMetafieldDefs(creds, ownerType) {
     var url   = adminBase(creds) + '/graphql.json';
-    var query = '{ metafieldDefinitions(ownerType: ' + ownerType + ', first: 250) { nodes { name key namespace type } } }';
+    var query = '{ metafieldDefinitions(ownerType: ' + ownerType + ', first: 250) { nodes { name key namespace type { name } } } }';
     var res   = http.post(url, authHeaders(creds), JSON.stringify({ query: query }));
     if (res.status !== 200 || !res.data || !res.data.data) return [];
     var mfDefs = res.data.data.metafieldDefinitions;
@@ -141,18 +171,19 @@ function fetchMetafieldDefs(creds, ownerType) {
 // ─── Connection test ──────────────────────────────────────────────────────────
 
 function testConnectionWith(creds) {
-    if (!creds.storeUrl) {
-        throw new Error('Store URL is required.');
+    if (!creds.storeUrl || !creds.clientId || !creds.clientSecret) {
+        throw new Error('Store URL, Client ID, and Secret are required.');
     }
-    shopifyApi.getAccessToken(creds);
-    var res = http.get(shopifyApi.adminBase(creds) + '/shop.json', authHeaders(creds));
+    fetchAccessToken(creds);
+    var expiresIn = Math.max(60, Math.floor((_tokenExpiresAt - Date.now()) / 1000));
+    var res = http.get(adminBase(creds) + '/shop.json', authHeaders(creds));
     if (res.status !== 200 || !res.data.shop) {
-        throw new Error('Connection failed (' + res.status + '): check store URL and credentials.');
+        throw new Error('Connection failed (' + res.status + '): check store URL and access token.');
     }
     var shop = res.data.shop;
     return {
         ok:        true,
-        expiresIn: shopifyApi.isDirectToken(creds.clientSecret) ? 0 : 86399,
+        expiresIn: expiresIn,
         project:   { key: shop.myshopify_domain || shop.domain, name: shop.name }
     };
 }
@@ -263,10 +294,11 @@ function toGroup(title, mappings) {
     return { title: title, total: mappings.length, existsCount: existsCount, newCount: mappings.length - existsCount, mappings: mappings };
 }
 
-function buildAiMapContent(selectedTasks, existingByTask) {
+function buildAiMapContent(selectedTasks, existingByTask, sysAttrsByTask) {
     var c          = cfg.shopify;
     validateCreds(c);
     var existing   = existingByTask || {};
+    var sysAttrs   = sysAttrsByTask  || {};
     var groups     = [];
     var totalAttrs = 0;
 
@@ -278,6 +310,7 @@ function buildAiMapContent(selectedTasks, existingByTask) {
         var seen       = {};
         var stdFields  = TASK_STANDARD_FIELDS[task] || [];
         var ownerTypes = TASK_OWNER_TYPES[task]     || [];
+        var taskSysAttrs = sysAttrs[task] || [];
 
         // Standard fields
         for (var sf = 0; sf < stdFields.length; sf++) {
@@ -286,7 +319,7 @@ function buildAiMapContent(selectedTasks, existingByTask) {
             if (seen[sKey]) continue;
             seen[sKey] = true;
             totalAttrs++;
-            var stdRule   = nativeFieldMap.getRule('shopify', task, std.key);
+            var stdRule   = nativeFieldMap.getEffectiveRule('shopify', task, std.key, std.label, taskSysAttrs);
             var stdMapping = {
                 source:      std.key + ' (' + std.type + ')',
                 attributeId: std.key,
@@ -309,17 +342,24 @@ function buildAiMapContent(selectedTasks, existingByTask) {
             for (var di = 0; di < defs.length; di++) {
                 var def    = defs[di];
                 var mfId   = (def.namespace ? def.namespace + '__' + def.key : def.key).replace(/[^a-zA-Z0-9_]/g, '_');
-                var mfType = def.type && typeof def.type === 'object' ? def.type.name : (String(def.type || 'single_line_text_field'));
+                var mfType = def.type && def.type.name ? def.type.name : 'single_line_text_field';
                 var mfKey  = task + '__' + mfId;
                 if (seen[mfKey]) continue;
                 seen[mfKey] = true;
-                mappings.push({
+                var mfMapping = {
                     source:      def.namespace + '.' + def.key + ' (' + mfType + ')',
                     attributeId: mfId,
                     target:      typeMap.resolveMetafieldType(mfType),
                     confidence:  typeMap.confidence(mfType),
                     exists:      !!(existing[task] && existing[task][mfId])
-                });
+                };
+                var mfRule = nativeFieldMap.getEffectiveRule('shopify', task, mfId, def.name || def.key, taskSysAttrs);
+                if (mfRule) {
+                    mfMapping.sfccNativeField  = mfRule.sfccField;
+                    mfMapping.sfccNativeNote   = mfRule.note;
+                    mfMapping.sfccNativeAction = mfRule.action;
+                }
+                mappings.push(mfMapping);
             }
         }
 
@@ -368,5 +408,9 @@ module.exports = {
     injectCredentials:   injectCredentials,
     getDefaultTasks:     getDefaultTasks,
     buildFetchContent:   buildFetchContent,
-    buildAiMapContent:   buildAiMapContent
+    buildAiMapContent:   buildAiMapContent,
+    // Shared low-level helpers reused by shopifyCustomer* data-migration modules
+    fetchAccessToken:    fetchAccessToken,
+    adminBase:           adminBase,
+    authHeaders:         authHeaders
 };

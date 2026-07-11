@@ -26,19 +26,6 @@
             <button type="button" class="acc-btn acc-btn--muted acc-card__cta" disabled="disabled">
                 ${Resource.msg('accelerator.card.storefrontMigration', 'accelerator', null)}
             </button>
-            <isif condition="${platform.dataConnected}">
-                <a class="acc-btn acc-btn--ghost acc-card__cta acc-card__logout"
-                   href="${platform.logoutUrl}">
-                    ${Resource.msg('accelerator.card.logout', 'accelerator', null)}
-                </a>
-            <iselse/>
-                <button type="button"
-                        class="acc-btn acc-btn--ghost acc-card__cta acc-card__logout"
-                        disabled="disabled"
-                        title="${Resource.msg('accelerator.card.logout.disabled', 'accelerator', null)}">
-                    ${Resource.msg('accelerator.card.logout', 'accelerator', null)}
-                </button>
-            </isif>
         </div>
     <iselse/>
         <div class="acc-card__actions">

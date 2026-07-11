@@ -29,22 +29,24 @@
     <isinclude template="accelerator/components/migrationBackLink"/>
     <section class="acc-section">
         <header class="acc-section__head">
-            <h2>Pricebook Migration &mdash; <span class="acc-highlight">${pdict.sourceLabel} &rarr; SFCC</span></h2>
+            <h2>Pricebook Migration &mdash; <span class="acc-highlight">Commercetools &rarr; SFCC</span></h2>
             <p style="font-size:14px;color:#54698d;margin-top:6px;max-width:720px;">
-                <isprint value="${pdict.migrationUi.pbIntro}" encoding="off"/>
+                Migrate commercetools prices into SFCC pricebooks. Use <strong>Standalone Prices</strong> for
+                CTP <code>/standalone-prices</code>, or <strong>Product Embedded Prices</strong> to scan each product
+                variant and extract prices by currency and channel.
             </p>
         </header>
 
         <div id="acc-attr-preflight" style="margin:24px 0 28px;border:1px solid #dddbda;border-radius:6px;overflow:hidden;">
-            <script type="application/json" id="acc-migration-ui-data"><isprint value="${pdict.migrationUiJson}" encoding="off"/></script>
             <div style="background:#f4f6f9;border-bottom:1px solid #dddbda;padding:11px 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
                 <span style="font-weight:700;font-size:14px;color:#16325c;">Attribute Pre-flight Check</span>
-                <button id="acc-check-attrs-btn" type="button" class="acc-btn acc-btn--ghost">${pdict.migrationUi.attrCheckBtn}</button>
+                <button id="acc-check-attrs-btn" type="button" class="acc-btn acc-btn--ghost">Check CTP Attributes</button>
                 <span id="acc-attr-check-msg" style="font-size:13px;color:#54698d;font-weight:600;"></span>
             </div>
             <div style="padding:14px 20px;">
                 <p style="font-size:13px;color:#54698d;margin:0;">
-                    <isprint value="${pdict.migrationUi.pbAttrScan}" encoding="off"/>
+                    Scans CTP <strong>standalone-price</strong> custom-type field definitions and checks whether matching
+                    attributes exist on the SFCC <strong>PriceBook</strong> system object.
                     Standard fields (SKU, value, currency, channel) map to native pricebook XML and are not listed here.
                 </p>
                 <div id="acc-attr-results" style="display:none;margin-top:14px;"></div>
@@ -59,8 +61,7 @@
              data-create-attrs-url="<isprint value="${pdict.createAttrsUrl}" encoding="htmldoublequote"/>"
              data-wizard-entry-url="<isprint value="${pdict.dataWizardEntryUrl}" encoding="htmldoublequote"/>"
              data-impex-path="<isprint value="${pdict.impexPath}" encoding="htmldoublequote"/>"
-             data-preset-pricebook-id="<isprint value="${pdict.presetPricebookId}" encoding="htmldoublequote"/>"
-             data-migration-ui="<isprint value="${pdict.migrationUiJson}" encoding="htmldoublequote"/>">
+             data-preset-pricebook-id="<isprint value="${pdict.presetPricebookId}" encoding="htmldoublequote"/>">
 
         <div id="acc-pb-standalone" class="pb-details-panel"
              data-source="standalone">
@@ -71,9 +72,9 @@
             </div>
             <div class="pb-details-panel__body">
                 <p style="font-size:13px;color:#54698d;margin:0 0 12px;">
-                    <isprint value="${pdict.migrationUi.pbStandaloneHelp}" encoding="off"/>
+                    Pricebooks discovered from CTP <strong>/standalone-prices</strong>, grouped by currency and distribution channel.
                 </p>
-                <div id="acc-pb-standalone-loading" style="font-size:13px;color:#54698d;"><isprint value="${pdict.migrationUi.pbStandaloneLoading}" encoding="off"/></div>
+                <div id="acc-pb-standalone-loading" style="font-size:13px;color:#54698d;">Click <strong>Load Standalone</strong> to scan standalone prices from commercetools.</div>
                 <div id="acc-pb-standalone-error" style="display:none;font-size:13px;color:#c62828;margin-bottom:10px;"></div>
                 <div id="acc-pb-standalone-table-wrap" style="display:none;border:1px solid #e0e5ee;border-radius:4px;overflow:auto;max-height:320px;">
                     <table class="cm-attr-table">
@@ -101,7 +102,7 @@
             </div>
             <div class="pb-details-panel__body">
                 <p style="font-size:13px;color:#54698d;margin:0 0 12px;">
-                    <isprint value="${pdict.migrationUi.pbEmbeddedHelp}" encoding="off"/>
+                    Scans every CTP product and extracts variant <strong>embedded prices</strong> grouped by currency and channel.
                     Output matches SFCC pricebook XML (e.g. <code>cny-m-list-prices</code> with SKU-based <code>price-table</code> entries).
                 </p>
                 <div id="acc-pb-embedded-loading" style="font-size:13px;color:#54698d;">Click <strong>Load Embedded</strong> to scan products for embedded prices.</div>
@@ -128,7 +129,9 @@
 
         <div class="acc-info-box">
             <strong>How migration works:</strong><br/>
-            <isprint value="${pdict.migrationUi.pbHowWorks}" encoding="off"/><br/>
+            Select pricebooks from either section (or both). Each generates SFCC pricebook XML with
+            <code>price-table</code> entries per SKU, uploaded to WebDAV at <code>/Impex/${pdict.impexPath}/</code>.<br/>
+            Standalone prices are fetched from <code>/standalone-prices</code>; embedded prices are extracted from each product variant.<br/>
             Then run <strong>Merchant Tools &rarr; Online Marketing &rarr; Import &amp; Export &rarr; Import Price Books</strong>
             and point it at the uploaded files.
         </div>
@@ -149,6 +152,7 @@
                 </div>
                 <p class="acc-phases__detail" id="full-detail-import">Waiting for Phase 1&hellip;</p>
                 <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;">
+                    <a href="${pdict.jobsUrl}" target="_blank" class="acc-btn acc-btn--primary" style="text-decoration:none;font-size:13px;display:inline-block;padding:7px 16px;">Open BM Import</a>
                     <a href="${pdict.impexUrl}" target="_blank" class="acc-btn acc-btn--ghost" style="text-decoration:none;font-size:13px;display:inline-block;padding:7px 16px;">Open IMPEX</a>
                 </div>
             </li>
@@ -164,7 +168,7 @@
 
 <div id="acc-preflight-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center;">
     <div style="background:#fff;border-radius:6px;padding:28px 32px;max-width:620px;width:90%;max-height:82vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.3);">
-        <h3 style="margin:0 0 6px;color:#16325c;font-size:16px;">${pdict.migrationUi.attrModalTitle}</h3>
+        <h3 style="margin:0 0 6px;color:#16325c;font-size:16px;">Missing CTP Attributes in SFCC</h3>
         <p style="font-size:13px;color:#54698d;margin:0 0 16px;">Create missing PriceBook attributes now, or skip and migrate without them.</p>
         <div id="acc-modal-attr-list"></div>
         <p id="acc-modal-status" style="font-size:12px;margin:12px 0 0;min-height:16px;"></p>

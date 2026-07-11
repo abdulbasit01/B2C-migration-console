@@ -30,8 +30,8 @@
     </div>
 
     <div class="acc-info-box">
-        <isprint value="${pdict.migrationUi.orderHowWorks}" encoding="off"/>
-        <code>/Impex/${pdict.orderImpexPath}/</code>. Then import via
+        Fetches orders from commercetools in pages, maps and validates each order, and streams one SFCC order XML
+        to <code>/Impex/${pdict.orderImpexPath}/</code>. Then import via
         <strong>Administration &rarr; Site Development &rarr; Import &amp; Export</strong>.
     </div>
 

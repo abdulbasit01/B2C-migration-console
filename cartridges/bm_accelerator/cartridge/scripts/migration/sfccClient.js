@@ -38,7 +38,7 @@ function metaUrl(path) {
 function getSFCCToken() {
     var s           = getSFCCSettings();
     var credentials = toBase64(s.bmUsername + ':' + s.bmPassword + ':' + s.bmClientId);
-    var body        = 'grant_type=urn%3Ademandware%3Aparams%3Aoauth%3Agrant-type%3Aclient-id%3Adwsid%3Adwsecuretoken';
+    var body        = 'grant_type=urn%3Ademandware%3Aparams%3Aoauth%3Agrant-type%3Aclient-id%3Adwsid%3Adwsecuretoken&client_id=' + encodeURIComponent(s.bmClientId);
 
     var client = new HTTPClient();
     client.setTimeout(30000);
@@ -47,11 +47,10 @@ function getSFCCToken() {
     client.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
     client.send(body);
 
-    var text = client.text || '';
-    var data;
-    try { data = JSON.parse(text || '{}'); } catch (pe) { data = {}; }
-    if (client.statusCode !== 200 || !data.access_token) {
-        throw new Error('SFCC token failed (' + client.statusCode + ') host=' + s.baseUrl + ' client=' + s.bmClientId + ' user=' + s.bmUsername + ': ' + (text || '(empty)'));
+    var text = client.getText();
+    var data = JSON.parse(text || '{}');
+    if (client.getStatusCode() !== 200 || !data.access_token) {
+        throw new Error('SFCC token failed (' + client.getStatusCode() + '): ' + text);
     }
     return data.access_token;
 }
@@ -87,13 +86,14 @@ function doGet(url, token) {
 }
 
 /**
- * Get all existing custom attribute IDs for an SFCC system object type.
+ * Get every attribute definition (system-built-in and custom) for an SFCC system
+ * object type, with enough metadata to distinguish native fields from custom ones.
  * @param {string} token - SFCC access token
  * @param {string} objectType - SFCC system object (Product, Customer, Order, etc.)
- * @returns {Object} map of existing attribute IDs { id: true }
+ * @returns {Array<{ id: string, displayName: string, system: boolean }>}
  */
-function getExistingAttributeIds(token, objectType) {
-    var ids      = {};
+function getAttributeDefinitions(token, objectType) {
+    var attrs    = [];
     var start    = 0;
     var pageSize = 200;
     var total    = null;
@@ -105,10 +105,30 @@ function getExistingAttributeIds(token, objectType) {
 
         if (total === null) total = res.data.total || 0;
         var page = res.data.data || [];
-        for (var i = 0; i < page.length; i++) { ids[page[i].id] = true; }
+        for (var i = 0; i < page.length; i++) {
+            var a = page[i];
+            attrs.push({
+                id:          a.id,
+                displayName: (a.display_name && a.display_name.default) || a.id,
+                system:      !!a.system
+            });
+        }
         start += pageSize;
     } while (start < total);
 
+    return attrs;
+}
+
+/**
+ * Get all existing custom attribute IDs for an SFCC system object type.
+ * @param {string} token - SFCC access token
+ * @param {string} objectType - SFCC system object (Product, Customer, Order, etc.)
+ * @returns {Object} map of existing attribute IDs { id: true }
+ */
+function getExistingAttributeIds(token, objectType) {
+    var attrs = getAttributeDefinitions(token, objectType);
+    var ids   = {};
+    for (var i = 0; i < attrs.length; i++) { ids[attrs[i].id] = true; }
     return ids;
 }
 
@@ -223,6 +243,7 @@ module.exports = {
     getSFCCToken:              getSFCCToken,
     getSFCCSettings:           getSFCCSettings,
     doGet:                     doGet,
+    getAttributeDefinitions:   getAttributeDefinitions,
     getExistingAttributeIds:   getExistingAttributeIds,
     createAttributeDefinition: createAttributeDefinition,
     deleteAttributeDefinition: deleteAttributeDefinition,

@@ -339,17 +339,6 @@ table.main > tbody > tr,
   text-decoration: none;
 }
 
-.acc-card__logout {
-  margin-top: 4px;
-  border-top: 1px solid var(--acc-border);
-  padding-top: 12px;
-
-  &:disabled {
-    opacity: 0.45;
-    cursor: not-allowed;
-  }
-}
-
 .acc-card__cta--disabled {
   opacity: 0.55;
   cursor: not-allowed;

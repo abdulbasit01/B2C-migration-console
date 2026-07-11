@@ -120,11 +120,12 @@ function transformCategory(ctCategory, defaultLocale, idToKey) {
     // ── slug → ctSlug custom attribute ───────────────────────────────────────
     if (ctCategory.slug) {
         var slugLocale = resolveLocale(ctCategory.slug, defaultLocale);
-        var slugKeys   = Object.keys(ctCategory.slug);
         sfccCategory.customAttributes.ctSlug = ctCategory.slug[slugLocale]
             || ctCategory.slug['en-US']
             || ctCategory.slug['en-GB']
-            || (slugKeys.length > 0 ? ctCategory.slug[slugKeys[0]] : '')
+            || Object.values
+                ? Object.values(ctCategory.slug)[0]
+                : ctCategory.slug[Object.keys(ctCategory.slug)[0]]
             || '';
     }
 

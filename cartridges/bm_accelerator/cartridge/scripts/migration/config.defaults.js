@@ -9,7 +9,7 @@ module.exports = {
         storeUrl:     '',
         clientId:     '',
         clientSecret: '',
-        apiVersion:   '2026-07'
+        apiVersion:   '2025-01'
     },
     ctp: {
         projectKey:   'royal-cyber-b2c-accelerator-wd',
@@ -20,8 +20,8 @@ module.exports = {
     },
     sfcc: {
         bmClientId:      'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-        version:         'v20_10',
-        metaVersion:     'v20_10',
+        version:         'v25_6',
+        metaVersion:     'v25_6',
         catalogId:       'storefront-catalog-m-en',
         inventoryListId: 'migrated-inventory',
         customerListId:  ''

@@ -7,6 +7,7 @@ var typeMap        = require('*/cartridge/scripts/migration/connectors/ctp/ctpTy
 var transformer    = require('*/cartridge/scripts/migration/connectors/ctp/ctpTransformer');
 var cfg            = require('*/cartridge/scripts/migration/configAccessor');
 var nativeFieldMap = require('*/cartridge/scripts/migration/config/nativeFieldMap');
+var attrBuilder    = require('*/cartridge/scripts/migration/core/attrBuilder');
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -294,8 +295,9 @@ function toGroup(title, mappings) {
     return { title: title, total: mappings.length, existsCount: existsCount, newCount: mappings.length - existsCount, mappings: mappings };
 }
 
-function buildAiMapContent(selectedTasks, existingByTask) {
+function buildAiMapContent(selectedTasks, existingByTask, sysAttrsByTask) {
     var existing     = existingByTask || {};
+    var sysAttrsMap  = sysAttrsByTask  || {};
     var token        = getToken();
     var productTypes = fetchProductTypes(token);
     var customTypes  = fetchCustomTypes(token);
@@ -305,6 +307,7 @@ function buildAiMapContent(selectedTasks, existingByTask) {
 
     var showProduct     = !selectedTasks || selectedTasks.indexOf('Product') >= 0;
     var productMappings = [];
+    var productSysAttrs = sysAttrsMap.Product || [];
 
     for (var pi = 0; pi < productTypes.length; pi++) {
         var attrs = productTypes[pi].attributes || [];
@@ -316,7 +319,8 @@ function buildAiMapContent(selectedTasks, existingByTask) {
             if (seen[key]) continue;
             seen[key]   = true;
             var ctpType  = attr.type && attr.type.name ? attr.type.name : 'text';
-            var rule     = nativeFieldMap.getRule('commercetools', 'Product', attr.name);
+            var attrLabel = attrBuilder.toLabel(attr.label) || attr.name;
+            var rule     = nativeFieldMap.getEffectiveRule('commercetools', 'Product', attr.name, attrLabel, productSysAttrs);
             var mapping  = {
                 source:      attr.name + ' (' + ctpType + ')',
                 attributeId: attr.name,
@@ -351,6 +355,7 @@ function buildAiMapContent(selectedTasks, existingByTask) {
         if (selectedTasks && selectedTasks.indexOf(runnerTask) < 0) continue;
 
         if (!customGroups[sfccObj]) customGroups[sfccObj] = [];
+        var runnerSysAttrs = sysAttrsMap[runnerTask] || [];
 
         for (var fi = 0; fi < fields.length; fi++) {
             var field = fields[fi];
@@ -358,13 +363,21 @@ function buildAiMapContent(selectedTasks, existingByTask) {
             if (seen[fkey]) continue;
             seen[fkey] = true;
             var fType  = field.type && field.type.name ? field.type.name : 'String';
-            customGroups[sfccObj].push({
+            var fMapping = {
                 source:      field.name + ' (' + fType + ')',
                 attributeId: field.name,
                 target:      typeMap.resolveCustomFieldType(fType),
                 confidence:  typeMap.confidence(fType),
                 exists:      !!(existing[sfccObj] && existing[sfccObj][field.name])
-            });
+            };
+            var fLabel = attrBuilder.toLabel(field.label) || field.name;
+            var fRule  = nativeFieldMap.getEffectiveRule('commercetools', runnerTask, field.name, fLabel, runnerSysAttrs);
+            if (fRule) {
+                fMapping.sfccNativeField  = fRule.sfccField;
+                fMapping.sfccNativeNote   = fRule.note;
+                fMapping.sfccNativeAction = fRule.action;
+            }
+            customGroups[sfccObj].push(fMapping);
         }
     }
 

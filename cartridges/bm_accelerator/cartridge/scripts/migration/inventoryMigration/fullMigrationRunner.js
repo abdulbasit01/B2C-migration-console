@@ -2,8 +2,7 @@
 
 var File         = require('dw/io/File');
 var FileWriter   = require('dw/io/FileWriter');
-var registry     = require('*/cartridge/scripts/migration/core/dataSourceRegistry');
-var fetcher      = registry.getFetcher('inventory');
+var fetcher      = require('*/cartridge/scripts/migration/inventoryMigration/ctpInventoryFetcher');
 var transformer  = require('*/cartridge/scripts/migration/inventoryMigration/inventoryTransformer');
 var xmlBuilder   = require('*/cartridge/scripts/migration/inventoryMigration/inventoryXmlBuilder');
 var uploader     = require('*/cartridge/scripts/migration/inventoryMigration/webDavUploader');
@@ -15,27 +14,13 @@ var BATCH_SIZE              = 500;
 var MAX_SINGLE_FILE_ENTRIES = 100000;
 
 function buildDescription(exportKey, supplyChannelId) {
-    var registry = require('*/cartridge/scripts/migration/core/dataSourceRegistry');
-    var src      = registry.getSourceLabel(registry.getPlatformId());
-    var desc     = src + ' inventory migration';
+    var desc = 'Commercetools inventory migration';
     if (exportKey === 'aggregated') {
         desc += ' (aggregated all channels)';
     } else if (supplyChannelId) {
         desc += ' (supply channel ' + supplyChannelId + ')';
     }
     return desc;
-}
-
-function closeWriterSafe(writer) {
-    if (writer) {
-        try { writer.close(); } catch (e) { /* ignore */ }
-    }
-}
-
-function removeLocalFile(file) {
-    if (file && file.exists()) {
-        try { file.remove(); } catch (e) { /* ignore */ }
-    }
 }
 
 function ensureImpexDir(relativePath) {
@@ -105,12 +90,9 @@ function runSingleFile(listId, supplyChannelId, exportKey, fileName, aggregate) 
     var results   = [];
     var pending   = null;
     var sortField = aggregate ? 'sku' : 'id';
-    var headerWritten = false;
-    var complete      = false;
-    var description   = buildDescription(exportKey, channelId || null);
 
     function flushPending() {
-        if (!pending || !writer) return;
+        if (!pending) return;
         try {
             writer.write(xmlBuilder.buildRecordXml(pending));
             built++;
@@ -130,18 +112,15 @@ function runSingleFile(listId, supplyChannelId, exportKey, fileName, aggregate) 
         }
 
         writer = new FileWriter(outFile, 'UTF-8');
+        writer.write(xmlBuilder.buildHeader(listId, buildDescription(exportKey, channelId || null)));
 
         do {
             var batch = fetcher.fetchBatch(offset, BATCH_SIZE, channelId, sortField);
             results   = batch.results || [];
             total     = batch.total || 0;
 
-            if (!headerWritten) {
-                writer.write(xmlBuilder.buildHeader(listId, description));
-                headerWritten = true;
-            }
-
             if (offset === 0 && total > MAX_SINGLE_FILE_ENTRIES) {
+                writer.close();
                 return {
                     ok:    false,
                     error: 'Too many entries (' + total + ') for a single XML file. '
@@ -159,9 +138,7 @@ function runSingleFile(listId, supplyChannelId, exportKey, fileName, aggregate) 
                     }
 
                     if (aggregate) {
-                        var recKey = rec.productId || rec.sku;
-                        var pendingKey = pending ? (pending.productId || pending.sku) : '';
-                        if (pending && pendingKey === recKey) {
+                        if (pending && pending.sku === rec.sku) {
                             transformer.mergeRecords(pending, rec);
                         } else {
                             flushPending();
@@ -179,21 +156,13 @@ function runSingleFile(listId, supplyChannelId, exportKey, fileName, aggregate) 
                 }
             }
 
-            offset = typeof batch.streamOffset === 'number'
-                ? batch.streamOffset
-                : (offset + results.length);
+            offset += results.length;
         } while (offset < total && results.length > 0);
-
-        if (!headerWritten) {
-            writer.write(xmlBuilder.buildHeader(listId, description));
-            headerWritten = true;
-        }
 
         flushPending();
         writer.write(xmlBuilder.buildFooter());
-        closeWriterSafe(writer);
+        writer.close();
         writer = null;
-        complete = true;
 
         if (!built && !failed) {
             return {
@@ -230,19 +199,10 @@ function runSingleFile(listId, supplyChannelId, exportKey, fileName, aggregate) 
             exportKey:  exportKey
         };
     } catch (e) {
-        return { ok: false, error: e.message || String(e) };
-    } finally {
         if (writer) {
-            try {
-                if (headerWritten) {
-                    writer.write(xmlBuilder.buildFooter());
-                }
-            } catch (fe) { /* ignore */ }
-            closeWriterSafe(writer);
+            try { writer.close(); } catch (ce) { /* ignore */ }
         }
-        if (!complete) {
-            removeLocalFile(outFile);
-        }
+        return { ok: false, error: e.message || String(e) };
     }
 }
 
@@ -272,9 +232,7 @@ function runMultiFileBatch(offset, listId, supplyChannelId, exportKey, fileName,
         return { ok: false, error: upload.error };
     }
 
-    var nextOffset = typeof batch.streamOffset === 'number'
-        ? batch.streamOffset
-        : (offset + entries.length);
+    var nextOffset = offset + entries.length;
     return {
         ok:         true,
         singleFile: false,

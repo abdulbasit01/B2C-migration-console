@@ -6,15 +6,15 @@
     <p class="acc-step-panel__intro">${Resource.msg('accelerator.ordermigration.configure.intro', 'accelerator', null)}</p>
 
     <div id="acc-attr-preflight" class="acc-order-attr-preflight">
-        <script type="application/json" id="acc-migration-ui-data"><isprint value="${pdict.migrationUiJson}" encoding="off"/></script>
         <div class="acc-order-attr-preflight__head">
             <span class="acc-order-attr-preflight__title">Attribute Pre-flight Check</span>
-            <button id="acc-check-attrs-btn" type="button" class="acc-btn acc-btn--ghost">${pdict.migrationUi.attrCheckBtn}</button>
+            <button id="acc-check-attrs-btn" type="button" class="acc-btn acc-btn--ghost">Check CTP Attributes</button>
             <span id="acc-attr-check-msg" class="acc-order-attr-preflight__msg"></span>
         </div>
         <div class="acc-order-attr-preflight__body">
             <p class="acc-order-attr-preflight__intro">
-                <isprint value="${pdict.migrationUi.orderAttrScan}" encoding="off"/>
+                Scans CTP <strong>order</strong> custom-type field definitions and checks whether matching
+                attributes exist on the SFCC <strong>Order</strong> system object.
                 Standard order fields map to native SFCC order XML and are not listed here.
             </p>
             <div id="acc-attr-results" class="acc-order-attr-preflight__results" style="display:none;"></div>
@@ -77,9 +77,9 @@
             <select id="order-order-state" name="orderState" class="acc-form__input">
                 <isloop items="${pdict.orderStateFilters}" var="filter">
                     <isif condition="${pdict.orderOrderState == filter.value}">
-                        <option value="${filter.value}" selected="selected">${filter.label}</option>
+                        <option value="${filter.value}" selected="selected">${Resource.msg('accelerator.ordermigration.orderstate.' + filter.key, 'accelerator', null)}</option>
                     <iselse/>
-                        <option value="${filter.value}">${filter.label}</option>
+                        <option value="${filter.value}">${Resource.msg('accelerator.ordermigration.orderstate.' + filter.key, 'accelerator', null)}</option>
                     </isif>
                 </isloop>
             </select>
@@ -91,9 +91,9 @@
             <select id="order-payment-state" name="paymentState" class="acc-form__input">
                 <isloop items="${pdict.paymentStateFilters}" var="filter">
                     <isif condition="${pdict.orderPaymentState == filter.value}">
-                        <option value="${filter.value}" selected="selected">${filter.label}</option>
+                        <option value="${filter.value}" selected="selected">${Resource.msg('accelerator.ordermigration.paymentstate.' + filter.key, 'accelerator', null)}</option>
                     <iselse/>
-                        <option value="${filter.value}">${filter.label}</option>
+                        <option value="${filter.value}">${Resource.msg('accelerator.ordermigration.paymentstate.' + filter.key, 'accelerator', null)}</option>
                     </isif>
                 </isloop>
             </select>
