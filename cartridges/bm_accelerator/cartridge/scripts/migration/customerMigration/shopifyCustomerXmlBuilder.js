@@ -35,7 +35,6 @@ function buildCustomerXml(shopifyCustomer) {
     // custom-attributes belongs to the Profile system object — nested inside <profile>, last child
     xml += '            <custom-attributes>\n';
     xml += '                <custom-attribute attribute-id="shopify_customer_id">' + xmlEsc(profile.c_shopify_customer_id) + '</custom-attribute>\n';
-    if (profile.c_shopify_phone)              xml += '                <custom-attribute attribute-id="shopify_phone">'              + xmlEsc(profile.c_shopify_phone)              + '</custom-attribute>\n';
     if (profile.c_shopify_note)               xml += '                <custom-attribute attribute-id="shopify_note">'               + xmlEsc(profile.c_shopify_note)               + '</custom-attribute>\n';
     if (profile.c_shopify_verified_email !== undefined)    xml += '                <custom-attribute attribute-id="shopify_verified_email">'    + (profile.c_shopify_verified_email ? 'true' : 'false')    + '</custom-attribute>\n';
     if (profile.c_shopify_accepts_marketing !== undefined) xml += '                <custom-attribute attribute-id="shopify_accepts_marketing">' + (profile.c_shopify_accepts_marketing ? 'true' : 'false') + '</custom-attribute>\n';

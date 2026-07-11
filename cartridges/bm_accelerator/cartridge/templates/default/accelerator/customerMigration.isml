@@ -617,8 +617,11 @@
 
         for (var i = 0; i < missing.length; i++) {
             var m = missing[i];
+            // Fields only heuristically flagged as a possible native-field duplicate default to
+            // unchecked — the user must opt in rather than silently getting a redundant custom attribute.
+            var cbAttrs = (m.sfccNativeAction === 'flag') ? '' : ' checked';
             html += '<tr id="acc-attr-row-' + i + '">'
-                + '<td style="text-align:center;"><input type="checkbox" class="acc-attr-cb" data-idx="' + i + '" checked/></td>'
+                + '<td style="text-align:center;"><input type="checkbox" class="acc-attr-cb" data-idx="' + i + '"' + cbAttrs + '/></td>'
                 + '<td><input type="text" class="cm-attr-id-input" data-idx="' + i + '" value="' + escHtml(m.id) + '" title="Edit attribute ID"/></td>'
                 + '<td>' + escHtml(m.label || m.id) + '</td>'
                 + '<td style="color:#8a9ab8;">' + escHtml(m.ctpType || '—') + '</td>'

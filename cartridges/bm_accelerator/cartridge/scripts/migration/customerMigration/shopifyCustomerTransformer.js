@@ -64,9 +64,8 @@ function transformCustomer(shopifyCustomer) {
 
     // Store Shopify identifiers/fields as custom attributes for traceability
     profile.c_shopify_customer_id = String(shopifyCustomer.id);
-    // Also map to the native SFCC Profile phone field, not just the traceability custom attribute
+    // Phone has a native SFCC Profile equivalent (phoneMobile) — no shadow custom attribute needed.
     if (shopifyCustomer.phone)             profile.phone                       = shopifyCustomer.phone;
-    if (shopifyCustomer.phone)             profile.c_shopify_phone             = shopifyCustomer.phone;
     if (shopifyCustomer.note)              profile.c_shopify_note              = shopifyCustomer.note;
     if (shopifyCustomer.tags)              profile.c_shopify_tags              = parseTags(shopifyCustomer.tags);
     if (shopifyCustomer.verified_email !== undefined)    profile.c_shopify_verified_email    = shopifyCustomer.verified_email;

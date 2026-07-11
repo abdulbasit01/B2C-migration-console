@@ -96,8 +96,15 @@ function checkMissingAttributes() {
     var missing = [];
     var seen    = {};
 
+    /**
+     * Attach native-field metadata to an entry, unless there's a confident (action:"skip")
+     * SFCC system-field equivalent — in that case the field needs no custom attribute at all,
+     * so the caller should not add it to the missing list.
+     * @returns {Object|null} entry with metadata attached, or null when it should be skipped entirely
+     */
     function withNativeHint(entry, sourceId, sourceLabel) {
         var rule = nativeFieldMap.getEffectiveRule('commercetools', 'Customer', sourceId, sourceLabel, sysAttrs);
+        if (rule && rule.action === 'skip') return null;
         if (rule) {
             entry.sfccNativeField  = rule.sfccField;
             entry.sfccNativeNote   = rule.note;
@@ -114,11 +121,12 @@ function checkMissingAttributes() {
         if (seen[id]) continue;
         seen[id] = true;
         if (!existingIds[id]) {
-            missing.push(withNativeHint(typeMap.enrichMissingAttribute({
+            var ctpEntry = withNativeHint(typeMap.enrichMissingAttribute({
                 id:    field.name,
                 label: field.label,
                 ctpType: field.ctpType
-            }), field.name, field.label));
+            }), field.name, field.label);
+            if (ctpEntry) missing.push(ctpEntry);
         } else {
             // Attr exists but may not be in the group yet (e.g. created before group logic was added).
             try { sfccClient.addAttributeToGroup(sfccToken, 'Profile', CTP_ATTR_GROUP_ID, id); } catch (age) {}
@@ -131,9 +139,10 @@ function checkMissingAttributes() {
         if (seen[bf.sfccId]) continue;
         seen[bf.sfccId] = true;
         if (!existingIds[bf.sfccId]) {
-            missing.push(withNativeHint(typeMap.enrichMissingAttribute({
+            var bfEntry = withNativeHint(typeMap.enrichMissingAttribute({
                 id: bf.sfccId, label: bf.label, ctpType: bf.ctpType, sfccType: 'string'
-            }), bf.sfccId, bf.label));
+            }), bf.sfccId, bf.label);
+            if (bfEntry) missing.push(bfEntry);
         } else {
             // Attr exists but may not be in the group yet.
             try { sfccClient.addAttributeToGroup(sfccToken, 'Profile', CTP_ATTR_GROUP_ID, bf.sfccId); } catch (age) {}

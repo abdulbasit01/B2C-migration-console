@@ -8,7 +8,6 @@ var nativeFieldMap = require('*/cartridge/scripts/migration/config/nativeFieldMa
 // custom attribute created/populated on the SFCC Profile system object.
 var SHOPIFY_BUILTIN_FIELDS = [
     { id: 'shopify_customer_id',       label: 'Shopify Customer ID',       sfccType: 'string'  },
-    { id: 'shopify_phone',              label: 'Shopify Phone',             sfccType: 'string'  },
     { id: 'shopify_note',               label: 'Shopify Note',              sfccType: 'text'    },
     { id: 'shopify_tags',               label: 'Shopify Tags',              sfccType: 'set_of_string' },
     { id: 'shopify_verified_email',     label: 'Shopify Verified Email',    sfccType: 'boolean' },
@@ -38,18 +37,21 @@ function checkMissingAttributes() {
     var missing = [];
     for (var i = 0; i < SHOPIFY_BUILTIN_FIELDS.length; i++) {
         var f = SHOPIFY_BUILTIN_FIELDS[i];
-        if (!existingIds[f.id]) {
-            var entry = { id: f.id, label: f.label, sfccType: f.sfccType };
-            var rule  = nativeFieldMap.getEffectiveRule('shopify', 'Customer', f.id, f.label, sysAttrs);
-            if (rule) {
-                entry.sfccNativeField  = rule.sfccField;
-                entry.sfccNativeNote   = rule.note;
-                entry.sfccNativeAction = rule.action;
-            }
-            missing.push(entry);
-        } else {
+        if (existingIds[f.id]) {
             try { sfccClient.addAttributeToGroup(sfccToken, 'Profile', SHOPIFY_ATTR_GROUP_ID, f.id); } catch (age) {}
+            continue;
         }
+        var rule = nativeFieldMap.getEffectiveRule('shopify', 'Customer', f.id, f.label, sysAttrs);
+        // Confident (action: "skip") match against an existing SFCC system field —
+        // no custom attribute needed at all, so don't offer to create one.
+        if (rule && rule.action === 'skip') continue;
+        var entry = { id: f.id, label: f.label, sfccType: f.sfccType };
+        if (rule) {
+            entry.sfccNativeField  = rule.sfccField;
+            entry.sfccNativeNote   = rule.note;
+            entry.sfccNativeAction = rule.action;
+        }
+        missing.push(entry);
     }
     return missing;
 }
