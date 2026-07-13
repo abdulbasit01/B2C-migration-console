@@ -12,7 +12,8 @@ var MODULE_IDS = {
     inventory:      'inventory',
     pricebook:      'pricebook',
     tax:            'tax',
-    store:          'store'
+    store:          'store',
+    content:        'content'
 };
 
 /**

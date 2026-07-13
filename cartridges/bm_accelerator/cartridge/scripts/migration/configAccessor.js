@@ -58,6 +58,21 @@ try {
                 apiVersion:   sessionVer    || (base.shopify ? base.shopify.apiVersion   : '2026-07')
             };
         }
+
+        var ampHub     = String(session.custom.amplienceHubName || '');
+        var ampPat     = String(session.custom.ampliencePersonalAccessToken || '');
+        var ampId      = String(session.custom.amplienceClientId || '');
+        var ampSecret  = String(session.custom.amplienceClientSecret || '');
+        var ampKey     = String(session.custom.amplienceDefaultDeliveryKey || '');
+        if (ampHub || ampPat || ampId || ampSecret) {
+            cfg.amplience = {
+                hubName:             ampHub    || (base.amplience ? base.amplience.hubName             : ''),
+                personalAccessToken: ampPat    || (base.amplience ? base.amplience.personalAccessToken : ''),
+                clientId:            ampId     || (base.amplience ? base.amplience.clientId            : ''),
+                clientSecret:        ampSecret || (base.amplience ? base.amplience.clientSecret        : ''),
+                defaultDeliveryKey:  ampKey    || (base.amplience ? base.amplience.defaultDeliveryKey  : '')
+            };
+        }
     }
 } catch (e) {
     // session not in scope (unit tests) — use file config as-is

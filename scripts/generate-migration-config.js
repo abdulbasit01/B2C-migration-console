@@ -79,6 +79,13 @@ const config = {
     migration: {
         batchSize: parseInt(env.BATCH_SIZE) || 20,
         dryRun:    env.DRY_RUN === 'true'
+    },
+    amplience: {
+        hubName:             env.AMPLIENCE_HUB_NAME             || '',
+        personalAccessToken: env.AMPLIENCE_PERSONAL_ACCESS_TOKEN || '',
+        clientId:            env.AMPLIENCE_CLIENT_ID            || '',
+        clientSecret:        env.AMPLIENCE_CLIENT_SECRET        || '',
+        defaultDeliveryKey:  env.AMPLIENCE_DEFAULT_DELIVERY_KEY || ''
     }
 };
 

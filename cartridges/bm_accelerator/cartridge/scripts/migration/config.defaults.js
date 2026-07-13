@@ -29,5 +29,12 @@ module.exports = {
     migration: {
         batchSize: 20,
         dryRun:    false
+    },
+    amplience: {
+        hubName:             '',
+        personalAccessToken: '',
+        clientId:            '',
+        clientSecret:        '',
+        defaultDeliveryKey:  ''
     }
 };

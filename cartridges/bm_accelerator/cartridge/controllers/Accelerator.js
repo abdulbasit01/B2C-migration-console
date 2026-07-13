@@ -162,7 +162,7 @@ function buildConnectionCreds(platformId) {
     var cfg    = require('*/cartridge/scripts/migration/configAccessor');
     var params = request.httpParameterMap;
     var creds  = {};
-    var fieldNames = ['projectKey', 'clientId', 'clientSecret', 'apiUrl', 'authUrl', 'storeUrl', 'apiVersion', 'storeHash'];
+    var fieldNames = ['projectKey', 'clientId', 'clientSecret', 'apiUrl', 'authUrl', 'storeUrl', 'apiVersion', 'storeHash', 'hubName', 'defaultDeliveryKey', 'personalAccessToken'];
 
     for (var fi = 0; fi < fieldNames.length; fi++) {
         var fn  = fieldNames[fi];
@@ -191,6 +191,12 @@ function buildConnectionCreds(platformId) {
         creds.apiVersion   = creds.apiVersion   || cfg.shopify.apiVersion   || '2025-01';
         creds.clientSecret = resolveSecret('clientSecret', cfg.shopify.clientSecret);
         creds.accessToken  = resolveSecret('accessToken', cfg.shopify.accessToken || '');
+    } else if (platformId === 'amplience') {
+        creds.clientId              = creds.clientId              || (cfg.amplience ? cfg.amplience.clientId              : '');
+        creds.clientSecret          = resolveSecret('clientSecret', cfg.amplience ? cfg.amplience.clientSecret : '');
+        creds.personalAccessToken   = resolveSecret('personalAccessToken', cfg.amplience ? cfg.amplience.personalAccessToken : '');
+        creds.hubName               = creds.hubName               || (cfg.amplience ? cfg.amplience.hubName               : '');
+        creds.defaultDeliveryKey    = creds.defaultDeliveryKey    || (cfg.amplience ? cfg.amplience.defaultDeliveryKey    : '');
     }
 
     return creds;
@@ -265,6 +271,14 @@ exports.TestConnection = function () {
             session.custom.shopifyClientSecret = creds.clientSecret || '';
             session.custom.shopifyAccessToken  = creds.accessToken  || '';
             session.custom.shopifyApiVersion   = creds.apiVersion   || '2026-07';
+        }
+        if (platformId === 'amplience') {
+            session.custom.amplienceHubName              = creds.hubName              || '';
+            session.custom.ampliencePersonalAccessToken  = creds.personalAccessToken  || '';
+            session.custom.amplienceClientId             = creds.clientId             || '';
+            session.custom.amplienceClientSecret         = creds.clientSecret         || '';
+            session.custom.amplienceDefaultDeliveryKey   = creds.defaultDeliveryKey   || '';
+            session.custom.migrationPlatformId           = 'amplience';
         }
         if (getParam('mode') === 'data') {
             dataMigrationSession.markConnected(platformId, result.expiresIn);
@@ -430,6 +444,7 @@ exports.Start = function () {
         orderMigrationUrl:         URLUtils.url('Accelerator-OrderMigration').toString(),
         productWizardUrl:          URLUtils.url('Accelerator-ProductWizard').toString(),
         categoryMigrationUrl:      URLUtils.url('Accelerator-CategoryMigration').toString(),
+        contentMigrationUrl:       URLUtils.url('Accelerator-ContentMigration').toString(),
         cssUrl:                    URLUtils.staticURL('/css/accelerator-migration.css').toString(),
         jsUrl: URLUtils.staticURL('/js/categoryMigration.js').toString(),
         fetchCatalogsUrl : URLUtils.url('Accelerator-FetchSFCCCatalogs').toString(),
@@ -4600,4 +4615,170 @@ exports.RunCategoryMigration = function () {
     }
 };
 exports.RunCategoryMigration.public = true;
+
+// ─── Amplience CMS / content migration ────────────────────────────────────────
+
+exports.ContentMigration = function () {
+    var platformId = getParam('platform') || 'amplience';
+    session.custom.migrationPlatformId = platformId;
+
+    var platform = migrationData.getPlatform(platformId);
+    if (!platform || platform.kind !== 'cms') {
+        response.redirect(URLUtils.url('Accelerator-Start'));
+        return;
+    }
+
+    var pageCtx = migrationPageContext(platformId, 'content');
+    ISML.renderTemplate('accelerator/contentMigration', withBmFrame({
+        title:               Resource.msg('accelerator.contentmigration.heading', 'accelerator', null),
+        subtitle:            Resource.msg('accelerator.subtitle', 'accelerator', null),
+        platform:            platform,
+        dashboardUrl:        URLUtils.url('Accelerator-Start').toString(),
+        testConnectionUrl:   URLUtils.url('Accelerator-TestConnection').toString(),
+        listContentUrl:      URLUtils.url('Accelerator-ListAmplienceContent').toString(),
+        fetchContentUrl:     URLUtils.url('Accelerator-FetchAmplienceContent').toString(),
+        exportContentUrl:    URLUtils.url('Accelerator-ExportAmplienceContent').toString(),
+        downloadXmlUrl:      URLUtils.url('Accelerator-DownloadContentXml').toString(),
+        impexPath:           pageCtx.impexPath,
+        impexUrl:            pageCtx.impexUrl,
+        cssUrl:              URLUtils.staticURL('/css/accelerator-migration.css').toString(),
+        contentMigrationJsUrl: URLUtils.staticURL('/js/content-migration.js').toString() + '?v=11'
+    }));
+};
+exports.ContentMigration.public = true;
+
+exports.ContentSchemaMigration = function () {
+    var platformId = getParam('platform') || 'amplience';
+    session.custom.migrationPlatformId = platformId;
+
+    var platform = migrationData.getPlatform(platformId);
+    if (!platform || platform.kind !== 'cms') {
+        response.redirect(URLUtils.url('Accelerator-Start'));
+        return;
+    }
+
+    ISML.renderTemplate('accelerator/contentSchemaMigration', withBmFrame({
+        title:               Resource.msg('accelerator.contentschemamigration.heading', 'accelerator', null),
+        subtitle:            Resource.msg('accelerator.subtitle', 'accelerator', null),
+        platform:            platform,
+        dashboardUrl:        URLUtils.url('Accelerator-Start').toString(),
+        testConnectionUrl:   URLUtils.url('Accelerator-TestConnection').toString(),
+        listContentTypesUrl: URLUtils.url('Accelerator-ListAmplienceContentTypes').toString(),
+        cssUrl:              URLUtils.staticURL('/css/accelerator-migration.css').toString(),
+        contentSchemaMigrationJsUrl: URLUtils.staticURL('/js/content-schema-migration.js').toString() + '?v=1'
+    }));
+};
+exports.ContentSchemaMigration.public = true;
+
+exports.ListAmplienceContentTypes = function () {
+    response.setContentType('application/json');
+    try {
+        var fetcher = require('*/cartridge/scripts/migration/contentMigration/amplienceSchemaFetcher');
+        var pageSize = getParam('pageSize') || '100';
+        jsonResponse({ ok: true, result: fetcher.listContentTypes(pageSize) });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.ListAmplienceContentTypes.public = true;
+
+exports.ListAmplienceContent = function () {
+    response.setContentType('application/json');
+    try {
+        var fetcher = require('*/cartridge/scripts/migration/contentMigration/amplienceContentFetcher');
+        var pageSize = getParam('pageSize') || '50';
+        jsonResponse({ ok: true, result: fetcher.listContentItems(pageSize) });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.ListAmplienceContent.public = true;
+
+exports.FetchAmplienceContent = function () {
+    response.setContentType('application/json');
+    var deliveryKey = getParam('deliveryKey');
+    var contentId   = getParam('contentId');
+    if (!deliveryKey && !contentId) {
+        jsonResponse({ ok: false, error: 'deliveryKey or contentId is required' });
+        return;
+    }
+    try {
+        var fetcher     = require('*/cartridge/scripts/migration/contentMigration/amplienceContentFetcher');
+        var transformer = require('*/cartridge/scripts/migration/contentMigration/amplienceContentTransformer');
+        // Prefer Management API by content id (works without published delivery key).
+        var fetched     = contentId
+            ? fetcher.fetchByContentId(contentId)
+            : fetcher.fetchByDeliveryKey(deliveryKey);
+        var widget      = transformer.transformFetchedContent(fetched);
+        jsonResponse({
+            ok:      true,
+            fetched: {
+                deliveryKey:    fetched.deliveryKey || '',
+                contentId:      fetched.contentId || '',
+                hasDeliveryKey: !!fetched.hasDeliveryKey,
+                hubName:        fetched.hubName,
+                cdnUrl:         fetched.cdnUrl || '',
+                source:         fetched.source || ''
+            },
+            widget: widget
+        });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.FetchAmplienceContent.public = true;
+
+exports.ExportAmplienceContent = function () {
+    response.setContentType('application/json');
+    var deliveryKey = getParam('deliveryKey');
+    var contentId   = getParam('contentId');
+    if (!deliveryKey && !contentId) {
+        jsonResponse({ ok: false, error: 'deliveryKey or contentId is required' });
+        return;
+    }
+    try {
+        var runner = require('*/cartridge/scripts/migration/contentMigration/contentMigrationRunner');
+        // Prefer content id so unpublished / keyless items still export to library XML.
+        var result = contentId
+            ? runner.exportByContentIds(contentId)
+            : runner.exportByDeliveryKeys(deliveryKey);
+        jsonResponse(result);
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.ExportAmplienceContent.public = true;
+
+/**
+ * GET: fileName=<name> — streams content library XML from IMPEX as a download.
+ */
+exports.DownloadContentXml = function () {
+    var fileName = getParam('fileName') || '';
+    if (!fileName || !/^[a-zA-Z0-9_\-]+\.xml$/.test(fileName)) {
+        response.setContentType('text/plain');
+        response.writer.print('Invalid or missing fileName parameter.');
+        return;
+    }
+    var File       = require('dw/io/File');
+    var FileReader = require('dw/io/FileReader');
+    var sep        = File.SEPARATOR;
+    var file       = new File(File.IMPEX + sep + 'src' + sep + 'migration' + sep + 'content' + sep + fileName);
+    if (!file.exists()) {
+        response.setContentType('text/plain');
+        response.writer.print('File not found: ' + fileName);
+        return;
+    }
+    response.setContentType('application/xml');
+    response.addHttpHeader('Content-Disposition', 'attachment; filename="' + fileName + '"');
+    var reader = new FileReader(file, 'UTF-8');
+    try {
+        var line;
+        while ((line = reader.readLine()) !== null) {
+            response.writer.println(line);
+        }
+    } finally {
+        reader.close();
+    }
+};
+exports.DownloadContentXml.public = true;
 

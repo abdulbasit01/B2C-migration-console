@@ -141,6 +141,23 @@ var PLATFORMS = [
         ]
     },
     {
+        id:          'amplience',
+        name:        'Amplience',
+        tagline:     'Headless CMS, Dynamic Content',
+        status:      'ready',
+        kind:        'cms',
+        confidence:  90,
+        featured:    false,
+        description: 'Retrieve Amplience static content and map it to Salesforce B2C Commerce Page Designer widgets for headless storefront display.',
+        iconClass:   'platform-icon--amplience',
+        connectHint: 'Hub name from Settings → Properties. Auth: create a Personal Access Token under Development → Personal Access Tokens in Dynamic Content.',
+        connectFields: [
+            { name: 'hubName',             label: 'Hub name',              type: 'text',     required: true,  value: '', placeholder: 'my-brand' },
+            { name: 'personalAccessToken', label: 'Personal Access Token', type: 'password', required: true,  value: '', placeholder: 'amp_pat_...' },
+            { name: 'defaultDeliveryKey',  label: 'Default delivery key',  type: 'text',     required: false, value: '', placeholder: 'home-banner' }
+        ]
+    },
+    {
         id:          'bigcommerce',
         name:        'BigCommerce',
         tagline:     'B2C Edition, Multi-store',
@@ -203,6 +220,7 @@ function withCredentials(platform) {
         name:          platform.name,
         tagline:       platform.tagline,
         status:        platform.status,
+        kind:          platform.kind || 'commerce',
         confidence:    platform.confidence,
         featured:      platform.featured,
         description:   platform.description,

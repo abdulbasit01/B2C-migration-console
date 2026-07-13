@@ -22,7 +22,8 @@
  */
 var connectors = {
     'commercetools': require('*/cartridge/scripts/migration/connectors/ctp/ctpConnector'),
-    'shopify':       require('*/cartridge/scripts/migration/connectors/shopify/shopifyConnector')
+    'shopify':       require('*/cartridge/scripts/migration/connectors/shopify/shopifyConnector'),
+    'amplience':     require('*/cartridge/scripts/migration/connectors/amplience/amplienceConnector')
 };
 
 /**
