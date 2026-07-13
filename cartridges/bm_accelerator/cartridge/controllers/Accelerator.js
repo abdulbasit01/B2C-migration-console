@@ -2763,7 +2763,18 @@ function getCategoryMigrationJS() {
     L.push('};');
 
     L.push('function a(k,v){return " "+k+"="+String.fromCharCode(34)+v+String.fromCharCode(34);}');
-    L.push('_APP.onExportChange=function(catId,val){_APP.selectedForExport[catId]=val;};');
+    L.push('_APP.onExportChange=function(catId,val){');
+    L.push('  _APP.selectedForExport[catId]=val;');
+    L.push('  if(val){');
+    L.push('    var pid=_APP.effectiveParentId(catId);');
+    L.push('    while(pid&&pid!=="root"){');
+    L.push('      _APP.selectedForExport[pid]=true;');
+    L.push('      var pCb=document.querySelector(".cat-export-cb[data-catid=\'"+pid+"\']");');
+    L.push('      if(pCb)pCb.checked=true;');
+    L.push('      pid=_APP.effectiveParentId(pid);');
+    L.push('    }');
+    L.push('  }');
+    L.push('};');
     L.push('_APP.selectAllExport=function(){');
     L.push('  if(!_APP.allCategories)return;');
     L.push('  var hasProdData=Object.keys(_APP.productCounts||{}).length>0;');
