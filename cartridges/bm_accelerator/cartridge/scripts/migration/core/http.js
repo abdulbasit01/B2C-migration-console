@@ -23,7 +23,10 @@ function send(method, url, headers, body) {
     var data = {};
     try { data = JSON.parse(text || '{}'); } catch (e) { /* leave as empty object */ }
 
-    return { status: client.getStatusCode(), data: data, text: text };
+    var link = null;
+    try { link = client.getResponseHeader('Link'); } catch (he) { /* header not present */ }
+
+    return { status: client.getStatusCode(), data: data, text: text, link: link };
 }
 
 function get(url, headers) {
