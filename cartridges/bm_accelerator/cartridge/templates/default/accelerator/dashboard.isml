@@ -19,6 +19,26 @@
         </section>
 
 
+        <section class="acc-section" style="margin-top:1.5rem;">
+            <header class="acc-section__head">
+                <h2>Configuration</h2>
+            </header>
+            <div class="acc-cards">
+                <div class="acc-card" style="max-width:320px;">
+                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+                        <span style="width:36px;height:36px;border-radius:50%;background:#96bf48;display:flex;align-items:center;justify-content:center;color:#fff;font-size:1rem;font-weight:700;">S</span>
+                        <strong style="font-size:1rem;color:#16325c;">Shopify</strong>
+                    </div>
+                    <p style="font-size:0.85rem;color:#54698d;margin-bottom:12px;">
+                        Save your Shopify Admin API credentials. These persist across sessions and are used for all Shopify migration tasks.
+                    </p>
+                    <a href="${pdict.shopifyConfigUrl}" class="acc-btn acc-btn--primary" style="display:inline-block;text-decoration:none;">
+                        Configure Shopify
+                    </a>
+                </div>
+            </div>
+        </section>
+
         <iscomment> <button type="button" class="acc-fab" disabled="disabled" title="AI Migration Advisor (demo)">
             AI Migration Advisor
         </button> </iscomment>

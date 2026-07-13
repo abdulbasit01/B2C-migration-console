@@ -22,16 +22,6 @@
         },
         "Category": {
             "title": { "sfccField": "displayName", "action": "flag" }
-        },
-        "Customer": {
-            "email":      { "sfccField": "email",     "action": "skip" },
-            "first_name": { "sfccField": "firstName", "action": "skip" },
-            "last_name":  { "sfccField": "lastName",  "action": "skip" },
-            "phone":      {
-                "sfccField": "phoneMobile",
-                "action": "skip",
-                "note": "SFCC Profile already has native phone fields (phoneHome, phoneBusiness, phoneMobile, fax) — this maps to phoneMobile instead of a new custom attribute."
-            }
         }
     }
 }

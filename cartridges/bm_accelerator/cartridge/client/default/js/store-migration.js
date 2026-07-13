@@ -1,19 +1,32 @@
 /**
- * Store migration — selectable CTP /stores export to SFCC IMPEX.
+ * Store migration — selectable source stores/locations export to SFCC IMPEX.
  */
 (function () {
     'use strict';
 
+    function readUi(root) {
+        if (window.AccAttrPreflight && window.AccAttrPreflight.readMigrationUi) {
+            var fromJson = window.AccAttrPreflight.readMigrationUi();
+            if (fromJson && fromJson.sourceShort) return fromJson;
+        }
+        if (!root) return {};
+        try {
+            var raw = root.getAttribute('data-migration-ui');
+            return raw ? JSON.parse(raw) : {};
+        } catch (e) { return {}; }
+    }
+
     function readCfg() {
         var root = document.getElementById('acc-st-root');
-        if (!root) return {};
+        if (!root) return { ui: {} };
         return {
             fullBatchUrl:       root.getAttribute('data-full-batch-url') || '',
             listStoresUrl:      root.getAttribute('data-list-stores-url') || '',
             checkAttrsUrl:      root.getAttribute('data-check-attrs-url') || '',
             createAttrsUrl:     root.getAttribute('data-create-attrs-url') || '',
             dataWizardEntryUrl: root.getAttribute('data-wizard-entry-url') || '',
-            impexPath:          root.getAttribute('data-impex-path') || ''
+            impexPath:          root.getAttribute('data-impex-path') || '',
+            ui:                 readUi(root)
         };
     }
 
@@ -84,6 +97,7 @@
 
     function boot() {
         var cfg = readCfg();
+        var ui  = cfg.ui || {};
         var loadingEl = document.getElementById('acc-st-loading');
         var errorEl = document.getElementById('acc-st-error');
         var tableWrap = document.getElementById('acc-st-table-wrap');
@@ -159,7 +173,7 @@
             if (!ctpStores.length) {
                 if (errorEl) {
                     errorEl.style.display = 'block';
-                    errorEl.textContent = 'No stores found in commercetools. Create stores in CTP Merchant Center.';
+                    errorEl.textContent = ui.noStores || 'No stores found.';
                 }
                 if (tableWrap) tableWrap.style.display = 'none';
                 if (fileWrap) fileWrap.style.display = 'none';
@@ -239,7 +253,9 @@
 
             if (loadingEl) {
                 loadingEl.style.display = 'block';
-                loadingEl.textContent = fromUserClick ? 'Reloading...' : 'Loading stores from commercetools...';
+                loadingEl.textContent = fromUserClick
+                    ? (ui.reloadingStores || 'Reloading...')
+                    : (ui.loadingStores || 'Loading stores...');
             }
             if (errorEl) errorEl.style.display = 'none';
             if (tableWrap) tableWrap.style.display = 'none';
@@ -275,17 +291,19 @@
             attrResults.innerHTML = '';
             attrResults.style.display = 'block';
             if (!missing.length) {
-                attrResults.innerHTML = '<p style="color:#2e7d32;font-size:13px;margin:0;">All CTP store attributes already exist in SFCC.</p>';
+                attrResults.innerHTML = '<p style="color:#2e7d32;font-size:13px;margin:0;">' + (ui.allAttrsExist || 'All attributes already exist in SFCC.') + '</p>';
                 return;
             }
             if (!window.AccAttrPreflight) {
                 attrResults.innerHTML = '<p style="color:#c62828;font-size:13px;margin:0;">Attribute helper script failed to load.</p>';
                 return;
             }
-            var html = '<p style="font-size:13px;color:#54698d;margin:0 0 10px;">' + missing.length + ' attribute(s) missing in SFCC:</p>';
+            var html = '<p style="font-size:13px;color:#54698d;margin:0 0 10px;">'
+                + (window.AccAttrPreflight ? window.AccAttrPreflight.missingCountLabel(ui, missing.length) : missing.length + (ui.attrsMissingCount || ' attribute(s) missing in SFCC:'))
+                + '</p>';
             html += '<div style="border:1px solid #e0e5ee;border-radius:4px;overflow:hidden;"><table class="cm-attr-table"><thead><tr>'
                 + '<th style="width:36px;"><input type="checkbox" id="acc-attr-select-all" checked/></th>'
-                + '<th>Attribute ID</th><th>Label</th><th>CTP Type</th><th>SFCC Type</th></tr></thead><tbody>';
+                + '<th>Attribute ID</th><th>Label</th><th>' + (ui.sourceTypeCol || 'Source Type') + '</th><th>SFCC Type</th></tr></thead><tbody>';
             var i;
             for (i = 0; i < missing.length; i++) {
                 var m = missing[i];
@@ -353,7 +371,8 @@
                 }
                 if (modalAttrList) {
                     modalAttrList.innerHTML = '<p style="font-size:13px;color:#54698d;">'
-                        + data.missing.length + ' attribute(s) missing.</p>';
+                        + (window.AccAttrPreflight ? window.AccAttrPreflight.missingBriefLabel(ui, data.missing.length) : data.missing.length + (ui.attrsMissingBrief || ' attribute(s) missing.'))
+                        + '</p>';
                 }
                 modalCallback = onContinue;
                 if (preflightModal) preflightModal.style.display = 'flex';
@@ -430,7 +449,7 @@
 
         if (loadingEl) {
             loadingEl.style.display = 'block';
-            loadingEl.textContent = 'Click Load Stores to fetch stores from commercetools.';
+            loadingEl.textContent = ui.loadStoresHint || 'Click Load Stores to fetch stores.';
         }
         if (tableWrap) tableWrap.style.display = 'none';
         if (fileWrap) fileWrap.style.display = 'none';
@@ -438,11 +457,11 @@
         if (checkAttrsBtn) {
             checkAttrsBtn.addEventListener('click', function () {
                 checkAttrsBtn.disabled = true;
-                checkAttrsBtn.textContent = 'Checking...';
+                checkAttrsBtn.textContent = ui.attrCheckingBtn || 'Checking...';
                 if (attrCheckMsg) attrCheckMsg.textContent = '';
                 get(cfg.checkAttrsUrl, function (data) {
                     checkAttrsBtn.disabled = false;
-                    checkAttrsBtn.textContent = 'Re-check';
+                    checkAttrsBtn.textContent = ui.attrRecheckBtn || 'Re-check';
                     if (!data.ok) {
                         if (attrCheckMsg) {
                             attrCheckMsg.textContent = 'Error: ' + (data.error || 'Check failed');
@@ -452,7 +471,9 @@
                     }
                     pendingMissing = data.missing || [];
                     if (attrCheckMsg) {
-                        attrCheckMsg.textContent = pendingMissing.length ? pendingMissing.length + ' missing.' : 'All in sync.';
+                        attrCheckMsg.textContent = pendingMissing.length
+                            ? pendingMissing.length + (ui.attrsMissingBrief || ' missing.')
+                            : (ui.attrsAllInSync || 'All in sync.');
                         attrCheckMsg.style.color = pendingMissing.length ? '#e65100' : '#2e7d32';
                     }
                     renderAttrResults(pendingMissing);
@@ -491,7 +512,7 @@
                 if (fullRunning) return;
                 fullFinished = false;
                 startBtn.disabled = true;
-                startBtn.textContent = 'Checking attributes...';
+                startBtn.textContent = ui.checkingAttrs || 'Checking attributes...';
                 runPreflightThenMigrate(beginMigration);
             });
         }

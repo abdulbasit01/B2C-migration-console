@@ -1,6 +1,8 @@
 'use strict';
 
-var fetcher = require('*/cartridge/scripts/migration/storeMigration/ctpStoreFetcher');
+var registry = require('*/cartridge/scripts/migration/core/dataSourceRegistry');
+var sourceAttrIds = require('*/cartridge/scripts/migration/core/sourceAttrIds');
+var fetcher  = registry.getFetcher('store');
 
 function getLocalized(obj) {
     return fetcher.getLocalized(obj);
@@ -49,15 +51,16 @@ function firstCountry(store) {
 }
 
 function buildCustomAttributes(storeId, country, store, channel) {
-    var attrs = {
+    var prefix = sourceAttrIds.getPrefix(registry.getPlatformId());
+    var attrs  = {
         countryCodeValue: country || '',
-        inventoryListId:  'inventory_m_store_' + storeId,
-        ctpStoreId:       (store && store.id) ? store.id : '',
-        ctpStoreKey:      (store && store.key) ? store.key : ''
+        inventoryListId:  'inventory_m_store_' + storeId
     };
+    attrs[prefix + 'StoreId']  = (store && store.id) ? store.id : '';
+    attrs[prefix + 'StoreKey']  = (store && store.key) ? store.key : '';
     if (channel) {
-        attrs.ctpChannelId  = channel.id || '';
-        attrs.ctpChannelKey = channel.key || '';
+        attrs[prefix + 'ChannelId']  = channel.id || '';
+        attrs[prefix + 'ChannelKey'] = channel.key || '';
     }
     return attrs;
 }

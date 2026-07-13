@@ -6,10 +6,10 @@
  */
 module.exports = {
     shopify: {
-        storeUrl:     '',
-        clientId:     '',
-        clientSecret: '',
-        apiVersion:   '2025-01'
+        storeUrl:     'https://sfcc-migration-dev-store.myshopify.com/',
+        clientId:     '80dbef0316a5176b9399ed7aeb240717',
+        clientSecret: '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',
+        apiVersion:   '2026-07'
     },
     ctp: {
         projectKey:   'royal-cyber-b2c-accelerator-wd',
@@ -20,8 +20,8 @@ module.exports = {
     },
     sfcc: {
         bmClientId:      'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-        version:         'v25_6',
-        metaVersion:     'v25_6',
+        version:         'v20_10',
+        metaVersion:     'v20_10',
         catalogId:       'storefront-catalog-m-en',
         inventoryListId: 'migrated-inventory',
         customerListId:  ''

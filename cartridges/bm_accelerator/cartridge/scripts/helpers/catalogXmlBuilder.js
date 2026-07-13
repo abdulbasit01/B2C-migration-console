@@ -128,8 +128,8 @@ function buildCategoryXml(sfccCategory) {
     // 2. description
     xml += buildLocalizedElement('description', sfccCategory.description);
 
-    // 3. parent
-    if (sfccCategory.parentId && sfccCategory.parentId !== 'root') {
+    // 3. parent — always write, including 'root' so SFCC places top-level cats correctly
+    if (sfccCategory.parentId) {
         xml += '        <parent>' + escapeXml(sfccCategory.parentId) + '</parent>\n';
     }
 
@@ -180,24 +180,25 @@ function buildCategoryXml(sfccCategory) {
         xml += '        </page-attributes>\n';
     }
 
-    // 6. custom-attributes
-    var ctSlug = sfccCategory.customAttributes && sfccCategory.customAttributes.ctSlug;
-    var ctId   = sfccCategory.customAttributes && sfccCategory.customAttributes.ctId;
-    if (ctSlug || ctId || sfccCategory.position !== undefined) {
+    // 6. custom-attributes — keys are dynamic (may be renamed by user in Step 1)
+    var ca     = sfccCategory.customAttributes || {};
+    var caKeys = Object.keys(ca);
+    if (caKeys.length > 0) {
         xml += '        <custom-attributes>\n';
-        if (ctSlug) {
-            xml += '            <custom-attribute attribute-id="ctSlug">'
-                + escapeXml(ctSlug) + '</custom-attribute>\n';
-        }
-        if (ctId) {
-            xml += '            <custom-attribute attribute-id="ctId">'
-                + escapeXml(ctId) + '</custom-attribute>\n';
-        }
-        if (sfccCategory.position !== undefined) {
-            xml += '            <custom-attribute attribute-id="ctPosition">'
-                + parseFloat(sfccCategory.position).toFixed(1)
-                + '</custom-attribute>\n';
-        }
+        caKeys.forEach(function (key) {
+            var val = ca[key];
+            if (val === null || val === undefined) return;
+            var valStr;
+            if (typeof val === 'boolean') {
+                valStr = val ? 'true' : 'false';
+            } else if (typeof val === 'number') {
+                valStr = String(val);
+            } else {
+                valStr = escapeXml(String(val));
+            }
+            xml += '            <custom-attribute attribute-id="' + escapeXml(key) + '">'
+                + valStr + '</custom-attribute>\n';
+        });
         xml += '        </custom-attributes>\n';
     }
 
@@ -209,11 +210,6 @@ function buildCatalogXml(catalogId, sfccCategories) {
     var xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
     xml += '<catalog xmlns="http://www.demandware.com/xml/impex/catalog/2006-10-31"\n';
     xml += '         catalog-id="' + escapeXml(catalogId) + '">\n\n';
-
-    // Root category — required by SFCC, must come first
-    xml += '    <category category-id="root">\n';
-    xml += '        <display-name xml:lang="x-default">Root</display-name>\n';
-    xml += '    </category>\n\n';
 
     sfccCategories.forEach(function (cat) {
         xml += buildCategoryXml(cat);

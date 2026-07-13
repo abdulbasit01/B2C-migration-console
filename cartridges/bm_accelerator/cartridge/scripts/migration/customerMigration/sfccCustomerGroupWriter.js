@@ -63,20 +63,18 @@ function ensureGroup(groupId, groupName) {
  *
  * @param {string} customerNo - SFCC customer number
  * @param {string} groupId    - SFCC customer group ID (same as CTP group ID)
- * @param {string} [siteId]   - SFCC site ID (e.g. "RefArch"); defaults to the current site
+ * @param {string} siteId     - SFCC site ID (e.g. "RefArch")
  * @returns {{ ok: boolean, error: string|null }}
  */
 function assignCustomerToGroup(customerNo, groupId, siteId) {
     try {
         var sfccClient = require('*/cartridge/scripts/migration/sfccClient');
-        var Site       = require('dw/system/Site');
         var token      = sfccClient.getSFCCToken();
         var settings   = sfccClient.getSFCCSettings();
-        var resolvedSiteId = siteId || Site.getCurrent().getID();
 
         var url = settings.baseUrl
             + '/s/-/dw/data/' + settings.metaVersion
-            + '/sites/' + encodeURIComponent(resolvedSiteId)
+            + '/sites/' + encodeURIComponent(siteId)
             + '/customer_groups/' + encodeURIComponent(groupId)
             + '/members/' + encodeURIComponent(customerNo)
             + '?client_id=' + encodeURIComponent(settings.bmClientId);
@@ -97,31 +95,6 @@ function assignCustomerToGroup(customerNo, groupId, siteId) {
     } catch (e) {
         return { ok: false, error: e.message || String(e) };
     }
-}
-
-/**
- * Assign an SFCC customer to multiple customer groups.
- * @param {string} customerNo
- * @param {Array<string>} groupIds
- * @param {string} [siteId]
- * @returns {{ ok: boolean, assigned: number, failed: number, errors: Array<string> }}
- */
-function assignCustomerToGroups(customerNo, groupIds, siteId) {
-    var assigned = 0;
-    var failed   = 0;
-    var errors   = [];
-
-    for (var i = 0; i < (groupIds || []).length; i++) {
-        var result = assignCustomerToGroup(customerNo, groupIds[i], siteId);
-        if (result.ok) {
-            assigned++;
-        } else {
-            failed++;
-            if (errors.length < 5) errors.push(groupIds[i] + ': ' + result.error);
-        }
-    }
-
-    return { ok: failed === 0, assigned: assigned, failed: failed, errors: errors };
 }
 
 /**
@@ -151,9 +124,4 @@ function ensureGroups(groups) {
     return { created: created, skipped: skipped, failed: failed, errors: errors };
 }
 
-module.exports = {
-    ensureGroup:            ensureGroup,
-    ensureGroups:           ensureGroups,
-    assignCustomerToGroup:  assignCustomerToGroup,
-    assignCustomerToGroups: assignCustomerToGroups
-};
+module.exports = { ensureGroup: ensureGroup, ensureGroups: ensureGroups, assignCustomerToGroup: assignCustomerToGroup };

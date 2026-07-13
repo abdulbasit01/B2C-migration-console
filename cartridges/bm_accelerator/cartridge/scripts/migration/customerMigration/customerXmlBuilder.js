@@ -44,7 +44,7 @@ function buildCustomerXml(ctpCustomer) {
 
     xml += '        <credentials>\n';
     xml += '            <login>' + login + '</login>\n';
-    xml += '            <password encrypted="false">' + xmlEsc(password) + '</password>\n';
+    xml += '            <password encryption="none">' + xmlEsc(password) + '</password>\n';
     xml += '        </credentials>\n';
 
     xml += '        <profile>\n';
@@ -54,20 +54,19 @@ function buildCustomerXml(ctpCustomer) {
     if (profile.email)        xml += '            <email>'        + xmlEsc(profile.email)        + '</email>\n';
     if (profile.company_name) xml += '            <company-name>' + xmlEsc(profile.company_name) + '</company-name>\n';
     if (profile.birthday)     xml += '            <birthday>'     + xmlEsc(profile.birthday)     + '</birthday>\n';
-
-    // custom-attributes belongs to the Profile system object — nested inside <profile>, last child
-    xml += '            <custom-attributes>\n';
-    xml += '                <custom-attribute attribute-id="ctp_customer_id">' + xmlEsc(profile.c_ctp_customer_id) + '</custom-attribute>\n';
-    if (profile.c_ctp_customer_number) {
-        xml += '                <custom-attribute attribute-id="ctp_customer_number">' + xmlEsc(profile.c_ctp_customer_number) + '</custom-attribute>\n';
-        xml += '                <custom-attribute attribute-id="CTCustomerId">' + xmlEsc(profile.c_ctp_customer_number) + '</custom-attribute>\n';
-    }
-    if (profile.c_ctp_external_id)  xml += '                <custom-attribute attribute-id="ctp_external_id">'  + xmlEsc(profile.c_ctp_external_id)  + '</custom-attribute>\n';
-    if (profile.c_ctp_vat_id)       xml += '                <custom-attribute attribute-id="ctp_vat_id">'       + xmlEsc(profile.c_ctp_vat_id)       + '</custom-attribute>\n';
-    if (profile.c_ctp_locale)       xml += '                <custom-attribute attribute-id="ctp_locale">'       + xmlEsc(profile.c_ctp_locale)       + '</custom-attribute>\n';
-    if (profile.c_ctp_middle_name)  xml += '                <custom-attribute attribute-id="ctp_middle_name">'  + xmlEsc(profile.c_ctp_middle_name)  + '</custom-attribute>\n';
-    xml += '            </custom-attributes>\n';
     xml += '        </profile>\n';
+
+    xml += '        <custom-attributes>\n';
+    xml += '            <custom-attribute attribute-id="ctp_customer_id">' + xmlEsc(profile.c_ctp_customer_id) + '</custom-attribute>\n';
+    if (profile.c_ctp_customer_number) {
+        xml += '            <custom-attribute attribute-id="ctp_customer_number">' + xmlEsc(profile.c_ctp_customer_number) + '</custom-attribute>\n';
+        xml += '            <custom-attribute attribute-id="CTCustomerId">' + xmlEsc(profile.c_ctp_customer_number) + '</custom-attribute>\n';
+    }
+    if (profile.c_ctp_external_id)  xml += '            <custom-attribute attribute-id="ctp_external_id">'  + xmlEsc(profile.c_ctp_external_id)  + '</custom-attribute>\n';
+    if (profile.c_ctp_vat_id)       xml += '            <custom-attribute attribute-id="ctp_vat_id">'       + xmlEsc(profile.c_ctp_vat_id)       + '</custom-attribute>\n';
+    if (profile.c_ctp_locale)       xml += '            <custom-attribute attribute-id="ctp_locale">'       + xmlEsc(profile.c_ctp_locale)       + '</custom-attribute>\n';
+    if (profile.c_ctp_middle_name)  xml += '            <custom-attribute attribute-id="ctp_middle_name">'  + xmlEsc(profile.c_ctp_middle_name)  + '</custom-attribute>\n';
+    xml += '        </custom-attributes>\n';
 
     if (addresses.length > 0) {
         xml += '        <addresses>\n';
@@ -135,10 +134,8 @@ function buildXml(ctpCustomers) {
 }
 
 module.exports = {
-    buildXml:              buildXml,
+    buildXml:             buildXml,
     buildCustomerFragment: buildCustomerFragment,
-    buildAddressXml:       buildAddressXml,
-    xmlEsc:                xmlEsc,
-    XML_HEADER:            XML_HEADER,
-    XML_FOOTER:            XML_FOOTER
+    XML_HEADER:           XML_HEADER,
+    XML_FOOTER:           XML_FOOTER
 };

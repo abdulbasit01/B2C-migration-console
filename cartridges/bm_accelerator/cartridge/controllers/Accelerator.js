@@ -80,14 +80,54 @@ function getParam(name) {
  * @returns {string} platform ID
  */
 function resolvePlatform() {
-    return getParam('platform') || String(session.custom.migrationPlatformId || 'commercetools');
+    var registry = require('*/cartridge/scripts/migration/core/dataSourceRegistry');
+    return getParam('platform') || registry.getPlatformId();
 }
 
 /**
- * @returns {boolean} whether data migration connection was verified in this session
+ * Resolve the data-source fetcher for the active migration platform.
+ * @param {string} moduleKey
+ * @returns {Object}
  */
-function isDataMigrationConnected() {
-    return dataMigrationSession.isConnected();
+function getMigrationFetcher(moduleKey) {
+    var registry = require('*/cartridge/scripts/migration/core/dataSourceRegistry');
+    return registry.getFetcher(moduleKey);
+}
+
+/**
+ * @param {string} [platformId]
+ * @returns {boolean} whether data migration connection was verified for this platform
+ */
+function isDataMigrationConnected(platformId) {
+    var pid = platformId || resolvePlatform();
+    return dataMigrationSession.isConnected(pid);
+}
+
+/**
+ * Platform tiles on the dashboard — attach data-wizard connection + logout URL.
+ * @returns {Array}
+ */
+function platformsForDashboard() {
+    var platforms = migrationData.getPlatforms();
+    var result    = [];
+    var i;
+    var p;
+    var enriched;
+    var keys;
+    var k;
+
+    for (i = 0; i < platforms.length; i++) {
+        p = platforms[i];
+        enriched = {};
+        keys = Object.keys(p);
+        for (k = 0; k < keys.length; k++) {
+            enriched[keys[k]] = p[keys[k]];
+        }
+        enriched.dataConnected = dataMigrationSession.isConnected(p.id);
+        enriched.logoutUrl     = URLUtils.url('Accelerator-DataMigrationLogout', 'platform', p.id).toString();
+        result.push(enriched);
+    }
+    return result;
 }
 
 /**
@@ -97,10 +137,15 @@ function isDataMigrationConnected() {
  * @returns {Object}
  */
 function migrationPageContext(platformId, moduleKey) {
-    var migPaths = require('*/cartridge/scripts/migration/core/migrationPaths');
-    var bmLinks  = require('*/cartridge/scripts/accelerator/bmLinks');
+    var migPaths  = require('*/cartridge/scripts/migration/core/migrationPaths');
+    var bmLinks   = require('*/cartridge/scripts/accelerator/bmLinks');
+    var registry  = require('*/cartridge/scripts/migration/core/dataSourceRegistry');
     var impexPath = migPaths.getRelativePath(moduleKey);
     return {
+        platformId:         platformId,
+        sourceLabel:        registry.getSourceLabel(platformId),
+        migrationUi:        migrationData.getMigrationUi(platformId),
+        migrationUiJson:    migrationData.getMigrationUiJson(platformId),
         impexPath:          impexPath,
         impexUrl:           bmLinks.getImpexFolderUrl(impexPath),
         dataWizardEntryUrl: dataMigrationSession.dataWizardUrl(platformId),
@@ -141,7 +186,11 @@ function buildConnectionCreds(platformId) {
         creds.apiUrl       = creds.apiUrl  || cfg.ctp.apiUrl  || 'https://api.us-central1.gcp.commercetools.com';
         creds.projectKey   = creds.projectKey || cfg.ctp.projectKey || '';
     } else if (platformId === 'shopify') {
+        creds.storeUrl     = creds.storeUrl     || cfg.shopify.storeUrl     || '';
+        creds.clientId     = creds.clientId     || cfg.shopify.clientId     || '';
+        creds.apiVersion   = creds.apiVersion   || cfg.shopify.apiVersion   || '2025-01';
         creds.clientSecret = resolveSecret('clientSecret', cfg.shopify.clientSecret);
+        creds.accessToken  = resolveSecret('accessToken', cfg.shopify.accessToken || '');
     }
 
     return creds;
@@ -214,7 +263,8 @@ exports.TestConnection = function () {
             session.custom.shopifyStoreUrl     = creds.storeUrl     || '';
             session.custom.shopifyClientId     = creds.clientId     || '';
             session.custom.shopifyClientSecret = creds.clientSecret || '';
-            session.custom.shopifyApiVersion   = creds.apiVersion   || '2025-01';
+            session.custom.shopifyAccessToken  = creds.accessToken  || '';
+            session.custom.shopifyApiVersion   = creds.apiVersion   || '2026-07';
         }
         if (getParam('mode') === 'data') {
             dataMigrationSession.markConnected(platformId, result.expiresIn);
@@ -367,7 +417,7 @@ exports.Start = function () {
     ISML.renderTemplate('accelerator/dashboard', withBmFrame({
         title:                     Resource.msg('accelerator.title', 'accelerator', null),
         subtitle:                  Resource.msg('accelerator.subtitle', 'accelerator', null),
-        platforms:                 migrationData.getPlatforms(),
+        platforms:                 platformsForDashboard(),
         wizardUrl:                 URLUtils.url('Accelerator-Wizard').toString(),
         dataWizardUrl:             URLUtils.url('Accelerator-DataWizard').toString(),
         dataMigrationDashboardUrl: URLUtils.url('Accelerator-DataMigrationDashboard').toString(),
@@ -384,20 +434,36 @@ exports.Start = function () {
         jsUrl: URLUtils.staticURL('/js/categoryMigration.js').toString(),
         fetchCatalogsUrl : URLUtils.url('Accelerator-FetchSFCCCatalogs').toString(),
         createCatalogUrl : URLUtils.url('Accelerator-CreateCatalog').toString(),
-        createCategoryUrl: URLUtils.url('Accelerator-CreateCategory').toString()
+        createCategoryUrl:  URLUtils.url('Accelerator-CreateCategory').toString(),
+        shopifyConfigUrl:   URLUtils.url('Accelerator-ShopifyConfig').toString()
     }));
 };
 exports.Start.public = true;
 
 /**
+ * Clear data-migration connection for a platform (logout from source).
+ * GET platform=commercetools|shopify
+ */
+exports.DataMigrationLogout = function () {
+    var platformId = getParam('platform') || getParam('platformId') || '';
+
+    if (platformId && dataMigrationSession.isConnected(platformId)) {
+        dataMigrationSession.clearConnection();
+    }
+
+    response.redirect(URLUtils.url('Accelerator-Start'));
+};
+exports.DataMigrationLogout.public = true;
+
+/**
  * Legacy entry — redirect into the data wizard (connect → select data).
  */
 exports.DataMigrationDashboard = function () {
-    var platformId = getParam('platform') || String(session.custom.migrationPlatformId || 'commercetools');
+    var platformId = resolvePlatform();
     response.redirect(URLUtils.url(
         'Accelerator-DataWizard',
         'platform', platformId,
-        'step', dataMigrationSession.connectOrSelectStep()
+        'step', dataMigrationSession.connectOrSelectStep(platformId)
     ));
 };
 exports.DataMigrationDashboard.public = true;
@@ -406,13 +472,13 @@ exports.DataMigrationDashboard.public = true;
  * Order migration page — single-page flow like inventory and pricebook.
  */
 exports.OrderMigration = function () {
-    var platformId = String(session.custom.migrationPlatformId || 'commercetools');
+    var platformId = resolvePlatform();
 
-    if (!isDataMigrationConnected()) {
+    if (!isDataMigrationConnected(platformId)) {
         response.redirect(URLUtils.url(
             'Accelerator-DataWizard',
             'platform', platformId,
-            'step', dataMigrationSession.connectOrSelectStep()
+            'step', dataMigrationSession.connectOrSelectStep(platformId)
         ));
         return;
     }
@@ -429,14 +495,18 @@ exports.OrderMigration = function () {
         dashboardUrl:        URLUtils.url('Accelerator-Start').toString(),
         dataWizardEntryUrl:  pageCtx.dataWizardEntryUrl,
         dataWizardSelectUrl: pageCtx.dataWizardSelectUrl,
+        platformId:          pageCtx.platformId,
+        sourceLabel:         pageCtx.sourceLabel,
+        migrationUi:         pageCtx.migrationUi,
+        migrationUiJson:     pageCtx.migrationUiJson,
         countUrl:            URLUtils.url('Accelerator-CountOrders').toString(),
         exportUrl:           URLUtils.url('Accelerator-ExportOrders').toString(),
         checkAttrsUrl:       URLUtils.url('Accelerator-CheckOrderAttributes').toString(),
         createAttrsUrl:      URLUtils.url('Accelerator-CreateOrderAttributes').toString(),
         impexUrl:            pageCtx.impexUrl,
         jobsUrl:             jobsUrl,
-        orderStateFilters:   migrationData.getCtpOrderStateFilters(),
-        paymentStateFilters: migrationData.getCtpPaymentStateFilters(),
+        orderStateFilters:   migrationData.getOrderStateFilters(platformId),
+        paymentStateFilters: migrationData.getPaymentStateFilters(platformId),
         cssUrl:              URLUtils.staticURL('/css/accelerator-migration.css').toString(),
         attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString(),
         orderMigrationJsUrl: URLUtils.staticURL('/js/order-migration.js').toString() + '?v=1'
@@ -449,6 +519,7 @@ exports.OrderMigration.public = true;
  * POST: years=1|2|3&maxCount=optional&orderState=optional&paymentState=optional
  */
 exports.ExportOrders = function () {
+    var platformId   = resolvePlatform();
     var offset       = parseInt(getParam('offset') || '0', 10);
     var singleFile   = getParam('singleFile') !== 'false';
     var years        = parseInt(getParam('years') || String(session.custom.orderExportYears || '1'), 10);
@@ -462,7 +533,8 @@ exports.ExportOrders = function () {
         return;
     }
 
-    if (!migrationData.isValidCtpOrderState(orderState) || !migrationData.isValidCtpPaymentState(paymentState)) {
+    if (!migrationData.isValidOrderState(platformId, orderState)
+        || !migrationData.isValidPaymentState(platformId, paymentState)) {
         jsonResponse({ ok: false, error: 'Invalid order or payment state filter' });
         return;
     }
@@ -533,7 +605,9 @@ exports.ExportOrders.public = true;
  * POST: years=1|2|3&maxCount=optional&orderState=optional&paymentState=optional
  */
 exports.CountOrders = function () {
-    if (!isDataMigrationConnected()) {
+    var platformId = resolvePlatform();
+
+    if (!isDataMigrationConnected(platformId)) {
         jsonResponse({ ok: false, error: 'Not connected to source platform' });
         return;
     }
@@ -549,14 +623,15 @@ exports.CountOrders = function () {
         return;
     }
 
-    if (!migrationData.isValidCtpOrderState(orderState) || !migrationData.isValidCtpPaymentState(paymentState)) {
+    if (!migrationData.isValidOrderState(platformId, orderState)
+        || !migrationData.isValidPaymentState(platformId, paymentState)) {
         jsonResponse({ ok: false, error: 'Invalid order or payment state filter' });
         return;
     }
 
     try {
-        var ctpOrderConnector = require('*/cartridge/scripts/migration/orders/connectors/ctpOrderConnector');
-        var counts = ctpOrderConnector.countOrders({
+        var orderConnector = getMigrationFetcher('order');
+        var counts = orderConnector.countOrders({
             years:        years,
             maxCount:     maxCount,
             orderState:   orderState,
@@ -674,12 +749,12 @@ exports.DataWizard = function () {
 
     session.custom.migrationPlatformId = platformId;
 
-    if (currentStep === 1 && dataMigrationSession.isConnected()) {
+    if (currentStep === 1 && dataMigrationSession.isConnected(platformId)) {
         response.redirect(URLUtils.url('Accelerator-DataWizard', 'platform', platformId, 'step', '2'));
         return;
     }
 
-    if (currentStep > 1 && !isDataMigrationConnected()) {
+    if (currentStep > 1 && !dataMigrationSession.isConnected(platformId)) {
         response.redirect(URLUtils.url('Accelerator-DataWizard', 'platform', platformId, 'step', '1'));
         return;
     }
@@ -800,6 +875,8 @@ exports.DataWizard = function () {
         testConnectionUrl:   URLUtils.url('Accelerator-TestConnection').toString(),
         categoryMigrationUrl: URLUtils.url('Accelerator-CategoryMigration').toString(),
         dataWizardJsUrl:     URLUtils.staticURL('/js/data-wizard.js').toString() + '?v=4',
+        migrationUi:         migrationData.getMigrationUi(platformId),
+        migrationUiJson:     migrationData.getMigrationUiJson(platformId),
         cssUrl:              URLUtils.staticURL('/css/accelerator-migration.css').toString()
     }));
 };
@@ -828,7 +905,8 @@ exports.DataWizardContinue = function () {
             session.custom.shopifyStoreUrl     = creds.storeUrl     || '';
             session.custom.shopifyClientId     = creds.clientId     || '';
             session.custom.shopifyClientSecret = creds.clientSecret || '';
-            session.custom.shopifyApiVersion   = creds.apiVersion   || '2025-01';
+            session.custom.shopifyAccessToken  = creds.accessToken  || '';
+            session.custom.shopifyApiVersion   = creds.apiVersion   || '2026-07';
         }
 
         response.redirect(stepTwoUrl);
@@ -843,14 +921,14 @@ exports.DataWizardContinue.public = true;
  * Select a data type and advance into its migration steps.
  */
 exports.DataWizardSelectType = function () {
-    var platformId = getParam('platform') || String(session.custom.migrationPlatformId || 'commercetools');
+    var platformId = getParam('platform') || resolvePlatform();
     var typeId     = getParam('type');
 
-    if (!isDataMigrationConnected()) {
+    if (!isDataMigrationConnected(platformId)) {
         response.redirect(URLUtils.url(
             'Accelerator-DataWizard',
             'platform', platformId,
-            'step', dataMigrationSession.connectOrSelectStep()
+            'step', dataMigrationSession.connectOrSelectStep(platformId)
         ));
         return;
     }
@@ -892,7 +970,7 @@ exports.DataWizardSelectType = function () {
         return;
     }
     if (typeId === 'catalog') {
-        response.redirect(URLUtils.url('Accelerator-CategoryMigration'));
+        response.redirect(URLUtils.url('Accelerator-CategoryMigration', 'platform', platformId));
         return;
     }
     if (typeId === 'order') {
@@ -908,14 +986,14 @@ exports.DataWizardSelectType.public = true;
  * Placeholder for data migration flows not yet implemented.
  */
 exports.DataMigrationFlow = function () {
-    var platformId = getParam('platform') || String(session.custom.migrationPlatformId || 'commercetools');
+    var platformId = getParam('platform') || resolvePlatform();
     var typeId     = getParam('type');
 
-    if (!isDataMigrationConnected()) {
+    if (!isDataMigrationConnected(platformId)) {
         response.redirect(URLUtils.url(
             'Accelerator-DataWizard',
             'platform', platformId,
-            'step', dataMigrationSession.connectOrSelectStep()
+            'step', dataMigrationSession.connectOrSelectStep(platformId)
         ));
         return;
     }
@@ -984,24 +1062,13 @@ exports.Wizard = function () {
             var sfccToken3   = sfccClient3.getSFCCToken();
             var tasks3       = selectedTasks || connector.getDefaultTasks();
             var existing3    = {};
-            var sysAttrs3    = {};
-            // Customer-related native fields are split across two SFCC system objects:
-            // Customer (login/customerNo/account fields) and Profile (firstName/email/
-            // phoneMobile/etc.) — scan both when detecting native matches for Customer.
-            var NATIVE_DETECTION_OBJECTS = { Customer: ['Customer', 'Profile'] };
             for (var ti = 0; ti < tasks3.length; ti++) {
                 var tname = tasks3[ti];
                 if (SFCC_TASK_OBJECTS[tname]) {
                     existing3[tname] = sfccClient3.getExistingAttributeIds(sfccToken3, SFCC_TASK_OBJECTS[tname]);
-                    var detectObjs   = NATIVE_DETECTION_OBJECTS[tname] || [SFCC_TASK_OBJECTS[tname]];
-                    var mergedAttrs  = [];
-                    for (var doi = 0; doi < detectObjs.length; doi++) {
-                        mergedAttrs = mergedAttrs.concat(sfccClient3.getAttributeDefinitions(sfccToken3, detectObjs[doi]));
-                    }
-                    sysAttrs3[tname] = mergedAttrs;
                 }
             }
-            stepContent = connector.buildAiMapContent(selectedTasks, existing3, sysAttrs3);
+            stepContent = connector.buildAiMapContent(selectedTasks, existing3);
         } catch (e) {
             stepContent = {
                 titleSuffix: 'Schema field mapping',
@@ -1060,27 +1127,22 @@ exports.Wizard.public = true;
 exports.CustomerMigration = function () {
     var cfg2           = require('*/cartridge/scripts/migration/configAccessor');
     var customerListId = (cfg2.sfcc && cfg2.sfcc.customerListId) ? cfg2.sfcc.customerListId : '';
-    var platformId = String(session.custom.migrationPlatformId || 'commercetools');
-    var isShopify  = platformId === 'shopify';
+    var platformId = resolvePlatform();
     var pageCtx    = migrationPageContext(platformId, 'customer');
     var listsUrl   = URLUtils.url('Accelerator-GetCustomerLists').toString();
     ISML.renderTemplate('accelerator/customerMigration', withBmFrame({
         title:          Resource.msg('accelerator.title', 'accelerator', null),
         subtitle:       Resource.msg('accelerator.subtitle', 'accelerator', null),
-        platformId:     platformId,
-        isShopify:      isShopify,
-        platformLabel:  isShopify ? 'Shopify' : 'Commercetools',
-        sourceIdLabel:  isShopify ? 'Shopify Customer ID(s)' : 'Commercetools Customer UUID(s)',
-        sourceIdPlaceholder: isShopify ? 'e.g. 8474509455577, 8474509619417, ...' : 'e.g. a1b2c3d4-e5f6-7890-abcd-ef1234567890, ...',
-        sourceIdFormatNote:  isShopify
-            ? 'Enter the numeric Shopify customer ID(s) shown in the Shopify admin URL for each customer.'
-            : 'Enter the UUID(s) from the Commercetools platform (format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx).',
         customerListId: customerListId,
         dashboardUrl:   URLUtils.url('Accelerator-Start').toString(),
         impexPath:      pageCtx.impexPath,
         impexUrl:       pageCtx.impexUrl,
         dataWizardEntryUrl:  pageCtx.dataWizardEntryUrl,
         dataWizardSelectUrl: pageCtx.dataWizardSelectUrl,
+        platformId:          pageCtx.platformId,
+        sourceLabel:         pageCtx.sourceLabel,
+        migrationUi:         pageCtx.migrationUi,
+        migrationUiJson:     pageCtx.migrationUiJson,
         dataWizardEntryUrlJs: toJsLiteral(pageCtx.dataWizardEntryUrl),
         customerListsUrlJs:   toJsLiteral(listsUrl),
         presetListIdJs:       toJsLiteral(customerListId),
@@ -1141,15 +1203,11 @@ exports.GetCustomerLists = function () {
 exports.GetCustomerLists.public = true;
 
 /**
- * Fetch all customer groups from the source platform and return as JSON.
- * CTP: actual customer groups. Shopify: derived from distinct customer tags.
+ * Fetch all customer groups from CTP and return as JSON.
  */
 exports.FetchCtpCustomerGroups = function () {
     try {
-        // Shopify has no direct customer-group concept — groups are derived from customer tags instead.
-        var groupFetcher = (resolvePlatform() === 'shopify')
-            ? require('*/cartridge/scripts/migration/customerMigration/shopifyCustomerGroupFetcher')
-            : require('*/cartridge/scripts/migration/customerMigration/ctpCustomerGroupFetcher');
+        var groupFetcher = require('*/cartridge/scripts/migration/customerMigration/ctpCustomerGroupFetcher');
         jsonResponse({ ok: true, groups: groupFetcher.fetchGroups() });
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
@@ -1179,17 +1237,7 @@ exports.CreateSfccCustomerGroups.public = true;
  * GET — no params required.
  */
 exports.GetProductCatalogs = function () {
-    try {
-        var config  = require('*/cartridge/scripts/migration/config');
-        var result  = [];
-        var catId   = config.sfcc && config.sfcc.catalogId;
-        if (catId) {
-            result.push({ id: catId });
-        }
-        jsonResponse({ ok: true, catalogs: result });
-    } catch (e) {
-        jsonResponse({ ok: false, error: e.message || String(e) });
-    }
+    exports.FetchSFCCCatalogs();
 };
 exports.GetProductCatalogs.public = true;
 
@@ -1231,10 +1279,16 @@ exports.DownloadProductXml.public = true;
  * Response: { ok, attrs: [{ name, sfccId, label, ctpType }], savedSelection: [string]|null }
  */
 /**
- * GET — Returns CTP product types detected as Product Sets, with product count per type.
+ * GET — Returns product types detected as Product Sets, with product count per type.
+ * For Shopify, returns empty (set detection uses productType field at transform time).
  * Response: { ok, sets: [{ typeId, typeName, refAttrName, count }] }
  */
 exports.GetProductSetsInfo = function () {
+    var platform = String(session.custom.migrationPlatformId || 'commercetools');
+    if (platform === 'shopify') {
+        jsonResponse({ ok: true, sets: [], note: 'Shopify set/bundle detection uses the Product Type field at migration time.' });
+        return;
+    }
     try {
         var scanner = require('*/cartridge/scripts/migration/productMigration/ctpProductTypeScanner');
         jsonResponse({ ok: true, sets: scanner.getProductSetsSummary() });
@@ -1245,10 +1299,16 @@ exports.GetProductSetsInfo = function () {
 exports.GetProductSetsInfo.public = true;
 
 /**
- * GET — Returns CTP product types detected as Bundle Products, with product count per type.
+ * GET — Returns product types detected as Bundle Products, with product count per type.
+ * For Shopify, returns empty (bundle detection uses productType field at transform time).
  * Response: { ok, bundles: [{ typeId, typeName, refAttrName, quantityAttrName, count }] }
  */
 exports.GetBundleProductsInfo = function () {
+    var platform = String(session.custom.migrationPlatformId || 'commercetools');
+    if (platform === 'shopify') {
+        jsonResponse({ ok: true, bundles: [], note: 'Shopify set/bundle detection uses the Product Type field at migration time.' });
+        return;
+    }
     try {
         var scanner = require('*/cartridge/scripts/migration/productMigration/ctpProductTypeScanner');
         jsonResponse({ ok: true, bundles: scanner.getBundleProductsSummary() });
@@ -1259,6 +1319,12 @@ exports.GetBundleProductsInfo = function () {
 exports.GetBundleProductsInfo.public = true;
 
 exports.GetVariantAttrs = function () {
+    var platform = String(session.custom.migrationPlatformId || 'commercetools');
+    if (platform === 'shopify') {
+        // Shopify variant options are included automatically — no user selection needed
+        jsonResponse({ ok: true, attrs: [], savedSelection: null, shopify: true });
+        return;
+    }
     try {
         var checker    = require('*/cartridge/scripts/migration/productMigration/productAttrChecker');
         var sfccClient = require('*/cartridge/scripts/migration/sfccClient');
@@ -1373,9 +1439,7 @@ exports.SaveVariantAttrSelection.public = true;
  */
 exports.CheckCustomerAttributes = function () {
     try {
-        var checker = (resolvePlatform() === 'shopify')
-            ? require('*/cartridge/scripts/migration/customerMigration/shopifyCustomerAttrChecker')
-            : require('*/cartridge/scripts/migration/customerMigration/customerAttrChecker');
+        var checker = require('*/cartridge/scripts/migration/customerMigration/customerAttrChecker');
         jsonResponse({ ok: true, missing: checker.checkMissingAttributes() });
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
@@ -1399,9 +1463,7 @@ exports.CreateCustomerAttributes = function () {
         return;
     }
     try {
-        var checker2 = (resolvePlatform() === 'shopify')
-            ? require('*/cartridge/scripts/migration/customerMigration/shopifyCustomerAttrChecker')
-            : require('*/cartridge/scripts/migration/customerMigration/customerAttrChecker');
+        var checker2 = require('*/cartridge/scripts/migration/customerMigration/customerAttrChecker');
         jsonResponse({ ok: true, result: checker2.createAttributes(attrs) });
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
@@ -1436,11 +1498,8 @@ exports.DeleteCustomerAttribute.public = true;
  */
 exports.CustomerMigrationCount = function () {
     try {
-        var platform = resolvePlatform();
-        var countFetcher = (platform === 'shopify')
-            ? require('*/cartridge/scripts/migration/customerMigration/shopifyCustomerFetcher')
-            : require('*/cartridge/scripts/migration/customerMigration/ctpCustomerFetcher');
-        jsonResponse({ ok: true, total: countFetcher.getCount() });
+        var ctpFetcher = require('*/cartridge/scripts/migration/customerMigration/ctpCustomerFetcher');
+        jsonResponse({ ok: true, total: ctpFetcher.getCount() });
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
     }
@@ -1458,14 +1517,6 @@ exports.MigrateCustomerBatch = function () {
 
     if (!listId) {
         jsonResponse({ ok: false, error: 'listId parameter is required' });
-        return;
-    }
-    if (resolvePlatform() === 'shopify') {
-        jsonResponse({
-            ok:    false,
-            error: 'Sequential partial migration is not supported for Shopify yet — '
-                 + 'enter specific customer IDs above, or use Full Migration for the whole store.'
-        });
         return;
     }
     try {
@@ -1522,9 +1573,7 @@ exports.FullMigrationBuildBatch = function () {
         return;
     }
     try {
-        var fullRunner = (resolvePlatform() === 'shopify')
-            ? require('*/cartridge/scripts/migration/customerMigration/shopifyFullMigrationRunner')
-            : require('*/cartridge/scripts/migration/customerMigration/fullMigrationRunner');
+        var fullRunner = require('*/cartridge/scripts/migration/customerMigration/fullMigrationRunner');
         jsonResponse(fullRunner.runBatch(offset, listId));
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
@@ -1545,9 +1594,7 @@ exports.MigrateCustomerById = function () {
         return;
     }
     try {
-        var byIdRunner = (resolvePlatform() === 'shopify')
-            ? require('*/cartridge/scripts/migration/customerMigration/shopifyCustomerMigrationRunner')
-            : require('*/cartridge/scripts/migration/customerMigration/customerMigrationRunner');
+        var byIdRunner = require('*/cartridge/scripts/migration/customerMigration/customerMigrationRunner');
         jsonResponse(byIdRunner.runProfileBatchById(ctpId, listId));
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
@@ -1558,12 +1605,10 @@ exports.MigrateCustomerById.public = true;
 // ─── Shipping method data migration ───────────────────────────────────────────
 
 /**
- * Shipping method migration page — site-specific, mirrors customer migration flow.
+ * Shipping method migration page — IMPEX XML export (connector-agnostic).
  */
 exports.ShippingMethodMigration = function () {
-    var Site      = require('dw/system/Site');
-    var siteId    = Site.getCurrent().getID();
-    var platformId = String(session.custom.migrationPlatformId || 'commercetools');
+    var platformId = resolvePlatform();
     var pageCtx    = migrationPageContext(platformId, 'shippingMethod');
     var bmLinks = require('*/cartridge/scripts/accelerator/bmLinks');
     var jobsUrl = bmLinks.getImportExportUrl();
@@ -1571,18 +1616,20 @@ exports.ShippingMethodMigration = function () {
     ISML.renderTemplate('accelerator/shippingMethodMigration', withBmFrame({
         title:        Resource.msg('accelerator.title', 'accelerator', null),
         subtitle:     Resource.msg('accelerator.subtitle', 'accelerator', null),
-        presetSiteId: siteId,
         impexPath:    pageCtx.impexPath,
         dashboardUrl: URLUtils.url('Accelerator-Start').toString(),
         dataWizardEntryUrl:  pageCtx.dataWizardEntryUrl,
         dataWizardSelectUrl: pageCtx.dataWizardSelectUrl,
+        platformId:          pageCtx.platformId,
+        sourceLabel:         pageCtx.sourceLabel,
+        migrationUi:         pageCtx.migrationUi,
+        migrationUiJson:     pageCtx.migrationUiJson,
         impexUrl:     pageCtx.impexUrl,
         cssUrl:       URLUtils.staticURL('/css/accelerator-migration.css').toString(),
         attrPreflightJsUrl: URLUtils.staticURL('/js/attr-preflight.js').toString(),
         countUrl:          URLUtils.url('Accelerator-ShippingMethodMigrationCount').toString(),
         listMethodsUrl:    URLUtils.url('Accelerator-ListShippingMethods').toString(),
         fullBatchUrl:      URLUtils.url('Accelerator-FullShippingMethodBuildBatch').toString(),
-        sitesUrl:          URLUtils.url('Accelerator-GetSites').toString(),
         checkAttrsUrl:     URLUtils.url('Accelerator-CheckShippingMethodAttributes').toString(),
         createAttrsUrl:    URLUtils.url('Accelerator-CreateShippingMethodAttributes').toString(),
         deleteAttrUrl:     URLUtils.url('Accelerator-DeleteShippingMethodAttribute').toString(),
@@ -1685,7 +1732,7 @@ exports.DeleteShippingMethodAttribute.public = true;
 
 exports.ShippingMethodMigrationCount = function () {
     try {
-        var ctpFetcher = require('*/cartridge/scripts/migration/shippingMethodMigration/ctpShippingMethodFetcher');
+        var fetcher = getMigrationFetcher('shippingMethod');
         jsonResponse({ ok: true, total: ctpFetcher.getCount() });
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
@@ -1699,7 +1746,7 @@ exports.ShippingMethodMigrationCount.public = true;
  */
 exports.ListShippingMethods = function () {
     try {
-        var fetcher     = require('*/cartridge/scripts/migration/shippingMethodMigration/ctpShippingMethodFetcher');
+        var fetcher     = getMigrationFetcher('shippingMethod');
         var transformer = require('*/cartridge/scripts/migration/shippingMethodMigration/shippingMethodTransformer');
         var batch       = fetcher.fetchAll();
         var list        = [];
@@ -1717,14 +1764,8 @@ exports.ListShippingMethods.public = true;
 
 exports.FullShippingMethodBuildBatch = function () {
     var offset      = parseInt(getParam('offset') || '0', 10);
-    var siteId      = getParam('siteId');
     var rawKeys     = getParam('keys');
     var singleFile  = getParam('singleFile') !== 'false';
-
-    if (!siteId) {
-        jsonResponse({ ok: false, error: 'siteId is required' });
-        return;
-    }
 
     var keys = null;
     if (rawKeys) {
@@ -1737,9 +1778,9 @@ exports.FullShippingMethodBuildBatch = function () {
     try {
         var fullRunner = require('*/cartridge/scripts/migration/shippingMethodMigration/fullMigrationRunner');
         if (keys && keys.length) {
-            jsonResponse(fullRunner.runBatchForKeys(keys, offset, siteId, singleFile));
+            jsonResponse(fullRunner.runBatchForKeys(keys, offset, singleFile));
         } else {
-            jsonResponse(fullRunner.runBatch(offset, siteId, singleFile));
+            jsonResponse(fullRunner.runBatch(offset, singleFile));
         }
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
@@ -1756,7 +1797,7 @@ exports.InventoryMigration = function () {
     var cfg2           = require('*/cartridge/scripts/migration/configAccessor');
     var bmLinks        = require('*/cartridge/scripts/accelerator/bmLinks');
     var listId         = (cfg2.sfcc && cfg2.sfcc.inventoryListId) ? cfg2.sfcc.inventoryListId : '';
-    var platformId     = String(session.custom.migrationPlatformId || 'commercetools');
+    var platformId     = resolvePlatform();
     var pageCtx        = migrationPageContext(platformId, 'inventory');
     var jobsUrl        = bmLinks.getImportExportUrl();
 
@@ -1768,6 +1809,10 @@ exports.InventoryMigration = function () {
         dashboardUrl:        URLUtils.url('Accelerator-Start').toString(),
         dataWizardEntryUrl:  pageCtx.dataWizardEntryUrl,
         dataWizardSelectUrl: pageCtx.dataWizardSelectUrl,
+        platformId:          pageCtx.platformId,
+        sourceLabel:         pageCtx.sourceLabel,
+        migrationUi:         pageCtx.migrationUi,
+        migrationUiJson:     pageCtx.migrationUiJson,
         countUrl:            URLUtils.url('Accelerator-InventoryMigrationCount').toString(),
         fullBatchUrl:        URLUtils.url('Accelerator-FullInventoryBuildBatch').toString(),
         supplyChannelsUrl:   URLUtils.url('Accelerator-GetSupplyChannels').toString(),
@@ -1788,7 +1833,7 @@ exports.InventoryMigration.public = true;
  */
 exports.GetSupplyChannels = function () {
     try {
-        var fetcher = require('*/cartridge/scripts/migration/inventoryMigration/ctpInventoryFetcher');
+        var fetcher = getMigrationFetcher('inventory');
         jsonResponse({ ok: true, channels: fetcher.fetchSupplyChannels() });
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
@@ -1846,7 +1891,7 @@ exports.DeleteInventoryAttribute.public = true;
 exports.InventoryMigrationCount = function () {
     try {
         var supplyChannelId = getParam('supplyChannelId');
-        var ctpFetcher      = require('*/cartridge/scripts/migration/inventoryMigration/ctpInventoryFetcher');
+        var ctpFetcher      = getMigrationFetcher('inventory');
         jsonResponse({ ok: true, total: ctpFetcher.getCount(supplyChannelId) });
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
@@ -1886,7 +1931,7 @@ exports.FullInventoryBuildBatch.public = true;
 exports.PricebookMigration = function () {
     var bmLinks        = require('*/cartridge/scripts/accelerator/bmLinks');
     var presetId       = 'list-prices';
-    var platformId     = String(session.custom.migrationPlatformId || 'commercetools');
+    var platformId     = resolvePlatform();
     var pageCtx        = migrationPageContext(platformId, 'pricebook');
     var jobsUrl        = bmLinks.getImportExportUrl();
 
@@ -1898,6 +1943,10 @@ exports.PricebookMigration = function () {
         dashboardUrl:        URLUtils.url('Accelerator-Start').toString(),
         dataWizardEntryUrl:  pageCtx.dataWizardEntryUrl,
         dataWizardSelectUrl: pageCtx.dataWizardSelectUrl,
+        platformId:          pageCtx.platformId,
+        sourceLabel:         pageCtx.sourceLabel,
+        migrationUi:         pageCtx.migrationUi,
+        migrationUiJson:     pageCtx.migrationUiJson,
         countUrl:            URLUtils.url('Accelerator-PricebookMigrationCount').toString(),
         fullBatchUrl:        URLUtils.url('Accelerator-FullPricebookBuildBatch').toString(),
         pricebooksUrl:       URLUtils.url('Accelerator-GetPricebooks').toString(),
@@ -1919,7 +1968,7 @@ exports.GetPricebooks = function () {
     var reset   = getParam('reset') === 'true';
     try {
         if (section === 'embedded') {
-            var embeddedOnly = require('*/cartridge/scripts/migration/pricebookMigration/ctpEmbeddedPriceFetcher');
+            var embeddedOnly = getMigrationFetcher('pricebookEmbedded');
             var embResult    = embeddedOnly.discoverEmbeddedStep(offset, reset);
             jsonResponse({
                 ok:           true,
@@ -1932,7 +1981,7 @@ exports.GetPricebooks = function () {
             });
             return;
         }
-        var fetcher   = require('*/cartridge/scripts/migration/pricebookMigration/ctpPricebookFetcher');
+        var fetcher   = getMigrationFetcher('pricebook');
         var stdResult = fetcher.discoverStandaloneStep(offset, reset);
         jsonResponse({
             ok:         true,
@@ -1982,11 +2031,11 @@ exports.PricebookMigrationCount = function () {
         var channelId = getParam('channelId');
         var aggregate = getParam('aggregate') === 'true';
         if (source === 'embedded') {
-            var embedded = require('*/cartridge/scripts/migration/pricebookMigration/ctpEmbeddedPriceFetcher');
+            var embedded = getMigrationFetcher('pricebookEmbedded');
             jsonResponse({ ok: true, total: embedded.getPriceCount(currency, channelId, aggregate) });
             return;
         }
-        var fetcher = require('*/cartridge/scripts/migration/pricebookMigration/ctpPricebookFetcher');
+        var fetcher = getMigrationFetcher('pricebook');
         jsonResponse({ ok: true, total: fetcher.getCount(currency, channelId, aggregate) });
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
@@ -2040,7 +2089,7 @@ exports.FullPricebookBuildBatch.public = true;
 
 exports.TaxMigration = function () {
     var bmLinks        = require('*/cartridge/scripts/accelerator/bmLinks');
-    var platformId     = String(session.custom.migrationPlatformId || 'commercetools');
+    var platformId     = resolvePlatform();
     var pageCtx        = migrationPageContext(platformId, 'tax');
     var jobsUrl        = bmLinks.getImportExportUrl();
 
@@ -2051,6 +2100,10 @@ exports.TaxMigration = function () {
         dashboardUrl:        URLUtils.url('Accelerator-Start').toString(),
         dataWizardEntryUrl:  pageCtx.dataWizardEntryUrl,
         dataWizardSelectUrl: pageCtx.dataWizardSelectUrl,
+        platformId:          pageCtx.platformId,
+        sourceLabel:         pageCtx.sourceLabel,
+        migrationUi:         pageCtx.migrationUi,
+        migrationUiJson:     pageCtx.migrationUiJson,
         countUrl:            URLUtils.url('Accelerator-TaxMigrationCount').toString(),
         fullBatchUrl:        URLUtils.url('Accelerator-FullTaxBuildBatch').toString(),
         summaryUrl:          URLUtils.url('Accelerator-GetTaxSummary').toString(),
@@ -2059,7 +2112,7 @@ exports.TaxMigration = function () {
         impexUrl:            pageCtx.impexUrl,
         cssUrl:              URLUtils.staticURL('/css/accelerator-migration.css').toString(),
         attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString(),
-        taxMigrationJsUrl:   URLUtils.staticURL('/js/tax-migration.js').toString() + '?v=7',
+        taxMigrationJsUrl:   URLUtils.staticURL('/js/tax-migration.js').toString() + '?v=8',
         jobsUrl:             jobsUrl
     }));
 };
@@ -2100,7 +2153,7 @@ exports.CreateTaxAttributes.public = true;
 exports.GetTaxSummary = function () {
     response.setContentType('application/json');
     try {
-        var fetcher = require('*/cartridge/scripts/migration/taxMigration/ctpTaxFetcher');
+        var fetcher = getMigrationFetcher('tax');
         jsonResponse({ ok: true, overview: fetcher.getTaxOverview() });
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
@@ -2113,7 +2166,7 @@ exports.TaxMigrationCount = function () {
     try {
         var scopeType = getParam('scopeType') || 'full';
         var scopeId   = getParam('scopeId') || '';
-        var fetcher   = require('*/cartridge/scripts/migration/taxMigration/ctpTaxFetcher');
+        var fetcher   = getMigrationFetcher('tax');
         jsonResponse({ ok: true, total: fetcher.getRateCount(scopeType, scopeId) });
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
@@ -2148,7 +2201,7 @@ exports.FullTaxBuildBatch.public = true;
 
 exports.StoreMigration = function () {
     var bmLinks        = require('*/cartridge/scripts/accelerator/bmLinks');
-    var platformId     = String(session.custom.migrationPlatformId || 'commercetools');
+    var platformId     = resolvePlatform();
     var pageCtx        = migrationPageContext(platformId, 'store');
     var jobsUrl        = bmLinks.getImportExportUrl();
 
@@ -2159,6 +2212,10 @@ exports.StoreMigration = function () {
         dashboardUrl:        URLUtils.url('Accelerator-Start').toString(),
         dataWizardEntryUrl:  pageCtx.dataWizardEntryUrl,
         dataWizardSelectUrl: pageCtx.dataWizardSelectUrl,
+        platformId:          pageCtx.platformId,
+        sourceLabel:         pageCtx.sourceLabel,
+        migrationUi:         pageCtx.migrationUi,
+        migrationUiJson:     pageCtx.migrationUiJson,
         fullBatchUrl:        URLUtils.url('Accelerator-FullStoreBuildBatch').toString(),
         listStoresUrl:       URLUtils.url('Accelerator-ListStores').toString(),
         checkAttrsUrl:       URLUtils.url('Accelerator-CheckStoreAttributes').toString(),
@@ -2207,7 +2264,7 @@ exports.CreateStoreAttributes.public = true;
 exports.GetStoreSummary = function () {
     response.setContentType('application/json');
     try {
-        var fetcher = require('*/cartridge/scripts/migration/storeMigration/ctpStoreFetcher');
+        var fetcher = getMigrationFetcher('store');
         jsonResponse({ ok: true, summary: fetcher.getFullStoreSummary() });
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
@@ -2222,7 +2279,7 @@ exports.GetStoreSummary.public = true;
 exports.ListStores = function () {
     response.setContentType('application/json');
     try {
-        var fetcher     = require('*/cartridge/scripts/migration/storeMigration/ctpStoreFetcher');
+        var fetcher     = getMigrationFetcher('store');
         var transformer = require('*/cartridge/scripts/migration/storeMigration/storeTransformer');
         var stores      = fetcher.fetchAllCtpStores();
         var list        = [];
@@ -2242,7 +2299,7 @@ exports.ListStores.public = true;
 exports.StoreMigrationCount = function () {
     response.setContentType('application/json');
     try {
-        var fetcher = require('*/cartridge/scripts/migration/storeMigration/ctpStoreFetcher');
+        var fetcher = getMigrationFetcher('store');
         var summary = fetcher.getFullStoreSummary();
         jsonResponse({ ok: true, total: summary.storeCount || 0 });
     } catch (e) {
@@ -2363,15 +2420,20 @@ exports.FullMigrationJobStatus.public = true;
  * Produces SFCC catalog XML files uploaded via WebDAV, then triggers a BM import job.
  */
 exports.ProductWizard = function () {
-    var platformId = String(session.custom.migrationPlatformId || 'commercetools');
+    var platformId = resolvePlatform();
     var pageCtx    = migrationPageContext(platformId, 'product');
     ISML.renderTemplate('accelerator/productMigration', withBmFrame({
         title:          Resource.msg('accelerator.title', 'accelerator', null),
         subtitle:       Resource.msg('accelerator.subtitle', 'accelerator', null),
+        platformId:     platformId,
         impexPath:      pageCtx.impexPath,
         impexUrl:       pageCtx.impexUrl,
         dataWizardEntryUrl:  pageCtx.dataWizardEntryUrl,
         dataWizardSelectUrl: pageCtx.dataWizardSelectUrl,
+        platformId:          pageCtx.platformId,
+        sourceLabel:         pageCtx.sourceLabel,
+        migrationUi:         pageCtx.migrationUi,
+        migrationUiJson:     pageCtx.migrationUiJson,
         countUrl:       URLUtils.url('Accelerator-ProductMigrationCount').toString(),
         partialUrl:     URLUtils.url('Accelerator-MigrateProductById').toString(),
         fullBatchUrl:   URLUtils.url('Accelerator-FullProductMigrationBuildBatch').toString(),
@@ -2426,12 +2488,18 @@ exports.SaveProdWizardResults = function () {
 exports.SaveProdWizardResults.public = true;
 
 /**
- * Return total number of products in the CTP project.
+ * Return total number of products in the source platform (CTP or Shopify).
  */
 exports.ProductMigrationCount = function () {
+    var platform = String(session.custom.migrationPlatformId || 'commercetools');
     try {
-        var prodFetcher = require('*/cartridge/scripts/migration/productMigration/ctpProductFetcher');
-        jsonResponse({ ok: true, total: prodFetcher.getCount() });
+        if (platform === 'shopify') {
+            var shopifyFetcher = require('*/cartridge/scripts/migration/productMigration/shopifyProductFetcher');
+            jsonResponse({ ok: true, total: shopifyFetcher.getCount() });
+        } else {
+            var prodFetcher = require('*/cartridge/scripts/migration/productMigration/ctpProductFetcher');
+            jsonResponse({ ok: true, total: prodFetcher.getCount() });
+        }
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
     }
@@ -2439,12 +2507,19 @@ exports.ProductMigrationCount = function () {
 exports.ProductMigrationCount.public = true;
 
 /**
- * Full Product Migration — fetch one batch of CTP products, build catalog XML, upload via WebDAV.
- * POST: offset=<n>
- * catalogId is read from config.js (sfcc.catalogId).
+ * Full Product Migration — fetch one batch of products, build catalog XML, upload via WebDAV.
+ * POST: offset=<number> (CTP) or offset=<cursor-string> (Shopify, empty/0 = first page)
+ * catalogId is read from request param or config.js (sfcc.catalogId).
  */
 exports.FullProductMigrationBuildBatch = function () {
-    var offset    = parseInt(getParam('offset') || '0', 10);
+    var platform  = String(session.custom.migrationPlatformId || 'commercetools');
+    var offsetRaw = getParam('offset') || '0';
+
+    // For Shopify, offset is a cursor string. For CTP, parse as integer.
+    var offsetOrCursor = (platform === 'shopify')
+        ? ((offsetRaw === '0' || !offsetRaw) ? null : offsetRaw)
+        : parseInt(offsetRaw, 10);
+
     var migCfg    = require('*/cartridge/scripts/migration/configAccessor');
     var catalogId = getParam('catalogId')
                  || (migCfg.sfcc && migCfg.sfcc.catalogId ? String(migCfg.sfcc.catalogId) : '');
@@ -2460,7 +2535,7 @@ exports.FullProductMigrationBuildBatch = function () {
     } catch (pe) {}
     try {
         var prodRunner = require('*/cartridge/scripts/migration/productMigration/fullProductMigrationRunner');
-        jsonResponse(prodRunner.runBatch(offset, catalogId, selectedVarAttrs));
+        jsonResponse(prodRunner.runBatch(offsetOrCursor, catalogId, selectedVarAttrs, platform));
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
     }
@@ -2468,15 +2543,17 @@ exports.FullProductMigrationBuildBatch = function () {
 exports.FullProductMigrationBuildBatch.public = true;
 
 /**
- * Partial Product Migration — fetch one CTP product by ID, build XML, upload via WebDAV.
- * POST: ctpId=<ctp-product-id>
+ * Partial Product Migration — fetch one product by ID, build XML, upload via WebDAV.
+ * POST: prodId=<id> (accepts ctpId or shopifyId as aliases)
+ *       For CTP: UUID. For Shopify: handle, numeric ID, or GID.
  */
 exports.MigrateProductById = function () {
-    var ctpId = getParam('ctpId');
-    if (!ctpId) {
-        jsonResponse({ ok: false, error: 'ctpId is required' });
+    var prodId = getParam('prodId') || getParam('ctpId') || getParam('shopifyId');
+    if (!prodId) {
+        jsonResponse({ ok: false, error: 'prodId is required' });
         return;
     }
+    var platform  = String(session.custom.migrationPlatformId || 'commercetools');
     var migCfg    = require('*/cartridge/scripts/migration/configAccessor');
     var catalogId = getParam('catalogId')
                  || (migCfg.sfcc && migCfg.sfcc.catalogId ? String(migCfg.sfcc.catalogId) : '');
@@ -2491,7 +2568,7 @@ exports.MigrateProductById = function () {
     } catch (pe) {}
     try {
         var prodRunner = require('*/cartridge/scripts/migration/productMigration/fullProductMigrationRunner');
-        jsonResponse(prodRunner.runById(ctpId, catalogId, selectedVarAttrs));
+        jsonResponse(prodRunner.runById(prodId, catalogId, selectedVarAttrs, platform));
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
     }
@@ -2499,14 +2576,20 @@ exports.MigrateProductById = function () {
 exports.MigrateProductById.public = true;
 
 /**
- * Compare CTP product type attributes against SFCC Product attribute definitions.
- * Returns attributes present in CTP but missing in SFCC.
+ * Compare source platform product type attributes against SFCC Product attribute definitions.
+ * Returns attributes missing in SFCC.
  * GET — no params required.
  */
 exports.CheckProductAttributes = function () {
+    var platform = String(session.custom.migrationPlatformId || 'commercetools');
     try {
-        var checker = require('*/cartridge/scripts/migration/productMigration/productAttrChecker');
-        jsonResponse({ ok: true, missing: checker.checkMissingAttributes() });
+        if (platform === 'shopify') {
+            var shopifyChecker = require('*/cartridge/scripts/migration/productMigration/shopifyProductAttrChecker');
+            jsonResponse({ ok: true, missing: shopifyChecker.checkMissingAttributes() });
+        } else {
+            var checker = require('*/cartridge/scripts/migration/productMigration/productAttrChecker');
+            jsonResponse({ ok: true, missing: checker.checkMissingAttributes() });
+        }
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
     }
@@ -2528,9 +2611,15 @@ exports.CreateProductAttributes = function () {
         jsonResponse({ ok: false, error: 'No attributes provided' });
         return;
     }
+    var platform = String(session.custom.migrationPlatformId || 'commercetools');
     try {
-        var checker2 = require('*/cartridge/scripts/migration/productMigration/productAttrChecker');
-        jsonResponse({ ok: true, result: checker2.createAttributes(attrs) });
+        if (platform === 'shopify') {
+            var shopifyChecker2 = require('*/cartridge/scripts/migration/productMigration/shopifyProductAttrChecker');
+            jsonResponse({ ok: true, result: shopifyChecker2.createAttributes(attrs) });
+        } else {
+            var checker2 = require('*/cartridge/scripts/migration/productMigration/productAttrChecker');
+            jsonResponse({ ok: true, result: checker2.createAttributes(attrs) });
+        }
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
     }
@@ -2587,6 +2676,8 @@ function getCategoryMigrationJS() {
     L.push('_APP.pendingOrder = {};');
     L.push('_APP.running = false;');
     L.push('_APP.draggingId = null;');
+    L.push('_APP.newCatCount = 0;');
+    L.push('_APP.addedCats = [];');
     L.push('_APP.activeFilter = "all";');
     L.push('_APP.MIGRATE_URL = "";');
     L.push('_APP.FETCH_URL = "";');
@@ -2597,8 +2688,91 @@ function getCategoryMigrationJS() {
     L.push('_APP.CREATE_CATALOG_URL = "";');
     L.push('_APP.CREATE_CATEGORY_URL = "";');
     L.push('_APP.IMPORT_URL = "";');
+    L.push('_APP.productCounts = {};');
+    L.push('_APP.selectedForExport = {};');
+    L.push('_APP.CHECK_PRODUCTS_URL = "";');
+    L.push('_APP.CREATE_ATTRS_URL = "";');
+
+    L.push('_APP.renderAttrTable=function(attrs){');
+    L.push('  var Q=String.fromCharCode(34);');
+    L.push('  var tbody=document.getElementById("attr-tbody");');
+    L.push('  if(!tbody)return;');
+    L.push('  var rowHtml="";');
+    L.push('  var attrsData=[];');
+    L.push('  attrs.forEach(function(attr,i){');
+    L.push('    var statusColor=attr.exists?"#2e7d32":"#e65100";');
+    L.push('    var statusBg=attr.exists?"#e8f5e9":"#fff3e0";');
+    L.push('    var statusText=attr.exists?"Exists":"Missing";');
+    L.push('    var chk=!attr.exists?" checked":"";');
+    L.push('    var typeHtml=window.AccAttrPreflight?window.AccAttrPreflight.sfccTypeSelectHtml(attr,i):"<code>"+attr.sfccType+"</code>";');
+    L.push('    rowHtml+="<tr"+a("data-rowidx",i)+">"');
+    L.push('      +"<td style="+Q+"text-align:center;padding:9px 14px;border-bottom:1px solid #f0f2f8;"+Q+">"');
+    L.push('      +"<input type="+Q+"checkbox"+Q+a("class","cat-attr-cb")+a("data-idx",i)+a("data-attrid",attr.id)+a("data-attrtype",attr.sfccType)+a("data-attrlabel",attr.label)+a("data-attrexists",attr.exists?"1":"")+chk+a("style","width:16px;height:16px;cursor:pointer;")+"/>"');
+    L.push('      +"</td>"');
+    L.push('      +"<td style="+Q+"padding:9px 14px;border-bottom:1px solid #f0f2f8;"+Q+">"');
+    L.push('      +"<input type="+Q+"text"+Q+a("class","cm-attr-id-input")+a("data-idx",i)+a("data-orig",attr.id)+a("data-canonical",attr.id)+a("value",attr.id)+"/>"');
+    L.push('      +"</td>"');
+    L.push('      +"<td style="+Q+"padding:9px 14px;border-bottom:1px solid #f0f2f8;"+Q+">"+attr.label+"</td>"');
+    L.push('      +"<td style="+Q+"padding:9px 14px;border-bottom:1px solid #f0f2f8;"+Q+">"');
+    L.push('      +"<span"+a("class","cat-status-span")+a("data-idx",i)+a("style","background:"+statusBg+";color:"+statusColor+";padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;")+">"+statusText+"</span>"');
+    L.push('      +"</td>"');
+    L.push('      +"<td style="+Q+"padding:9px 14px;border-bottom:1px solid #f0f2f8;"+Q+">"+typeHtml+"</td>"');
+    L.push('      +"<td style="+Q+"padding:9px 14px;border-bottom:1px solid #f0f2f8;"+Q+">"');
+    L.push('      +"<button type="+Q+"button"+Q+a("class","cm-btn--revert cat-attr-revert")+a("data-idx",i)+(attr.exists?"":(" disabled"+a("title","Create this attribute first to enable Revert")))+">Revert</button>"');
+    L.push('      +"</td>"');
+    L.push('      +"</tr>";');
+    L.push('    attrsData.push(attr);');
+    L.push('  });');
+    L.push('  tbody.innerHTML=rowHtml;');
+    L.push('  _APP.attrsData=attrsData;');
+    L.push('  var revBtns=tbody.querySelectorAll(".cat-attr-revert");');
+    L.push('  for(var rbi=0;rbi<revBtns.length;rbi++){');
+    L.push('    (function(rbtn,attr){');
+    L.push('      rbtn.addEventListener("click",function(){');
+    L.push('        if(rbtn.disabled)return;');
+    L.push('        var q2=String.fromCharCode(34);');
+    L.push('        var idx=rbtn.getAttribute("data-idx");');
+    L.push('        var cb2=tbody.querySelector(".cat-attr-cb[data-idx="+q2+idx+q2+"]");');
+    L.push('        var attrId=cb2?cb2.getAttribute("data-attrid"):attr.id;');
+    L.push('        if(!confirm("Delete attribute "+attrId+" from SFCC? This cannot be undone."))return;');
+    L.push('        rbtn.disabled=true;rbtn.textContent="Reverting...";');
+    L.push('        var ao=document.getElementById("attr-overall");');
+    L.push('        _APP.post(_APP.ATTRS_URL,"delete="+encodeURIComponent(JSON.stringify([attrId])),function(ddata){');
+    L.push('          if(!ddata.ok){');
+    L.push('            rbtn.disabled=false;rbtn.textContent="Revert";');
+    L.push('            if(ao){ao.textContent="Revert failed ("+attrId+"): "+(ddata.error||"failed");ao.style.color="#c62828";}');
+    L.push('            return;');
+    L.push('          }');
+    L.push('          rbtn.textContent="Reverted";rbtn.style.color="#2e7d32";rbtn.style.borderColor="#a5d6a7";rbtn.style.background="#e8f5e9";');
+    L.push('          var row2=tbody.querySelector("tr[data-rowidx="+q2+idx+q2+"]");');
+    L.push('          if(row2)row2.style.opacity="0.5";');
+    L.push('          var sp2=tbody.querySelector(".cat-status-span[data-idx="+q2+idx+q2+"]");');
+    L.push('          if(sp2){sp2.textContent="Missing";sp2.style.background="#fff3e0";sp2.style.color="#e65100";}');
+    L.push('          if(cb2){cb2.checked=true;cb2.setAttribute("data-attrexists","");}');
+    L.push('          if(_APP.attrsData&&_APP.attrsData[idx]){_APP.attrsData[idx].exists=false;}');
+    L.push('          if(ao){ao.textContent="Deleted: "+attrId;ao.style.color="#2e7d32";}');
+    L.push('        });');
+    L.push('      });');
+    L.push('    }(revBtns[rbi],attrsData[rbi]));');
+    L.push('  }');
+    L.push('};');
+    L.push('_APP.refreshAttrTable=function(){');
+    L.push('  _APP.post(_APP.ATTRS_URL,"",function(d){');
+    L.push('    if(d.ok&&d.attrs)_APP.renderAttrTable(d.attrs);');
+    L.push('  });');
+    L.push('};');
 
     L.push('function a(k,v){return " "+k+"="+String.fromCharCode(34)+v+String.fromCharCode(34);}');
+    L.push('_APP.onExportChange=function(catId,val){_APP.selectedForExport[catId]=val;};');
+    L.push('_APP.selectAllExport=function(){');
+    L.push('  if(!_APP.allCategories)return;');
+    L.push('  var hasProdData=Object.keys(_APP.productCounts||{}).length>0;');
+    L.push('  _APP.allCategories.forEach(function(c){');
+    L.push('    _APP.selectedForExport[c.id]=hasProdData?((_APP.productCounts[c.name]||0)>0):true;');
+    L.push('  });');
+    L.push('  _APP.renderTable();');
+    L.push('};');
+    L.push('_APP.deselectAllExport=function(){if(!_APP.allCategories)return;_APP.allCategories.forEach(function(c){_APP.selectedForExport[c.id]=false;});_APP.renderTable();};');
 
     L.push('_APP.post = function(url,params,onDone){');
     L.push('  var req=new XMLHttpRequest();');
@@ -2621,29 +2795,47 @@ function getCategoryMigrationJS() {
     L.push('  a.href=url;a.target="_blank";');
     L.push('  document.body.appendChild(a);a.click();document.body.removeChild(a);');
     L.push('};');
+    L.push('_APP.getImpexFolderUrl=function(){');
+    L.push('  var base=window.location.href.split("?")[0].replace(/\\/[^\\/]+$/,"/");');
+    L.push('  return base+"ViewStudioSetup-OpenFolder?TargetFolder="+encodeURIComponent("Sites/Impex/"+(_APP.IMPEX_PATH||"src/migration/catalog"));');
+    L.push('};');
 
     L.push('_APP.toCamelCase=function(str){');
     L.push('  if(!str)return"";');
     L.push('  return str.replace(/[-_]+/g," ").replace(/([a-z])([A-Z])/g,"$1 $2").replace(/\\b\\w/g,function(c){return c.toUpperCase();});');
     L.push('};');
 
+    L.push('_APP.catalogMode="existing";');
+    L.push('_APP.newCatalogId="";');
+    L.push('_APP.setCatalogMode=function(mode){');
+    L.push('  _APP.catalogMode=mode;');
+    L.push('  var ep=document.getElementById("cat-panel-existing");');
+    L.push('  var np=document.getElementById("cat-panel-new");');
+    L.push('  var et=document.getElementById("cat-tab-existing");');
+    L.push('  var nt=document.getElementById("cat-tab-new");');
+    L.push('  if(mode==="existing"){');
+    L.push('    if(ep)ep.style.display="block";if(np)np.style.display="none";');
+    L.push('    if(et){et.style.color="#0070d2";et.style.borderBottom="3px solid #0070d2";}');
+    L.push('    if(nt){nt.style.color="#54698d";nt.style.borderBottom="3px solid transparent";}');
+    L.push('  }else{');
+    L.push('    if(ep)ep.style.display="none";if(np)np.style.display="block";');
+    L.push('    if(et){et.style.color="#54698d";et.style.borderBottom="3px solid transparent";}');
+    L.push('    if(nt){nt.style.color="#0070d2";nt.style.borderBottom="3px solid #0070d2";}');
+    L.push('  }');
+    L.push('};');
     L.push('_APP.getCatalogId=function(){');
-    L.push('  var el=document.getElementById("cat-catalog-id");');
+    L.push('  if(_APP.catalogMode==="new"){return _APP.newCatalogId||document.getElementById("new-catalog-id").value.trim();}');
+    L.push('  var el=document.getElementById("cat-catalog-select");');
     L.push('  return el?el.value.trim():"";');
     L.push('};');
 
     L.push('_APP.goToStep=function(n){');
-    L.push('  [1,2,3,4,5].forEach(function(i){');
+    L.push('  [1,2,3].forEach(function(i){');
     L.push('    var p=document.getElementById("panel-step"+i);');
     L.push('    var t=document.getElementById("tab-"+i);');
     L.push('    if(p)p.style.display=(i===n)?"block":"none";');
     L.push('    if(t){t.style.color=(i===n)?"#0070d2":"#54698d";t.style.borderBottom=(i===n)?"3px solid #0070d2":"3px solid transparent";}');
     L.push('  });');
-    L.push('  if(n===5){');
-    L.push('    var cid=_APP.getCatalogId();');
-    L.push('    var disp=document.getElementById("new-cat-catalog-display");');
-    L.push('    if(disp){disp.textContent=cid?"Catalog: "+cid:"Use the catalog selected in the config bar above.";disp.style.color=cid?"#16325c":"#54698d";}');
-    L.push('  }');
     L.push('};');
 
     L.push('_APP.setPhase=function(id,state,detail,pct){');
@@ -2780,32 +2972,116 @@ function getCategoryMigrationJS() {
     L.push('  var s=document.getElementById("hierarchy-changes-summary");');
     L.push('  var b=document.getElementById("btn-save-hierarchy");');
     L.push('  var c=document.getElementById("hierarchy-changes-count");');
-    L.push('  if(total>0){if(s)s.style.display="block";if(b)b.style.display="inline-block";if(c)c.textContent=total;}');
-    L.push('  else{if(s)s.style.display="none";if(b)b.style.display="none";}');
+    L.push('  if(total>0){if(s)s.style.display="block";if(c)c.textContent=total;}');
+    L.push('  else{if(s)s.style.display="none";}');
+    L.push('};');
+
+    L.push('_APP._sharedSelCatId=null;');
+
+    L.push('_APP._applyParentPick=function(newVal){');
+    L.push('  var catId=_APP._sharedSelCatId;');
+    L.push('  var dd=document.getElementById("_parent-dd");if(dd)dd.style.display="none";');
+    L.push('  if(!catId||!newVal)return;');
+    L.push('  var origParent=_APP.catMap[catId]?(_APP.catMap[catId].parentId||"root"):"root";');
+    L.push('  if(newVal===catId){alert("A category cannot be its own parent.");return;}');
+    L.push('  if(newVal!=="root"&&_APP.isDescendant(catId,newVal)){alert("Cannot set: circular reference.");return;}');
+    L.push('  if(newVal===origParent){delete _APP.pendingParent[catId];}else{');
+    L.push('    _APP.pendingParent[catId]=newVal;');
+    L.push('    var sib=_APP.allCategories.filter(function(c){return c.id!==catId&&_APP.effectiveParentId(c.id)===newVal;}).sort(function(a,b){return _APP.getPosition(a.id)-_APP.getPosition(b.id);});');
+    L.push('    _APP.pendingOrder[catId]=sib.length+1;');
+    L.push('  }');
+    L.push('  _APP._sharedSelCatId=null;');
+    L.push('  _APP.updatePendingSummary();');
+    L.push('  _APP.renderTable();');
+    L.push('};');
+
+    L.push('_APP.buildSharedParentSelect=function(){');
+    L.push('  var dd=document.getElementById("_parent-dd");');
+    L.push('  if(dd){dd.parentNode.removeChild(dd);}');
+    L.push('  dd=document.createElement("div");');
+    L.push('  dd.id="_parent-dd";');
+    L.push('  dd.style.cssText="position:fixed;z-index:10000;background:#fff;border:1px solid #dddbda;border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,0.18);display:none;width:300px;overflow:hidden;font-family:inherit;";');
+    L.push('  dd.addEventListener("click",function(e){e.stopPropagation();});');
+    // Search input
+    L.push('  var srchWrap=document.createElement("div");srchWrap.style.cssText="padding:8px 10px;border-bottom:1px solid #f0f0f0;background:#f4f6f9;";');
+    L.push('  var srch=document.createElement("input");srch.type="text";srch.placeholder="Search...";srch.id="_parent-dd-search";');
+    L.push('  srch.style.cssText="width:100%;box-sizing:border-box;padding:5px 8px;font-size:12px;border:1px solid #dddbda;border-radius:3px;outline:none;";');
+    L.push('  srch.addEventListener("input",function(){_APP._filterParentDD(this.value);});');
+    L.push('  srch.addEventListener("click",function(e){e.stopPropagation();});');
+    L.push('  srchWrap.appendChild(srch);dd.appendChild(srchWrap);');
+    // List container
+    L.push('  var list=document.createElement("div");list.id="_parent-dd-list";list.style.cssText="max-height:240px;overflow-y:auto;";');
+    L.push('  dd.appendChild(list);');
+    L.push('  document.body.appendChild(dd);');
+    L.push('  document.addEventListener("click",function(){var d=document.getElementById("_parent-dd");if(d)d.style.display="none";});');
+    L.push('  _APP._buildParentDDItems("");');
+    L.push('};');
+
+    L.push('_APP._buildParentDDItems=function(q){');
+    L.push('  var list=document.getElementById("_parent-dd-list");if(!list)return;');
+    L.push('  var frag=document.createDocumentFragment();');
+    L.push('  function makeItem(val,label,isCurrent){');
+    L.push('    var d=document.createElement("div");');
+    L.push('    d.style.cssText="padding:7px 12px;font-size:12px;cursor:pointer;display:flex;align-items:center;gap:8px;border-bottom:1px solid #f8f8f8;"+(isCurrent?"background:#e8f4fd;font-weight:600;color:#0070d2;":"color:#16325c;");');
+    L.push('    d.onmouseover=function(){if(!isCurrent)this.style.background="#f4f6f9";};');
+    L.push('    d.onmouseout=function(){if(!isCurrent)this.style.background="";};');
+    L.push('    var badge=document.createElement("span");badge.textContent=val;badge.style.cssText="font-family:monospace;font-size:10px;background:#e8e8e8;padding:1px 5px;border-radius:10px;color:#54698d;flex-shrink:0;";');
+    L.push('    var nm=document.createElement("span");nm.textContent=label;nm.style.cssText="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;";');
+    L.push('    d.appendChild(badge);d.appendChild(nm);');
+    L.push('    d.addEventListener("mousedown",function(e){e.preventDefault();_APP._applyParentPick(val);});');
+    L.push('    return d;');
+    L.push('  }');
+    L.push('  var cur=_APP._sharedSelCatId?_APP.effectiveParentId(_APP._sharedSelCatId):"";');
+    L.push('  var ql=q.toLowerCase();');
+    L.push('  if(!ql||"root".indexOf(ql)>-1||"top level".indexOf(ql)>-1)frag.appendChild(makeItem("root","top level",cur==="root"));');
+    L.push('  var count=0;');
+    L.push('  for(var i=0;i<_APP.allCategories.length;i++){');
+    L.push('    var c=_APP.allCategories[i];');
+    L.push('    if(c.id===_APP._sharedSelCatId)continue;');
+    L.push('    if(ql&&c.id.toLowerCase().indexOf(ql)===-1&&(c.name||"").toLowerCase().indexOf(ql)===-1)continue;');
+    L.push('    frag.appendChild(makeItem(c.id,c.name||c.id,cur===c.id));');
+    L.push('    if(++count>=300)break;');
+    L.push('  }');
+    L.push('  list.innerHTML="";list.appendChild(frag);');
+    L.push('};');
+
+    L.push('_APP._filterParentDD=function(q){_APP._buildParentDDItems(q);};');
+
+    L.push('_APP.openSharedParentSelect=function(catId,currentParent,cellEl,evt){');
+    L.push('  if(evt&&evt.stopPropagation)evt.stopPropagation();');
+    L.push('  _APP._sharedSelCatId=catId;');
+    L.push('  var dd=document.getElementById("_parent-dd");if(!dd)return;');
+    L.push('  var srch=document.getElementById("_parent-dd-search");if(srch){srch.value="";}');
+    L.push('  _APP._buildParentDDItems("");');
+    L.push('  var rect=cellEl.getBoundingClientRect();');
+    L.push('  var top=rect.bottom+2;');
+    L.push('  if(top+280>window.innerHeight)top=rect.top-282;');
+    L.push('  dd.style.top=top+"px";');
+    L.push('  dd.style.left=Math.min(rect.left,window.innerWidth-310)+"px";');
+    L.push('  dd.style.display="block";');
+    L.push('  if(srch)setTimeout(function(){srch.focus();},50);');
     L.push('};');
 
     L.push('_APP.renderTable=function(){');
     L.push('  var tbody=document.getElementById("main-cat-tbody");');
     L.push('  if(!tbody)return;');
-    L.push('  tbody.innerHTML="";');
     L.push('  var Q=String.fromCharCode(34);');
-    L.push('  if(!_APP.allCategories.length){tbody.innerHTML="<tr><td colspan="+Q+"6"+Q+" style="+Q+"text-align:center;padding:30px;color:#54698d;"+Q+">Click Load Categories from CT to begin.</td></tr>";return;}');
+    L.push('  if(!_APP.allCategories.length){tbody.innerHTML="<tr><td colspan="+Q+"7"+Q+" style="+Q+"text-align:center;padding:30px;color:#54698d;"+Q+">Click Load Categories from CT to begin.</td></tr>";return;}');
     L.push('  var sorted=_APP.buildSortedRows();');
+    L.push('  var rows=[];');
     L.push('  sorted.forEach(function(row,idx){');
     L.push('    var catId=row.id;');
     L.push('    var isPC=_APP.pendingParent[catId]!==undefined||_APP.hierarchyOverrides[catId]!==undefined;');
     L.push('    var isOC=_APP.pendingOrder[catId]!==undefined||_APP.orderOverrides[catId]!==undefined;');
     L.push('    var isChanged=isPC||isOC;');
-    L.push('    var currentParent=row.parentId;');
+    L.push('    var currentParent=row.parentId||"root";');
     L.push('    var lvlColor=_APP.getLevelColor(row.depth);');
     L.push('    var lvlLabel="L"+(row.depth+1);');
-    L.push('    var origParent=_APP.catMap[catId]?(_APP.catMap[catId].parentId||"root"):"root";');
-    L.push('    var parentOpts=_APP.buildParentOptions(catId).replace("value="+Q+currentParent+Q,"value="+Q+currentParent+Q+" selected");');
-    L.push('    var sb=isPC?"#0070d2":"#dddbda";');
-    L.push('    var sbg=isPC?"#e8f4fd":"#fff";');
     L.push('    var pb=isOC?"background:#fff3e0;border-color:#ffb300;color:#e65100;":"";');
     L.push('    var rb=isChanged?"background:#fff8e1;":"";');
     L.push('    var tdSt="padding:7px 8px;border-bottom:1px solid #f0f0f0;";');
+    L.push('    var origParent=_APP.catMap[catId]?(_APP.catMap[catId].parentId||"root"):"root";');
+    L.push('    var cellBg=isPC?"border:1px solid #0070d2;color:#0070d2;font-weight:600;":"border:1px solid #dddbda;color:#16325c;";');
     L.push('    var trHtml="<tr"');
     L.push('      +" data-catid="+Q+catId+Q');
     L.push('      +" data-depth="+Q+row.depth+Q');
@@ -2816,13 +3092,17 @@ function getCategoryMigrationJS() {
     L.push('    trHtml+="<td"+a("style",tdSt)+"><span"+a("style","display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;color:#fff;background:"+lvlColor+";")+">"+lvlLabel+"</span></td>";');
     L.push('    trHtml+="<td"+a("style",tdSt)+"><span id="+Q+"pos-"+catId+Q+a("style","display:inline-block;background:#f4f6f9;border:1px solid #dddbda;border-radius:3px;padding:1px 6px;font-size:11px;font-family:monospace;"+pb)+">"+(idx+1)+"</span></td>";');
     L.push('    trHtml+="<td"+a("style",tdSt+"font-family:monospace;font-size:11px;")+">"+catId+"</td>";');
-    L.push('    trHtml+="<td"+a("style",tdSt+"font-weight:600;color:#16325c;")+">"+_APP.toCamelCase(row.name)+"</td>";');
-    L.push('    trHtml+="<td"+a("style",tdSt)+"><select"+a("data-catid",catId)+a("data-orig",origParent)+a("style","width:100%;font-size:12px;padding:4px 6px;border:1px solid "+sb+";border-radius:3px;background:"+sbg+";")+">"+parentOpts+"</select></td>";');
+    L.push('    var prodCt=(_APP.productCounts&&_APP.productCounts[row.name])||0;');
+    L.push('    var hasProductData=Object.keys(_APP.productCounts||{}).length>0;');
+    L.push('    var prodBadge=prodCt>0?"<span"+a("title",prodCt+" product(s) assigned in Shopify")+a("style","margin-left:6px;background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7;padding:1px 7px;border-radius:10px;font-size:11px;cursor:default;")+" >"+prodCt+" &#9679;</span>":"";');
+    L.push('    trHtml+="<td"+a("style",tdSt+"font-weight:600;color:#16325c;")+">"+_APP.toCamelCase(row.name)+prodBadge+"</td>";');
+    L.push('    trHtml+="<td"+a("style",tdSt)+"><div"+a("onclick","_APP.openSharedParentSelect(\'"+catId+"\',\'"+currentParent+"\',this,event);")+a("style","display:flex;align-items:center;justify-content:space-between;gap:6px;cursor:pointer;padding:4px 8px;border-radius:4px;font-size:12px;"+cellBg)+"><span style="+Q+"overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;"+Q+">"+currentParent+"</span><span style="+Q+"font-size:10px;opacity:0.6;flex-shrink:0;"+Q+">&#9660;</span></div></td>";');
+    L.push('    var isExport=_APP.selectedForExport[catId]!==undefined?_APP.selectedForExport[catId]:(!hasProductData||prodCt>0);');
+    L.push('    trHtml+="<td"+a("style",tdSt+"text-align:center;")+"><input"+a("type","checkbox")+a("class","cat-export-cb")+a("data-catid",catId)+a("onchange","_APP.onExportChange(\'"+catId+"\',this.checked);")+a("title",prodCt>0?(prodCt+" product(s) assigned in Shopify"):"No products assigned")+(isExport?" checked":"")+" /></td>";');
     L.push('    trHtml+="</tr>";');
-    L.push('    tbody.innerHTML+=trHtml;');
+    L.push('    rows.push(trHtml);');
     L.push('  });');
-    L.push('  var selects=tbody.querySelectorAll("select");');
-    L.push('  for(var i=0;i<selects.length;i++){selects[i].addEventListener("change",_APP.onParentDropdownChange);}');
+    L.push('  tbody.innerHTML=rows.join("");');
     L.push('  _APP.initDragDrop(tbody);');
     L.push('  _APP.buildLevelFilterTabs();');
     L.push('  _APP.applyLevelFilter();');
@@ -2903,46 +3183,22 @@ function getCategoryMigrationJS() {
     L.push('  if(box){box.style.display="block";box.style.padding="12px 16px";box.style.borderRadius="4px";box.style.fontSize="13px";box.style.background=success?"#e8f5e9":"#fff3e0";box.style.border=success?"1px solid #2e7d32":"1px solid #ffb300";box.style.color=success?"#2e7d32":"#e65100";box.textContent=message;}');
     L.push('};');
 
-    L.push('_APP.addToHistory=function(catId,catName,parentId,statusText){');
-    L.push('  var histEl=document.getElementById("new-cat-history");');
-    L.push('  var tbody=document.getElementById("new-cat-history-tbody");');
-    L.push('  if(!tbody)return;');
-    L.push('  var Q=String.fromCharCode(34);');
-    L.push('  var color=statusText==="XML written"?"#2e7d32":statusText==="Failed"?"#c62828":"#54698d";');
-    L.push('  var bg=statusText==="XML written"?"#e8f5e9":statusText==="Failed"?"#ffebee":"#f4f6f9";');
-    L.push('  var tdSt="padding:8px 12px;border:1px solid #dddbda;";');
-    L.push('  tbody.innerHTML+="<tr>"');
-    L.push('    +"<td"+a("style",tdSt+"font-family:monospace;font-size:11px;")+">"+catId+"</td>"');
-    L.push('    +"<td"+a("style",tdSt)+">"+catName+"</td>"');
-    L.push('    +"<td"+a("style",tdSt+"font-size:12px;color:#54698d;")+">"+(parentId==="root"?"root (L1)":parentId)+"</td>"');
-    L.push('    +"<td"+a("style",tdSt)+"><span"+a("style","background:"+bg+";color:"+color+";padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;")+">"+statusText+"</span></td>"');
-    L.push('    +"</tr>";');
-    L.push('  if(histEl)histEl.style.display="block";');
+
+    L.push('_APP.populateParentDropdown=function(){');
+    L.push('  var sel=document.getElementById("ct-new-cat-parent");');
+    L.push('  if(!sel)return;');
+    L.push('  var cur=sel.value;');
+    L.push('  sel.innerHTML="<option value=\\"\\">-- Root (no parent) --</option>";');
+    L.push('  var cats=_APP.allCategories||[];');
+    L.push('  for(var i=0;i<cats.length;i++){');
+    L.push('    var opt=document.createElement("option");');
+    L.push('    opt.value=cats[i].id;');
+    L.push('    opt.textContent=cats[i].name+" ("+cats[i].id+")";');
+    L.push('    sel.appendChild(opt);');
+    L.push('  }');
+    L.push('  sel.value=cur;');
     L.push('};');
 
-    L.push('_APP.renderParentPickerList=function(query){');
-    L.push('  var list=document.getElementById("parent-picker-list");');
-    L.push('  if(!list)return;');
-    L.push('  var Q=String.fromCharCode(34);');
-    L.push('  if(!_APP.allCategories.length){list.innerHTML="<div style="+Q+"padding:16px;color:#54698d;text-align:center;"+Q+">Load categories from CT first (Step 2).</div>";return;}');
-    L.push('  var sorted=_APP.buildSortedRows();var html="";');
-    L.push('  sorted.forEach(function(row){');
-    L.push('    if(query&&row.id.toLowerCase().indexOf(query)===-1&&row.name.toLowerCase().indexOf(query)===-1)return;');
-    L.push('    var lvlColor=_APP.getLevelColor(row.depth);var lvlLabel="L"+(row.depth+1);');
-    L.push('    html+="<div onclick="+Q+"pickParent(\'"+row.id+"\');"+Q+" style="+Q+"padding:8px 12px;cursor:pointer;border-bottom:1px solid #f0f0f0;display:flex;align-items:center;gap:10px;"+Q+" onmouseover="+Q+"this.style.background=\'#f4f6f9\';"+Q+" onmouseout="+Q+"this.style.background=\'\';"+Q+">"');
-    L.push('      +"<span"+a("style","display:inline-block;padding:1px 6px;border-radius:8px;font-size:10px;font-weight:700;color:#fff;background:"+lvlColor+";")+">"+lvlLabel+"</span>"');
-    L.push('      +"<span"+a("style","font-size:12px;font-family:monospace;color:#54698d;")+">"+row.id+"</span>"');
-    L.push('      +"<span"+a("style","font-size:13px;font-weight:600;color:#16325c;")+">"+_APP.toCamelCase(row.name)+"</span>"');
-    L.push('      +"</div>";');
-    L.push('  });');
-    L.push('  if(!html)html="<div style="+Q+"padding:16px;color:#54698d;text-align:center;"+Q+">No categories found.</div>";');
-    L.push('  list.innerHTML=html;');
-    L.push('};');
-
-    L.push('window.pickParent=function(catId){');
-    L.push('  var inp=document.getElementById("new-cat-parent");if(inp)inp.value=catId;');
-    L.push('  var modal=document.getElementById("parent-picker-modal");if(modal)modal.style.display="none";');
-    L.push('};');
 
     // ── _APP.init ─────────────────────────────────────────────────────────────
     L.push('_APP.init=function(){');
@@ -2958,13 +3214,11 @@ function getCategoryMigrationJS() {
     L.push('      btn.disabled=false;btn.textContent="Load Catalogs";');
     L.push('      if(!data.ok){if(status){status.textContent="Error: "+(data.error||"failed");status.style.color="#c62828";}return;}');
     L.push('      var Q=String.fromCharCode(34);');
-    L.push('      if(sel){sel.innerHTML="<option value="+Q+Q+">-- Select a catalog --</option>";(data.catalogs||[]).forEach(function(c){sel.innerHTML+="<option value="+Q+c.id+Q+">"+c.name+" ("+c.id+")</option>";});}');
-    L.push('      if(status){status.textContent=data.total+" catalogs loaded";status.style.color="#2e7d32";}');
+    L.push('      if(sel){sel.innerHTML="<option value="+Q+Q+">-- Select a catalog --</option>";(data.catalogs||[]).forEach(function(c){sel.innerHTML+="<option value="+Q+c.id+Q+">"+(c.name||c.id)+" ("+c.id+")</option>";});}');
+    L.push('      if(status){status.textContent=(data.total||(data.catalogs||[]).length)+" catalogs loaded";status.style.color="#2e7d32";}');
     L.push('    });');
     L.push('  });');
 
-    L.push('  el=document.getElementById("cat-catalog-select");');
-    L.push('  if(el)el.addEventListener("change",function(){var cid=document.getElementById("cat-catalog-id");if(cid&&this.value)cid.value=this.value;});');
 
     // Step 1 - Check Attributes (checkbox-based)
     L.push('  el=document.getElementById("btn-check-attrs");');
@@ -2972,28 +3226,7 @@ function getCategoryMigrationJS() {
     L.push('    var btn=this;btn.disabled=true;btn.textContent="Checking...";');
     L.push('    _APP.post(_APP.ATTRS_URL,"",function(data){');
     L.push('      btn.disabled=false;btn.textContent="Check Attributes";');
-    L.push('      var Q=String.fromCharCode(34);');
-    L.push('      var tbody=document.getElementById("attr-tbody");');
-    L.push('      if(tbody){');
-    L.push('        tbody.innerHTML="";');
-    L.push('        var attrs=data.attrs||[];');
-  L.push('        attrs.forEach(function(attr){');
-    L.push('          var statusColor=attr.exists?"#2e7d32":"#e65100";');
-    L.push('          var statusBg=attr.exists?"#e8f5e9":"#fff3e0";');
-    L.push('          var statusText=attr.exists?"Exists":"Missing";');
-    L.push('          var chk=!attr.exists?"checked":"";');
-    L.push('          var tdSt="padding:8px 12px;border:1px solid #dddbda;";');
-    L.push('          tbody.innerHTML+="<tr>"');
-    L.push('            +"<td"+a("style",tdSt+"text-align:center;width:52px;")+">"');
-    L.push('            +"<input type="+Q+"checkbox"+Q+" data-attrid="+Q+attr.id+Q+" data-attrtype="+Q+attr.sfccType+Q+" data-attrlabel="+Q+attr.label+Q+" "+chk+a("style","width:16px;height:16px;cursor:pointer;")+"/>"');
-    L.push('            +"</td>"');
-    L.push('            +"<td"+a("style",tdSt)+"><code>"+attr.id+"</code></td>"');
-    L.push('            +"<td"+a("style",tdSt)+">"+attr.sfccType+"</td>"');
-    L.push('            +"<td"+a("style",tdSt)+">"+attr.label+"</td>"');
-    L.push('            +"<td"+a("style",tdSt)+"><span"+a("style","background:"+statusBg+";color:"+statusColor+";padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;")+">"+statusText+"</span></td>"');
-    L.push('            +"</tr>";');
-    L.push('        });');
-    L.push('      }');
+    L.push('      _APP.renderAttrTable(data.attrs||[]);');
     L.push('      var ar=document.getElementById("attr-result");if(ar)ar.style.display="block";');
     L.push('      var ao=document.getElementById("attr-overall");if(ao){ao.textContent="Select attributes to create then click Create Selected.";ao.style.color="#54698d";}');
     L.push('      var cb=document.getElementById("btn-create-selected-attrs");if(cb)cb.style.display="inline-block";');
@@ -3003,87 +3236,67 @@ function getCategoryMigrationJS() {
     // Select All
     L.push('  el=document.getElementById("btn-select-all-attrs");');
     L.push('  if(el)el.addEventListener("click",function(){');
-    L.push('    var boxes=document.querySelectorAll("#attr-tbody input[type=checkbox]");');
+    L.push('    var boxes=document.querySelectorAll("#attr-tbody .cat-attr-cb");');
     L.push('    for(var i=0;i<boxes.length;i++)boxes[i].checked=true;');
     L.push('  });');
 
     // Deselect All
     L.push('  el=document.getElementById("btn-deselect-all-attrs");');
     L.push('  if(el)el.addEventListener("click",function(){');
-    L.push('    var boxes=document.querySelectorAll("#attr-tbody input[type=checkbox]");');
+    L.push('    var boxes=document.querySelectorAll("#attr-tbody .cat-attr-cb");');
     L.push('    for(var i=0;i<boxes.length;i++)boxes[i].checked=false;');
-    L.push('  });');
-
-    // Revert to Default (missing = checked, existing = unchecked)
-   L.push('  el=document.getElementById("btn-revert-attrs");');
-    L.push('  if(el)el.addEventListener("click",function(){');
-    L.push('    var boxes=document.querySelectorAll("#attr-tbody input[type=checkbox]:checked");');
-    L.push('    if(!boxes.length){alert("No attributes selected to delete.");return;}');
-    L.push('    var toDelete=[];');
-    L.push('    for(var i=0;i<boxes.length;i++){toDelete.push(boxes[i].getAttribute("data-attrid"));}');
-    L.push('    if(!confirm("Delete "+toDelete.length+" attribute(s) from SFCC Category system object? This cannot be undone.\\n\\n"+toDelete.join(", ")))return;');
-    L.push('    var ao=document.getElementById("attr-overall");');
-    L.push('    if(ao){ao.textContent="Deleting "+toDelete.length+" attribute(s)...";ao.style.color="#54698d";}');
-    L.push('    _APP.post(_APP.ATTRS_URL,"delete="+encodeURIComponent(JSON.stringify(toDelete)),function(data){');
-    L.push('      if(!data.ok){if(ao){ao.textContent="Error: "+(data.error||"failed");ao.style.color="#c62828";}return;}');
-    L.push('      if(ao){ao.textContent="Deleted: "+data.deleted+" | Failed: "+data.failed;ao.style.color=data.failed>0?"#e65100":"#2e7d32";}');
-    L.push('      _APP.post(_APP.ATTRS_URL,"",function(refreshData){');
-    L.push('        if(!refreshData.ok||!refreshData.attrs)return;');
-    L.push('        var tbody2=document.getElementById("attr-tbody");');
-    L.push('        if(!tbody2)return;');
-    L.push('        var rows=tbody2.querySelectorAll("tr");');
-    L.push('        refreshData.attrs.forEach(function(attr,idx){');
-    L.push('          if(!rows[idx])return;');
-    L.push('          var statusCell=rows[idx].querySelector("span");');
-    L.push('          var checkbox=rows[idx].querySelector("input[type=checkbox]");');
-    L.push('          if(statusCell){');
-    L.push('            statusCell.textContent=attr.exists?"Exists":"Missing";');
-    L.push('            statusCell.style.background=attr.exists?"#e8f5e9":"#fff3e0";');
-    L.push('            statusCell.style.color=attr.exists?"#2e7d32":"#e65100";');
-    L.push('          }');
-    L.push('          if(checkbox){checkbox.checked=!attr.exists;}');
-    L.push('        });');
-    L.push('      });');
-    L.push('    });');
     L.push('  });');
 
     // Create Selected
     L.push('  el=document.getElementById("btn-create-selected-attrs");');
     L.push('  if(el)el.addEventListener("click",function(){');
-    L.push('    var boxes=document.querySelectorAll("#attr-tbody input[type=checkbox]:checked");');
+    L.push('    var Q=String.fromCharCode(34);');
+    L.push('    var btn=this;');
+    L.push('    var ao=document.getElementById("attr-overall");');
+    L.push('    var boxes=document.querySelectorAll("#attr-tbody .cat-attr-cb:checked");');
     L.push('    if(!boxes.length){alert("No attributes selected. Check at least one attribute to create.");return;}');
     L.push('    var selected=[];');
     L.push('    for(var i=0;i<boxes.length;i++){');
-    L.push('      selected.push({id:boxes[i].getAttribute("data-attrid"),sfccType:boxes[i].getAttribute("data-attrtype"),label:boxes[i].getAttribute("data-attrlabel")});');
+    L.push('      var bidx=boxes[i].getAttribute("data-idx");');
+    L.push('      var origId=boxes[i].getAttribute("data-attrid");');
+    L.push('      var attrExists=boxes[i].getAttribute("data-attrexists")==="1";');
+    L.push('      var idInp=document.querySelector(".cm-attr-id-input[data-idx="+Q+bidx+Q+"]");');
+    L.push('      var editedId=idInp&&idInp.value.trim()?idInp.value.trim():origId;');
+    L.push('      var sfccT=window.AccAttrPreflight?window.AccAttrPreflight.readSfccType(bidx,boxes[i].getAttribute("data-attrtype")):boxes[i].getAttribute("data-attrtype");');
+    L.push('      if(attrExists&&editedId===origId){');
+    L.push('        var skipSp=document.querySelector(".cat-status-span[data-idx="+Q+bidx+Q+"]");');
+    L.push('        if(skipSp){skipSp.textContent="Skipped";skipSp.style.background="#e3f2fd";skipSp.style.color="#1565c0";}');
+    L.push('        boxes[i].checked=false;');
+    L.push('        continue;');
+    L.push('      }');
+    L.push('      var canonicalId=idInp?idInp.getAttribute("data-canonical")||origId:origId;');
+    L.push('      selected.push({id:editedId,canonicalId:canonicalId,originalId:(attrExists&&editedId!==origId)?origId:null,sfccType:sfccT,label:boxes[i].getAttribute("data-attrlabel"),idx:bidx});');
     L.push('    }');
-    L.push('    var btn=this;btn.disabled=true;btn.textContent="Creating...";');
-    L.push('    var ao=document.getElementById("attr-overall");');
+    L.push('    if(!selected.length){if(ao){ao.textContent="All selected attributes already exist — skipped.";ao.style.color="#1565c0";}return;}');
+    L.push('    btn.disabled=true;btn.textContent="Creating...";');
     L.push('    if(ao){ao.textContent="Creating "+selected.length+" attribute(s)...";ao.style.color="#54698d";}');
-    L.push('    _APP.post(_APP.ATTRS_URL,"selected="+encodeURIComponent(JSON.stringify(selected)),function(data){');
+    L.push('    _APP.post(_APP.CREATE_ATTRS_URL,"attrs="+encodeURIComponent(JSON.stringify(selected)),function(data){');
     L.push('      btn.disabled=false;btn.textContent="Create Selected";');
-    L.push('      if(!data.ok&&data.error){if(ao){ao.textContent="Error: "+data.error;ao.style.color="#c62828";}return;}');
-L.push('      var msg="Done - "+data.created+" created, "+data.skipped+" skipped, "+data.failed+" failed.";');
-    L.push('      if(ao){ao.textContent=msg;ao.style.color=data.failed>0?"#e65100":"#2e7d32";}');
-    L.push('      if(data.errors&&data.errors.length){var eb=document.getElementById("attr-errors");if(eb){eb.style.display="block";eb.textContent="Errors: "+data.errors.join(", ");}}');
-    L.push('      _APP.post(_APP.ATTRS_URL,"",function(refreshData){');
-    L.push('        if(!refreshData.ok||!refreshData.attrs)return;');
-    L.push('        var Q=String.fromCharCode(34);');
-    L.push('        var tbody2=document.getElementById("attr-tbody");');
-    L.push('        if(!tbody2)return;');
-    L.push('        var rows=tbody2.querySelectorAll("tr");');
-    L.push('        refreshData.attrs.forEach(function(attr,idx){');
-    L.push('          if(!rows[idx])return;');
-    L.push('          var statusCell=rows[idx].querySelector("span");');
-    L.push('          var checkbox=rows[idx].querySelector("input[type=checkbox]");');
-    L.push('          if(statusCell){');
-    L.push('            statusCell.textContent=attr.exists?"Exists":"Missing";');
-    L.push('            statusCell.style.background=attr.exists?"#e8f5e9":"#fff3e0";');
-    L.push('            statusCell.style.color=attr.exists?"#2e7d32":"#e65100";');
-    L.push('          }');
-    L.push('          if(checkbox){checkbox.checked=!attr.exists;}');
-    L.push('        });');
-    L.push('      });');
-    L.push('      if(data.failed===0){setTimeout(function(){_APP.goToStep(2);},2000);}');
+    L.push('      if(!data.ok){if(ao){ao.textContent="Error: "+(data.error||"failed");ao.style.color="#c62828";}return;}');
+    L.push('      var res=data.result||{};');
+    L.push('      var msg="Done - "+(res.created||0)+" created, "+(res.failed||0)+" failed.";');
+    L.push('      if(ao){ao.textContent=msg;ao.style.color=(res.failed||0)>0?"#e65100":"#2e7d32";}');
+    L.push('      if(res.errors&&res.errors.length){var eb=document.getElementById("attr-errors");if(eb){eb.style.display="block";eb.textContent="Errors: "+res.errors.join(", ");}}');
+    L.push('      var Q2=String.fromCharCode(34);');
+    L.push('      for(var si=0;si<selected.length;si++){');
+    L.push('        var sidx=selected[si].idx;');
+    L.push('        var scb=document.querySelector(".cat-attr-cb[data-idx="+Q2+sidx+Q2+"]");');
+    L.push('        var ssp=document.querySelector(".cat-status-span[data-idx="+Q2+sidx+Q2+"]");');
+    L.push('        var sinp=document.querySelector(".cm-attr-id-input[data-idx="+Q2+sidx+Q2+"]");');
+    L.push('        if(ssp){ssp.textContent="Exists";ssp.style.background="#e8f5e9";ssp.style.color="#2e7d32";}');
+    L.push('        if(scb){scb.checked=false;scb.setAttribute("data-attrexists","1");scb.setAttribute("data-attrid",selected[si].id);}');
+    L.push('        if(sinp){sinp.setAttribute("data-orig",selected[si].id);sinp.value=selected[si].id;}');
+    L.push('        if(_APP.attrsData&&_APP.attrsData[sidx]){_APP.attrsData[sidx].exists=true;_APP.attrsData[sidx].id=selected[si].id;}');
+    L.push('        var Q3=String.fromCharCode(34);');
+    L.push('        var rBtn=document.querySelector(".cat-attr-revert[data-idx="+Q3+sidx+Q3+"]");');
+    L.push('        if(rBtn){rBtn.disabled=false;rBtn.title="";}');
+    L.push('      }');
+    L.push('      if((res.failed||0)===0){setTimeout(function(){_APP.goToStep(2);},2000);}');
     L.push('    });');
     L.push('  });');
 
@@ -3101,8 +3314,11 @@ L.push('      var msg="Done - "+data.created+" created, "+data.skipped+" skipped
     L.push('    if(appCnt)appCnt.textContent=total;');
     L.push('    if(applied)applied.style.display="block";');
     L.push('    document.getElementById("hierarchy-changes-summary").style.display="none";');
-    L.push('    document.getElementById("btn-save-hierarchy").style.display="none";');
     L.push('  });');
+
+    L.push('  el=document.getElementById("btn-select-all-export");if(el)el.addEventListener("click",function(){_APP.selectAllExport();});');
+    L.push('  el=document.getElementById("btn-select-all-export-all");if(el)el.addEventListener("click",function(){if(!_APP.allCategories)return;_APP.allCategories.forEach(function(c){_APP.selectedForExport[c.id]=true;});_APP.renderTable();});');
+    L.push('  el=document.getElementById("btn-deselect-all-export");if(el)el.addEventListener("click",function(){_APP.deselectAllExport();});');
 
     L.push('  el=document.getElementById("btn-reset-hierarchy");');
     L.push('  if(el)el.addEventListener("click",function(){');
@@ -3112,7 +3328,6 @@ L.push('      var msg="Done - "+data.created+" created, "+data.skipped+" skipped
     L.push('    var saveBtn=document.getElementById("btn-save-hierarchy");');
     L.push('    if(applied)applied.style.display="none";');
     L.push('    if(summary)summary.style.display="none";');
-    L.push('    if(saveBtn)saveBtn.style.display="none";');
     L.push('    _APP.renderTable();');
     L.push('  });');
 
@@ -3122,23 +3337,99 @@ L.push('      var msg="Done - "+data.created+" created, "+data.skipped+" skipped
     L.push('    var rows=document.querySelectorAll("#main-cat-tbody tr[data-catid]");');
     L.push('    for(var i=0;i<rows.length;i++){var ms=!query||rows[i].textContent.toLowerCase().indexOf(query)>-1;var ml=_APP.activeFilter==="all"||rows[i].getAttribute("data-depth")===_APP.activeFilter;rows[i].style.display=(ms&&ml)?"":"none";}');
     L.push('  });');
+    L.push('  window._APP=_APP;');
 
+    // CT load handler — unchanged
     L.push('  el=document.getElementById("btn-load-categories");');
     L.push('  if(el)el.addEventListener("click",function(){');
     L.push('    var btn=this;var status=document.getElementById("hierarchy-fetch-status");');
     L.push('    var locale=document.getElementById("cat-locale")?document.getElementById("cat-locale").value.trim():"en-US";');
     L.push('    btn.disabled=true;btn.textContent="Loading...";');
-    L.push('    if(status){status.textContent="Fetching from Commercetools...";status.style.color="#54698d";}');
-    L.push('    _APP.post(_APP.FETCH_URL,"locale="+encodeURIComponent(locale||"en-US"),function(data){');
-    L.push('      btn.disabled=false;btn.textContent="Load Categories from CT";');
-    L.push('      if(!data.ok){if(status){status.textContent="Error: "+(data.error||"failed");status.style.color="#c62828";}return;}');
-    L.push('      _APP.allCategories=data.categories;_APP.catMap={};');
-    L.push('      _APP.hierarchyOverrides={};_APP.orderOverrides={};_APP.pendingParent={};_APP.pendingOrder={};_APP.activeFilter="all";');
-    L.push('      _APP.allCategories.forEach(function(c){_APP.catMap[c.id]=c;});');
-    L.push('      if(status){status.textContent=data.total+" categories loaded";status.style.color="#2e7d32";}');
-    L.push('      var applied=document.getElementById("hierarchy-applied-summary");if(applied)applied.style.display="none";');
-    L.push('      _APP.renderTable();');
-    L.push('    });');
+    L.push('    _APP.allCategories=[];_APP.catMap={};');
+    L.push('    _APP.hierarchyOverrides={};_APP.orderOverrides={};_APP.pendingParent={};_APP.pendingOrder={};_APP.activeFilter="all";_APP.newCatCount=0;_APP.addedCats=[];');
+    L.push('    function fetchPage(offset){');
+    L.push('      if(status){status.textContent="Loading... "+_APP.allCategories.length+" fetched";status.style.color="#54698d";}');
+    L.push('      _APP.post(_APP.FETCH_URL,"locale="+encodeURIComponent(locale||"en-US")+"&offset="+offset,function(data){');
+    L.push('        if(!data.ok){btn.disabled=false;btn.textContent="Load Categories from CT";if(status){status.textContent="Error: "+(data.error||"failed");status.style.color="#c62828";}return;}');
+    L.push('        data.categories.forEach(function(c){_APP.allCategories.push(c);_APP.catMap[c.id]=c;});');
+    L.push('        if(data.done){');
+    L.push('          btn.disabled=false;btn.textContent="Load Categories from CT";');
+    L.push('          if(status){status.textContent=_APP.allCategories.length+" categories loaded";status.style.color="#2e7d32";}');
+    L.push('          _APP.buildSharedParentSelect();');
+    L.push('          _APP.populateParentDropdown();');
+    L.push('          var applied=document.getElementById("hierarchy-applied-summary");if(applied)applied.style.display="none";');
+    L.push('          _APP.renderTable();');
+    L.push('        } else {');
+    L.push('          fetchPage(offset+data.limit);');
+    L.push('        }');
+    L.push('      });');
+    L.push('    }');
+    L.push('    fetchPage(0);');
+    L.push('  });');
+    // Shopify override — only replaces the handler when platform is shopify
+    L.push('  if(_APP.PLATFORM==="shopify"){');
+    L.push('    el=document.getElementById("btn-load-categories");');
+    L.push('    if(el){');
+    L.push('      el.textContent="Load Categories from Shopify";');
+    L.push('      var _clone=el.cloneNode(true);el.parentNode.replaceChild(_clone,el);el=_clone;');
+    L.push('      el.addEventListener("click",function(){');
+    L.push('        var btn=this;var status=document.getElementById("hierarchy-fetch-status");');
+    L.push('        btn.disabled=true;btn.textContent="Loading...";');
+    L.push('        _APP.allCategories=[];_APP.catMap={};');
+    L.push('        _APP.hierarchyOverrides={};_APP.orderOverrides={};_APP.pendingParent={};_APP.pendingOrder={};_APP.activeFilter="all";_APP.newCatCount=0;_APP.addedCats=[];');
+    L.push('        function fetchShopifyPage(cursor){');
+    L.push('          if(status){status.textContent="Loading categories... "+_APP.allCategories.length+" so far";status.style.color="#54698d";}');
+    L.push('          _APP.post(_APP.FETCH_URL,"offset="+encodeURIComponent(cursor),function(data){');
+    L.push('            if(!data.ok){btn.disabled=false;btn.textContent="Load Categories from Shopify";if(status){status.textContent="Error: "+(data.error||"failed");status.style.color="#c62828";}return;}');
+    L.push('            data.categories.forEach(function(c){_APP.allCategories.push(c);_APP.catMap[c.id]=c;});');
+    L.push('            _APP.renderTable();');
+    L.push('            if(data.done){');
+    L.push('              btn.disabled=false;btn.textContent="Load Categories from Shopify";');
+    L.push('              if(status){status.textContent=_APP.allCategories.length+" categories loaded";status.style.color="#2e7d32";}');
+    L.push('              _APP.buildSharedParentSelect();');
+    L.push('              _APP.populateParentDropdown();');
+    L.push('              var applied=document.getElementById("hierarchy-applied-summary");if(applied)applied.style.display="none";');
+    L.push('              if(_APP.CHECK_PRODUCTS_URL){');
+    L.push('                if(status){status.textContent="Checking product assignments...";status.style.color="#1565c0";}');
+    L.push('                _APP.post(_APP.CHECK_PRODUCTS_URL,"",function(pdata){');
+    L.push('                  if(pdata&&pdata.ok&&pdata.counts){_APP.productCounts=pdata.counts;}');
+    L.push('                  if(status){status.textContent=_APP.allCategories.length+" categories loaded";status.style.color="#2e7d32";}');
+    L.push('                  _APP.renderTable();');
+    L.push('                });');
+    L.push('              }');
+    L.push('            } else {');
+    L.push('              if(!data.nextOffset){btn.disabled=false;btn.textContent="Load Categories from Shopify";if(status){status.textContent="Error: server returned no next cursor";status.style.color="#c62828";}return;}');
+    L.push('              setTimeout(function(){fetchShopifyPage(data.nextOffset);},0);');
+    L.push('            }');
+    L.push('          });');
+    L.push('        }');
+    L.push('        fetchShopifyPage(0);');
+    L.push('      });');
+    L.push('    }');
+    L.push('  }');
+
+    L.push('  el=document.getElementById("btn-create-ct-category");');
+    L.push('  if(el)el.addEventListener("click",function(){');
+    L.push('    var key=document.getElementById("ct-new-cat-key").value.trim();');
+    L.push('    var name=document.getElementById("ct-new-cat-name").value.trim();');
+    L.push('    var parentId=document.getElementById("ct-new-cat-parent").value.trim();');
+    L.push('    var status=document.getElementById("ct-new-cat-status");');
+    L.push('    if(!key||!name){if(status){status.textContent="Key and Name are required.";status.style.color="#c62828";}return;}');
+    L.push('    if(_APP.catMap&&_APP.catMap[key]){if(status){status.textContent="A category with this key already exists.";status.style.color="#c62828";}return;}');
+    L.push('    if(!_APP.allCategories)_APP.allCategories=[];');
+    L.push('    if(!_APP.catMap)_APP.catMap={};');
+    L.push('    var newCat={id:key,name:name,parentId:parentId||""};');
+    L.push('    _APP.allCategories.push(newCat);');
+    L.push('    _APP.catMap[key]=newCat;');
+    L.push('    _APP.addedCats.push(newCat);');
+    L.push('    _APP.newCatCount++;');
+    L.push('    _APP.buildSharedParentSelect();');
+    L.push('    _APP.renderTable();');
+    L.push('    _APP.populateParentDropdown();');
+    L.push('    if(status){status.textContent="Added: "+key;status.style.color="#2e7d32";}');
+    L.push('    document.getElementById("ct-new-cat-key").value="";');
+    L.push('    document.getElementById("ct-new-cat-name").value="";');
+    L.push('    document.getElementById("ct-new-cat-parent").value="";');
     L.push('  });');
 
     L.push('  el=document.getElementById("btn-back-to-step1");if(el)el.addEventListener("click",function(){_APP.goToStep(1);});');
@@ -3150,12 +3441,13 @@ L.push('      var msg="Done - "+data.created+" created, "+data.skipped+" skipped
     L.push('    if(pc>0&&!confirm(pc+" unsaved change(s) will be discarded. Proceed?"))return;');
     L.push('    _APP.pendingParent={};_APP.pendingOrder={};');
     L.push('    var s=document.getElementById("step3-summary");');
-    L.push('    if(s)s.textContent="Step 3 of 3 - Export. Categories: "+_APP.allCategories.length+" | Parent changes: "+Object.keys(_APP.hierarchyOverrides).length+" | Order changes: "+Object.keys(_APP.orderOverrides).length+" | Catalog: "+(_APP.getCatalogId()||"not set");');
+    L.push('    var newCatPart=_APP.newCatCount>0?" | New categories: "+_APP.newCatCount:"";');
+    L.push('    if(s)s.textContent="Step 3 of 3 - Export. Categories: "+_APP.allCategories.length+" | Parent changes: "+Object.keys(_APP.hierarchyOverrides).length+" | Order changes: "+Object.keys(_APP.orderOverrides).length+newCatPart+" | Catalog: "+(_APP.getCatalogId()||"not set");');
     L.push('    _APP.goToStep(3);');
     L.push('  });');
 
     // Step 3
-    L.push('  el=document.getElementById("btn-open-impex");if(el)el.addEventListener("click",function(e){e.preventDefault();_APP.openInNewTab(_APP.IMPEX_URL);});');
+    L.push('  el=document.getElementById("btn-open-impex");if(el)el.addEventListener("click",function(e){e.preventDefault();_APP.openInNewTab(_APP.getImpexFolderUrl());});');
     L.push('  el=document.getElementById("btn-open-import");if(el)el.addEventListener("click",function(e){e.preventDefault();_APP.openInNewTab(_APP.IMPORT_URL);});');
 
     L.push('  el=document.getElementById("cat-start-btn");');
@@ -3174,7 +3466,36 @@ L.push('      var msg="Done - "+data.created+" created, "+data.skipped+" skipped
     L.push('    var fo={};');
     L.push('    Object.keys(_APP.hierarchyOverrides).forEach(function(k){fo[k]={parent:_APP.hierarchyOverrides[k]};});');
     L.push('    Object.keys(_APP.orderOverrides).forEach(function(k){if(!fo[k])fo[k]={};fo[k].position=_APP.orderOverrides[k];});');
-    L.push('    _APP.post(_APP.MIGRATE_URL,"catalogId="+encodeURIComponent(catalogId)+"&locale="+encodeURIComponent(locale)+"&mode=xml&overrides="+encodeURIComponent(JSON.stringify(fo)),function(data){');
+    L.push('    var extra=(_APP.addedCats&&_APP.addedCats.length)?encodeURIComponent(JSON.stringify(_APP.addedCats)):"";');
+    L.push('    var selIds=[];');
+    L.push('    var exportCbs=document.querySelectorAll("#main-cat-tbody .cat-export-cb");');
+    L.push('    for(var cbi=0;cbi<exportCbs.length;cbi++){if(exportCbs[cbi].checked)selIds.push(exportCbs[cbi].getAttribute("data-catid"));}');
+    L.push('    if(selIds.length===0){alert("Please select at least one category to export using the Export checkboxes in Step 2.");_APP.running=false;this.disabled=false;this.textContent="Run Migration";return;}');
+    L.push('    var selSet={};for(var si=0;si<selIds.length;si++){selSet[selIds[si]]=true;}');
+    L.push('    var missingParents=[];');
+    L.push('    for(var mi=0;mi<selIds.length;mi++){');
+    L.push('      var mpId=_APP.effectiveParentId(selIds[mi]);');
+    L.push('      if(mpId&&mpId!=="root"&&!selSet[mpId]){');
+    L.push('        var mpCat=_APP.catMap[mpId];');
+    L.push('        var mpName=mpCat?mpCat.name:mpId;');
+    L.push('        if(missingParents.indexOf(mpName)===-1)missingParents.push(mpName);');
+    L.push('      }');
+    L.push('    }');
+    L.push('    if(missingParents.length>0){');
+    L.push('      var mpMsg="The following parent categories are not selected for export:\\n\\n"+missingParents.join("\\n")+"\\n\\nPlease select the parent categories too before exporting.";');
+    L.push('      alert(mpMsg);_APP.running=false;this.disabled=false;this.textContent="Run Migration";return;');
+    L.push('    }');
+    L.push('    var selIdsParam=encodeURIComponent(JSON.stringify(selIds));');
+    L.push('    var catsParam=(_APP.PLATFORM==="shopify"&&_APP.allCategories&&_APP.allCategories.length)?encodeURIComponent(JSON.stringify(_APP.allCategories)):"";');
+    L.push('    var attrIdMap={};');
+    L.push('    var aInps=document.querySelectorAll("#attr-tbody .cm-attr-id-input");');
+    L.push('    for(var ai=0;ai<aInps.length;ai++){');
+    L.push('      var canonicalId=aInps[ai].getAttribute("data-canonical");');
+    L.push('      var editedId=aInps[ai].value.trim()||canonicalId;');
+    L.push('      if(canonicalId&&editedId&&canonicalId!==editedId){attrIdMap[canonicalId]=editedId;}');
+    L.push('    }');
+    L.push('    var attrIdsParam=encodeURIComponent(JSON.stringify(attrIdMap));');
+    L.push('    _APP.post(_APP.MIGRATE_URL,"catalogId="+encodeURIComponent(catalogId)+"&locale="+encodeURIComponent(locale)+"&mode=xml&platform="+encodeURIComponent(_APP.PLATFORM||"commercetools")+"&overrides="+encodeURIComponent(JSON.stringify(fo))+"&extraCategories="+extra+"&selectedIds="+selIdsParam+"&attrIds="+attrIdsParam+(catsParam?"&categoriesData="+catsParam:""),function(data){');
     L.push('      if(!data.ok){_APP.setPhase("fetch","error",data.error||"Failed",0);_APP.finalize(false,data.error||"Migration failed.");return;}');
     L.push('      _APP.setPhase("fetch","done",data.total+" categories fetched and transformed",100);');
     L.push('      _APP.setPhase("import","active","Writing XML to IMPEX...",50);');
@@ -3185,7 +3506,7 @@ L.push('      var msg="Done - "+data.created+" created, "+data.skipped+" skipped
     L.push('    });');
     L.push('  });');
 
-    // Step 4 - New Catalog
+    // Generate catalog XML via IMPEX
     L.push('  el=document.getElementById("btn-create-catalog");');
     L.push('  if(el)el.addEventListener("click",function(){');
     L.push('    var btn=this;');
@@ -3203,65 +3524,21 @@ L.push('      var msg="Done - "+data.created+" created, "+data.skipped+" skipped
     L.push('    btn.disabled=true;btn.textContent="Generating...";');
     L.push('    if(status){status.textContent="Writing catalog XML...";status.style.color="#54698d";}');
     L.push('    _APP.post(_APP.CREATE_CATALOG_URL,"catalogId="+encodeURIComponent(catId)+"&catalogName="+encodeURIComponent(catName),function(data){');
-    L.push('      btn.disabled=false;btn.textContent="Generate Catalog XML";');
+    L.push('      btn.disabled=false;btn.textContent="Generate XML (IMPEX)";');
     L.push('      if(!data.ok){if(status){status.textContent="Error: "+(data.error||"failed");status.style.color="#c62828";}return;}');
     L.push('      if(status){status.textContent="Done";status.style.color="#2e7d32";}');
+    L.push('      _APP.newCatalogId=catId;');
     L.push('      var xp=document.getElementById("new-catalog-xml-path");if(xp)xp.textContent=data.xmlPath||"";');
+    L.push('      var lbl=document.getElementById("new-catalog-active-label");if(lbl)lbl.textContent="Catalog ID \\""+catId+"\\" will be used for category export.";');
     L.push('      if(result)result.style.display="block";');
     L.push('    });');
     L.push('  });');
 
-    L.push('  el=document.getElementById("btn-new-catalog-impex");if(el)el.addEventListener("click",function(e){e.preventDefault();_APP.openInNewTab(_APP.IMPEX_URL);});');
-    L.push('  el=document.getElementById("btn-new-catalog-import");if(el)el.addEventListener("click",function(e){e.preventDefault();_APP.openInNewTab(_APP.IMPORT_URL);});');
-
-    // Step 5 - New Category
-    L.push('  el=document.getElementById("btn-pick-parent");');
-    L.push('  if(el)el.addEventListener("click",function(){var modal=document.getElementById("parent-picker-modal");if(modal)modal.style.display="block";_APP.renderParentPickerList("");});');
-
-    L.push('  el=document.getElementById("parent-picker-search");');
-    L.push('  if(el)el.addEventListener("input",function(){_APP.renderParentPickerList(this.value.toLowerCase());});');
-
-    L.push('  el=document.getElementById("btn-close-picker");');
-    L.push('  if(el)el.addEventListener("click",function(){var m=document.getElementById("parent-picker-modal");if(m)m.style.display="none";});');
-
-    L.push('  el=document.getElementById("btn-create-category");');
-    L.push('  if(el)el.addEventListener("click",function(){');
-    L.push('    var btn=this;');
-    L.push('    var catId=document.getElementById("new-cat-id").value.trim();');
-    L.push('    var catName=document.getElementById("new-cat-name").value.trim();');
-    L.push('    var parentId=document.getElementById("new-cat-parent").value.trim()||"root";');
-    L.push('    var catalogId=_APP.getCatalogId();');
-    L.push('    var idErr=document.getElementById("new-cat-id-error");');
-    L.push('    var nameErr=document.getElementById("new-cat-name-error");');
-    L.push('    var status=document.getElementById("new-cat-status");');
-    L.push('    var result=document.getElementById("new-cat-result");');
-    L.push('    if(idErr)idErr.style.display="none";');
-    L.push('    if(nameErr)nameErr.style.display="none";');
-    L.push('    if(result)result.style.display="none";');
-    L.push('    if(!catId){if(idErr)idErr.style.display="block";return;}');
-    L.push('    if(!catName){if(nameErr)nameErr.style.display="block";return;}');
-    L.push('    if(!catalogId){alert("Please select or enter a Target Catalog ID in the config bar above.");return;}');
-    L.push('    btn.disabled=true;btn.textContent="Generating...";');
-    L.push('    if(status){status.textContent="Writing category XML...";status.style.color="#54698d";}');
-    L.push('    _APP.post(_APP.CREATE_CATEGORY_URL,"catalogId="+encodeURIComponent(catalogId)+"&categoryId="+encodeURIComponent(catId)+"&categoryName="+encodeURIComponent(catName)+"&parentId="+encodeURIComponent(parentId),function(data){');
-    L.push('      btn.disabled=false;btn.textContent="Generate Category XML";');
-    L.push('      if(result){result.style.display="block";result.style.padding="14px 16px";result.style.borderRadius="4px";}');
-    L.push('      if(!data.ok){');
-    L.push('        if(status)status.textContent="";');
-    L.push('        if(result){result.style.background="#ffebee";result.style.border="1px solid #c62828";result.style.color="#c62828";result.textContent="Error: "+(data.error||"Failed.");}');
-    L.push('        _APP.addToHistory(catId,catName,parentId,"Failed");return;');
-    L.push('      }');
-    L.push('      if(status)status.textContent="";');
-    L.push('      if(result){result.style.background="#e8f5e9";result.style.border="1px solid #2e7d32";result.style.color="#2e7d32";result.textContent=data.message||"XML written to IMPEX. Import via Administration - Site Development - Import and Export.";}');
-    L.push('      _APP.addToHistory(catId,catName,parentId,"XML written");');
-    L.push('      document.getElementById("new-cat-id").value="";');
-    L.push('      document.getElementById("new-cat-name").value="";');
-    L.push('      document.getElementById("new-cat-parent").value="";');
-    L.push('    });');
-    L.push('  });');
+    L.push('  el=document.getElementById("btn-new-catalog-impex");if(el)el.addEventListener("click",function(e){e.preventDefault();_APP.openInNewTab(_APP.getImpexFolderUrl());});');
+    L.push('  el=document.getElementById("btn-open-bm-catalog");if(el)el.addEventListener("click",function(e){e.preventDefault();window.open("https://"+window.location.host+"/on/demandware.store/Sites-Site/default/ViewCatalogList_52-List");});');
 
     // Tab navigation
-    L.push('  [1,2,3,4,5].forEach(function(i){var tab=document.getElementById("tab-"+i);if(tab)tab.addEventListener("click",function(){_APP.goToStep(i);});});');
+    L.push('  [1,2,3].forEach(function(i){var tab=document.getElementById("tab-"+i);if(tab)tab.addEventListener("click",function(){_APP.goToStep(i);});});');
 
     // Pre-check on load
     L.push('  _APP.post(_APP.STATUS_URL,"",function(data){');
@@ -3271,7 +3548,7 @@ L.push('      var msg="Done - "+data.created+" created, "+data.skipped+" skipped
     L.push('    var infoBox=document.getElementById("step1-info-box");');
     L.push('    var skipBtn=document.getElementById("btn-skip-attrs");');
     L.push('    if(!missing.length){');
-    L.push('      if(infoBox)infoBox.textContent="Step 1 - All 3 custom attributes (ctSlug, ctId, ctPosition) already exist. You may skip to Step 2.";');
+    L.push('      var attrNames=Object.keys(status).join(", ");if(infoBox)infoBox.textContent="Step 1 - All required custom attributes ("+attrNames+") already exist. You may skip to Step 2.";');
     L.push('      if(skipBtn){skipBtn.textContent="All exist - Skip to Step 2";skipBtn.style.background="#e8f5e9";skipBtn.style.color="#2e7d32";}');
     L.push('    }else{');
     L.push('      if(infoBox)infoBox.textContent="Step 1 - Missing: "+missing.join(", ")+". Click Check Attributes to review and create.";');
@@ -3292,13 +3569,16 @@ exports.CategoryMigration = function () {
     var instanceHost = request.httpHost;
 
     // Build URLs safely - no special characters
-    var platformId = String(session.custom.migrationPlatformId || 'commercetools');
+    var platformId = getParam('platform') || String(session.custom.migrationPlatformId || 'commercetools');
+    session.custom.migrationPlatformId = platformId;
     var pageCtx    = migrationPageContext(platformId, 'catalog');
     var impexFolderUrl = pageCtx.impexUrl;
     var importPageUrl  = 'https://' + instanceHost + '/on/demandware.store/Sites-Site/default%3bapp%3d__bm_merchant/ViewCatalogImpex_52-Status?SelectedMenuItem=prod-cat_impex&CurrentMenuItemId=prod-cat';
     var checkAttrsUrl  = URLUtils.url('Accelerator-CheckCategoryAttributes').toString() || '';
     var checkStatusUrl = URLUtils.url('Accelerator-CheckAttributeStatus').toString()    || '';
-    var fetchUrl       = URLUtils.url('Accelerator-FetchCTCategories').toString()       || '';
+    var fetchUrl       = platformId === 'shopify'
+        ? URLUtils.url('Accelerator-FetchShopifyCategories').toString()
+        : URLUtils.url('Accelerator-FetchCTCategories').toString();
     var migrateUrl     = URLUtils.url('Accelerator-RunCategoryMigration').toString()    || '';
 
     Logger.info('CategoryMigration URLs: migrate={0} impex={1} import={2}',
@@ -3311,18 +3591,30 @@ exports.CategoryMigration = function () {
         impexPath      : pageCtx.impexPath,
         dataWizardEntryUrl:  pageCtx.dataWizardEntryUrl,
         dataWizardSelectUrl: pageCtx.dataWizardSelectUrl,
+        platformId:          pageCtx.platformId,
+        sourceLabel:         pageCtx.sourceLabel,
+        migrationUi:         pageCtx.migrationUi,
+        migrationUiJson:     pageCtx.migrationUiJson,
         dashboardUrl   : URLUtils.url('Accelerator-Start').toString(),
         cssUrl         : URLUtils.staticURL('/css/accelerator-migration.css').toString(),
         checkAttrsUrl  : checkAttrsUrl,
         checkStatusUrl : checkStatusUrl,
         fetchUrl       : fetchUrl,
+        platform       : platformId,
         migrateUrl     : migrateUrl,
         impexFolderUrl : impexFolderUrl,
         importPageUrl  : importPageUrl,
-         fetchCatalogsUrl : URLUtils.url('Accelerator-FetchSFCCCatalogs').toString(),
-        createCatalogUrl : URLUtils.url('Accelerator-CreateCatalog').toString(),
-        createCategoryUrl: URLUtils.url('Accelerator-CreateCategory').toString(),
-        jsUrl: URLUtils.url('Accelerator-CategoryMigrationJS').toString()
+        fetchCatalogsUrl      : URLUtils.url('Accelerator-FetchSFCCCatalogs').toString(),
+        createCatalogUrl      : URLUtils.url('Accelerator-CreateCatalog').toString(),
+        createCategoryUrl     : URLUtils.url('Accelerator-CreateCategory').toString(),
+        bmClientId            : (cfg.sfcc && cfg.sfcc.bmClientId)  ? cfg.sfcc.bmClientId  : '',
+        metaVersion           : (cfg.sfcc && cfg.sfcc.metaVersion) ? cfg.sfcc.metaVersion : 'v20_10',
+        importUrl             : importPageUrl,
+        createCtCategoryUrl   : URLUtils.url('Accelerator-CreateCTCategory').toString(),
+        checkProductsUrl      : URLUtils.url('Accelerator-CheckCategoryProducts').toString(),
+        attrPreflightJsUrl    : URLUtils.staticURL('/js/attr-preflight.js').toString(),
+        createAttrsUrl        : URLUtils.url('Accelerator-CreateCategoryAttributes').toString(),
+        jsUrl: URLUtils.url('Accelerator-CategoryMigrationJS').toString() + '?v=' + new Date().getTime()
     }));
 };
 exports.CategoryMigration.public = true;
@@ -3341,7 +3633,8 @@ exports.CheckCategoryAttributes = function () {
         // No params — return current status
         if (!selectedParam && !deleteParam) {
             var categoryAttributeMgr = require('*/cartridge/scripts/catalog/categoryAttributeMgr');
-            var attrs = categoryAttributeMgr.checkAttributes();
+            var catPlatform = String(session.custom.migrationPlatformId || 'commercetools');
+            var attrs = categoryAttributeMgr.checkAttributes(catPlatform);
             response.setContentType('application/json');
             response.writer.print(JSON.stringify({ ok: true, attrs: attrs }));
             return;
@@ -3407,13 +3700,54 @@ exports.CheckCategoryAttributes = function () {
 exports.CheckCategoryAttributes.public = true;
 
 /**
+ * Create selected attribute definitions on the SFCC Category system object.
+ * POST: attrs=<json-array of {id, label, sfccType}>
+ */
+exports.CreateCategoryAttributes = function () {
+    var rawAttrs = getParam('attrs');
+    var attrs    = [];
+    try { attrs = JSON.parse(rawAttrs || '[]'); } catch (e) {
+        jsonResponse({ ok: false, error: 'Invalid attrs JSON' });
+        return;
+    }
+    if (!attrs.length) {
+        jsonResponse({ ok: false, error: 'No attributes provided' });
+        return;
+    }
+    try {
+        var catAttrMgr   = require('*/cartridge/scripts/catalog/categoryAttributeMgr');
+        var catPlatform  = String(session.custom.migrationPlatformId || 'commercetools');
+        var result = catAttrMgr.createAttributes(attrs, catPlatform);
+        // Persist canonical→actual ID mapping in session so RunCategoryMigration
+        // can remap customAttribute keys even when the user navigates across pages.
+        // Always write the session key (even when no rename) so stale mappings are
+        // cleared if the user re-creates an attribute back under its canonical name.
+        for (var i = 0; i < attrs.length; i++) {
+            var canonicalAttrId = attrs[i].canonicalId || attrs[i].id;
+            if (canonicalAttrId) {
+                if (attrs[i].id && attrs[i].id !== canonicalAttrId) {
+                    session.custom['catAttrMap_' + canonicalAttrId] = attrs[i].id;
+                } else {
+                    session.custom['catAttrMap_' + canonicalAttrId] = '';
+                }
+            }
+        }
+        jsonResponse({ ok: true, result: result });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.CreateCategoryAttributes.public = true;
+
+/**
  * Alias used by the attribute status widget (same as CheckCategoryAttributes).
  * GET — no params required.
  */
 exports.CheckAttributeStatus = function () {
     var categoryAttributeMgr = require('*/cartridge/scripts/catalog/categoryAttributeMgr');
     try {
-        var attrs  = categoryAttributeMgr.checkAttributes();
+        var statusPlatform = String(session.custom.migrationPlatformId || 'commercetools');
+        var attrs  = categoryAttributeMgr.checkAttributes(statusPlatform);
         var status = {};
         for (var i = 0; i < attrs.length; i++) {
             status[attrs[i].id] = attrs[i].exists ? 'exists' : 'missing';
@@ -3428,68 +3762,59 @@ exports.CheckAttributeStatus = function () {
 exports.CheckAttributeStatus.public = true;
 
 
-/**
- * Create selected category attribute definitions on the SFCC Category system object.
- * POST: attrs=<json-array of {id, label, sfccType}>
- */
-exports.CreateCategoryAttributes = function () {
-    var rawAttrs = getParam('attrs');
-    var attrs    = [];
-    try { attrs = JSON.parse(rawAttrs || '[]'); } catch (e) {
-        jsonResponse({ ok: false, error: 'Invalid attrs JSON' });
-        return;
-    }
+
+// Fetch all available SFCC catalogs using native CatalogMgr (no credentials needed)
+exports.FetchSFCCCatalogs = function () {
     try {
-        var catAttrs3 = require('*/cartridge/scripts/catalog/createCategoryAttributes');
-        jsonResponse({ ok: true, result: catAttrs3.createMissingAttributes() });
+        var HTTPClient  = require('dw/net/HTTPClient');
+        var sfccClient  = require('*/cartridge/scripts/migration/sfccClient');
+        var cfg         = require('*/cartridge/scripts/migration/configAccessor');
+        var base        = 'https://' + request.httpHost;
+        var version     = (cfg.sfcc && cfg.sfcc.version) ? cfg.sfcc.version : 'v20_10';
+        var clientId    = (cfg.sfcc && cfg.sfcc.bmClientId) ? cfg.sfcc.bmClientId : 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+
+        var token = sfccClient.getSFCCToken();
+        var url   = base + '/s/-/dw/data/' + version + '/catalogs?client_id=' + encodeURIComponent(clientId) + '&count=200';
+
+        var client = new HTTPClient();
+        client.setTimeout(20000);
+        client.open('GET', url);
+        client.setRequestHeader('Authorization', 'Bearer ' + token);
+        client.setRequestHeader('Content-Type', 'application/json');
+        client.send('');
+
+        var text = client.text || '';
+        var data;
+        try { data = JSON.parse(text); } catch (pe) { data = {}; }
+
+        if (client.statusCode !== 200 || !data.data) {
+            // Fallback to CatalogMgr if OCAPI fails
+            var CatalogMgr = require('dw/catalog/CatalogMgr');
+            var Site       = require('dw/system/Site');
+            var result     = [];
+            var seen       = {};
+            function addCat(cat) {
+                if (cat && !seen[cat.ID]) {
+                    seen[cat.ID] = true;
+                    result.push({ id: cat.ID, name: cat.displayName ? cat.displayName.toString() : cat.ID });
+                }
+            }
+            addCat(CatalogMgr.getSiteCatalog());
+            var sites = Site.getAllSites();
+            var sit = sites.iterator();
+            while (sit.hasNext()) { try { addCat(sit.next().getCatalog()); } catch (se) {} }
+            jsonResponse({ ok: true, catalogs: result, total: result.length });
+            return;
+        }
+
+        var catalogs = data.data.map(function (c) {
+            var name = (c.name && (c.name['default'] || c.name['x-default'])) || c.id;
+            return { id: c.id, name: name };
+        });
+
+        jsonResponse({ ok: true, catalogs: catalogs, total: catalogs.length });
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
-    }
-};
-exports.CreateCategoryAttributes.public = true;
-
-// Fetch all storefront catalogs from SFCC
-exports.FetchSFCCCatalogs = function () {
-    var result = [];
-    var seen   = {};
-    try {
-        var CatalogMgr = require('dw/catalog/CatalogMgr');
-        var Site       = require('dw/system/Site');
-
-        var sites = Site.getAllSites();
-        var it    = sites.iterator();
-
-        while (it.hasNext()) {
-            var site = it.next();
-            try {
-                var prefs     = site.getPreferences();
-                var catId     = prefs ? prefs.getCustom()['storefront-catalog'] : null;
-                if (!catId) {
-                    // try common preference names
-                    try { catId = site.getCustomPreferenceValue('siteStorefrontCatalogID'); } catch(e1) {}
-                }
-                if (catId && !seen[catId]) {
-                    var cat = CatalogMgr.getCatalog(catId);
-                    if (cat) {
-                        seen[catId] = true;
-                        result.push({ id: cat.ID, name: (cat.displayName ? cat.displayName.toString() : cat.ID) + ' (' + site.getID() + ')' });
-                    }
-                }
-            } catch (siteErr) {}
-        }
-
-        // Always include current site catalog as fallback
-        var currentCat = CatalogMgr.getSiteCatalog();
-        if (currentCat && !seen[currentCat.ID]) {
-            seen[currentCat.ID] = true;
-            result.push({ id: currentCat.ID, name: currentCat.displayName ? currentCat.displayName.toString() : currentCat.ID });
-        }
-
-        response.setContentType('application/json');
-        response.writer.print(JSON.stringify({ ok: true, catalogs: result, total: result.length }));
-    } catch (e) {
-        response.setContentType('application/json');
-        response.writer.print(JSON.stringify({ ok: false, error: e.message }));
     }
 };
 exports.FetchSFCCCatalogs.public = true;
@@ -3529,8 +3854,13 @@ exports.CreateCatalog = function () {
             + '    </category>\n'
             + '</catalog>';
 
+        var migPaths = require('*/cartridge/scripts/migration/core/migrationPaths');
+        var relPath  = migPaths.getRelativePath('catalog');
+        var dir      = new File(File.IMPEX + File.SEPARATOR + relPath.replace(/\//g, File.SEPARATOR));
+        if (!dir.exists()) { dir.mkdirs(); }
+
         var fileName = 'new-catalog-' + catalogId + '.xml';
-        var filePath = File.IMPEX + '/src/catalog/' + fileName;
+        var filePath = File.IMPEX + File.SEPARATOR + relPath.replace(/\//g, File.SEPARATOR) + File.SEPARATOR + fileName;
         var file     = new File(filePath);
         var writer   = new FileWriter(file, 'UTF-8');
         writer.write(xml);
@@ -3539,7 +3869,7 @@ exports.CreateCatalog = function () {
         response.setContentType('application/json');
         response.writer.print(JSON.stringify({
             ok     : true,
-            xmlPath: 'IMPEX/src/catalog/' + fileName
+            xmlPath: 'IMPEX/' + relPath + '/' + fileName
         }));
     } catch (e) {
         response.setContentType('application/json');
@@ -3547,6 +3877,120 @@ exports.CreateCatalog = function () {
     }
 };
 exports.CreateCatalog.public = true;
+
+// Create a new SFCC catalog directly via OCAPI
+exports.CreateCatalogOCAPI = function () {
+    var catalogId   = getParam('catalogId');
+    var catalogName = getParam('catalogName');
+
+    if (!catalogId || !catalogName) {
+        jsonResponse({ ok: false, error: 'catalogId and catalogName are required' });
+        return;
+    }
+
+    try {
+        var cfg        = require('*/cartridge/scripts/migration/configAccessor');
+        var creds      = require('*/cartridge/scripts/migration/sfccCredentialsAccessor');
+        var HTTPClient = require('dw/net/HTTPClient');
+        var Encoding   = require('dw/crypto/Encoding');
+        var Bytes      = require('dw/util/Bytes');
+
+        var metaVersion = (cfg.sfcc && cfg.sfcc.metaVersion) ? cfg.sfcc.metaVersion : 'v20_10';
+        var bmClientId  = (cfg.sfcc && cfg.sfcc.bmClientId)  ? cfg.sfcc.bmClientId  : '';
+        var baseUrl     = 'https://' + request.httpHost;
+        var base        = baseUrl + '/s/-/dw/data/' + metaVersion;
+        var qs          = '?client_id=' + encodeURIComponent(bmClientId);
+
+        // Forward BM session cookies so the grant gets write scope
+        var dwsid         = session.sessionID || '';
+        var dwsecuretoken = '';
+        var stCookie      = request.httpCookies['dwsecuretoken'];
+        if (stCookie) { dwsecuretoken = stCookie.value; }
+
+        // Obtain BM User Grant token
+        var credentials = Encoding.toBase64(new Bytes(creds.bmUsername + ':' + creds.bmPassword + ':' + bmClientId, 'UTF-8'));
+        var tokenClient = new HTTPClient();
+        tokenClient.setTimeout(30000);
+        tokenClient.open('POST', baseUrl + '/dw/oauth2/access_token?client_id=' + encodeURIComponent(bmClientId));
+        tokenClient.setRequestHeader('Authorization', 'Basic ' + credentials);
+        tokenClient.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+        if (dwsid) {
+            tokenClient.setRequestHeader('Cookie', 'dwsid=' + dwsid + (dwsecuretoken ? '; dwsecuretoken=' + dwsecuretoken : ''));
+        }
+        tokenClient.send('grant_type=urn%3Ademandware%3Aparams%3Aoauth%3Agrant-type%3Aclient-id%3Adwsid%3Adwsecuretoken');
+
+        var tokenText = tokenClient.text || '';
+        var tokenData;
+        try { tokenData = JSON.parse(tokenText); } catch (te) { tokenData = {}; }
+        if (tokenClient.statusCode !== 200 || !tokenData.access_token) {
+            jsonResponse({ ok: false, error: 'Token failed (' + tokenClient.statusCode + '): ' + tokenText.substring(0, 300) });
+            return;
+        }
+        var sessionToken  = tokenData.access_token;
+
+        // Also get the same token used by GetProductCatalogs (no session cookies) for comparison
+        var sfccClient   = require('*/cartridge/scripts/migration/sfccClient');
+        var readToken    = '';
+        try { readToken = sfccClient.getSFCCToken(); } catch (te) { readToken = ''; }
+
+        var payload    = JSON.stringify({ id: catalogId, name: { 'default': catalogName } });
+        var catalogUrl = base + '/catalogs/' + encodeURIComponent(catalogId) + qs;
+
+        function ocapiCall(method, url, body, tkn) {
+            var c = new HTTPClient();
+            c.setTimeout(20000);
+            c.open(method, url);
+            c.setRequestHeader('Authorization', 'Bearer ' + tkn);
+            c.setRequestHeader('Content-Type', 'application/json');
+            c.setRequestHeader('Accept', 'application/json');
+            c.send(body || '');
+            return { sc: c.statusCode, body: c.text || '' };
+        }
+
+        function faultMsg(body) {
+            try {
+                var d = JSON.parse(body);
+                return (d.fault && d.fault.message) ? d.fault.message : (body.substring(0, 300) || '(empty)');
+            } catch (fe) { return body.substring(0, 300) || '(empty)'; }
+        }
+
+        // Test GET /catalogs/{id} with read token (same as GetProductCatalogs) to confirm routing
+        var diagRead = readToken ? ocapiCall('GET', catalogUrl, '', readToken) : { sc: 0, body: 'no-read-token' };
+
+        // 1. POST /catalogs with session token
+        var r1 = ocapiCall('POST', base + '/catalogs' + qs, payload, sessionToken);
+        if (r1.sc === 200 || r1.sc === 201) {
+            jsonResponse({ ok: true, id: catalogId, name: catalogName, method: 'POST-session' });
+            return;
+        }
+
+        // 2. PUT /catalogs/{id} with session token
+        var r2 = ocapiCall('PUT', catalogUrl, payload, sessionToken);
+        if (r2.sc === 200 || r2.sc === 201) {
+            jsonResponse({ ok: true, id: catalogId, name: catalogName, method: 'PUT-session' });
+            return;
+        }
+
+        // 3. PUT /catalogs/{id} with read token (same as GetProductCatalogs)
+        var r3 = readToken ? ocapiCall('PUT', catalogUrl, payload, readToken) : { sc: 0, body: 'no-read-token' };
+        if (r3.sc === 200 || r3.sc === 201) {
+            jsonResponse({ ok: true, id: catalogId, name: catalogName, method: 'PUT-readtoken' });
+            return;
+        }
+
+        jsonResponse({
+            ok   : false,
+            error: 'GET-diag(readToken) ' + diagRead.sc + ': ' + faultMsg(diagRead.body) +
+                   ' | POST(sessionToken) ' + r1.sc + ': ' + faultMsg(r1.body) +
+                   ' | PUT(sessionToken) ' + r2.sc + ': ' + faultMsg(r2.body) +
+                   ' | PUT(readToken) ' + r3.sc + ': ' + faultMsg(r3.body)
+        });
+
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.CreateCatalogOCAPI.public = true;
 
 // Create new category in SFCC via CatalogMgr
 exports.CreateCategory = function () {
@@ -3601,38 +4045,280 @@ exports.CreateCategory.public = true;
 exports.FetchCTCategories = function () {
     var fetchCT   = require('~/cartridge/scripts/catalog/fetchCTCategories');
     var transform = require('~/cartridge/scripts/catalog/transformCategories');
-    var cfg       = require('*/cartridge/scripts/migration/configAccessor');
+    var Logger    = require('dw/system/Logger');
 
     response.setContentType('application/json');
 
     try {
-        var defaultLocale  = request.httpParameterMap.locale.stringValue || 'en';
-        var token          = fetchCT.getCTAuthToken();
+        var defaultLocale = request.httpParameterMap.locale.stringValue  || 'en';
+        var offset        = parseInt(request.httpParameterMap.offset.stringValue || '0', 10) || 0;
+        var limit         = 500;
 
+        var token = fetchCT.getCTAuthToken();
         if (!token) {
             response.writer.print(JSON.stringify({ ok: false, error: 'CT auth failed' }));
             return;
         }
 
-        var ctCategories   = fetchCT.fetchAllCategories(token);
-        var sfccCategories = transform.transformAll(ctCategories, defaultLocale);
+        // Fetch one page only
+        var page = fetchCT.fetchCategoriesPage(token, limit, offset);
 
-        // Return lightweight list for hierarchy editor
-        var list = sfccCategories.map(function (cat) {
-            return {
-                id      : cat.id,
-                name    : cat.name['x-default'] || cat.id,
-                parentId: cat.parentId
-            };
+        var list = page.results.map(function (cat) {
+            var sfcc = transform.transformCategory(cat, defaultLocale, page.idToKey);
+            return { id: sfcc.id, name: sfcc.name['x-default'] || sfcc.id, parentId: sfcc.parentId };
         });
 
-        response.writer.print(JSON.stringify({ ok: true, categories: list, total: list.length }));
+        response.writer.print(JSON.stringify({
+            ok        : true,
+            categories: list,
+            offset    : offset,
+            limit     : limit,
+            total     : page.total,
+            done      : (offset + list.length) >= page.total
+        }));
     } catch (e) {
         Logger.error('FetchCTCategories error: {0}', e.message);
         response.writer.print(JSON.stringify({ ok: false, error: e.message }));
     }
 };
 exports.FetchCTCategories.public = true;
+
+exports.FetchShopifyCategories = function () {
+    var fetchShopify = require('~/cartridge/scripts/catalog/fetchShopifyCategories');
+    var Logger       = require('dw/system/Logger');
+
+    response.setContentType('application/json');
+
+    try {
+        var cursor = request.httpParameterMap.offset.stringValue || '0';
+        var page   = fetchShopify.fetchCollectionsPage(cursor);
+
+        response.writer.print(JSON.stringify({
+            ok         : true,
+            categories : page.results,
+            nextOffset : page.nextCursor || '',
+            done       : page.done
+        }));
+    } catch (e) {
+        Logger.error('FetchShopifyCategories error: {0}', e.message);
+        response.writer.print(JSON.stringify({ ok: false, error: e.message }));
+    }
+};
+exports.FetchShopifyCategories.public = true;
+
+/**
+ * Check which categories have products assigned in Shopify.
+ * Queries products and their category assignments via GraphQL.
+ * Returns { ok: true, counts: { "Category Name": productCount } }
+ */
+exports.CheckCategoryProducts = function () {
+    var connector   = require('~/cartridge/scripts/migration/connectors/shopify/shopifyConnector');
+    var cfgAccessor = require('*/cartridge/scripts/migration/configAccessor');
+    var http        = require('*/cartridge/scripts/migration/core/http');
+    var Logger      = require('dw/system/Logger');
+
+    response.setContentType('application/json');
+
+    try {
+        var creds   = cfgAccessor.shopify || {};
+        var base    = connector.getAdminBase(creds);
+        var hdrs    = connector.getAuthHeaders(creds);
+        var counts  = {};
+        var cursor  = null;
+        var hasMore = true;
+        var maxPages = 10;
+
+        while (hasMore && maxPages-- > 0) {
+            var afterClause = cursor
+                ? '(first:250,after:"' + cursor + '")'
+                : '(first:250)';
+            var query = '{ products' + afterClause + ' { nodes { id category { id name fullName } } pageInfo { hasNextPage endCursor } } }';
+            var res   = http.post(base + '/graphql.json', hdrs, JSON.stringify({ query: query }));
+
+            if (res.status !== 200) { break; }
+            var resData  = res.data || {};
+            if (resData.errors && resData.errors.length) { break; }
+            var prods    = (resData.data && resData.data.products && resData.data.products.nodes) || [];
+            var pageInfo = (resData.data && resData.data.products && resData.data.products.pageInfo) || {};
+
+            for (var pi = 0; pi < prods.length; pi++) {
+                var prod = prods[pi];
+                if (prod.category && prod.category.name) {
+                    var catName = String(prod.category.name);
+                    counts[catName] = (counts[catName] || 0) + 1;
+                }
+            }
+
+            hasMore = !!pageInfo.hasNextPage;
+            cursor  = pageInfo.endCursor || null;
+        }
+
+        Logger.info('CheckCategoryProducts: {0} categories have products', Object.keys(counts).length);
+        response.writer.print(JSON.stringify({ ok: true, counts: counts }));
+    } catch (e) {
+        Logger.error('CheckCategoryProducts error: {0}', e.message);
+        response.writer.print(JSON.stringify({ ok: false, error: e.message, counts: {} }));
+    }
+};
+exports.CheckCategoryProducts.public = true;
+
+
+
+// ─── Shopify Configuration ─────────────────────────────────────────────────────
+
+/**
+ * Render the Shopify Configuration page.
+ * Pre-fills form with credentials from saved config file or session.
+ */
+exports.ShopifyConfig = function () {
+    var cfg    = require('*/cartridge/scripts/migration/configAccessor');
+    var saved  = cfg.shopify || {};
+
+    ISML.renderTemplate('accelerator/shopifyConfig', withBmFrame({
+        title          : 'Shopify Configuration',
+        subtitle       : 'Enter and save your Shopify store credentials',
+        cssUrl         : URLUtils.staticURL('/css/accelerator-migration.css').toString(),
+        dashboardUrl   : URLUtils.url('Accelerator-Start').toString(),
+        saveConfigUrl  : URLUtils.url('Accelerator-SaveShopifyConfig').toString(),
+        storeUrl       : saved.storeUrl   || '',
+        clientId       : saved.clientId   || '',
+        hasSecret      : !!(saved.clientSecret),
+        apiVersion     : saved.apiVersion || '2025-01'
+    }));
+};
+exports.ShopifyConfig.public = true;
+
+/**
+ * Save Shopify credentials to IMPEX file for persistence across sessions.
+ * POST: storeUrl, clientId, clientSecret, apiVersion
+ */
+exports.SaveShopifyConfig = function () {
+    var File       = require('dw/io/File');
+    var FileWriter = require('dw/io/FileWriter');
+    var registry   = require('*/cartridge/scripts/migration/connectors/registry');
+    var Logger     = require('dw/system/Logger');
+
+    response.setContentType('application/json');
+
+    try {
+        var params  = request.httpParameterMap;
+        var storeUrl     = (params.storeUrl.stringValue     || '').replace(/\/+$/, '');
+        var clientId     = params.clientId.stringValue      || '';
+        var clientSecret = params.clientSecret.stringValue  || '';
+        var apiVersion   = params.apiVersion.stringValue    || '2025-01';
+
+        if (!storeUrl || !clientId || !clientSecret) {
+            response.writer.print(JSON.stringify({ ok: false, error: 'Store URL, Client ID, and Access Token are required.' }));
+            return;
+        }
+
+        // Validate credentials against Shopify
+        var connector = registry.get('shopify');
+        var result    = connector.testConnectionWith({ storeUrl: storeUrl, clientId: clientId, clientSecret: clientSecret, apiVersion: apiVersion });
+
+        // Ensure directory exists
+        var dir = new File(File.IMPEX + '/src/migration');
+        if (!dir.exists()) { dir.mkdirs(); }
+
+        // Write config file
+        var configFile = new File(File.IMPEX + '/src/migration/shopify-config.json');
+        var fw = new FileWriter(configFile, 'UTF-8');
+        fw.writeLine(JSON.stringify({
+            storeUrl    : storeUrl,
+            clientId    : clientId,
+            clientSecret: clientSecret,
+            apiVersion  : apiVersion
+        }));
+        fw.flush();
+        fw.close();
+
+        // Persist to session for immediate use
+        session.custom.shopifyStoreUrl      = storeUrl;
+        session.custom.shopifyClientId      = clientId;
+        session.custom.shopifyClientSecret  = clientSecret;
+        session.custom.shopifyAccessToken   = clientSecret;
+        session.custom.shopifyApiVersion    = apiVersion;
+        session.custom.migrationPlatformId  = 'shopify';
+
+        Logger.info('SaveShopifyConfig: saved for store={0}', result.project ? result.project.key : storeUrl);
+        response.writer.print(JSON.stringify({ ok: true, project: result.project }));
+    } catch (e) {
+        Logger.error('SaveShopifyConfig error: {0}', e.message);
+        response.writer.print(JSON.stringify({ ok: false, error: e.message }));
+    }
+};
+exports.SaveShopifyConfig.public = true;
+
+/**
+ * Create a new category in CommerceTools.
+ * POST — params: key, name, parentId (optional)
+ */
+exports.CreateCTCategory = function () {
+    var fetchCT = require('~/cartridge/scripts/catalog/fetchCTCategories');
+    var cfg     = require('*/cartridge/scripts/migration/configAccessor');
+    var Logger  = require('dw/system/Logger');
+
+    response.setContentType('application/json');
+
+    var key      = request.httpParameterMap.key.stringValue      || '';
+    var name     = request.httpParameterMap.name.stringValue     || '';
+    var parentId = request.httpParameterMap.parentId.stringValue || '';
+
+    if (!key || !name) {
+        response.writer.print(JSON.stringify({ ok: false, error: 'key and name are required' }));
+        return;
+    }
+
+    try {
+        var token = fetchCT.getCTAuthToken();
+        if (!token) {
+            response.writer.print(JSON.stringify({ ok: false, error: 'CT auth failed' }));
+            return;
+        }
+
+        var c      = cfg.ctp;
+        var apiUrl = c.apiUrl + '/' + c.projectKey + '/categories';
+        var slug   = key.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+
+        var body = {
+            key  : key,
+            name : { 'en-US': name },
+            slug : { 'en-US': slug }
+        };
+        if (parentId) {
+            body.parent = { id: parentId, typeId: 'category' };
+        }
+
+        var HTTPClient = require('dw/net/HTTPClient');
+        var client = new HTTPClient();
+        client.setTimeout(15000);
+        client.open('POST', apiUrl);
+        client.setRequestHeader('Authorization', 'Bearer ' + token);
+        client.setRequestHeader('Content-Type', 'application/json');
+        client.send(JSON.stringify(body));
+
+        var sc   = client.statusCode;
+        var text = client.text || '';
+        var data;
+        try { data = JSON.parse(text); } catch (pe) { data = {}; }
+
+        if (sc === 200 || sc === 201) {
+            response.writer.print(JSON.stringify({
+                ok      : true,
+                id      : data.key || key,
+                name    : name,
+                parentId: parentId || ''
+            }));
+        } else {
+            var errMsg = (data.message || (data.errors && data.errors[0] && data.errors[0].message)) || ('HTTP ' + sc);
+            response.writer.print(JSON.stringify({ ok: false, error: errMsg }));
+        }
+    } catch (e) {
+        Logger.error('CreateCTCategory error: {0}', e.message);
+        response.writer.print(JSON.stringify({ ok: false, error: e.message }));
+    }
+};
+exports.CreateCTCategory.public = true;
 
 /**
  * Run category migration — stub endpoint for future implementation.
@@ -3653,27 +4339,197 @@ exports.RunCategoryMigration = function () {
     var mode      = request.httpParameterMap.mode.stringValue      || 'xml';
     var catalogId = request.httpParameterMap.catalogId.stringValue || 'storefront-catalog-m-en';
     var locale    = request.httpParameterMap.locale.stringValue    || 'en-US';
+    var platform  = request.httpParameterMap.platform.stringValue  || String(session.custom.migrationPlatformId || 'commercetools');
 
     var overridesRaw = request.httpParameterMap.overrides.stringValue || '{}';
     var overrides    = {};
     try { overrides = JSON.parse(overridesRaw); } catch (e) { overrides = {}; }
 
+    var extraRaw    = request.httpParameterMap.extraCategories.stringValue || '[]';
+    var extraCats   = [];
+    try { extraCats = JSON.parse(extraRaw); } catch (e) { extraCats = []; }
+
+    var selectedIdsRaw = request.httpParameterMap.selectedIds.stringValue || '';
+    var selectedIds    = [];
+    try { if (selectedIdsRaw) { selectedIds = JSON.parse(selectedIdsRaw); } } catch (sie) { selectedIds = []; }
+
+    var categoriesDataRaw = request.httpParameterMap.categoriesData.stringValue || '';
+    var clientCategories  = [];
+    try { if (categoriesDataRaw) { clientCategories = JSON.parse(categoriesDataRaw); } } catch (cde) { clientCategories = []; }
+
     try {
-        var token = fetchCT.getCTAuthToken();
-        if (!token) {
-            response.writer.print(JSON.stringify({ ok: false, error: 'CT auth failed.' }));
-            return;
+        var sfccCategories = [];
+
+        if (platform === 'shopify') {
+            // ── Shopify path ──────────────────────────────────────────────────
+            var fetchShopify = require('~/cartridge/scripts/catalog/fetchShopifyCategories');
+            var taxonomyData = require('~/cartridge/scripts/catalog/shopifyTaxonomyData');
+
+            var allTaxonomy = [];
+
+            if (clientCategories.length > 0) {
+                // Client already fetched all levels in Step 2 — use that data directly.
+                // This avoids re-fetching from Shopify server-side, which would hit
+                // SFCC's 16 HTTP calls/request limit for large taxonomies.
+                allTaxonomy = clientCategories;
+                Logger.info('RunCategoryMigration: using {0} client-sent categories', allTaxonomy.length);
+            } else {
+                var connector   = require('~/cartridge/scripts/migration/connectors/shopify/shopifyConnector');
+                var cfgAccessor = require('*/cartridge/scripts/migration/configAccessor');
+                try {
+                    var creds    = cfgAccessor.shopify || {};
+                    var base     = connector.getAdminBase(creds);
+                    var hdrs     = connector.getAuthHeaders(creds);
+                    var allNodes = fetchShopify.fetchAllAPINodes(base, hdrs);
+
+                    if (allNodes.length > 0 && fetchShopify.hasSubcategories(allNodes)) {
+                        allTaxonomy = fetchShopify.transformAPINodes(allNodes);
+                        Logger.info('RunCategoryMigration: API multi-level, {0} categories', allTaxonomy.length);
+                    } else {
+                        allTaxonomy = taxonomyData.TAXONOMY.slice();
+                        if (allNodes.length > 0) {
+                            var staticIds = {};
+                            allTaxonomy.forEach(function (c) { staticIds[c.id] = true; });
+                            allNodes.forEach(function (n) {
+                                var slug = String(n.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+                                if (slug && !staticIds[slug]) {
+                                    allTaxonomy.push({ id: slug, name: String(n.name || ''), parentId: '' });
+                                }
+                            });
+                        }
+                        Logger.info('RunCategoryMigration: static taxonomy, {0} categories', allTaxonomy.length);
+                    }
+                } catch (apiErr) {
+                    Logger.warn('RunCategoryMigration Shopify API fetch error: {0} — falling back to static taxonomy', apiErr.message);
+                    allTaxonomy = taxonomyData.TAXONOMY.slice();
+                }
+            }
+
+            // Filter to user-selected categories if a selection was provided
+            if (selectedIds.length > 0) {
+                var selSet = {};
+                for (var si = 0; si < selectedIds.length; si++) { selSet[selectedIds[si]] = true; }
+                allTaxonomy = allTaxonomy.filter(function (tc) { return selSet[tc.id]; });
+            }
+
+            // Build lookup map and child-presence map for level + isLeaf computation
+            var taxMap      = {};
+            var hasChildren = {};
+            for (var ti2 = 0; ti2 < allTaxonomy.length; ti2++) {
+                taxMap[allTaxonomy[ti2].id] = allTaxonomy[ti2];
+            }
+            for (var ti3 = 0; ti3 < allTaxonomy.length; ti3++) {
+                var pid = allTaxonomy[ti3].parentId;
+                if (pid) { hasChildren[pid] = true; }
+            }
+
+            function getTaxLevel(id, visited) {
+                if (!id || visited[id]) return 1;
+                visited[id] = true;
+                var node = taxMap[id];
+                if (!node || !node.parentId) return 1;
+                return 1 + getTaxLevel(node.parentId, visited);
+            }
+
+            // Transform flat taxonomy into SFCC category format
+            for (var ti = 0; ti < allTaxonomy.length; ti++) {
+                var tc = allTaxonomy[ti];
+                var nameObj = {};
+                nameObj[locale] = tc.name || tc.id;
+                sfccCategories.push({
+                    id              : tc.id,
+                    parentId        : tc.parentId || 'root',
+                    name            : nameObj,
+                    description     : {},
+                    pageTitle       : {},
+                    pageDescription : {},
+                    position        : ti + 1,
+                    online          : true,
+                    customAttributes: {
+                        level : getTaxLevel(tc.id, {}),
+                        isLeaf: !hasChildren[tc.id]
+                    }
+                });
+            }
+
+            Logger.info('RunCategoryMigration Shopify: {0} categories', sfccCategories.length);
+
+        } else {
+            // ── CommerceTools path ────────────────────────────────────────────
+            var token = fetchCT.getCTAuthToken();
+            if (!token) {
+                response.writer.print(JSON.stringify({ ok: false, error: 'CT auth failed.' }));
+                return;
+            }
+
+            var ctCategories = fetchCT.fetchAllCategories(token);
+            if (!ctCategories || ctCategories.length === 0) {
+                response.writer.print(JSON.stringify({ ok: false, error: 'No categories returned from CT.' }));
+                return;
+            }
+
+            sfccCategories = transform.transformAll(ctCategories, locale);
+
+            // Filter to user-selected categories if a selection was provided
+            if (selectedIds.length > 0) {
+                var selSet2 = {};
+                for (var si2 = 0; si2 < selectedIds.length; si2++) { selSet2[selectedIds[si2]] = true; }
+                sfccCategories = sfccCategories.filter(function (cat) { return selSet2[cat.id]; });
+            }
         }
 
-        var ctCategories = fetchCT.fetchAllCategories(token);
-        if (!ctCategories || ctCategories.length === 0) {
-            response.writer.print(JSON.stringify({ ok: false, error: 'No categories returned from CT.' }));
-            return;
+        // Append locally-added categories
+        for (var ei = 0; ei < extraCats.length; ei++) {
+            var ec = extraCats[ei];
+            if (!ec || !ec.id) continue;
+            var ecName = {};
+            ecName[locale] = ec.name || ec.id;
+            sfccCategories.push({
+                id              : ec.id,
+                parentId        : ec.parentId || 'root',
+                name            : ecName,
+                description     : {},
+                pageTitle       : {},
+                pageDescription : {},
+                position        : sfccCategories.length + 1,
+                online          : true,
+                customAttributes: {}
+            });
         }
 
-        var sfccCategories = transform.transformAll(ctCategories, locale);
+        // Apply user-edited attribute ID mapping (from Step 1 edits)
+        var attrIdsRaw = request.httpParameterMap.attrIds.stringValue || '{}';
+        var attrIds    = {};
+        try { attrIds = JSON.parse(attrIdsRaw); } catch (aie) {}
 
-        // Apply overrides
+        // Merge session-stored mapping as fallback for keys not provided by client.
+        // This handles the cross-session case where the user navigates away after Step 1
+        // and returns directly to Step 3 — the attr table is empty so client sends no mapping.
+        var CANONICAL_ATTRS = ['ctId', 'ctSlug', 'ctPosition', 'level', 'isLeaf'];
+        for (var cai = 0; cai < CANONICAL_ATTRS.length; cai++) {
+            var cKey = CANONICAL_ATTRS[cai];
+            if (!attrIds[cKey]) {
+                var sessionMapped = String(session.custom['catAttrMap_' + cKey] || '');
+                if (sessionMapped && sessionMapped !== cKey) {
+                    attrIds[cKey] = sessionMapped;
+                }
+            }
+        }
+
+        var attrIdKeys = Object.keys(attrIds);
+        if (attrIdKeys.length > 0) {
+            sfccCategories.forEach(function (cat) {
+                var ca    = cat.customAttributes || {};
+                var newCa = {};
+                Object.keys(ca).forEach(function (origKey) {
+                    var mappedKey = attrIds[origKey];
+                    newCa[mappedKey && mappedKey.trim() ? mappedKey.trim() : origKey] = ca[origKey];
+                });
+                cat.customAttributes = newCa;
+            });
+        }
+
+        // Apply overrides to all categories (CT + new) so parent changes work for both
         sfccCategories.forEach(function (cat) {
             var ov = overrides[cat.id];
             if (!ov) return;

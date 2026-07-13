@@ -157,7 +157,7 @@
 
     <section class="acc-section">
         <header class="acc-section__head">
-            <h2>Customer Data Migration &mdash; <span class="acc-highlight">${pdict.platformLabel} &rarr; SFCC</span></h2>
+            <h2>Customer Data Migration &mdash; <span class="acc-highlight">Commercetools &rarr; SFCC</span></h2>
             <p style="font-size:14px;color:#54698d;margin-top:6px;max-width:640px;">
                 Choose a migration mode below. <strong>Partial</strong> imports customers one-at-a-time via the Script API
                 (suitable for small datasets / testing). <strong>Full</strong> uploads SFCC-format XML files via WebDAV for
@@ -184,15 +184,11 @@
         <div id="acc-cg-section" style="margin:0 0 28px;border:1px solid #dddbda;border-radius:6px;overflow:hidden;">
             <div style="background:#f4f6f9;border-bottom:1px solid #dddbda;padding:11px 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
                 <span style="font-weight:700;font-size:14px;color:#16325c;">&#x1F465; Customer Groups</span>
-                <button id="acc-fetch-groups-btn" type="button" class="acc-btn acc-btn--ghost">Fetch ${pdict.platformLabel} Groups</button>
+                <button id="acc-fetch-groups-btn" type="button" class="acc-btn acc-btn--ghost">Fetch CTP Groups</button>
                 <span id="acc-cg-msg" style="font-size:13px;color:#54698d;font-weight:600;"></span>
             </div>
             <div style="padding:14px 20px;">
-                <isif condition="${pdict.isShopify}">
-                    <p style="margin:0 0 10px;font-size:13px;color:#54698d;">Shopify has no native customer-group concept &mdash; groups are derived from distinct customer tags. Load them, select which ones to create in SFCC, then click <strong>Create Selected Groups</strong>.</p>
-                <iselse/>
-                    <p style="margin:0 0 10px;font-size:13px;color:#54698d;">Load available customer groups from Commercetools, select which ones to create in SFCC, then click <strong>Create Selected Groups</strong>. Group IDs are kept exactly as-is to preserve the data bridge.</p>
-                </isif>
+                <p style="margin:0 0 10px;font-size:13px;color:#54698d;">Load available customer groups from Commercetools, select which ones to create in SFCC, then click <strong>Create Selected Groups</strong>. Group IDs are kept exactly as-is to preserve the data bridge.</p>
                 <div id="acc-cg-results" style="display:none;margin-top:10px;"></div>
                 <div id="acc-cg-actions" style="display:none;margin-top:12px;display:none;gap:10px;align-items:center;flex-wrap:wrap;">
                     <button id="acc-create-groups-btn" type="button" class="cm-btn cm-btn--primary">Create Selected Groups in SFCC</button>
@@ -205,15 +201,14 @@
         <div id="acc-attr-preflight" style="margin:0 0 28px;border:1px solid #dddbda;border-radius:6px;overflow:hidden;">
             <div style="background:#f4f6f9;border-bottom:1px solid #dddbda;padding:11px 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
                 <span style="font-weight:700;font-size:14px;color:#16325c;">Attribute Pre-flight Check</span>
-                <button id="acc-check-attrs-btn" type="button" class="acc-btn acc-btn--ghost">Check ${pdict.platformLabel} Attributes</button>
+                <button id="acc-check-attrs-btn" type="button" class="acc-btn acc-btn--ghost">Check CTP Attributes</button>
                 <span id="acc-attr-check-msg" style="font-size:13px;color:#54698d;font-weight:600;"></span>
             </div>
             <div style="padding:14px 20px;">
                 <p style="font-size:13px;color:#54698d;margin:0;">
-                    Scans ${pdict.platformLabel} customer field definitions and checks whether matching
-                    attributes exist on the SFCC <strong>Customer</strong>/<strong>Profile</strong> system objects.
-                    Missing attributes can be created here before the migration runs. Fields that already
-                    have a native SFCC equivalent are flagged instead of creating a redundant custom attribute.
+                    Scans CTP customer custom-type field definitions and checks whether matching
+                    attributes exist on the SFCC <strong>Customer</strong> system object.
+                    Missing attributes can be created here before the migration runs.
                 </p>
                 <div id="acc-attr-results" style="display:none;margin-top:14px;"></div>
             </div>
@@ -238,16 +233,16 @@
             <!-- ID filter -->
             <div style="margin-bottom:20px;">
                 <label for="acc-ctp-ids" style="font-weight:600;font-size:14px;display:block;margin-bottom:6px;">
-                    ${pdict.sourceIdLabel} <span style="color:#c62828;">*</span>
+                    Commercetools Customer UUID(s) <span style="color:#c62828;">*</span>
                     <span style="font-weight:400;color:#54698d;font-size:13px;">(comma-separated)</span>
                 </label>
                 <textarea id="acc-ctp-ids" class="acc-form__input"
                           rows="3"
-                          placeholder="${pdict.sourceIdPlaceholder}"
+                          placeholder="e.g. a1b2c3d4-e5f6-7890-abcd-ef1234567890, ..."
                           style="width:100%;max-width:680px;resize:vertical;font-family:monospace;font-size:12px;"></textarea>
                 <span id="acc-ctp-ids-error" class="acc-field-error"></span>
                 <p style="font-size:12px;color:#54698d;margin:5px 0 0;">
-                    ${pdict.sourceIdFormatNote}
+                    Enter the UUID(s) from the Commercetools platform (format: <code style="background:#f0f0f0;padding:1px 4px;border-radius:3px;">xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx</code>).
                     This is <strong>not</strong> the SFCC customer number shown in Business Manager.
                 </p>
             </div>
@@ -296,12 +291,12 @@
 
             <div class="acc-info-box">
                 <strong>How Full Migration works:</strong><br/>
-                Phase 1 fetches customers from ${pdict.platformLabel} in batches, builds SFCC customer import XML,
+                Phase 1 fetches customers from Commercetools in batches of 500, builds SFCC customer import XML,
                 and uploads each file to WebDAV at
                 <code>/Impex/${pdict.impexPath}/</code> (e.g. <code>customer-YYYYMMDD-v001.xml</code>).<br/>
                 Phase 2 is a manual BM step: run <strong>Administration &rarr; Site Development &rarr; Import &amp; Export
                 &rarr; Import Customers</strong> and point it at the uploaded files.
-                Customers receive a deterministic temporary password (<code>Rc1!</code> + first 12 chars of the ${pdict.platformLabel} ID);
+                Customers receive a deterministic temporary password (<code>Rc1!</code> + first 12 chars of CTP ID);
                 they must use <em>Forgot Password</em> to set their own.
             </div>
 
@@ -349,9 +344,9 @@
 <!-- Attribute pre-flight modal -->
 <div id="acc-preflight-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center;">
     <div style="background:#fff;border-radius:6px;padding:28px 32px;max-width:620px;width:90%;max-height:82vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.3);">
-        <h3 style="margin:0 0 6px;color:#16325c;font-size:16px;">Missing ${pdict.platformLabel} Attributes in SFCC</h3>
+        <h3 style="margin:0 0 6px;color:#16325c;font-size:16px;">Missing CTP Attributes in SFCC</h3>
         <p style="font-size:13px;color:#54698d;margin:0 0 16px;">
-            The following ${pdict.platformLabel} customer attributes do not exist on the SFCC <strong>Profile</strong> system object.
+            The following CTP customer attributes do not exist on the SFCC <strong>Profile</strong> system object.
             Create them now so their values are stored during migration, or skip to migrate without them.
         </p>
         <div id="acc-modal-attr-list"></div>
@@ -377,7 +372,6 @@
     var DELETE_ATTR_URL   = '${pdict.deleteAttrUrl}';
     var FETCH_GROUPS_URL  = '${pdict.fetchGroupsUrl}';
     var CREATE_GROUPS_URL = '${pdict.createGroupsUrl}';
-    var PLATFORM_LABEL    = '${pdict.platformLabel}';
 
     var listIdEl   = document.getElementById('acc-list-id');
 
@@ -480,7 +474,7 @@
     var cgActions         = document.getElementById('acc-cg-actions');
     var createGroupsBtn   = document.getElementById('acc-create-groups-btn');
     var createGroupsMsg   = document.getElementById('acc-create-groups-msg');
-    var availableGroups   = [];  // full list returned from the source platform
+    var availableGroups   = [];  // full list returned from CTP
 
     fetchGroupsBtn.addEventListener('click', function () {
         fetchGroupsBtn.disabled = true;
@@ -508,7 +502,7 @@
 
     function renderGroupResults(groups) {
         if (!groups.length) {
-            cgResults.innerHTML = '<p style="font-size:13px;color:#54698d;">No customer groups found in ' + PLATFORM_LABEL + '.</p>';
+            cgResults.innerHTML = '<p style="font-size:13px;color:#54698d;">No customer groups found in Commercetools.</p>';
             cgResults.style.display = 'block';
             return;
         }
@@ -517,7 +511,7 @@
             + '<thead><tr style="background:#f4f6f9;">'
             + '<th style="padding:8px 12px;text-align:left;width:36px;"><input type="checkbox" id="acc-cg-select-all" checked/></th>'
             + '<th style="padding:8px 12px;text-align:left;font-weight:700;color:#16325c;">Group Name</th>'
-            + '<th style="padding:8px 12px;text-align:left;font-weight:700;color:#16325c;">Group ID (' + PLATFORM_LABEL + ')</th>'
+            + '<th style="padding:8px 12px;text-align:left;font-weight:700;color:#16325c;">Group ID (CTP UUID)</th>'
             + '<th style="padding:8px 12px;text-align:left;font-weight:700;color:#16325c;">Key</th>'
             + '</tr></thead><tbody>';
         for (var i = 0; i < groups.length; i++) {
@@ -595,12 +589,12 @@
 
         if (!missing.length) {
             attrResults.innerHTML = '<p style="color:#2e7d32;font-size:13px;margin:0;">'
-                + '&#10003; All ' + PLATFORM_LABEL + ' customer attributes already exist in SFCC &mdash; no action needed.</p>';
+                + '&#10003; All CTP customer attributes already exist in SFCC ? no action needed.</p>';
             return;
         }
 
         var html = '<p style="font-size:13px;color:#54698d;margin:0 0 10px;">'
-            + missing.length + ' attribute(s) found in ' + PLATFORM_LABEL + ' but missing in SFCC. '
+            + missing.length + ' attribute(s) found in CTP but missing in SFCC. '
             + 'Select the ones you want to create:</p>';
 
         html += '<div style="border:1px solid #e0e5ee;border-radius:4px;overflow:hidden;">'
@@ -609,27 +603,19 @@
             + '<th style="width:36px;"><input type="checkbox" id="acc-attr-select-all" checked/></th>'
             + '<th>Attribute ID</th>'
             + '<th>Label</th>'
-            + '<th>Source Type</th>'
+            + '<th>CTP Type</th>'
             + '<th>SFCC Type</th>'
-            + '<th>Notes</th>'
             + '<th style="width:90px;">Action</th>'
             + '</tr></thead><tbody>';
 
         for (var i = 0; i < missing.length; i++) {
             var m = missing[i];
-            // Fields only heuristically flagged as a possible native-field duplicate default to
-            // unchecked — the user must opt in rather than silently getting a redundant custom attribute.
-            var cbAttrs = (m.sfccNativeAction === 'flag') ? '' : ' checked';
             html += '<tr id="acc-attr-row-' + i + '">'
-                + '<td style="text-align:center;"><input type="checkbox" class="acc-attr-cb" data-idx="' + i + '"' + cbAttrs + '/></td>'
-                + '<td><input type="text" class="cm-attr-id-input" data-idx="' + i + '" value="' + escHtml(m.id) + '" title="Edit attribute ID"/></td>'
-                + '<td>' + escHtml(m.label || m.id) + '</td>'
-                + '<td style="color:#8a9ab8;">' + escHtml(m.ctpType || '—') + '</td>'
+                + '<td style="text-align:center;"><input type="checkbox" class="acc-attr-cb" data-idx="' + i + '" checked/></td>'
+                + '<td><input type="text" class="cm-attr-id-input" data-idx="' + i + '" value="' + m.id + '" title="Edit attribute ID"/></td>'
+                + '<td>' + (m.label || m.id) + '</td>'
+                + '<td style="color:#8a9ab8;">' + m.ctpType + '</td>'
                 + '<td>' + window.AccAttrPreflight.sfccTypeSelectHtml(m, i) + '</td>'
-                + '<td>' + (m.sfccNativeNote
-                    ? '<span class="acc-info-tip" aria-label="' + escHtml(m.sfccNativeNote) + '">&#9432;'
-                        + '<span class="acc-info-tip__text">' + escHtml(m.sfccNativeNote) + '</span></span>'
-                    : '') + '</td>'
                 + '<td><button type="button" class="cm-btn--revert acc-attr-revert-btn" data-idx="' + i + '" disabled title="Create the attribute first to enable revert">Revert</button></td>'
                 + '</tr>';
         }
@@ -1034,21 +1020,16 @@
             + '<thead><tr>'
             + '<th>Attribute ID</th>'
             + '<th>Label</th>'
-            + '<th>Source Type</th>'
+            + '<th>CTP Type</th>'
             + '<th>SFCC Type</th>'
-            + '<th>Notes</th>'
             + '</tr></thead><tbody>';
         for (var i = 0; i < missing.length; i++) {
             var m = missing[i];
             html += '<tr>'
-                + '<td><code>' + escHtml(m.id) + '</code></td>'
-                + '<td>' + escHtml(m.label || m.id) + '</td>'
-                + '<td style="color:#8a9ab8;">' + escHtml(m.ctpType || '—') + '</td>'
+                + '<td><code>' + m.id + '</code></td>'
+                + '<td>' + (m.label || m.id) + '</td>'
+                + '<td style="color:#8a9ab8;">' + m.ctpType + '</td>'
                 + '<td>' + window.AccAttrPreflight.sfccTypeSelectHtml(m, i, 'cm-attr-type-select cm-attr-modal-type') + '</td>'
-                + '<td>' + (m.sfccNativeNote
-                    ? '<span class="acc-info-tip" aria-label="' + escHtml(m.sfccNativeNote) + '">&#9432;'
-                        + '<span class="acc-info-tip__text">' + escHtml(m.sfccNativeNote) + '</span></span>'
-                    : '') + '</td>'
                 + '</tr>';
         }
         html += '</tbody></table></div>';
@@ -1146,7 +1127,7 @@
 
     function showPreflightError(errorMsg, onContinue) {
         modalAttrList.innerHTML = '<p style="color:#c62828;font-size:13px;margin:0 0 8px;">'
-            + '<strong>Could not check ' + PLATFORM_LABEL + ' attributes:</strong> ' + errorMsg + '</p>'
+            + '<strong>Could not check CTP attributes:</strong> ' + errorMsg + '</p>'
             + '<p style="font-size:13px;color:#54698d;margin:0;">You can proceed without the check ? '
             + 'missing attributes will not be created automatically.</p>';
         modalStatus.textContent = '';
@@ -1178,12 +1159,12 @@
         var rawIds = document.getElementById('acc-ctp-ids').value.trim();
         var ids    = [];
         if (!rawIds) {
-            showError('acc-ctp-ids', 'acc-ctp-ids-error', PLATFORM_LABEL + ' Customer IDs are required.');
+            showError('acc-ctp-ids', 'acc-ctp-ids-error', 'CTP Customer IDs are required.');
             valid = false;
         } else {
             ids = rawIds.split(',').map(function (s) { return s.trim(); }).filter(function (s) { return s.length > 0; });
             if (!ids.length) {
-                showError('acc-ctp-ids', 'acc-ctp-ids-error', 'Enter at least one valid ' + PLATFORM_LABEL + ' Customer ID.');
+                showError('acc-ctp-ids', 'acc-ctp-ids-error', 'Enter at least one valid CTP Customer ID.');
                 valid = false;
             } else {
                 clearError('acc-ctp-ids', 'acc-ctp-ids-error');

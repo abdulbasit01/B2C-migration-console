@@ -34,24 +34,23 @@
     <isinclude template="accelerator/components/migrationBackLink"/>
     <section class="acc-section">
         <header class="acc-section__head">
-            <h2>Tax Migration &mdash; <span class="acc-highlight">Commercetools &rarr; SFCC</span></h2>
+            <h2>Tax Migration &mdash; <span class="acc-highlight">${pdict.sourceLabel} &rarr; SFCC</span></h2>
             <p style="font-size:14px;color:#54698d;margin-top:6px;max-width:720px;">
-                Export CTP <strong>tax categories</strong> and rates into one SFCC tax IMPEX XML file
+                <isprint value="${pdict.migrationUi.taxIntro}" encoding="off"/>
                 (<code>tax-classes</code>, <code>tax-jurisdictions</code>, <code>tax-rates</code>).
             </p>
         </header>
 
         <div id="acc-attr-preflight" style="margin:24px 0 28px;border:1px solid #dddbda;border-radius:6px;overflow:hidden;">
+            <script type="application/json" id="acc-migration-ui-data"><isprint value="${pdict.migrationUiJson}" encoding="off"/></script>
             <div style="background:#f4f6f9;border-bottom:1px solid #dddbda;padding:11px 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
                 <span style="font-weight:700;font-size:14px;color:#16325c;">Attribute Pre-flight Check</span>
-                <button id="acc-check-attrs-btn" type="button" class="acc-btn acc-btn--ghost">Check CTP Attributes</button>
+                <button id="acc-check-attrs-btn" type="button" class="acc-btn acc-btn--ghost">${pdict.migrationUi.attrCheckBtn}</button>
                 <span id="acc-attr-check-msg" style="font-size:13px;color:#54698d;font-weight:600;"></span>
             </div>
             <div style="padding:14px 20px;">
                 <p style="font-size:13px;color:#54698d;margin:0;">
-                    Verifies SFCC <strong>TaxClass</strong> attributes for any CTP custom fields that apply to tax migration.
-                    CTP tax categories use native fields only (name, rates, country) and map to
-                    <code>tax-class</code>, <code>tax-jurisdiction</code>, and <code>tax-rate</code> XML — no custom-type scan is required.
+                    <isprint value="${pdict.migrationUi.taxAttrScan}" encoding="off"/>
                 </p>
                 <div id="acc-attr-results" style="display:none;margin-top:14px;"></div>
             </div>
@@ -63,19 +62,20 @@
              data-check-attrs-url="<isprint value="${pdict.checkAttrsUrl}" encoding="htmldoublequote"/>"
              data-create-attrs-url="<isprint value="${pdict.createAttrsUrl}" encoding="htmldoublequote"/>"
              data-wizard-entry-url="<isprint value="${pdict.dataWizardEntryUrl}" encoding="htmldoublequote"/>"
-             data-impex-path="<isprint value="${pdict.impexPath}" encoding="htmldoublequote"/>">
+             data-impex-path="<isprint value="${pdict.impexPath}" encoding="htmldoublequote"/>"
+             data-migration-ui="<isprint value="${pdict.migrationUiJson}" encoding="htmldoublequote"/>">
 
         <div class="tx-details-panel">
             <div class="tx-details-panel__head">
                 <span style="font-weight:700;font-size:14px;color:#16325c;">Tax Overview</span>
-                <button id="acc-reload-tax-btn" type="button" class="acc-btn acc-btn--ghost">Load from CTP</button>
+                <button id="acc-reload-tax-btn" type="button" class="acc-btn acc-btn--ghost">${pdict.migrationUi.loadTaxBtn}</button>
                 <span id="acc-tx-summary" style="font-size:13px;color:#54698d;font-weight:600;"></span>
             </div>
             <div class="tx-details-panel__body">
                 <p style="font-size:13px;color:#54698d;margin:0;">
-                    Review tax classes and countries found in commercetools before building the export XML.
+                    <isprint value="${pdict.migrationUi.taxOverviewHelp}" encoding="off"/>
                 </p>
-                <div id="acc-tx-loading" style="font-size:13px;color:#54698d;margin-top:12px;">Click <strong>Load from CTP</strong> to fetch tax classes and rates.</div>
+                <div id="acc-tx-loading" style="font-size:13px;color:#54698d;margin-top:12px;"><isprint value="${pdict.migrationUi.loadTaxHint}" encoding="off"/></div>
                 <div id="acc-tx-error" style="display:none;font-size:13px;color:#c62828;margin-top:12px;"></div>
                 <div id="acc-tx-overview-wrap" style="display:none;margin-top:12px;">
                     <div class="tx-overview-row">
@@ -108,8 +108,7 @@
 
         <div class="acc-info-box">
             <strong>How migration works:</strong><br/>
-            Fetches all tax categories from commercetools, maps CTP rates to SFCC
-            <code>tax-class</code>, <code>tax-jurisdiction</code>, and <code>tax-rate</code> elements,
+            <isprint value="${pdict.migrationUi.taxHowWorks}" encoding="off"/>
             and uploads a single XML file to WebDAV at <code>/Impex/${pdict.impexPath}/</code>.<br/>
             Import in BM via <strong>Merchant Tools &rarr; Online Marketing &rarr; Import &amp; Export &rarr; Import Tax Tables</strong>
             (or Administration &rarr; Site Development &rarr; Import &amp; Export).
@@ -131,7 +130,6 @@
                 </div>
                 <p class="acc-phases__detail" id="full-detail-import">Waiting for Phase 1&hellip;</p>
                 <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;">
-                    <a href="${pdict.jobsUrl}" target="_blank" class="acc-btn acc-btn--primary" style="text-decoration:none;font-size:13px;display:inline-block;padding:7px 16px;">Open BM Import</a>
                     <a href="${pdict.impexUrl}" target="_blank" class="acc-btn acc-btn--ghost" style="text-decoration:none;font-size:13px;display:inline-block;padding:7px 16px;">Open IMPEX</a>
                 </div>
             </li>
@@ -147,7 +145,7 @@
 
 <div id="acc-preflight-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center;">
     <div style="background:#fff;border-radius:6px;padding:28px 32px;max-width:620px;width:90%;max-height:82vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.3);">
-        <h3 style="margin:0 0 6px;color:#16325c;font-size:16px;">Missing CTP Attributes in SFCC</h3>
+        <h3 style="margin:0 0 6px;color:#16325c;font-size:16px;">${pdict.migrationUi.attrModalTitle}</h3>
         <p style="font-size:13px;color:#54698d;margin:0 0 16px;">Create missing TaxClass attributes now, or skip and migrate without them.</p>
         <div id="acc-modal-attr-list"></div>
         <p id="acc-modal-status" style="font-size:12px;margin:12px 0 0;min-height:16px;"></p>

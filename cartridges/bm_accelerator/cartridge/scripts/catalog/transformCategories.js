@@ -117,19 +117,20 @@ function transformCategory(ctCategory, defaultLocale, idToKey) {
         }
     }
 
-    // ── slug → ctSlug custom attribute ───────────────────────────────────────
+    // ── ctSlug: localized slug → fall back to category key ──────────────────
+    var resolvedSlug = '';
     if (ctCategory.slug) {
         var slugLocale = resolveLocale(ctCategory.slug, defaultLocale);
-        sfccCategory.customAttributes.ctSlug = ctCategory.slug[slugLocale]
+        var slugKeys   = Object.keys(ctCategory.slug);
+        resolvedSlug = ctCategory.slug[slugLocale]
             || ctCategory.slug['en-US']
             || ctCategory.slug['en-GB']
-            || Object.values
-                ? Object.values(ctCategory.slug)[0]
-                : ctCategory.slug[Object.keys(ctCategory.slug)[0]]
+            || (slugKeys.length > 0 ? ctCategory.slug[slugKeys[0]] : '')
             || '';
     }
-
-    sfccCategory.customAttributes.ctId = ctCategory.id;
+    sfccCategory.customAttributes.ctSlug     = resolvedSlug || ctCategory.key || '';
+    sfccCategory.customAttributes.ctId       = ctCategory.id || '';
+    sfccCategory.customAttributes.ctPosition = ctCategory.orderHint ? parseFloat(ctCategory.orderHint) : sfccCategory.position;
 
     return sfccCategory;
 }

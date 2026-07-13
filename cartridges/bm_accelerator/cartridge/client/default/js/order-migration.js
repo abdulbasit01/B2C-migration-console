@@ -4,16 +4,29 @@
 (function () {
     'use strict';
 
+    function readUi(root) {
+        if (window.AccAttrPreflight && window.AccAttrPreflight.readMigrationUi) {
+            var fromJson = window.AccAttrPreflight.readMigrationUi();
+            if (fromJson && fromJson.sourceShort) return fromJson;
+        }
+        if (!root) return {};
+        try {
+            var raw = root.getAttribute('data-migration-ui');
+            return raw ? JSON.parse(raw) : {};
+        } catch (e) { return {}; }
+    }
+
     function readCfg() {
         var root = document.getElementById('acc-ord-root');
-        if (!root) return {};
+        if (!root) return { ui: {} };
         return {
             countUrl:           root.getAttribute('data-count-url') || '',
             exportUrl:          root.getAttribute('data-export-url') || '',
             checkAttrsUrl:      root.getAttribute('data-check-attrs-url') || '',
             createAttrsUrl:     root.getAttribute('data-create-attrs-url') || '',
             dataWizardEntryUrl: root.getAttribute('data-wizard-entry-url') || '',
-            impexPath:          root.getAttribute('data-impex-path') || ''
+            impexPath:          root.getAttribute('data-impex-path') || '',
+            ui:                 readUi(root)
         };
     }
 
@@ -67,6 +80,7 @@
 
     function boot() {
         var cfg = readCfg();
+        var ui  = cfg.ui || {};
         var yearsEl       = document.getElementById('acc-ord-years');
         var stateEl       = document.getElementById('acc-ord-order-state');
         var payEl         = document.getElementById('acc-ord-payment-state');
@@ -122,7 +136,7 @@
 
         function showCountLoading() {
             if (!countValueEl) return;
-            countValueEl.textContent = 'Checking commercetools...';
+            countValueEl.textContent = ui.orderCountChecking || 'Checking...';
             countValueEl.className = 'acc-order-count__value acc-order-count__value--loading';
             if (countExportEl) countExportEl.style.display = 'none';
         }
@@ -175,17 +189,19 @@
             attrResults.innerHTML = '';
             attrResults.style.display = 'block';
             if (!missing.length) {
-                attrResults.innerHTML = '<p style="color:#2e7d32;font-size:13px;margin:0;">All CTP order attributes already exist in SFCC.</p>';
+                attrResults.innerHTML = '<p style="color:#2e7d32;font-size:13px;margin:0;">' + (ui.orderAllAttrsExist || ui.allAttrsExist || 'All attributes already exist in SFCC.') + '</p>';
                 return;
             }
             if (!window.AccAttrPreflight) {
                 attrResults.innerHTML = '<p style="color:#c62828;font-size:13px;margin:0;">Attribute helper script failed to load.</p>';
                 return;
             }
-            var html = '<p style="font-size:13px;color:#54698d;margin:0 0 10px;">' + missing.length + ' attribute(s) missing in SFCC:</p>';
+            var html = '<p style="font-size:13px;color:#54698d;margin:0 0 10px;">'
+                + (window.AccAttrPreflight ? window.AccAttrPreflight.missingCountLabel(ui, missing.length) : missing.length + (ui.attrsMissingCount || ' attribute(s) missing in SFCC:'))
+                + '</p>';
             html += '<div style="border:1px solid #e0e5ee;border-radius:4px;overflow:hidden;"><table class="cm-attr-table"><thead><tr>'
                 + '<th style="width:36px;"><input type="checkbox" id="acc-attr-select-all" checked/></th>'
-                + '<th>Attribute ID</th><th>Label</th><th>CTP Type</th><th>SFCC Type</th></tr></thead><tbody>';
+                + '<th>Attribute ID</th><th>Label</th><th>' + (ui.sourceTypeCol || 'Source Type') + '</th><th>SFCC Type</th></tr></thead><tbody>';
             var i;
             for (i = 0; i < missing.length; i++) {
                 var m = missing[i];
@@ -253,7 +269,8 @@
                 }
                 if (modalAttrList) {
                     modalAttrList.innerHTML = '<p style="font-size:13px;color:#54698d;">'
-                        + data.missing.length + ' attribute(s) missing.</p>';
+                        + (window.AccAttrPreflight ? window.AccAttrPreflight.missingBriefLabel(ui, data.missing.length) : data.missing.length + (ui.attrsMissingBrief || ' attribute(s) missing.'))
+                        + '</p>';
                 }
                 modalCallback = onContinue;
                 if (preflightModal) preflightModal.style.display = 'flex';
@@ -339,11 +356,11 @@
         if (checkAttrsBtn) {
             checkAttrsBtn.addEventListener('click', function () {
                 checkAttrsBtn.disabled = true;
-                checkAttrsBtn.textContent = 'Checking...';
+                checkAttrsBtn.textContent = ui.attrCheckingBtn || 'Checking...';
                 if (attrCheckMsg) attrCheckMsg.textContent = '';
                 get(cfg.checkAttrsUrl, function (data) {
                     checkAttrsBtn.disabled = false;
-                    checkAttrsBtn.textContent = 'Re-check';
+                    checkAttrsBtn.textContent = ui.attrRecheckBtn || 'Re-check';
                     if (!data.ok) {
                         if (attrCheckMsg) {
                             attrCheckMsg.textContent = 'Error: ' + (data.error || 'Check failed');
@@ -353,7 +370,9 @@
                     }
                     pendingMissing = data.missing || [];
                     if (attrCheckMsg) {
-                        attrCheckMsg.textContent = pendingMissing.length ? pendingMissing.length + ' missing.' : 'All in sync.';
+                        attrCheckMsg.textContent = pendingMissing.length
+                            ? pendingMissing.length + (ui.attrsMissingBrief || ' missing.')
+                            : (ui.attrsAllInSync || 'All in sync.');
                         attrCheckMsg.style.color = pendingMissing.length ? '#e65100' : '#2e7d32';
                     }
                     renderAttrResults(pendingMissing);

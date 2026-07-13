@@ -76,7 +76,7 @@ function importAllCategories(sfccCategories, catalogId) {
     var token = getOCAPIToken();
     if (!token) return { success: 0, failed: sfccCategories.length, errors: ['Auth failed'] };
 
-    var instanceHost = 'zzkc-002.dx.commercecloud.salesforce.com'; // ← replace with your actual host from dw.json
+    var instanceHost = request.httpHost;
 
     var results = { success: 0, failed: 0, errors: [] };
 

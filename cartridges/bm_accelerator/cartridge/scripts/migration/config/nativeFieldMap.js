@@ -8,14 +8,12 @@
  *   sfccField {string} — the SFCC built-in field this source attribute duplicates
  *   action    {string} — "flag"  : show info hint in AI Map; still create if user proceeds
  *                        "skip"  : exclude from migration batch entirely
- *   note      {string} [optional] — custom explanation shown in the UI; falls back to a
- *             generated default ("Equivalent to native SFCC <sfccField> ...") when omitted
+ *   note      {string} — human-readable explanation shown in the UI
  *
  * To extend: add entries to nativeFieldMap.json — no connector or runner code changes needed.
  */
 
-var rules    = require('*/cartridge/scripts/migration/config/nativeFieldMap.json');
-var detector = require('*/cartridge/scripts/migration/core/nativeFieldDetector');
+var rules = require('*/cartridge/scripts/migration/config/nativeFieldMap.json');
 
 /**
  * Return the rule for a given attribute, or null if none applies.
@@ -34,7 +32,7 @@ function getRule(platformId, task, attrId) {
     return {
         sfccField: rule.sfccField,
         action:    rule.action,
-        note:      rule.note || ('Equivalent to native SFCC ' + rule.sfccField + ' — may not need separate migration.')
+        note:      'Equivalent to native SFCC ' + rule.sfccField + ' — may not need separate migration.'
     };
 }
 
@@ -50,33 +48,4 @@ function isSkipped(platformId, task, attrId) {
     return !!(rule && rule.action === 'skip');
 }
 
-/**
- * Curated rules win when present (they can carry a precise, hand-written note).
- * Otherwise, fall back to live detection against SFCC's own system attributes —
- * this is what catches fields nobody has explicitly mapped yet (any connector's
- * custom fields/metafields included), not just a fixed list.
- * @param {string} platformId
- * @param {string} task
- * @param {string} attrId    - source field id/key
- * @param {string} [attrLabel] - source field human label, improves match quality
- * @param {Array<{id: string, displayName: string, system: boolean}>} [sfccAttrs]
- *        - live SFCC attribute list for the target object type; omit to skip detection
- * @returns {{ sfccField: string, action: string, note: string }|null}
- */
-function getEffectiveRule(platformId, task, attrId, attrLabel, sfccAttrs) {
-    var staticRule = getRule(platformId, task, attrId);
-    if (staticRule) return staticRule;
-    if (!sfccAttrs || !sfccAttrs.length) return null;
-
-    var matches = detector.findNativeMatches(attrId, attrLabel, sfccAttrs);
-    if (!matches.length) return null;
-
-    var best = matches[0];
-    return {
-        sfccField: best.id,
-        action:    'flag',
-        note:      'Looks similar to existing SFCC field "' + (best.displayName || best.id) + '" (' + best.id + ') — consider mapping to it instead of a new custom attribute.'
-    };
-}
-
-module.exports = { getRule: getRule, isSkipped: isSkipped, getEffectiveRule: getEffectiveRule };
+module.exports = { getRule: getRule, isSkipped: isSkipped };

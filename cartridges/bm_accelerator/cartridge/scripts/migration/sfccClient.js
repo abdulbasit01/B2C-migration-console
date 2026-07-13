@@ -38,7 +38,7 @@ function metaUrl(path) {
 function getSFCCToken() {
     var s           = getSFCCSettings();
     var credentials = toBase64(s.bmUsername + ':' + s.bmPassword + ':' + s.bmClientId);
-    var body        = 'grant_type=urn%3Ademandware%3Aparams%3Aoauth%3Agrant-type%3Aclient-id%3Adwsid%3Adwsecuretoken&client_id=' + encodeURIComponent(s.bmClientId);
+    var body        = 'grant_type=urn%3Ademandware%3Aparams%3Aoauth%3Agrant-type%3Aclient-id%3Adwsid%3Adwsecuretoken';
 
     var client = new HTTPClient();
     client.setTimeout(30000);
@@ -47,10 +47,11 @@ function getSFCCToken() {
     client.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
     client.send(body);
 
-    var text = client.getText();
-    var data = JSON.parse(text || '{}');
-    if (client.getStatusCode() !== 200 || !data.access_token) {
-        throw new Error('SFCC token failed (' + client.getStatusCode() + '): ' + text);
+    var text = client.text || '';
+    var data;
+    try { data = JSON.parse(text || '{}'); } catch (pe) { data = {}; }
+    if (client.statusCode !== 200 || !data.access_token) {
+        throw new Error('SFCC token failed (' + client.statusCode + ') host=' + s.baseUrl + ' client=' + s.bmClientId + ' user=' + s.bmUsername + ': ' + (text || '(empty)'));
     }
     return data.access_token;
 }
@@ -86,14 +87,13 @@ function doGet(url, token) {
 }
 
 /**
- * Get every attribute definition (system-built-in and custom) for an SFCC system
- * object type, with enough metadata to distinguish native fields from custom ones.
+ * Get all existing custom attribute IDs for an SFCC system object type.
  * @param {string} token - SFCC access token
  * @param {string} objectType - SFCC system object (Product, Customer, Order, etc.)
- * @returns {Array<{ id: string, displayName: string, system: boolean }>}
+ * @returns {Object} map of existing attribute IDs { id: true }
  */
-function getAttributeDefinitions(token, objectType) {
-    var attrs    = [];
+function getExistingAttributeIds(token, objectType) {
+    var ids      = {};
     var start    = 0;
     var pageSize = 200;
     var total    = null;
@@ -105,30 +105,10 @@ function getAttributeDefinitions(token, objectType) {
 
         if (total === null) total = res.data.total || 0;
         var page = res.data.data || [];
-        for (var i = 0; i < page.length; i++) {
-            var a = page[i];
-            attrs.push({
-                id:          a.id,
-                displayName: (a.display_name && a.display_name.default) || a.id,
-                system:      !!a.system
-            });
-        }
+        for (var i = 0; i < page.length; i++) { ids[page[i].id] = true; }
         start += pageSize;
     } while (start < total);
 
-    return attrs;
-}
-
-/**
- * Get all existing custom attribute IDs for an SFCC system object type.
- * @param {string} token - SFCC access token
- * @param {string} objectType - SFCC system object (Product, Customer, Order, etc.)
- * @returns {Object} map of existing attribute IDs { id: true }
- */
-function getExistingAttributeIds(token, objectType) {
-    var attrs = getAttributeDefinitions(token, objectType);
-    var ids   = {};
-    for (var i = 0; i < attrs.length; i++) { ids[attrs[i].id] = true; }
     return ids;
 }
 
@@ -186,6 +166,10 @@ function migrateObjectSchema(token, objectType, attrDefs) {
  */
 function ensureAttributeGroup(token, objectType, groupId, displayName) {
     var url = metaUrl('/system_object_definitions/' + objectType + '/attribute_groups/' + encodeURIComponent(groupId));
+    // GET first — skip PUT if the group already exists.
+    // Unconditional PUT replaces the group resource and clears all linked attribute_definitions.
+    var getRes = doGet(url, token);
+    if (getRes.status === 200) return true;
     var res = doPut(url, token, {
         id:           groupId,
         display_name: { default: displayName || groupId },
@@ -243,7 +227,6 @@ module.exports = {
     getSFCCToken:              getSFCCToken,
     getSFCCSettings:           getSFCCSettings,
     doGet:                     doGet,
-    getAttributeDefinitions:   getAttributeDefinitions,
     getExistingAttributeIds:   getExistingAttributeIds,
     createAttributeDefinition: createAttributeDefinition,
     deleteAttributeDefinition: deleteAttributeDefinition,

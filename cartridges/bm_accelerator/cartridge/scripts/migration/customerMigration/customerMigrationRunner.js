@@ -4,19 +4,7 @@ var UUIDUtils   = require('dw/util/UUIDUtils');
 var fetcher     = require('*/cartridge/scripts/migration/customerMigration/ctpCustomerFetcher');
 var transformer = require('*/cartridge/scripts/migration/customerMigration/customerTransformer');
 var writer      = require('*/cartridge/scripts/migration/customerMigration/sfccCustomerWriter');
-var groupWriter = require('*/cartridge/scripts/migration/customerMigration/sfccCustomerGroupWriter');
 var sfccClient  = require('*/cartridge/scripts/migration/sfccClient');
-
-/**
- * Assign a just-created customer to their source group, if any. Non-fatal:
- * the group may not exist yet if the Fetch/Create Groups step hasn't been run.
- * @param {string} customerNo
- * @param {string} groupId
- */
-function assignGroupIfAny(customerNo, groupId) {
-    if (!groupId) return;
-    try { groupWriter.assignCustomerToGroup(customerNo, groupId); } catch (ge) { /* non-fatal */ }
-}
 
 // ─── CTP traceability attributes ──────────────────────────────────────────────
 // These three custom attribute definitions are created on the SFCC Customer
@@ -123,7 +111,6 @@ function runProfileBatch(offset, listId) {
 
         if (result.ok) {
             created++;
-            assignGroupIfAny(result.customerNo, transformed.profile.c_ctp_customer_group_id);
             mappings.push({
                 ctpId:             ctpCustomer.id,
                 sfccNo:            result.customerNo,
@@ -246,7 +233,6 @@ function runProfileBatchById(ctpId, listId) {
     }
 
     if (result.ok) {
-        assignGroupIfAny(result.customerNo, transformed.profile.c_ctp_customer_group_id);
         return {
             ok: true, created: 1, skipped: 0, failed: 0, errors: [],
             mappings: [{
