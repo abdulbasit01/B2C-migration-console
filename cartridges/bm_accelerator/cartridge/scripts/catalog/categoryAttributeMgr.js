@@ -13,6 +13,18 @@ var CTP_ATTR_GROUP_NAME      = 'CTP Migration';
 var SHOPIFY_ATTR_GROUP_ID    = 'ShopifyMigration';
 var SHOPIFY_ATTR_GROUP_NAME  = 'Shopify Migration';
 
+var ALL_SFCC_TYPES = [
+    { value: 'string',   label: 'String'   },
+    { value: 'text',     label: 'Text'     },
+    { value: 'html',     label: 'HTML'     },
+    { value: 'int',      label: 'Integer'  },
+    { value: 'double',   label: 'Double'   },
+    { value: 'boolean',  label: 'Boolean'  },
+    { value: 'date',     label: 'Date'     },
+    { value: 'datetime', label: 'DateTime' },
+    { value: 'email',    label: 'Email'    }
+];
+
 var SHOPIFY_ATTRS = [
     { id: 'level',  label: 'Category Level',   sfccType: 'int'     },
     { id: 'isLeaf', label: 'Category Is Leaf', sfccType: 'boolean' }
@@ -52,7 +64,7 @@ function checkAttributes(platform) {
         var a      = attrs[i];
         var exists = !!existingIds[a.id];
         try { sfccClient.addAttributeToGroup(token, CATEGORY_OBJECT, group.id, a.id); } catch (age) {}
-        results.push({ id: a.id, label: a.label, sfccType: a.sfccType, exists: exists });
+        results.push({ id: a.id, label: a.label, sfccType: a.sfccType, exists: exists, sfccTypeOptions: ALL_SFCC_TYPES });
     }
     return results;
 }
