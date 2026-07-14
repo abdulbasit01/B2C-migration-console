@@ -28,7 +28,7 @@ function parseNextPageInfo(linkHeader) {
  */
 function getCount() {
     var c   = cfg.shopify;
-    var res = http.get(connector.adminBase(c) + '/customers/count.json', connector.authHeaders(c));
+    var res = http.get(connector.getAdminBase(c) + '/customers/count.json', connector.getAuthHeaders(c));
     if (res.status !== 200) {
         throw new Error('Shopify customer count failed (' + res.status + ')');
     }
@@ -47,7 +47,7 @@ function fetchPage(pageInfo, limit) {
     if (pageInfo) {
         qs += '&page_info=' + encodeURIComponent(pageInfo);
     }
-    var res = http.get(connector.adminBase(c) + '/customers.json' + qs, connector.authHeaders(c));
+    var res = http.get(connector.getAdminBase(c) + '/customers.json' + qs, connector.getAuthHeaders(c));
     if (res.status !== 200) {
         throw new Error('Shopify customers fetch failed (' + res.status + ')');
     }
@@ -65,7 +65,7 @@ function fetchPage(pageInfo, limit) {
 function fetchById(shopifyId) {
     var c    = cfg.shopify;
     var id   = String(shopifyId || '').trim();
-    var res  = http.get(connector.adminBase(c) + '/customers/' + encodeURIComponent(id) + '.json', connector.authHeaders(c));
+    var res  = http.get(connector.getAdminBase(c) + '/customers/' + encodeURIComponent(id) + '.json', connector.getAuthHeaders(c));
     if (res.status === 404) return null;
     if (res.status !== 200) {
         throw new Error('Shopify customer fetch failed (' + res.status + ') for id: ' + id);
