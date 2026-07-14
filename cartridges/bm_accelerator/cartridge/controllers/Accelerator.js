@@ -1211,11 +1211,14 @@ exports.GetCustomerLists = function () {
 exports.GetCustomerLists.public = true;
 
 /**
- * Fetch all customer groups from CTP and return as JSON.
+ * Fetch all customer groups from the source platform and return as JSON.
+ * CTP: actual customer groups. Shopify: derived from distinct customer tags.
  */
 exports.FetchCtpCustomerGroups = function () {
     try {
-        var groupFetcher = require('*/cartridge/scripts/migration/customerMigration/ctpCustomerGroupFetcher');
+        var groupFetcher = (resolvePlatform() === 'shopify')
+            ? require('*/cartridge/scripts/migration/customerMigration/shopifyCustomerGroupFetcher')
+            : require('*/cartridge/scripts/migration/customerMigration/ctpCustomerGroupFetcher');
         jsonResponse({ ok: true, groups: groupFetcher.fetchGroups() });
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
@@ -1447,7 +1450,9 @@ exports.SaveVariantAttrSelection.public = true;
  */
 exports.CheckCustomerAttributes = function () {
     try {
-        var checker = require('*/cartridge/scripts/migration/customerMigration/customerAttrChecker');
+        var checker = (resolvePlatform() === 'shopify')
+            ? require('*/cartridge/scripts/migration/customerMigration/shopifyCustomerAttrChecker')
+            : require('*/cartridge/scripts/migration/customerMigration/customerAttrChecker');
         jsonResponse({ ok: true, missing: checker.checkMissingAttributes() });
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
@@ -1471,7 +1476,9 @@ exports.CreateCustomerAttributes = function () {
         return;
     }
     try {
-        var checker2 = require('*/cartridge/scripts/migration/customerMigration/customerAttrChecker');
+        var checker2 = (resolvePlatform() === 'shopify')
+            ? require('*/cartridge/scripts/migration/customerMigration/shopifyCustomerAttrChecker')
+            : require('*/cartridge/scripts/migration/customerMigration/customerAttrChecker');
         jsonResponse({ ok: true, result: checker2.createAttributes(attrs) });
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
@@ -1506,8 +1513,10 @@ exports.DeleteCustomerAttribute.public = true;
  */
 exports.CustomerMigrationCount = function () {
     try {
-        var ctpFetcher = require('*/cartridge/scripts/migration/customerMigration/ctpCustomerFetcher');
-        jsonResponse({ ok: true, total: ctpFetcher.getCount() });
+        var countFetcher = (resolvePlatform() === 'shopify')
+            ? require('*/cartridge/scripts/migration/customerMigration/shopifyCustomerFetcher')
+            : require('*/cartridge/scripts/migration/customerMigration/ctpCustomerFetcher');
+        jsonResponse({ ok: true, total: countFetcher.getCount() });
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
     }
@@ -1525,6 +1534,14 @@ exports.MigrateCustomerBatch = function () {
 
     if (!listId) {
         jsonResponse({ ok: false, error: 'listId parameter is required' });
+        return;
+    }
+    if (resolvePlatform() === 'shopify') {
+        jsonResponse({
+            ok:    false,
+            error: 'Sequential partial migration is not supported for Shopify yet — '
+                 + 'enter specific customer IDs above, or use Full Migration for the whole store.'
+        });
         return;
     }
     try {
@@ -1581,7 +1598,9 @@ exports.FullMigrationBuildBatch = function () {
         return;
     }
     try {
-        var fullRunner = require('*/cartridge/scripts/migration/customerMigration/fullMigrationRunner');
+        var fullRunner = (resolvePlatform() === 'shopify')
+            ? require('*/cartridge/scripts/migration/customerMigration/shopifyFullMigrationRunner')
+            : require('*/cartridge/scripts/migration/customerMigration/fullMigrationRunner');
         jsonResponse(fullRunner.runBatch(offset, listId));
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
@@ -1602,7 +1621,9 @@ exports.MigrateCustomerById = function () {
         return;
     }
     try {
-        var byIdRunner = require('*/cartridge/scripts/migration/customerMigration/customerMigrationRunner');
+        var byIdRunner = (resolvePlatform() === 'shopify')
+            ? require('*/cartridge/scripts/migration/customerMigration/shopifyCustomerMigrationRunner')
+            : require('*/cartridge/scripts/migration/customerMigration/customerMigrationRunner');
         jsonResponse(byIdRunner.runProfileBatchById(ctpId, listId));
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
