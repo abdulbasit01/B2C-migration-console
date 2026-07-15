@@ -20,6 +20,19 @@
                    href="${pdict.contentMigrationUrl}?platform=${platform.id}">
                     ${Resource.msg('accelerator.card.contentMigration', 'accelerator', null)}
                 </a>
+                <isif condition="${platform.dataConnected}">
+                    <a class="acc-btn acc-btn--ghost acc-card__cta acc-card__logout"
+                       href="${platform.logoutUrl}">
+                        ${Resource.msg('accelerator.card.logout', 'accelerator', null)}
+                    </a>
+                <iselse/>
+                    <button type="button"
+                            class="acc-btn acc-btn--ghost acc-card__cta acc-card__logout"
+                            disabled="disabled"
+                            title="${Resource.msg('accelerator.card.logout.disabled', 'accelerator', null)}">
+                        ${Resource.msg('accelerator.card.logout', 'accelerator', null)}
+                    </button>
+                </isif>
             <iselse/>
                 <a class="acc-btn acc-btn--secondary acc-card__cta"
                    href="${pdict.wizardUrl}?platform=${platform.id}&amp;step=1">

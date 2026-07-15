@@ -14,6 +14,7 @@ var ATTRS = [
     { id: 'amplienceWidgetType',        name: 'Amplience Widget Type',        type: 'string' },
     { id: 'amplienceSchema',            name: 'Amplience Schema',             type: 'string' },
     { id: 'amplienceWidgetAttributes',  name: 'Amplience Widget Attributes',  type: 'text' },
+    { id: 'amplienceSourceJson',         name: 'Amplience Source JSON',         type: 'text' },
     { id: 'amplienceImageUrl',          name: 'Amplience Image URL',          type: 'string' }
 ];
 

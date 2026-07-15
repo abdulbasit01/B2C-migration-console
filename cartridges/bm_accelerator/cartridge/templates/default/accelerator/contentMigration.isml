@@ -19,9 +19,12 @@
         <div id="acc-cms-root"
              class="acc-cms-wizard"
              data-platform-id="${pdict.platform.id}"
+             data-connected="${pdict.dataConnected ? 'true' : 'false'}"
+             data-initial-step="${pdict.initialStep}"
              data-test-connection-url="<isprint value="${pdict.testConnectionUrl}" encoding="htmldoublequote"/>"
              data-list-content-url="<isprint value="${pdict.listContentUrl}" encoding="htmldoublequote"/>"
              data-fetch-content-url="<isprint value="${pdict.fetchContentUrl}" encoding="htmldoublequote"/>"
+             data-preview-library-url="<isprint value="${pdict.previewLibraryUrl}" encoding="htmldoublequote"/>"
              data-export-content-url="<isprint value="${pdict.exportContentUrl}" encoding="htmldoublequote"/>"
              data-download-xml-url="<isprint value="${pdict.downloadXmlUrl}" encoding="htmldoublequote"/>"
              data-impex-path="<isprint value="${pdict.impexPath}" encoding="htmldoublequote"/>"
@@ -90,13 +93,13 @@
                             </button>
                         </div>
                         <div id="acc-cms-filters" class="cms-filters" style="display:none;">
-                            <div class="acc-form__group">
+                            <div class="acc-form__group cms-filters__repo">
                                 <label class="acc-form__label" for="acc-cms-filter-repo">${Resource.msg('accelerator.contentmigration.filter.repo', 'accelerator', null)}</label>
                                 <select id="acc-cms-filter-repo" class="acc-form__input">
                                     <option value="">${Resource.msg('accelerator.contentmigration.filter.allRepos', 'accelerator', null)}</option>
                                 </select>
                             </div>
-                            <div class="acc-form__group">
+                            <div class="acc-form__group cms-filters__type">
                                 <label class="acc-form__label" for="acc-cms-filter-schema">${Resource.msg('accelerator.contentmigration.filter.schema', 'accelerator', null)}</label>
                                 <select id="acc-cms-filter-schema" class="acc-form__input">
                                     <option value="">${Resource.msg('accelerator.contentmigration.filter.allSchemas', 'accelerator', null)}</option>
@@ -104,9 +107,25 @@
                             </div>
                             <div class="acc-form__group cms-filters__search">
                                 <label class="acc-form__label" for="acc-cms-filter-search">${Resource.msg('accelerator.contentmigration.filter.search', 'accelerator', null)}</label>
-                                <input id="acc-cms-filter-search" class="acc-form__input" type="text" placeholder="Search label or key..." />
+                                <input id="acc-cms-filter-search" class="acc-form__input" type="search" placeholder="${Resource.msg('accelerator.contentmigration.filter.searchPlaceholder', 'accelerator', null)}" />
                             </div>
                         </div>
+                        <div id="acc-cms-bulk-actions" class="cms-bulk-actions" style="display:none;">
+                            <div class="cms-bulk-actions__summary">
+                                <strong id="acc-cms-selection-count">0</strong>
+                                ${Resource.msg('accelerator.contentmigration.bulk.selected', 'accelerator', null)}
+                            </div>
+                            <div class="cms-bulk-actions__buttons">
+                                <button type="button" id="acc-cms-preview-all-btn" class="acc-btn acc-btn--secondary">
+                                    ${Resource.msg('accelerator.contentmigration.bulk.previewAll', 'accelerator', null)}
+                                </button>
+                                <button type="button" id="acc-cms-export-library-btn" class="acc-btn acc-btn--solid">
+                                    ${Resource.msg('accelerator.contentmigration.bulk.exportLibrary', 'accelerator', null)}
+                                </button>
+                            </div>
+                        </div>
+                        <div id="acc-cms-bulk-status" class="cms-export-alert" style="display:none;" role="status"></div>
+                        <div id="acc-cms-bulk-downloads" class="acc-xml-downloads"></div>
                         <div id="acc-cms-list-loading" class="cms-muted">${Resource.msg('accelerator.contentmigration.content.loadHint', 'accelerator', null)}</div>
                         <div id="acc-cms-list-error" class="cms-error" style="display:none;"></div>
                         <div id="acc-cms-table-wrap" class="cms-table-wrap" style="display:none;">
@@ -125,6 +144,17 @@
                                 <tbody id="acc-cms-tbody"></tbody>
                             </table>
                             </div>
+                        </div>
+                        <div id="acc-cms-library-preview" class="cms-library-preview" style="display:none;">
+                            <div class="cms-library-preview__head">
+                                <strong>${Resource.msg('accelerator.contentmigration.bulk.previewJson', 'accelerator', null)}</strong>
+                                <span id="acc-cms-library-preview-meta" class="cms-muted"></span>
+                            </div>
+                            <div id="acc-cms-library-preview-summary" class="cms-library-preview__summary"></div>
+                            <details class="cms-json-details cms-library-preview__details">
+                                <summary>${Resource.msg('accelerator.contentmigration.bulk.previewSample', 'accelerator', null)}</summary>
+                                <pre id="acc-cms-library-preview-json" class="cms-json-block"></pre>
+                            </details>
                         </div>
                     </div>
                 </div>
@@ -148,6 +178,10 @@
                             <details class="cms-json-details">
                                 <summary>${Resource.msg('accelerator.contentmigration.widget.attributes', 'accelerator', null)}</summary>
                                 <pre id="acc-cms-preview-json" class="cms-json-block"></pre>
+                            </details>
+                            <details class="cms-json-details">
+                                <summary>${Resource.msg('accelerator.contentmigration.widget.sourceProperties', 'accelerator', null)}</summary>
+                                <pre id="acc-cms-source-json" class="cms-json-block"></pre>
                             </details>
 
                             <div class="cms-export-block">

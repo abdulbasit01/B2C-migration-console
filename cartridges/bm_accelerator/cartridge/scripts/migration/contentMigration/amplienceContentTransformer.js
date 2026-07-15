@@ -252,7 +252,16 @@ function mapToWidget(content, deliveryKey, hubName, contentId) {
  */
 function transformFetchedContent(fetched) {
     var content = fetched.content || {};
-    return mapToWidget(content, fetched.deliveryKey, fetched.hubName, fetched.contentId);
+    var widget = mapToWidget(content, fetched.deliveryKey, fetched.hubName, fetched.contentId);
+    widget.source = fetched.rawItem || content;
+    widget.sourceMetadata = {
+        label:        fetched.label || '',
+        status:       fetched.status || '',
+        locale:       fetched.locale || '',
+        lastModified: fetched.lastModified || '',
+        source:       fetched.source || ''
+    };
+    return widget;
 }
 
 module.exports = {

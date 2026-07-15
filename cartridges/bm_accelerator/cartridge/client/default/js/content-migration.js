@@ -9,6 +9,7 @@
     var currentDeliveryKey = '';
     var currentContentId = '';
     var allItems = [];
+    var visibleItems = [];
 
     /**
      * Read page config from data attributes.
@@ -19,9 +20,12 @@
         if (!root) return {};
         return {
             platformId: root.getAttribute('data-platform-id') || 'amplience',
+            connected: root.getAttribute('data-connected') === 'true',
+            initialStep: parseInt(root.getAttribute('data-initial-step') || '1', 10),
             testConnectionUrl: root.getAttribute('data-test-connection-url') || '',
             listContentUrl: root.getAttribute('data-list-content-url') || '',
             fetchContentUrl: root.getAttribute('data-fetch-content-url') || '',
+            previewLibraryUrl: root.getAttribute('data-preview-library-url') || '',
             exportContentUrl: root.getAttribute('data-export-content-url') || '',
             downloadXmlUrl: root.getAttribute('data-download-xml-url') || '',
             impexPath: root.getAttribute('data-impex-path') || 'src/migration/content',
@@ -47,16 +51,32 @@
      * Parse a JSON HTTP response body.
      * @param {string} raw - response text
      * @param {string} fallbackError - error when empty
+     * @param {number} [status] - HTTP status
      * @returns {Object} parsed payload
      */
-    function parseJsonResponse(raw, fallbackError) {
+    function parseJsonResponse(raw, fallbackError, status) {
         if (!raw || !String(raw).trim()) {
-            return { ok: false, error: fallbackError || 'Empty response from server' };
+            return {
+                ok: false,
+                error: (fallbackError || 'Empty response from server')
+                    + (status ? ' (HTTP ' + status + ')' : '')
+            };
         }
         try {
             return JSON.parse(raw);
         } catch (e) {
-            return { ok: false, error: 'Server returned non-JSON response' };
+            var snippet = String(raw).replace(/\s+/g, ' ').slice(0, 80);
+            var looksLikeHtml = /<html|<body|Business Manager|timeout/i.test(raw);
+            return {
+                ok: false,
+                error: looksLikeHtml
+                    ? 'Export timed out on the server (HTTP ' + (status || '?')
+                        + '). Retry — batches are smaller now, or filter to fewer items.'
+                    : 'Server returned HTTP ' + (status || 'error')
+                        + ' instead of JSON'
+                        + (snippet ? ' ("' + snippet + '...")' : '')
+                        + '. Retry the export.'
+            };
         }
     }
 
@@ -73,7 +93,7 @@
         req.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
         req.onreadystatechange = function () {
             if (req.readyState !== 4) return;
-            onDone(parseJsonResponse(req.responseText, 'Parse error'));
+            onDone(parseJsonResponse(req.responseText, 'Parse error', req.status));
         };
         req.onerror = function () { onDone({ ok: false, error: 'Network error' }); };
         req.send(params);
@@ -90,7 +110,7 @@
         req.open('GET', url, true);
         req.onreadystatechange = function () {
             if (req.readyState !== 4) return;
-            onDone(parseJsonResponse(req.responseText, 'Parse error'));
+            onDone(parseJsonResponse(req.responseText, 'Parse error', req.status));
         };
         req.onerror = function () { onDone({ ok: false, error: 'Network error' }); };
         req.send(null);
@@ -156,6 +176,26 @@
     }
 
     /**
+     * Show the Step 2 bulk action status.
+     * @param {string} msg - message
+     * @param {string} kind - ok|error|info
+     * @returns {void}
+     */
+    function setBulkStatus(msg, kind) {
+        var node = document.getElementById('acc-cms-bulk-status');
+        if (!node) return;
+        if (!msg) {
+            node.style.display = 'none';
+            node.textContent = '';
+            node.className = 'cms-export-alert';
+            return;
+        }
+        node.style.display = '';
+        node.textContent = msg;
+        node.className = 'cms-export-alert cms-export-alert--' + (kind || 'info');
+    }
+
+    /**
      * Update Previous/Continue footer for the active step.
      * @param {number} step - step number
      * @returns {void}
@@ -209,7 +249,8 @@
         xhr.open('GET', url, true);
         xhr.responseType = 'text';
         xhr.onload = function () {
-            var blob = new Blob([xhr.responseText], { type: 'application/xml' });
+            var mime = /\.json$/i.test(fileName) ? 'application/json' : 'application/xml';
+            var blob = new Blob([xhr.responseText], { type: mime });
             var objUrl = URL.createObjectURL(blob);
             var link = document.createElement('a');
             link.href = objUrl;
@@ -272,7 +313,10 @@
                 shown[images[i].name] = true;
                 html += '<li class="cms-preview-fields__row">'
                     + '<span class="cms-preview-fields__name">' + escHtml(images[i].name) + '</span>'
-                    + '<span class="cms-preview-fields__value"><img src="' + escHtml(images[i].url) + '" alt="" /></span>'
+                    + '<span class="cms-preview-fields__value cms-preview-fields__value--image">'
+                    + '<img src="' + escHtml(images[i].url) + '" alt="" />'
+                    + '<code class="cms-image-url">' + escHtml(images[i].url) + '</code>'
+                    + '</span>'
                     + '</li>';
             }
         }
@@ -328,6 +372,13 @@
         document.getElementById('acc-cms-preview-component').textContent = widget.widgetType || '';
         document.getElementById('acc-cms-preview-schema').textContent = schemaLabel;
         document.getElementById('acc-cms-preview-json').textContent = JSON.stringify(widget.attributes || {}, null, 2);
+        var sourceJson = document.getElementById('acc-cms-source-json');
+        if (sourceJson) {
+            sourceJson.textContent = JSON.stringify({
+                metadata: widget.sourceMetadata || {},
+                item:     widget.source || {}
+            }, null, 2);
+        }
         if (badgeEl) badgeEl.textContent = widget.widgetLabel || widget.widgetType || '';
 
         var preview = widget.preview || {};
@@ -461,7 +512,295 @@
     }
 
     /**
-     * Populate repository and schema filter dropdowns.
+     * Read the active Step 2 filter values.
+     * @returns {Object} active selection criteria
+     */
+    function getSelectionCriteria() {
+        var repo = (document.getElementById('acc-cms-filter-repo') || {}).value || '';
+        var schema = (document.getElementById('acc-cms-filter-schema') || {}).value || '';
+        var search = (document.getElementById('acc-cms-filter-search') || {}).value || '';
+        return {
+            repository: repo,
+            schemaType: schema,
+            search:     search
+        };
+    }
+
+    /**
+     * Return content IDs from the currently visible filtered rows.
+     * @returns {string[]} selected content IDs
+     */
+    function getSelectedContentIds() {
+        var ids = [];
+        var i;
+        for (i = 0; i < visibleItems.length; i++) {
+            if (visibleItems[i].id) ids.push(visibleItems[i].id);
+        }
+        return ids;
+    }
+
+    /**
+     * Split an array into fixed-size chunks.
+     * @param {Array} items - source items
+     * @param {number} size - chunk size
+     * @returns {Array[]} chunks
+     */
+    function chunkArray(items, size) {
+        var chunks = [];
+        var i = 0;
+        var step = size || 5;
+        while (i < items.length) {
+            chunks.push(items.slice(i, i + step));
+            i += step;
+        }
+        return chunks;
+    }
+
+    /**
+     * Build a form payload for a bulk preview or export batch.
+     * @param {string[]} ids - content IDs for this batch
+     * @param {Object} [extra] - optional fields (appendFile, totalRequested)
+     * @returns {string} form-encoded payload
+     */
+    function buildBulkParams(ids, extra) {
+        var params = 'contentIds=' + encodeURIComponent((ids || []).join(','))
+            + '&selection=' + encodeURIComponent(JSON.stringify(getSelectionCriteria()));
+        if (extra && extra.appendFile) {
+            params += '&appendFile=' + encodeURIComponent(extra.appendFile);
+        }
+        if (extra && extra.totalRequested) {
+            params += '&totalRequested=' + encodeURIComponent(String(extra.totalRequested));
+        }
+        if (extra && typeof extra.finalize !== 'undefined') {
+            params += '&finalize=' + (extra.finalize ? '1' : '0');
+        }
+        return params;
+    }
+
+    /**
+     * Render a compact library preview summary (not the full JSON dump).
+     * @param {Object} summary - preview summary from server
+     * @param {string} fileName - downloadable JSON file
+     * @returns {void}
+     */
+    function renderLibrarySummary(summary, fileName) {
+        var wrap = document.getElementById('acc-cms-library-preview');
+        var meta = document.getElementById('acc-cms-library-preview-meta');
+        var box = document.getElementById('acc-cms-library-preview-summary');
+        var previewJson = document.getElementById('acc-cms-library-preview-json');
+        var details = wrap ? wrap.querySelector('.cms-library-preview__details') : null;
+        if (!wrap || !box) return;
+
+        var types = (summary && summary.contentTypes) || [];
+        var typeLabels = [];
+        var ti;
+        for (ti = 0; ti < types.length && ti < 12; ti++) {
+            typeLabels.push(types[ti].schemaShort || types[ti].schema || '');
+        }
+
+        var html = '<ul class="cms-library-preview__list">'
+            + '<li><strong>Fetched:</strong> ' + escHtml(String((summary && summary.totalFetched) || 0)) + '</li>'
+            + '<li><strong>Failed:</strong> ' + escHtml(String((summary && summary.failed) || 0)) + '</li>'
+            + '<li><strong>Content types:</strong> ' + escHtml(typeLabels.join(', ') || '—') + '</li>'
+            + '</ul>';
+        box.innerHTML = html;
+        if (meta) {
+            meta.textContent = fileName
+                ? ('Full JSON saved as ' + fileName + ' — use Download below.')
+                : '';
+        }
+        if (previewJson) {
+            previewJson.textContent = JSON.stringify((summary && summary.sample) || [], null, 2);
+        }
+        if (details) details.open = false;
+        wrap.style.display = '';
+    }
+
+    /**
+     * Run a batched POST sequence for preview or export.
+     * @param {Object} cfg - page config
+     * @param {Object} opts - batch options
+     * @returns {void}
+     */
+    function runBatchedRequest(cfg, opts) {
+        var ids = getSelectedContentIds();
+        var batchSize = opts.batchSize || 5;
+        var chunks = chunkArray(ids, batchSize);
+        var button = document.getElementById(opts.buttonId);
+        var downloads = document.getElementById('acc-cms-bulk-downloads');
+        var processed = 0;
+        var attempted = 0;
+        var failed = 0;
+        var fileName = '';
+        var metaFileName = '';
+        var libraryId = '';
+        var lastSummary = null;
+        var chunkIndex = 0;
+        var isExport = !!opts.finalizeBatches;
+
+        if (!ids.length) {
+            setBulkStatus('No content items match the current filters.', 'error');
+            return;
+        }
+        if (!opts.url) {
+            setBulkStatus('Bulk endpoint is missing. Redeploy the accelerator cartridge.', 'error');
+            return;
+        }
+        if (button) button.disabled = true;
+        if (downloads) downloads.innerHTML = '';
+        setBulkStatus(opts.startMsg.replace('{n}', String(ids.length)), 'info');
+
+        /**
+         * Complete the current batch sequence.
+         * @param {boolean} ok - whether all requests completed
+         * @param {string} message - final status
+         * @param {string} [kind] - alert style
+         * @returns {void}
+         */
+        function finish(ok, message, kind) {
+            if (button) button.disabled = false;
+            setBulkStatus(message, kind || (ok ? 'ok' : 'error'));
+            var names = [];
+            if (metaFileName) names.push(metaFileName);
+            if (fileName) names.push(fileName);
+            if (downloads && names.length) {
+                renderDownloadLinks(downloads, names, cfg.downloadXmlUrl);
+            }
+            if (ok && opts.onSuccess) opts.onSuccess(lastSummary, fileName);
+        }
+
+        /**
+         * Close an open export file after a mid-batch failure (best effort).
+         * @param {Function} done - callback after finalize attempt
+         * @returns {void}
+         */
+        function finalizeOpenFile(done) {
+            if (!isExport || !fileName) {
+                done();
+                return;
+            }
+            post(opts.url, buildBulkParams([], {
+                appendFile: fileName,
+                finalize: true,
+                totalRequested: ids.length
+            }), function () { done(); });
+        }
+
+        /**
+         * Process the next batch sequentially.
+         * @returns {void}
+         */
+        function next() {
+            if (chunkIndex >= chunks.length) {
+                finish(true, opts.doneMsg
+                    .replace('{built}', String(processed))
+                    .replace('{failed}', String(failed))
+                    .replace('{library}', libraryId || ''), failed ? 'info' : 'ok');
+                return;
+            }
+            var batch = chunks[chunkIndex];
+            var isLast = chunkIndex === chunks.length - 1;
+            setBulkStatus(
+                opts.progressMsg
+                    .replace('{done}', String(Math.min(attempted + batch.length, ids.length)))
+                    .replace('{total}', String(ids.length)),
+                'info'
+            );
+            post(opts.url, buildBulkParams(batch, {
+                appendFile: fileName,
+                totalRequested: ids.length,
+                finalize: isExport ? isLast : undefined
+            }), function (data) {
+                if (!data.ok) {
+                    finalizeOpenFile(function () {
+                        finish(false, data.error || opts.failMsg);
+                    });
+                    return;
+                }
+                processed += typeof data.built === 'number' ? data.built : batch.length;
+                attempted += batch.length;
+                failed += data.failed || 0;
+                if (data.fileName) fileName = data.fileName;
+                if (data.metaFileName) metaFileName = data.metaFileName;
+                if (data.libraryId) libraryId = data.libraryId;
+                if (data.summary) lastSummary = data.summary;
+                if (data.fileNames && data.fileNames.length) {
+                    if (data.fileNames[0]) metaFileName = data.fileNames[0];
+                    if (data.fileNames[1]) fileName = data.fileNames[1];
+                }
+                chunkIndex += 1;
+                next();
+            });
+        }
+
+        next();
+    }
+
+    /**
+     * Generate and render one JSON preview for the current selection.
+     * @param {Object} cfg - page config
+     * @returns {void}
+     */
+    function previewLibrary(cfg) {
+        runBatchedRequest(cfg, {
+            url: cfg.previewLibraryUrl,
+            buttonId: 'acc-cms-preview-all-btn',
+            batchSize: 5,
+            startMsg: 'Building library JSON for {n} item(s) in batches...',
+            progressMsg: 'Previewing {done}/{total}...',
+            doneMsg: 'Preview ready: {built} item(s). Download the JSON file below.',
+            failMsg: 'Library preview failed',
+            onSuccess: function (summary, fileName) {
+                renderLibrarySummary(summary || {
+                    totalFetched: visibleItems.length,
+                    failed: 0,
+                    contentTypes: [],
+                    sample: []
+                }, fileName);
+            }
+        });
+    }
+
+    /**
+     * Export the current selection as SFCC library XML.
+     * @param {Object} cfg - page config
+     * @returns {void}
+     */
+    function exportLibrary(cfg) {
+        runBatchedRequest(cfg, {
+            url: cfg.exportContentUrl,
+            buttonId: 'acc-cms-export-library-btn',
+            batchSize: 5,
+            finalizeBatches: true,
+            startMsg: 'Exporting {n} item(s) to SFCC library XML in batches...',
+            progressMsg: 'Exporting {done}/{total}...',
+            doneMsg: 'Exported {built} asset(s) into library "{library}". Import metadata XML first, then library XML. Failed: {failed}.',
+            failMsg: 'Library export failed'
+        });
+    }
+
+    /**
+     * Build unique content-type options from loaded items.
+     * @param {Object[]} items - loaded content rows
+     * @returns {string[]} schema short names
+     */
+    function collectSchemasFromItems(items) {
+        var map = {};
+        var out = [];
+        var i;
+        for (i = 0; i < (items || []).length; i++) {
+            var name = String(items[i].schemaShort || '').trim();
+            if (name && !map[name]) {
+                map[name] = true;
+                out.push(name);
+            }
+        }
+        out.sort();
+        return out;
+    }
+
+    /**
+     * Populate repository and content-type filter dropdowns.
      * @param {Object[]} repositories - repo summaries
      * @param {string[]} schemas - schema short names
      * @returns {void}
@@ -470,9 +809,12 @@
         var repoSel = document.getElementById('acc-cms-filter-repo');
         var schemaSel = document.getElementById('acc-cms-filter-schema');
         var filters = document.getElementById('acc-cms-filters');
+        var searchInput = document.getElementById('acc-cms-filter-search');
         var i;
+        var schemaList = (schemas && schemas.length) ? schemas : collectSchemasFromItems(allItems);
 
         if (filters) filters.style.display = '';
+        if (searchInput) searchInput.style.display = '';
 
         if (repoSel) {
             while (repoSel.options.length > 1) repoSel.remove(1);
@@ -487,10 +829,10 @@
 
         if (schemaSel) {
             while (schemaSel.options.length > 1) schemaSel.remove(1);
-            for (i = 0; i < (schemas || []).length; i++) {
+            for (i = 0; i < schemaList.length; i++) {
                 var sOpt = document.createElement('option');
-                sOpt.value = schemas[i];
-                sOpt.textContent = schemas[i];
+                sOpt.value = schemaList[i];
+                sOpt.textContent = schemaList[i];
                 schemaSel.appendChild(sOpt);
             }
         }
@@ -510,7 +852,8 @@
             var item = allItems[i];
             var repoVal = String(item.repoName || item.repoLabel || '').toLowerCase();
             var schemaVal = String(item.schemaShort || '').toLowerCase();
-            var hay = (item.label + ' ' + (item.deliveryKey || '') + ' ' + schemaVal).toLowerCase();
+            var hay = (item.label + ' ' + (item.id || '') + ' ' + (item.deliveryKey || '') + ' '
+                + repoVal + ' ' + schemaVal + ' ' + (item.status || '')).toLowerCase();
             var include = true;
             if (repo && repoVal !== repo && String(item.repoLabel || '').toLowerCase() !== repo) {
                 include = false;
@@ -594,7 +937,28 @@
      * @returns {void}
      */
     function applyFilters() {
-        renderContentList(getFilteredItems());
+        var items = getFilteredItems();
+        var previewButton = document.getElementById('acc-cms-preview-all-btn');
+        var exportButton = document.getElementById('acc-cms-export-library-btn');
+        var count = document.getElementById('acc-cms-selection-count');
+        var actions = document.getElementById('acc-cms-bulk-actions');
+        var criteria = getSelectionCriteria();
+        var isFiltered = !!(criteria.repository || criteria.schemaType || criteria.search);
+
+        visibleItems = items;
+        renderContentList(items);
+        if (actions) actions.style.display = allItems.length ? '' : 'none';
+        if (count) count.textContent = String(items.length);
+        if (previewButton) {
+            previewButton.textContent = (isFiltered ? 'Preview Filtered JSON' : 'Preview JSON')
+                + ' (' + items.length + ')';
+            previewButton.disabled = !items.length;
+        }
+        if (exportButton) {
+            exportButton.textContent = (isFiltered ? 'Export Filtered XML' : 'Export XML')
+                + ' (' + items.length + ')';
+            exportButton.disabled = !items.length;
+        }
     }
 
     /**
@@ -624,6 +988,8 @@
         var loadBtn = document.getElementById('acc-cms-load-btn');
         var fetchBtn = document.getElementById('acc-cms-fetch-btn');
         var exportBtn = document.getElementById('acc-cms-export-btn');
+        var previewAllBtn = document.getElementById('acc-cms-preview-all-btn');
+        var exportLibraryBtn = document.getElementById('acc-cms-export-library-btn');
         var connStatus = document.getElementById('acc-cms-conn-status');
         var listStatus = document.getElementById('acc-cms-list-status');
         var listError = document.getElementById('acc-cms-list-error');
@@ -637,7 +1003,11 @@
             deliveryKeyInput.value = defaultKeyInput.value;
         }
 
-        showStep(1);
+        connected = cfg.connected;
+        showStep(connected && cfg.initialStep > 1 ? cfg.initialStep : 1);
+        if (connected) {
+            setStatus(connStatus, 'Connected session active', false);
+        }
         bindTab(1);
         bindTab(2);
         bindTab(3);
@@ -713,6 +1083,16 @@
         if (exportBtn) {
             exportBtn.addEventListener('click', function () {
                 exportToImpex(cfg);
+            });
+        }
+        if (previewAllBtn) {
+            previewAllBtn.addEventListener('click', function () {
+                previewLibrary(cfg);
+            });
+        }
+        if (exportLibraryBtn) {
+            exportLibraryBtn.addEventListener('click', function () {
+                exportLibrary(cfg);
             });
         }
     }

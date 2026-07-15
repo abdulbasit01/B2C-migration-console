@@ -17,6 +17,10 @@ function escapeXml(value) {
         .replace(/'/g, '&apos;');
 }
 
+function escapeCdata(value) {
+    return String(value == null ? '' : value).replace(/]]>/g, ']]]]><![CDATA[>');
+}
+
 /**
  * Build a stable SFCC content-asset ID from delivery key and/or Amplience content id.
  * @param {Object} widget
@@ -68,6 +72,10 @@ function buildContentAssetXml(widget) {
         || contentId;
     var bodyHtml    = buildBodyHtml(widget);
     var attrsJson   = JSON.stringify(widget.attributes || {});
+    var sourceJson  = JSON.stringify({
+        metadata: widget.sourceMetadata || {},
+        item:     widget.source || {}
+    });
     var lines       = [];
 
     lines.push('  <content content-id="' + escapeXml(contentId) + '">');
@@ -77,12 +85,13 @@ function buildContentAssetXml(widget) {
     lines.push('    <searchable-flag>false</searchable-flag>');
     // XSD order: custom-attributes must come before folder-links
     lines.push('    <custom-attributes>');
-    lines.push('      <custom-attribute attribute-id="body" xml:lang="x-default"><![CDATA[' + bodyHtml + ']]></custom-attribute>');
+    lines.push('      <custom-attribute attribute-id="body" xml:lang="x-default"><![CDATA[' + escapeCdata(bodyHtml) + ']]></custom-attribute>');
     lines.push('      <custom-attribute attribute-id="amplienceDeliveryKey">' + escapeXml(widget.deliveryKey || '') + '</custom-attribute>');
     lines.push('      <custom-attribute attribute-id="amplienceContentId">' + escapeXml(widget.contentId || '') + '</custom-attribute>');
     lines.push('      <custom-attribute attribute-id="amplienceWidgetType">' + escapeXml(widget.widgetType || '') + '</custom-attribute>');
     lines.push('      <custom-attribute attribute-id="amplienceSchema">' + escapeXml(widget.schema || '') + '</custom-attribute>');
-    lines.push('      <custom-attribute attribute-id="amplienceWidgetAttributes"><![CDATA[' + attrsJson + ']]></custom-attribute>');
+    lines.push('      <custom-attribute attribute-id="amplienceWidgetAttributes"><![CDATA[' + escapeCdata(attrsJson) + ']]></custom-attribute>');
+    lines.push('      <custom-attribute attribute-id="amplienceSourceJson"><![CDATA[' + escapeCdata(sourceJson) + ']]></custom-attribute>');
     if (widget.preview && widget.preview.image) {
         lines.push('      <custom-attribute attribute-id="amplienceImageUrl">' + escapeXml(widget.preview.image) + '</custom-attribute>');
     }
@@ -115,9 +124,13 @@ function resolveLibraryId(libraryId) {
 /**
  * @param {Object[]} widgets - transformed Amplience widgets
  * @param {string} [libraryId]
+ * @param {Object} [opts]
+ * @param {boolean} [opts.close=true] - whether to write the closing </library> tag
  * @returns {{ xml: string, built: number, contentIds: string[], libraryId: string }}
  */
-function buildXml(widgets, libraryId) {
+function buildXml(widgets, libraryId, opts) {
+    var options = opts || {};
+    var closeLibrary = options.close !== false;
     var libId = resolveLibraryId(libraryId);
     var parts = [];
     var ids   = [];
@@ -138,9 +151,11 @@ function buildXml(widgets, libraryId) {
         ids.push(sanitizeContentId(widget));
     }
 
-    parts.push('</library>');
+    if (closeLibrary) {
+        parts.push('</library>');
+    }
     return {
-        xml:        parts.join('\n'),
+        xml:        parts.join('\n') + '\n',
         built:      ids.length,
         contentIds: ids,
         libraryId:  libId
@@ -153,5 +168,6 @@ module.exports = {
     sanitizeContentId:    sanitizeContentId,
     buildContentAssetXml: buildContentAssetXml,
     resolveLibraryId:     resolveLibraryId,
+    escapeCdata:          escapeCdata,
     buildXml:             buildXml
 };

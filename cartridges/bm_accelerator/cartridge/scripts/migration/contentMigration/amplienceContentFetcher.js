@@ -42,14 +42,25 @@ function getHub() {
 }
 
 function listRepositories(token, hubId) {
-    var res = http.get(
-        API_BASE + '/hubs/' + encodeURIComponent(hubId) + '/content-repositories',
-        authHeaders(token)
-    );
-    if (res.status !== 200) {
-        throw new Error('Unable to list content repositories (' + res.status + ')');
+    var repositories = [];
+    var page = 0;
+    var totalPages = 1;
+
+    while (page < totalPages) {
+        var res = http.get(
+            API_BASE + '/hubs/' + encodeURIComponent(hubId)
+                + '/content-repositories?page=' + page + '&size=100',
+            authHeaders(token)
+        );
+        if (res.status !== 200) {
+            throw new Error('Unable to list content repositories (' + res.status + ')');
+        }
+        var batch = (res.data._embedded && res.data._embedded['content-repositories']) || [];
+        repositories = repositories.concat(batch);
+        totalPages = res.data.page ? (res.data.page.totalPages || 1) : 1;
+        page += 1;
     }
-    return (res.data._embedded && res.data._embedded['content-repositories']) || [];
+    return repositories;
 }
 
 function summarizeItem(item, repo) {
@@ -77,29 +88,41 @@ function summarizeItem(item, repo) {
 }
 
 function listRepoItems(token, repo, limit) {
-    var res = http.get(
-        API_BASE + '/content-repositories/' + encodeURIComponent(repo.id)
-            + '/content-items?page=0&size=' + limit + '&sort=lastModifiedDate,desc',
-        authHeaders(token)
-    );
-    if (res.status !== 200) {
-        return { items: [], total: 0, error: 'Unable to list items for ' + (repo.label || repo.name) };
-    }
-    var raw   = (res.data._embedded && res.data._embedded['content-items']) || [];
     var items = [];
-    var i;
-    for (i = 0; i < raw.length; i++) {
-        items.push(summarizeItem(raw[i], repo));
+    var page = 0;
+    var totalPages = 1;
+    var total = 0;
+
+    while (page < totalPages) {
+        var res = http.get(
+            API_BASE + '/content-repositories/' + encodeURIComponent(repo.id)
+                + '/content-items?page=' + page + '&size=' + limit + '&sort=lastModifiedDate,desc',
+            authHeaders(token)
+        );
+        if (res.status !== 200) {
+            throw new Error(
+                'Unable to list items for ' + (repo.label || repo.name)
+                    + ' (' + res.status + ')'
+            );
+        }
+        var raw = (res.data._embedded && res.data._embedded['content-items']) || [];
+        var i;
+        for (i = 0; i < raw.length; i++) {
+            items.push(summarizeItem(raw[i], repo));
+        }
+        total = res.data.page ? (res.data.page.totalElements || items.length) : items.length;
+        totalPages = res.data.page ? (res.data.page.totalPages || 1) : 1;
+        page += 1;
     }
     return {
         items: items,
-        total: res.data.page ? (res.data.page.totalElements || items.length) : items.length
+        total: total
     };
 }
 
 /**
  * List content items from all hub repositories (Content, Slots, etc.).
- * @param {number} [pageSize] - max items per repository
+ * @param {number} [pageSize] - API page size; all pages are loaded
  * @returns {Object}
  */
 function listContentItems(pageSize) {
@@ -107,7 +130,7 @@ function listContentItems(pageSize) {
         throw new Error('Personal Access Token required to list content. Add your PAT in Connect step.');
     }
 
-    var limit = Math.min(Math.max(parseInt(String(pageSize || 50), 10) || 50, 1), 100);
+    var limit = Math.min(Math.max(parseInt(String(pageSize || 100), 10) || 100, 1), 100);
     var ctx   = getHub();
     var repos = listRepositories(ctx.token, ctx.hub.id);
 
@@ -213,17 +236,11 @@ function fetchByDeliveryKey(deliveryKey) {
  * @param {string} contentId
  * @returns {Object}
  */
-function fetchByContentId(contentId) {
+function fetchByContentIdWithContext(contentId, ctx, creds) {
     var id = String(contentId || '').trim();
     if (!id) {
         throw new Error('Content item id is required.');
     }
-    if (!auth.hasManagementCreds(auth.resolveCreds())) {
-        throw new Error('Personal Access Token required to fetch content by id.');
-    }
-
-    var c   = auth.resolveCreds();
-    var ctx = getHub();
     var res = http.get(
         API_BASE + '/content-items/' + encodeURIComponent(id),
         authHeaders(ctx.token)
@@ -242,15 +259,54 @@ function fetchByContentId(contentId) {
         deliveryKey:    key,
         contentId:      id,
         hasDeliveryKey: !!key,
-        hubName:        c.hubName || (ctx.hub && ctx.hub.name) || '',
+        hubName:        creds.hubName || (ctx.hub && ctx.hub.name) || '',
         content:        body,
+        rawItem:        item,
         label:          item.label || meta.name || key || id,
+        status:         item.status || '',
+        locale:         item.locale || '',
+        lastModified:   item.lastModifiedDate || '',
         source:         'management'
     };
+}
+
+function fetchByContentId(contentId) {
+    var creds = auth.resolveCreds();
+    if (!auth.hasManagementCreds(creds)) {
+        throw new Error('Personal Access Token required to fetch content by id.');
+    }
+    return fetchByContentIdWithContext(contentId, getHub(), creds);
+}
+
+/**
+ * Fetch many content items while reusing one hub/auth lookup.
+ * @param {string[]} contentIds
+ * @returns {{ items: Object[], errors: Object[] }}
+ */
+function fetchByContentIds(contentIds) {
+    var creds = auth.resolveCreds();
+    if (!auth.hasManagementCreds(creds)) {
+        throw new Error('Personal Access Token required to fetch content by id.');
+    }
+    var ctx = getHub();
+    var items = [];
+    var errors = [];
+    var i;
+    for (i = 0; i < (contentIds || []).length; i++) {
+        var id = String(contentIds[i] || '').trim();
+        if (!id) continue;
+        try {
+            items.push(fetchByContentIdWithContext(id, ctx, creds));
+        } catch (e) {
+            errors.push({ contentId: id, error: e.message || String(e) });
+        }
+    }
+    return { items: items, errors: errors };
 }
 
 module.exports = {
     listContentItems:   listContentItems,
     fetchByDeliveryKey: fetchByDeliveryKey,
-    fetchByContentId:   fetchByContentId
+    fetchByContentId:   fetchByContentId,
+    fetchByContentIds:  fetchByContentIds
 };
