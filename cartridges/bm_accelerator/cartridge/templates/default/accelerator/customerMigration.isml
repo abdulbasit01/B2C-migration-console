@@ -219,6 +219,14 @@
             </div>
         </div>
 
+        <!-- -- Total Customer Count -- -->
+        <div id="acc-customer-count" style="margin:0 0 28px;border:1px solid #dddbda;border-radius:6px;overflow:hidden;">
+            <div style="background:#f4f6f9;padding:11px 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                <span style="font-weight:700;font-size:14px;color:#16325c;">Total ${pdict.platformLabel} Customers</span>
+                <span id="acc-customer-count-value" style="font-size:13px;color:#54698d;font-weight:600;">Loading&hellip;</span>
+            </div>
+        </div>
+
         <!-- -- Mode tabs -- -->
         <div style="display:flex;gap:0;border-bottom:2px solid #dddbda;margin-bottom:24px;">
             <button id="tab-partial" class="acc-tab acc-tab--active" type="button">Partial Migration</button>
@@ -377,9 +385,28 @@
     var DELETE_ATTR_URL   = '${pdict.deleteAttrUrl}';
     var FETCH_GROUPS_URL  = '${pdict.fetchGroupsUrl}';
     var CREATE_GROUPS_URL = '${pdict.createGroupsUrl}';
+    var COUNT_URL         = '${pdict.countUrl}';
     var PLATFORM_LABEL    = '${pdict.platformLabel}';
 
     var listIdEl   = document.getElementById('acc-list-id');
+
+    // -- Load total customer count from the connected source platform --------
+
+    (function loadCustomerCount() {
+        var countEl = document.getElementById('acc-customer-count-value');
+        if (!countEl) return;
+        var req = new XMLHttpRequest();
+        req.open('GET', COUNT_URL, true);
+        req.onreadystatechange = function () {
+            if (req.readyState !== 4) return;
+            var data;
+            try { data = JSON.parse(req.responseText); } catch (e) { data = { ok: false }; }
+            countEl.textContent = data.ok
+                ? Number(data.total || 0).toLocaleString()
+                : 'Failed to load count (' + (data.error || 'unknown') + ')';
+        };
+        req.send(null);
+    }());
 
     // -- Load customer lists into dropdown on page init (before other listeners) --
 
