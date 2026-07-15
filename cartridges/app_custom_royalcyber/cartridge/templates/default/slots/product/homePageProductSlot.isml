@@ -1,0 +1,45 @@
+<isinclude template="/components/modules" />
+
+<div class="experience-commerce_layouts-carousel rc-product-carousel-wrap">
+    <div
+        id="rc-home-product-carousel"
+        class="carousel slide carousel-md-4 controls-md"
+        data-ride="false"
+        data-interval="false"
+        data-xs="1"
+        data-sm="2"
+        data-md="4"
+        data-number-of-slides="${slotcontent.content.length}"
+        data-prev="${Resource.msg('button.previous', 'common', null)}"
+        data-next="${Resource.msg('button.next', 'common', null)}"
+    >
+        <isif condition="${!empty(slotcontent) && !empty(slotcontent.content)}">
+            <div class="carousel-inner row" role="listbox">
+                <isloop items="${slotcontent.content}" var="product" status="loopState">
+                    <isif condition="${loopState.first}">
+                        <div class="carousel-item col-12 col-sm-6 col-md-3 active" data-position="${loopState.index}">
+                            <isinclude url="${URLUtils.url('Tile-Show', 'pid', product.ID, 'pview', 'tile', 'ratings', true, 'swatches', true)}" />
+                        </div>
+                    <iselse/>
+                        <div class="carousel-item col-12 col-sm-6 col-md-3" data-position="${loopState.index}">
+                            <isinclude url="${URLUtils.url('Tile-Show', 'pid', product.ID, 'pview', 'tile', 'ratings', true, 'swatches', true)}" />
+                        </div>
+                    </isif>
+                </isloop>
+            </div>
+
+            <a class="carousel-control-prev" href="#rc-home-product-carousel" role="button" data-slide="prev">
+                <span class="fa fa-chevron-left carousel-control-prev-icon" aria-hidden="true"></span>
+                <span class="sr-only">${Resource.msg('button.previous', 'common', null)}</span>
+            </a>
+            <a class="carousel-control-next" href="#rc-home-product-carousel" role="button" data-slide="next">
+                <span class="fa fa-chevron-right carousel-control-next-icon" aria-hidden="true"></span>
+                <span class="sr-only">${Resource.msg('button.next', 'common', null)}</span>
+            </a>
+        <iselse/>
+            <p class="rc-product-carousel__empty text-center text-muted">
+                Assign products to the home-products-m content slot in Business Manager.
+            </p>
+        </isif>
+    </div>
+</div>

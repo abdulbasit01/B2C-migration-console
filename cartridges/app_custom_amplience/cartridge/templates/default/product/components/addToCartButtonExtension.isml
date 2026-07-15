@@ -1,0 +1,4 @@
+<iscomment>
+    Extension point for PDP add-to-cart button overlays (Apple Pay, Afterpay, etc.).
+    Intentionally empty unless a payment plugin overrides it.
+</iscomment>

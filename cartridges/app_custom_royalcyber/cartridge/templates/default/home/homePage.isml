@@ -1,0 +1,86 @@
+<isdecorate template="common/layout/page">
+    <isscript>
+        var assets = require('*/cartridge/scripts/assets.js');
+        assets.addJs('/js/productTile.js');
+        assets.addJs('/js/carousel.js');
+        assets.addCss('/css/homePage.css');
+    </isscript>
+
+    <section
+        class="rc-home-hero"
+        style="background-image: url('${URLUtils.staticURL('/images/homepage-banner-desktop.jpg')}');"
+        aria-label="Royal Cyber home hero"
+    >
+        <div class="rc-home-hero__inner">
+            <p class="rc-home-hero__eyebrow">Royal Cyber · Digital Commerce</p>
+            <h1 class="rc-home-hero__title page-title">Discover style that moves with you</h1>
+            <p class="rc-home-hero__copy">
+                Fresh looks across fashion, jewelry, and lifestyle. Explore curated collections built for everyday moments —
+                from elevated essentials to statement pieces that stand out.
+            </p>
+            <a class="rc-home-hero__cta" href="${URLUtils.url('Search-Show', 'cgid', 'womens')}">Shop Collections</a>
+        </div>
+    </section>
+
+    <div class="home-main homepage d-none">
+        <isslot id="home-main-m" description="Main home page slot." context="global" />
+    </div>
+
+    <section class="rc-category-strip">
+        <h2 class="rc-category-strip__heading">Shop by category</h2>
+        <div class="rc-category-strip__grid">
+            <a class="rc-category-strip__tile" href="${URLUtils.url('Search-Show', 'cgid', 'womens')}">
+                <img src="${URLUtils.staticURL('/images/womens.jpg')}" alt="Womens" loading="lazy" />
+                <span>Womens</span>
+            </a>
+            <a class="rc-category-strip__tile" href="${URLUtils.url('Search-Show', 'cgid', 'mens')}">
+                <img src="${URLUtils.staticURL('/images/men.jpg')}" alt="Mens" loading="lazy" />
+                <span>Mens</span>
+            </a>
+            <a class="rc-category-strip__tile" href="${URLUtils.url('Search-Show', 'cgid', 'electronics')}">
+                <img src="${URLUtils.staticURL('/images/electronics.jpg')}" alt="Electronics" loading="lazy" />
+                <span>Electronics</span>
+            </a>
+            <a class="rc-category-strip__tile" href="${URLUtils.url('Search-Show', 'cgid', 'jewelry')}">
+                <img src="${URLUtils.staticURL('/images/category-jewelry.jpg')}" alt="Jewelry" loading="lazy" />
+                <span>Jewelry</span>
+            </a>
+        </div>
+    </section>
+
+    <div class="container home-categories homepage d-none">
+        <div class="row home-main-categories no-gutters">
+            <isslot id="home-categories-m" description="Categories slots on the home page." context="global" />
+        </div>
+    </div>
+
+    <section class="container rc-shop-products home-product-tiles homepage">
+        <h2 class="rc-shop-products__heading">Shop Products</h2>
+        <p class="rc-shop-products__sub">Curated picks from the catalog — fashion, lifestyle, and more.</p>
+        <div class="hp-product-grid" itemtype="http://schema.org/SomeProducts" itemid="#product">
+            <isslot id="home-products-m" description="Product tiles on the home page." context="global" />
+        </div>
+    </section>
+
+    <div class="homepage shop-the-style">
+        <isslot id="home-product-set-m" description="Link to a Product Set." context="global" />
+    </div>
+
+    <div class="home-email-signup">
+        <div class="container">
+            <form role="form">
+                <div class="row">
+                    <div class="col-sm-5">
+                        <div class="input-group">
+                            <input type="text" class="form-control" name="hpEmailSignUp" placeholder="${Resource.msg('placeholdertext.form.emailsignup', 'homePage', null)}" aria-label="${Resource.msg('placeholdertext.form.emailsignup', 'homePage', null)}">
+                            <span class="input-group-append">
+                                <button type="submit" class="btn btn-primary subscribe-email" data-href="${URLUtils.url('EmailSubscribe-Subscribe')}">${Resource.msg('button.form.emailsignup', 'homePage', null)} </button>
+                            </span>
+                        </div>
+                    </div>
+                    <div class="col-sm-7 email-description">${Resource.msg('description.form.emailsignup', 'homePage', null)}</div>
+                </div>
+            </form>
+        </div>
+    </div>
+</isdecorate>

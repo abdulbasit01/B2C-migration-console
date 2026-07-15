@@ -34,7 +34,9 @@
     "fix:isml": "isml-linter --autofix",
     "upload": "npm run config:generate && sgmf-scripts --upload",
     "upload:accelerator": "npm run config:generate && npm run compile:scss && sgmf-scripts --uploadCartridge bm_accelerator",
-    "uploadCartridge": "npm run config:generate && npm run compile:scss && sgmf-scripts --uploadCartridge app_storefront_base && sgmf-scripts --uploadCartridge modules && sgmf-scripts --uploadCartridge bm_app_storefront_base && sgmf-scripts --uploadCartridge bm_accelerator",
+    "upload:amplience": "sgmf-scripts --uploadCartridge app_custom_amplience",
+    "upload:royalcyber": "sgmf-scripts --uploadCartridge app_custom_royalcyber",
+    "uploadCartridge": "npm run config:generate && npm run compile:scss && sgmf-scripts --uploadCartridge app_storefront_base && sgmf-scripts --uploadCartridge modules && sgmf-scripts --uploadCartridge bm_app_storefront_base && sgmf-scripts --uploadCartridge bm_accelerator && sgmf-scripts --uploadCartridge app_custom_amplience && sgmf-scripts --uploadCartridge app_custom_royalcyber",
     "watch": "sgmf-scripts --watch",
     "watch:static": "sgmf-scripts --watch static",
     "release": "node bin/Makefile release --"
