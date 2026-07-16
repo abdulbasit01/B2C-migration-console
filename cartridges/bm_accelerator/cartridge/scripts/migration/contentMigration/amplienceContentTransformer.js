@@ -206,19 +206,21 @@ function mapToWidget(content, deliveryKey, hubName, contentId) {
     var attributes = {};
 
     if (widgetType === WIDGET_TYPES.campaignBanner) {
-        attributes = { bannerMessage: wrapMarkup(head || body) };
+        attributes = { bannerMessage: wrapMarkup(head || body), hubName: hubName || '' };
     } else if (widgetType === WIDGET_TYPES.editorialRichText) {
-        attributes = { richText: wrapMarkup(body || head) };
+        attributes = { richText: wrapMarkup(body || head), hubName: hubName || '' };
     } else if (widgetType === WIDGET_TYPES.mainBanner) {
         attributes = {
             heading: head || body || '<p></p>',
-            image:   imageUrl
+            image:   imageUrl,
+            hubName: hubName || ''
         };
     } else if (widgetType === WIDGET_TYPES.imageAndText) {
         attributes = {
             heading: head || '<p></p>',
             image:   imageUrl,
-            text:    wrapMarkup(body)
+            text:    wrapMarkup(body),
+            hubName: hubName || ''
         };
     } else {
         attributes = {

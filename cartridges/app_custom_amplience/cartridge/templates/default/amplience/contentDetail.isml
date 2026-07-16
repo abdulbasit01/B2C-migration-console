@@ -11,6 +11,19 @@
         <header class="amp-detail__header">
             <p>${pdict.amp.widgetType}</p>
             <h1>${pdict.amp.name}</h1>
+            <isif condition="${pdict.amp.live}">
+                <span class="amp-detail__live">Live from Amplience CDN</span>
+            <iselseif condition="${!pdict.hubConfigured}">
+                <span class="amp-detail__live">Set amplienceHubName for live sync</span>
+            <iselse/>
+                <span class="amp-detail__live">Showing SFCC snapshot (CDN unavailable)</span>
+            </isif>
+            <a class="amp-detail__live" href="${URLUtils.url('AmplienceContent-Detail', 'cid', pdict.amp.id, 'nocache', '1')}">
+                Force refresh now
+            </a>
+            <isif condition="${!empty(pdict.amp.liveError)}">
+                <p class="amp-detail__live-error">${pdict.amp.liveError}</p>
+            </isif>
             <isif condition="${!empty(pdict.amp.deliveryKey)}">
                 <span>Delivery key: ${pdict.amp.deliveryKey}</span>
             </isif>
@@ -27,6 +40,8 @@
             <dd>${pdict.amp.contentId}</dd>
             <dt>Schema</dt>
             <dd>${pdict.amp.schema}</dd>
+            <dt>Image URL</dt>
+            <dd>${empty(pdict.amp.imageUrl) ? '(none)' : pdict.amp.imageUrl}</dd>
         </dl>
     </main>
 </isdecorate>

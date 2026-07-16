@@ -1,4 +1,4 @@
-<section class="amp-main-banner">
+<section class="amp-main-banner<isif condition="${!empty(pdict.amp.textAlign)}"> amp-main-banner--align-${pdict.amp.textAlign.toLowerCase()}</isif>">
     <isif condition="${!empty(pdict.amp.imageUrl)}">
         <img src="${pdict.amp.imageUrl}" alt="${pdict.amp.name}" loading="lazy" />
     </isif>

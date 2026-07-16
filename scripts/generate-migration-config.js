@@ -105,12 +105,37 @@ fs.writeFileSync(
     '/* AUTO-GENERATED — do not commit. Run: npm run config:generate */\n\'use strict\';\n\nmodule.exports = ' + JSON.stringify(creds, null, 4) + ';\n'
 );
 
-// ── 5. Summary ───────────────────────────────────────────────────────────────
+// ── 5. Storefront Amplience hub (non-secret) for live CDN sync ───────────────
+const amplienceStorefrontConfig = {
+    hubName: env.AMPLIENCE_HUB_NAME || '',
+    liveCacheMinutes: 5
+};
+const amplienceConfigPath = path.join(
+    ROOT,
+    'cartridges/app_custom_amplience/cartridge/scripts/helpers/amplienceConfig.js'
+);
+fs.writeFileSync(
+    amplienceConfigPath,
+    '/* AUTO-GENERATED — do not commit. Run: npm run config:generate */\n'
+        + '\'use strict\';\n\n'
+        + '/**\n'
+        + ' * Storefront Amplience config (hub name only — no secrets).\n'
+        + ' * Prefer BM site preference amplienceHubName when available.\n'
+        + ' */\n'
+        + 'module.exports = ' + JSON.stringify({
+            hubName: env.AMPLIENCE_HUB_NAME || '',
+            liveCacheMinutes: 0
+        }, null, 4) + ';\n'
+);
+
+// ── 6. Summary ───────────────────────────────────────────────────────────────
 console.log('Generated:');
 console.log('  config.js          — CTP credentials (from .env)');
 console.log('  sfcc-credentials.js — BM username/password (from dw.json)');
+console.log('  amplienceConfig.js — storefront Amplience hub (from .env)');
 console.log('');
 if (hasShopify) console.log('  Shopify store   : ' + env.SHOPIFY_STORE_URL);
 if (hasCtp)     console.log('  CTP project     : ' + env.CTP_PROJECT_KEY);
 console.log('  SFCC host       : ' + dw.hostname + '  (read at runtime)');
 console.log('  BM user         : ' + dw.username);
+if (env.AMPLIENCE_HUB_NAME) console.log('  Amplience hub   : ' + env.AMPLIENCE_HUB_NAME);

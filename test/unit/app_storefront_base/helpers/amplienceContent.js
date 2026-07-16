@@ -11,8 +11,11 @@ loader.installCartridgeResolver();
 var amplienceContent = loader.requireHelper('amplienceContent');
 
 describe('amplienceContent storefront helper', function () {
+    var Site = require('../mocks/dw/system/Site');
+
     beforeEach(function () {
         ContentMgr.__reset();
+        Site.__reset();
     });
 
     it('maps mainBanner attributes from a content asset', function () {

@@ -27,6 +27,7 @@
             fetchContentUrl: root.getAttribute('data-fetch-content-url') || '',
             previewLibraryUrl: root.getAttribute('data-preview-library-url') || '',
             exportContentUrl: root.getAttribute('data-export-content-url') || '',
+            listMigratedRefsUrl: root.getAttribute('data-list-migrated-refs-url') || '',
             downloadXmlUrl: root.getAttribute('data-download-xml-url') || '',
             impexPath: root.getAttribute('data-impex-path') || 'src/migration/content',
             impexUrl: root.getAttribute('data-impex-url') || ''
@@ -623,7 +624,7 @@
      * @returns {void}
      */
     function runBatchedRequest(cfg, opts) {
-        var ids = getSelectedContentIds();
+        var ids = opts.ids || getSelectedContentIds();
         var batchSize = opts.batchSize || 5;
         var chunks = chunkArray(ids, batchSize);
         var button = document.getElementById(opts.buttonId);
@@ -776,6 +777,38 @@
             progressMsg: 'Exporting {done}/{total}...',
             doneMsg: 'Exported {built} asset(s) into library "{library}". Import metadata XML first, then library XML. Failed: {failed}.',
             failMsg: 'Library export failed'
+        });
+    }
+
+    /**
+     * Re-fetch the currently filtered Amplience items and write updated IMPEX XML.
+     * Uses the same selection as Export XML (visible filtered rows), not the whole folder.
+     * @param {Object} cfg - page config
+     * @returns {void}
+     */
+    function resyncMigratedFolder(cfg) {
+        var ids = getSelectedContentIds();
+        if (!ids.length) {
+            setBulkStatus(
+                'No items match the current filter. Load content and narrow the filter, '
+                    + 'or clear filters to re-sync the visible list.',
+                'error'
+            );
+            return;
+        }
+
+        runBatchedRequest(cfg, {
+            ids: ids,
+            url: cfg.exportContentUrl,
+            buttonId: 'acc-cms-resync-migrated-btn',
+            batchSize: 5,
+            finalizeBatches: true,
+            startMsg: 'Re-syncing {n} filtered item(s) from Amplience...',
+            progressMsg: 'Re-syncing {done}/{total}...',
+            doneMsg: 'Re-synced {built} filtered item(s) into IMPEX for library "{library}". '
+                + 'Import metadata XML first, then library XML in BM if you need the SFCC snapshot updated. '
+                + 'Storefront live CDN does not require this import. Failed: {failed}.',
+            failMsg: 'Filtered item re-sync failed'
         });
     }
 
@@ -1093,6 +1126,12 @@
         if (exportLibraryBtn) {
             exportLibraryBtn.addEventListener('click', function () {
                 exportLibrary(cfg);
+            });
+        }
+        var resyncMigratedBtn = document.getElementById('acc-cms-resync-migrated-btn');
+        if (resyncMigratedBtn) {
+            resyncMigratedBtn.addEventListener('click', function () {
+                resyncMigratedFolder(cfg);
             });
         }
     }

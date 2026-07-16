@@ -4642,11 +4642,12 @@ exports.ContentMigration = function () {
         fetchContentUrl:     URLUtils.url('Accelerator-FetchAmplienceContent').toString(),
         previewLibraryUrl:   URLUtils.url('Accelerator-PreviewAmplienceLibrary').toString(),
         exportContentUrl:    URLUtils.url('Accelerator-ExportAmplienceContent').toString(),
+        listMigratedRefsUrl: URLUtils.url('Accelerator-ListMigratedAmplienceRefs').toString(),
         downloadXmlUrl:      URLUtils.url('Accelerator-DownloadContentXml').toString(),
         impexPath:           pageCtx.impexPath,
         impexUrl:            pageCtx.impexUrl,
         cssUrl:              URLUtils.staticURL('/css/accelerator-migration.css').toString() + '?v=16',
-        contentMigrationJsUrl: URLUtils.staticURL('/js/content-migration.js').toString() + '?v=16'
+        contentMigrationJsUrl: URLUtils.staticURL('/js/content-migration.js').toString() + '?v=19'
     }));
 };
 exports.ContentMigration.public = true;
@@ -4827,6 +4828,17 @@ exports.ExportAmplienceContent = function () {
     }
 };
 exports.ExportAmplienceContent.public = true;
+
+exports.ListMigratedAmplienceRefs = function () {
+    response.setContentType('application/json');
+    try {
+        var syncRunner = require('*/cartridge/scripts/migration/contentMigration/contentSyncRunner');
+        jsonResponse(syncRunner.listMigratedRefs(getParam('folderId') || 'amplience'));
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.ListMigratedAmplienceRefs.public = true;
 
 /**
  * GET: fileName=<name> — streams content library XML from IMPEX as a download.

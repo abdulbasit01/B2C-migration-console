@@ -188,7 +188,28 @@ function unwrapContent(data) {
 }
 
 /**
+ * Find a content item id by delivery key using the Management API list.
+ * @param {string} deliveryKey
+ * @returns {string} Content item id or empty string
+ */
+function findContentIdByDeliveryKey(deliveryKey) {
+    var target = String(deliveryKey || '').trim().toLowerCase();
+    if (!target) return '';
+
+    var listed = listContentItems(200);
+    var items = listed.items || [];
+    var i;
+    for (i = 0; i < items.length; i++) {
+        if (String(items[i].deliveryKey || '').trim().toLowerCase() === target) {
+            return String(items[i].id || '');
+        }
+    }
+    return '';
+}
+
+/**
  * Fetch published content from the CDN by delivery key.
+ * Falls back to Management API when CDN returns 404 (unpublished / wrong key path).
  * @param {string} deliveryKey
  * @returns {Object}
  */
@@ -221,10 +242,20 @@ function fetchByDeliveryKey(deliveryKey) {
         return fetchByContentId(key);
     }
 
-    var hint = 'Ensure the item is published and the delivery key is correct.';
-    if (key.indexOf('/') >= 0) {
-        hint += ' Path-style keys such as page/jackets must match exactly (case-sensitive).';
+    // CDN only serves published keys. Fall back to Management API when PAT is available.
+    if (cdnResult.status === 404 && auth.hasManagementCreds(c)) {
+        var matchedId = findContentIdByDeliveryKey(key);
+        if (matchedId) {
+            var fromMgmt = fetchByContentId(matchedId);
+            fromMgmt.source = 'management-fallback';
+            fromMgmt.cdnMiss = true;
+            return fromMgmt;
+        }
     }
+
+    var hint = 'Ensure the item is published and the delivery key is exact (case-sensitive). '
+        + 'Example: if the key is "page/hero", typing only "hero" returns 404. '
+        + 'Prefer Load Content → row Preview (uses content id) for unpublished items.';
     if (cdnResult.status === 404) {
         throw new Error('Content not found on CDN (404): ' + key + '. ' + hint);
     }

@@ -26,6 +26,7 @@
              data-fetch-content-url="<isprint value="${pdict.fetchContentUrl}" encoding="htmldoublequote"/>"
              data-preview-library-url="<isprint value="${pdict.previewLibraryUrl}" encoding="htmldoublequote"/>"
              data-export-content-url="<isprint value="${pdict.exportContentUrl}" encoding="htmldoublequote"/>"
+             data-list-migrated-refs-url="<isprint value="${pdict.listMigratedRefsUrl}" encoding="htmldoublequote"/>"
              data-download-xml-url="<isprint value="${pdict.downloadXmlUrl}" encoding="htmldoublequote"/>"
              data-impex-path="<isprint value="${pdict.impexPath}" encoding="htmldoublequote"/>"
              data-impex-url="<isprint value="${pdict.impexUrl}" encoding="htmldoublequote"/>">
@@ -122,8 +123,12 @@
                                 <button type="button" id="acc-cms-export-library-btn" class="acc-btn acc-btn--solid">
                                     ${Resource.msg('accelerator.contentmigration.bulk.exportLibrary', 'accelerator', null)}
                                 </button>
+                                <button type="button" id="acc-cms-resync-migrated-btn" class="acc-btn acc-btn--secondary">
+                                    ${Resource.msg('accelerator.contentmigration.bulk.resyncMigrated', 'accelerator', null)}
+                                </button>
                             </div>
                         </div>
+                        <p class="cms-panel__hint cms-panel__hint--note">${Resource.msg('accelerator.contentmigration.bulk.resyncHint', 'accelerator', null)}</p>
                         <div id="acc-cms-bulk-status" class="cms-export-alert" style="display:none;" role="status"></div>
                         <div id="acc-cms-bulk-downloads" class="acc-xml-downloads"></div>
                         <div id="acc-cms-list-loading" class="cms-muted">${Resource.msg('accelerator.contentmigration.content.loadHint', 'accelerator', null)}</div>

@@ -9,9 +9,18 @@
             <p class="amp-gallery__eyebrow">Amplience Migration</p>
             <h1>Migrated Content Components</h1>
             <p>
-                Rendering ${pdict.amplience.total} online content assets from the
-                <strong>Amplience Migrated</strong> library folder.
+                Showing ${pdict.amplience.total} content assets.
+                Bodies load <strong>live from Amplience CDN</strong> automatically after you
+                <strong>Publish</strong> in Amplience (no refresh button, no library import).
+                Updates appear within about 1 minute; for an immediate check use
+                <a href="${URLUtils.url('AmplienceContent-Show', 'type', pdict.amplience.type, 'nocache', '1')}">Force refresh now</a>.
             </p>
+            <isif condition="${!pdict.hubConfigured}">
+                <div class="alert alert-warning">
+                    Set site preference <code>amplienceHubName</code> (or
+                    <code>amplienceConfig.hubName</code>) so live CDN sync can run.
+                </div>
+            </isif>
         </header>
 
         <nav class="amp-gallery__filters" aria-label="Filter components">
@@ -39,8 +48,11 @@
                                 View component
                             </a>
                         </div>
-                        <isset name="amp" value="${item}" scope="pdict" />
-                        <isinclude template="components/content/amplienceAsset" />
+                        <isif condition="${pdict.nocache}">
+                            <isinclude url="${URLUtils.url('AmplienceContent-Include', 'cid', item.id, 'nocache', '1')}" />
+                        <iselse/>
+                            <isinclude url="${URLUtils.url('AmplienceContent-Include', 'cid', item.id)}" />
+                        </isif>
                     </article>
                 </isloop>
             </div>

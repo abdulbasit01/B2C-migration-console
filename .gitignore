@@ -6,6 +6,7 @@ cartridges/*/cartridge/static/
 # Migration — auto-generated, never commit
 cartridges/bm_accelerator/cartridge/scripts/migration/config.js
 cartridges/bm_accelerator/cartridge/scripts/migration/sfcc-credentials.js
+cartridges/app_custom_amplience/cartridge/scripts/helpers/amplienceConfig.js
 .env
 
 coverage/

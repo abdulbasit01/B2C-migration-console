@@ -1,16 +1,35 @@
 'use strict';
 
 var server = require('server');
-var cache = require('*/cartridge/scripts/middleware/cache');
 var pageMetaData = require('*/cartridge/scripts/middleware/pageMetaData');
 
+/**
+ * Do not page-cache live Amplience HTML — editors republish often.
+ * A short CacheMgr TTL (60s) still protects HTTPClient quota.
+ * @param {Object} req
+ * @param {Object} res
+ * @param {Function} next
+ */
+function applyNoPageCache(req, res, next) {
+    res.cachePeriod = 0;
+    res.cachePeriodUnit = 'minutes';
+    next();
+}
+
+/**
+ * AmplienceContent-Include : remote include for one live component card.
+ */
 server.get(
     'Include',
     server.middleware.include,
-    cache.applyDefaultCache,
+    applyNoPageCache,
     function (req, res, next) {
         var helper = require('*/cartridge/scripts/helpers/amplienceContent');
-        var asset = helper.getAmplienceAsset(req.querystring.cid);
+        var bypass = String(req.querystring.nocache || '') === '1';
+        var asset = helper.getAmplienceAsset(req.querystring.cid, {
+            live: true,
+            bypassCache: bypass
+        });
 
         if (asset) {
             res.render('components/content/amplienceAsset', { amp: asset });
@@ -19,13 +38,17 @@ server.get(
     }
 );
 
-server.get('Show', cache.applyDefaultCache, function (req, res, next) {
+/**
+ * AmplienceContent-Show : gallery shell (list only). Bodies load live via Includes.
+ */
+server.get('Show', applyNoPageCache, function (req, res, next) {
     var helper = require('*/cartridge/scripts/helpers/amplienceContent');
     var allowedTypes = helper.WIDGET_TYPES;
     var type = String(req.querystring.type || '');
+    var nocache = String(req.querystring.nocache || '') === '1';
 
     req.pageMetaData.setTitle('Amplience Content');
-    req.pageMetaData.setDescription('Migrated Amplience content component gallery');
+    req.pageMetaData.setDescription('Live Amplience content component gallery');
 
     if (type && !allowedTypes[type]) type = '';
 
@@ -37,6 +60,9 @@ server.get('Show', cache.applyDefaultCache, function (req, res, next) {
 
     res.setViewData({
         amplience: result,
+        liveEnabled: helper.isLiveContentEnabled(),
+        hubConfigured: !!helper.getHubName(null, {}),
+        nocache: nocache,
         widgetTypes: [
             { id: '', label: 'All components' },
             { id: 'mainBanner', label: 'Main banners' },
@@ -50,9 +76,16 @@ server.get('Show', cache.applyDefaultCache, function (req, res, next) {
     next();
 }, pageMetaData.computedPageMetaData);
 
-server.get('Detail', cache.applyDefaultCache, function (req, res, next) {
+/**
+ * AmplienceContent-Detail : always live Amplience CDN content when possible.
+ */
+server.get('Detail', applyNoPageCache, function (req, res, next) {
     var helper = require('*/cartridge/scripts/helpers/amplienceContent');
-    var asset = helper.getAmplienceAsset(req.querystring.cid);
+    var bypass = String(req.querystring.nocache || '') === '1';
+    var asset = helper.getAmplienceAsset(req.querystring.cid, {
+        live: true,
+        bypassCache: bypass
+    });
 
     if (!asset) {
         res.setStatusCode(404);
@@ -61,8 +94,12 @@ server.get('Detail', cache.applyDefaultCache, function (req, res, next) {
     }
 
     req.pageMetaData.setTitle(asset.name);
-    req.pageMetaData.setDescription(asset.description || 'Migrated Amplience content');
-    res.setViewData({ amp: asset });
+    req.pageMetaData.setDescription(asset.description || 'Amplience content');
+    res.setViewData({
+        amp: asset,
+        liveEnabled: helper.isLiveContentEnabled(),
+        hubConfigured: !!helper.getHubName(null, asset.attributes || {})
+    });
     res.render('amplience/contentDetail');
     return next();
 }, pageMetaData.computedPageMetaData);

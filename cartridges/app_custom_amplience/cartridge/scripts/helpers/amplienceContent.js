@@ -1,6 +1,7 @@
 'use strict';
 
 var ContentMgr = require('dw/content/ContentMgr');
+var Site = require('dw/system/Site');
 
 var FOLDER_ID = 'amplience';
 var WIDGET_TYPES = {
@@ -47,11 +48,14 @@ function isMeaningfulMarkup(value) {
 function getImageUrl(value) {
     if (!value) return '';
     if (typeof value === 'string') {
-        return /^(https?:)?\/\//.test(value) ? value : '';
+        if (!/^(https?:)?\/\//.test(value)) return '';
+        // Reject HTML docs / pages that were mistakenly stored as image URLs.
+        if (/\.html?(?:\?|#|$)/i.test(value) || /\/guide\//i.test(value)) return '';
+        return value;
     }
     if (value.di) return String(value.di);
-    if (value.url) return String(value.url);
-    if (value.src) return String(value.src);
+    if (value.url) return getImageUrl(String(value.url));
+    if (value.src) return getImageUrl(String(value.src));
     if (value.defaultHost && value.endpoint && value.name) {
         return 'https://' + value.defaultHost + '/i/' + value.endpoint + '/' + value.name;
     }
@@ -233,10 +237,10 @@ function resolveFromContentAsset(asset) {
     var widgetType = String(custom.amplienceWidgetType || WIDGET_TYPES.amplienceWidget);
     var fields = normalizeFields(attributes, source);
     var imageUrl = String(
-        custom.amplienceImageUrl
-        || attributes.image
+        getImageUrl(custom.amplienceImageUrl)
+        || getImageUrl(attributes.image)
         || (attributes.previewImages && attributes.previewImages[0]
-            && attributes.previewImages[0].url)
+            && getImageUrl(attributes.previewImages[0].url))
         || (fields.filter(function (field) {
             return field.type === 'image';
         })[0] || {}).value
@@ -271,13 +275,121 @@ function resolveFromContentAsset(asset) {
 }
 
 /**
+ * Whether live Amplience CDN refresh is enabled for this site.
+ * @returns {boolean} True when live fetch is allowed
+ */
+function isLiveContentEnabled() {
+    try {
+        var site = Site.getCurrent();
+        if (!site) return true;
+        var pref = site.getCustomPreferenceValue('amplienceLiveContent');
+        if (pref === false || pref === 'false' || pref === 0) return false;
+    } catch (e) {
+        // Preference may not exist yet — live is on by default.
+    }
+    return true;
+}
+
+/**
+ * Resolve the Amplience hub name for CDN calls.
+ * @param {Object} custom - SFCC content custom attributes
+ * @param {Object} attributes - Parsed widget attributes
+ * @returns {string} Hub name
+ */
+function getHubName(custom, attributes) {
+    try {
+        var site = Site.getCurrent();
+        var pref = site && site.getCustomPreferenceValue('amplienceHubName');
+        if (pref) return String(pref).trim();
+    } catch (e) {
+        // Preference may not exist yet.
+    }
+
+    if (attributes && attributes.hubName) return String(attributes.hubName).trim();
+    if (custom && custom.amplienceWidgetAttributes) {
+        var attrs = parseJsonSafe(custom.amplienceWidgetAttributes, {}) || {};
+        if (attrs.hubName) return String(attrs.hubName).trim();
+    }
+
+    try {
+        var cfg;
+        try {
+            cfg = require('*/cartridge/scripts/helpers/amplienceConfig');
+        } catch (eCfg) {
+            cfg = require('*/cartridge/scripts/helpers/amplienceConfig.defaults');
+        }
+        if (cfg && cfg.hubName) return String(cfg.hubName).trim();
+    } catch (e2) {
+        // optional
+    }
+    return '';
+}
+
+/**
+ * Refresh a migrated model from Amplience CDN when possible.
+ * Uses at most one HTTPClient call (cached thereafter).
+ * @param {Object} model - Migrated renderer model
+ * @param {dw.content.Content} asset - SFCC content asset
+ * @returns {Object} Live or fallback model
+ */
+function resolveLiveContent(model, asset, options) {
+    if (!model || !asset || !isLiveContentEnabled()) return model;
+    if (!model.deliveryKey && !model.contentId) return model;
+
+    var hubName = getHubName(asset.custom, model.attributes);
+    if (!hubName) {
+        model.liveError = 'Amplience hub is not configured (amplienceHubName / amplienceConfig.hubName).';
+        return model;
+    }
+
+    var opts = options || {};
+    try {
+        var liveFetcher = require('*/cartridge/scripts/helpers/amplienceLiveFetcher');
+        var liveTransform = require('*/cartridge/scripts/helpers/amplienceLiveTransform');
+        var live = liveFetcher.fetchLive(hubName, model.deliveryKey, model.contentId, {
+            bypassCache: !!opts.bypassCache
+        });
+        if (!live.ok || !live.content) {
+            model.liveError = live.error || 'Live CDN refresh failed';
+            model.liveHubName = hubName;
+            return model;
+        }
+
+        return liveTransform.applyLiveContent(
+            model,
+            live.content,
+            hubName,
+            extractSourceFields,
+            isMeaningfulMarkup
+        );
+    } catch (e) {
+        model.liveError = String(e.message || e);
+        model.liveHubName = hubName;
+        return model;
+    }
+}
+
+/**
  * Load one migrated asset by SFCC content ID.
+ * Live CDN is the default when enabled (no IMPEX re-import required).
  * @param {string} contentId - SFCC content ID
+ * @param {Object} [options] - Query options
+ * @param {boolean} [options.live] - Override live fetch (default true when live enabled)
+ * @param {boolean} [options.bypassCache] - Skip short CDN cache for immediate publish checks
  * @returns {Object|null} Renderer model
  */
-function getAmplienceAsset(contentId) {
+function getAmplienceAsset(contentId, options) {
     if (!contentId) return null;
-    return resolveFromContentAsset(ContentMgr.getContent(String(contentId)));
+    var asset = ContentMgr.getContent(String(contentId));
+    var model = resolveFromContentAsset(asset);
+    if (!model) return null;
+
+    var opts = options || {};
+    var live = opts.live !== false;
+    if (live) {
+        return resolveLiveContent(model, asset, opts);
+    }
+    return model;
 }
 
 /**
@@ -332,6 +444,7 @@ function getAmplienceAssets(options) {
 
     getFolderContent(opts.folderId).forEach(function (asset) {
         var model = resolveFromContentAsset(asset);
+        // Never live-fetch in list mode — SFCC allows only ~16 HTTPClient calls per request.
         if (model && (!type || model.widgetType === type)) models.push(model);
     });
 
@@ -378,6 +491,9 @@ module.exports = {
     parseJsonSafe: parseJsonSafe,
     extractSourceFields: extractSourceFields,
     resolveFromContentAsset: resolveFromContentAsset,
+    resolveLiveContent: resolveLiveContent,
+    isLiveContentEnabled: isLiveContentEnabled,
+    getHubName: getHubName,
     getAmplienceAsset: getAmplienceAsset,
     getAmplienceAssets: getAmplienceAssets,
     sanitizeDeliveryKeyToContentId: sanitizeDeliveryKeyToContentId
