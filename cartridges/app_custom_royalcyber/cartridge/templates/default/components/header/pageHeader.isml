@@ -33,6 +33,9 @@
                         <div class="search hidden-xs-down">
                             <isinclude template="components/header/search" />
                         </div>
+                        <a class="rc-amplience-gallery-link hidden-md-down" href="${URLUtils.url('AmplienceContent-Show')}">
+                            Migrated Content
+                        </a>
                         <div class="hidden-md-down rc-header-account">
                             <isinclude url="${URLUtils.url('Account-Header')}" />
                             <isinclude url="${URLUtils.url('Page-Locale')}" />

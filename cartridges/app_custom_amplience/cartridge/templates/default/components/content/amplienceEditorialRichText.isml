@@ -1,0 +1,7 @@
+<article class="amp-rich-text">
+    <isif condition="${pdict.amp.hasBody}">
+        <isprint value="${pdict.amp.bodyHtml}" encoding="off" />
+    <iselse/>
+        <h2>${pdict.amp.name}</h2>
+    </isif>
+</article>

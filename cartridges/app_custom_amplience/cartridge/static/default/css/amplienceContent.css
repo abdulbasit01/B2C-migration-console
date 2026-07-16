@@ -1,0 +1,241 @@
+.amp-gallery,
+.amp-detail {
+    padding-top: 2.5rem;
+    padding-bottom: 3.5rem;
+}
+
+.amp-gallery__header {
+    max-width: 48rem;
+    margin-bottom: 1.5rem;
+}
+
+.amp-gallery__header h1,
+.amp-detail__header h1 {
+    color: #002b5c;
+    font-weight: 700;
+}
+
+.amp-gallery__eyebrow,
+.amp-detail__header > p {
+    color: #f58220;
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.amp-gallery__filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.amp-gallery__filter {
+    padding: 0.45rem 0.8rem;
+    border: 1px solid #ccd7e3;
+    border-radius: 999px;
+    color: #002b5c;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.amp-gallery__filter:hover,
+.amp-gallery__filter.active {
+    color: #fff;
+    border-color: #002b5c;
+    background: #002b5c;
+    text-decoration: none;
+}
+
+.amp-gallery__grid {
+    display: grid;
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+    gap: 1.25rem;
+}
+
+@media (min-width: 769px) {
+    .amp-gallery__grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .amp-gallery__item--mainBanner {
+        grid-column: 1 / -1;
+    }
+}
+
+.amp-gallery__item {
+    min-width: 0;
+    overflow: hidden;
+    border: 1px solid #e0e6ec;
+    border-radius: 12px;
+    background: #fff;
+    box-shadow: 0 4px 16px rgba(0, 43, 92, 0.07);
+}
+
+.amp-gallery__meta {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.65rem 0.85rem;
+    color: #5f6b76;
+    border-bottom: 1px solid #e8edf2;
+    background: #f5f7f9;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.amp-gallery__meta a,
+.amp-detail__back {
+    color: #004a82;
+}
+
+.amp-gallery__pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    margin-top: 2rem;
+}
+
+.amp-gallery__pagination a {
+    padding: 0.55rem 1rem;
+    border-radius: 6px;
+    color: #fff;
+    background: #002b5c;
+}
+
+.amp-content {
+    width: 100%;
+}
+
+.amp-main-banner {
+    position: relative;
+    min-height: 20rem;
+    overflow: hidden;
+    color: #fff;
+    background: #002b5c;
+}
+
+.amp-main-banner img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.amp-main-banner::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, rgba(0, 43, 92, 0.9), rgba(0, 43, 92, 0.15));
+}
+
+.amp-main-banner__overlay {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    min-height: 20rem;
+    max-width: 36rem;
+    padding: 2.5rem;
+}
+
+.amp-main-banner__overlay h1,
+.amp-main-banner__overlay h2,
+.amp-main-banner__overlay p {
+    color: #fff;
+}
+
+.amp-campaign-banner {
+    padding: 2rem;
+    color: #fff;
+    background: #004a82;
+    text-align: center;
+}
+
+.amp-campaign-banner h1,
+.amp-campaign-banner h2,
+.amp-campaign-banner p {
+    color: #fff;
+}
+
+.amp-image-text {
+    display: grid;
+    min-height: 18rem;
+}
+
+@media (min-width: 544px) {
+    .amp-image-text {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+.amp-image-text__media img {
+    width: 100%;
+    height: 100%;
+    min-height: 18rem;
+    object-fit: cover;
+}
+
+.amp-image-text__copy,
+.amp-rich-text,
+.amp-widget-fallback {
+    padding: 1.5rem;
+}
+
+.amp-image-text__copy h1,
+.amp-image-text__copy h2,
+.amp-rich-text h1,
+.amp-rich-text h2,
+.amp-widget-fallback h2 {
+    color: #002b5c;
+}
+
+.amp-widget-fallback__field {
+    padding-bottom: 0.8rem;
+    margin-bottom: 0.8rem;
+    border-bottom: 1px solid #e8edf2;
+}
+
+.amp-widget-fallback__field span {
+    color: #f58220;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.amp-widget-fallback__image img {
+    display: block;
+    max-width: 100%;
+}
+
+.amp-detail__header {
+    margin: 1rem 0 1.5rem;
+}
+
+.amp-detail__component {
+    overflow: hidden;
+    border: 1px solid #e0e6ec;
+    border-radius: 12px;
+    background: #fff;
+    box-shadow: 0 4px 16px rgba(0, 43, 92, 0.07);
+}
+
+.amp-detail__metadata {
+    display: grid;
+    grid-template-columns: minmax(8rem, 12rem) 1fr;
+    margin-top: 1.5rem;
+    padding: 1rem;
+    border-radius: 8px;
+    background: #f5f7f9;
+}
+
+.amp-detail__metadata dt,
+.amp-detail__metadata dd {
+    padding: 0.35rem;
+    overflow-wrap: anywhere;
+}

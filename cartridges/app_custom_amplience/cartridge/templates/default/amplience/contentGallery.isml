@@ -1,0 +1,65 @@
+<isdecorate template="common/layout/page">
+    <isscript>
+        var assets = require('*/cartridge/scripts/assets.js');
+        assets.addCss('/css/amplienceContent.css');
+    </isscript>
+
+    <main class="amp-gallery container">
+        <header class="amp-gallery__header">
+            <p class="amp-gallery__eyebrow">Amplience Migration</p>
+            <h1>Migrated Content Components</h1>
+            <p>
+                Rendering ${pdict.amplience.total} online content assets from the
+                <strong>Amplience Migrated</strong> library folder.
+            </p>
+        </header>
+
+        <nav class="amp-gallery__filters" aria-label="Filter components">
+            <isloop items="${pdict.widgetTypes}" var="widgetType">
+                <a
+                    class="amp-gallery__filter<isif condition="${pdict.amplience.type === widgetType.id}"> active</isif>"
+                    href="${URLUtils.url('AmplienceContent-Show', 'type', widgetType.id)}"
+                >${widgetType.label}</a>
+            </isloop>
+        </nav>
+
+        <isif condition="${!pdict.amplience.folderFound}">
+            <div class="alert alert-warning">
+                Folder <code>amplience</code> was not found in the content library assigned to this site.
+            </div>
+        <iselseif condition="${empty(pdict.amplience.items)}">
+            <div class="alert alert-info">No online Amplience assets match this filter.</div>
+        <iselse/>
+            <div class="amp-gallery__grid">
+                <isloop items="${pdict.amplience.items}" var="item">
+                    <article class="amp-gallery__item amp-gallery__item--${item.widgetType}">
+                        <div class="amp-gallery__meta">
+                            <span>${item.widgetType}</span>
+                            <a href="${URLUtils.url('AmplienceContent-Detail', 'cid', item.id)}">
+                                View component
+                            </a>
+                        </div>
+                        <isset name="amp" value="${item}" scope="pdict" />
+                        <isinclude template="components/content/amplienceAsset" />
+                    </article>
+                </isloop>
+            </div>
+        </isif>
+
+        <isif condition="${pdict.amplience.pageCount > 1}">
+            <nav class="amp-gallery__pagination" aria-label="Content pages">
+                <isif condition="${pdict.amplience.hasPrevious}">
+                    <a href="${URLUtils.url('AmplienceContent-Show', 'page', pdict.amplience.page - 1, 'type', pdict.amplience.type)}">
+                        Previous
+                    </a>
+                </isif>
+                <span>Page ${pdict.amplience.page} of ${pdict.amplience.pageCount}</span>
+                <isif condition="${pdict.amplience.hasNext}">
+                    <a href="${URLUtils.url('AmplienceContent-Show', 'page', pdict.amplience.page + 1, 'type', pdict.amplience.type)}">
+                        Next
+                    </a>
+                </isif>
+            </nav>
+        </isif>
+    </main>
+</isdecorate>

@@ -117,9 +117,20 @@ function extractPreviewParts(content) {
                     var nestedImg = buildImageUrl(val[j]);
                     if (nestedImg) images.push({ name: key + '[' + j + ']', url: nestedImg });
                 } else if (isPlainObject(val[j])) {
-                    var nestedTitle = firstString(val[j], ['title', 'headline', 'heading', 'name', 'label', 'text']);
+                    var nestedTitle = firstString(val[j], ['title', 'headline', 'heading', 'name', 'label', 'text', 'value']);
                     if (nestedTitle) {
-                        fields.push({ name: key + '[' + j + ']', type: 'text', value: nestedTitle });
+                        var localeSuffix = val[j].locale || val[j].lang || j;
+                        fields.push({
+                            name: key + '[' + localeSuffix + ']',
+                            type: 'text',
+                            value: nestedTitle
+                        });
+                    } else if (looksLikeImage(val[j].value)) {
+                        var localizedImg = buildImageUrl(val[j].value);
+                        if (localizedImg) {
+                            images.push({ name: key + '[' + j + ']', url: localizedImg });
+                            fields.push({ name: key + '[' + j + ']', type: 'image', value: localizedImg });
+                        }
                     }
                 } else if (typeof val[j] === 'string' && val[j].trim()) {
                     fields.push({ name: key + '[' + j + ']', type: 'text', value: val[j].trim() });

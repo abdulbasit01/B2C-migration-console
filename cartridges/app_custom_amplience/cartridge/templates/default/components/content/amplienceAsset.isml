@@ -1,0 +1,20 @@
+<isif condition="${!empty(pdict.amp)}">
+    <div
+        class="amp-content amp-content--${pdict.amp.widgetType}"
+        data-content-id="${pdict.amp.id}"
+        data-widget-type="${pdict.amp.widgetType}"
+        data-schema="${pdict.amp.schema}"
+    >
+        <isif condition="${pdict.amp.widgetType === 'mainBanner'}">
+            <isinclude template="components/content/amplienceMainBanner" />
+        <iselseif condition="${pdict.amp.widgetType === 'campaignBanner'}">
+            <isinclude template="components/content/amplienceCampaignBanner" />
+        <iselseif condition="${pdict.amp.widgetType === 'imageAndText'}">
+            <isinclude template="components/content/amplienceImageAndText" />
+        <iselseif condition="${pdict.amp.widgetType === 'editorialRichText'}">
+            <isinclude template="components/content/amplienceEditorialRichText" />
+        <iselse/>
+            <isinclude template="components/content/amplienceWidgetFallback" />
+        </isif>
+    </div>
+</isif>

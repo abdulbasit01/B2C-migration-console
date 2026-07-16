@@ -1,0 +1,32 @@
+<isdecorate template="common/layout/page">
+    <isscript>
+        var assets = require('*/cartridge/scripts/assets.js');
+        assets.addCss('/css/amplienceContent.css');
+    </isscript>
+
+    <main class="amp-detail container">
+        <a class="amp-detail__back" href="${URLUtils.url('AmplienceContent-Show')}">
+            &larr; All migrated content
+        </a>
+        <header class="amp-detail__header">
+            <p>${pdict.amp.widgetType}</p>
+            <h1>${pdict.amp.name}</h1>
+            <isif condition="${!empty(pdict.amp.deliveryKey)}">
+                <span>Delivery key: ${pdict.amp.deliveryKey}</span>
+            </isif>
+        </header>
+
+        <section class="amp-detail__component">
+            <isinclude template="components/content/amplienceAsset" />
+        </section>
+
+        <dl class="amp-detail__metadata">
+            <dt>SFCC Content ID</dt>
+            <dd>${pdict.amp.id}</dd>
+            <dt>Amplience Content ID</dt>
+            <dd>${pdict.amp.contentId}</dd>
+            <dt>Schema</dt>
+            <dd>${pdict.amp.schema}</dd>
+        </dl>
+    </main>
+</isdecorate>

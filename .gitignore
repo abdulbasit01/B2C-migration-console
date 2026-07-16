@@ -1,5 +1,7 @@
 node_modules/
 cartridges/*/cartridge/static/
+!cartridges/app_custom_amplience/cartridge/static/
+!cartridges/app_custom_amplience/cartridge/static/**
 
 # Migration — auto-generated, never commit
 cartridges/bm_accelerator/cartridge/scripts/migration/config.js
