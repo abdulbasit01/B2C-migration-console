@@ -30,6 +30,14 @@ function getRule(platformId, task, attrId) {
     var taskRules = platform[task];
     if (!taskRules) return null;
     var rule = taskRules[attrId];
+    if (!rule) {
+        // Case-insensitive fallback (e.g. Shopify option names vary in casing per store)
+        var lower = String(attrId || '').toLowerCase();
+        var keys  = Object.keys(taskRules);
+        for (var i = 0; i < keys.length; i++) {
+            if (keys[i].toLowerCase() === lower) { rule = taskRules[keys[i]]; break; }
+        }
+    }
     if (!rule) return null;
     return {
         sfccField: rule.sfccField,

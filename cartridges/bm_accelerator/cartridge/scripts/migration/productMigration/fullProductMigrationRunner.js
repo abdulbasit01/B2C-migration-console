@@ -11,6 +11,9 @@ var MODULE_KEY         = 'product';
 var BATCH_SIZE         = 500; // CTP batch size
 var SHOPIFY_BATCH_SIZE = 10;  // Shopify GraphQL cost limit: 10 × (50+5+5+10) = 700 pts < 1000
 
+var CTP_PREFIX     = 'ctp';
+var SHOPIFY_PREFIX = 'shp';
+
 // ─── Session keys ─────────────────────────────────────────────────────────────
 
 var SK_TOTAL      = 'migProdTotal';
@@ -105,8 +108,8 @@ function runCtpBatch(offset, catalogId, selectedVarAttrs) {
     if (isFirst) {
         setNum(SK_TOTAL, total);
         // Resolve the single target filename for the entire run
-        var runDate  = fileResolver.getRunDate(MODULE_KEY, 0);
-        var fileName = fileResolver.resolveXmlFileName(MODULE_KEY, 0, BATCH_SIZE, 'webdav');
+        var runDate  = fileResolver.getRunDate(MODULE_KEY, 0, CTP_PREFIX);
+        var fileName = fileResolver.resolveXmlFileName(MODULE_KEY, 0, BATCH_SIZE, 'webdav', CTP_PREFIX);
         session.custom[SK_FILENAME] = fileName;
     } else {
         total = getNum(SK_TOTAL);
@@ -242,7 +245,7 @@ function runShopifyBatch(cursor, catalogId) {
         try { total = shopifyFetcher.getCount(); } catch (ce) {}
         setNum(SK_SHOPIFY_TOTAL, total);
 
-        var fileName = fileResolver.resolveXmlFileName(MODULE_KEY, 0, SHOPIFY_BATCH_SIZE, 'webdav');
+        var fileName = fileResolver.resolveXmlFileName(MODULE_KEY, 0, SHOPIFY_BATCH_SIZE, 'webdav', SHOPIFY_PREFIX);
         session.custom[SK_SHOPIFY_FILE] = fileName;
     }
 
@@ -374,6 +377,7 @@ function runById(prodId, catalogId, selectedVarAttrs, platform) {
     if (!catalogId) return { ok: false, error: 'catalogId is required' };
 
     var product, transformerFn;
+    var prefix = platform === 'shopify' ? SHOPIFY_PREFIX : CTP_PREFIX;
 
     if (platform === 'shopify') {
         var shopifyFetcher     = require('*/cartridge/scripts/migration/productMigration/shopifyProductFetcher');
@@ -390,7 +394,7 @@ function runById(prodId, catalogId, selectedVarAttrs, platform) {
         return { ok: false, error: 'WebDAV directory creation failed: ' + dirResult.error };
     }
 
-    var fileName      = fileResolver.resolveXmlFileName(MODULE_KEY, 0, 1, 'webdav');
+    var fileName      = fileResolver.resolveXmlFileName(MODULE_KEY, 0, 1, 'webdav', prefix);
     var catalogResult = xmlBuilder.buildXml([product], catalogId, selectedVarAttrs, transformerFn);
 
     var File       = require('dw/io/File');
