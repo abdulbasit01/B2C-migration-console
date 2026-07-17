@@ -18,7 +18,9 @@
     "shopify": {
         "Product": {
             "title":    { "sfccField": "name",            "action": "flag" },
-            "body_html": { "sfccField": "longDescription", "action": "flag" }
+            "body_html": { "sfccField": "longDescription", "action": "flag" },
+            "Color":    { "sfccField": "color",            "action": "custom_attr" },
+            "Size":     { "sfccField": "size",             "action": "custom_attr" }
         },
         "Category": {
             "title": { "sfccField": "displayName", "action": "flag" }

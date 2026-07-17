@@ -97,13 +97,12 @@ function buildVariationsXml(t, selectedVarAttrs, isShopify) {
             if (!isShopify && hasVarSelection && selectedVarAttrs.indexOf(a.name) === -1) continue;
             if (!isShopify && !hasVarSelection) continue;
 
-            var axisRule;
-            if (!isShopify) {
-                axisRule = nativeMap.getRule('commercetools', 'Product', a.name);
-                if (axisRule && axisRule.action === 'skip') continue;
-            }
-            // Use same SFCC ID as variant custom attr so axis ID and value ID match
-            var sfccAxisId = (!isShopify && axisRule && axisRule.action === 'custom_attr') ? axisRule.sfccField
+            var axisRule = nativeMap.getRule(isShopify ? 'shopify' : 'commercetools', 'Product', a.name);
+            if (axisRule && axisRule.action === 'skip') continue;
+            // Use same SFCC ID as variant custom attr so axis ID and value ID match.
+            // custom_attr rules map to a native SFCC field (e.g. Shopify "Color" -> "color")
+            // instead of the platform-prefixed custom attribute ID.
+            var sfccAxisId = (axisRule && axisRule.action === 'custom_attr') ? axisRule.sfccField
                 : (attrPrefix + String(a.name || '').replace(/[^a-zA-Z0-9_]/g, '_'));
 
             var key     = '';
@@ -313,7 +312,10 @@ function buildProductXml(t, selectedVarAttrs) {
                     var sval  = sa.value;
                     if (sval === null || sval === undefined) continue;
                     if (Array.isArray(sval)) continue;
-                    var saId  = 'shopify_' + String(sa.name || '').replace(/[^a-zA-Z0-9_]/g, '_');
+                    var saRule = nativeMap.getRule('shopify', 'Product', sa.name);
+                    if (saRule && saRule.action === 'skip') continue;
+                    var saId  = (saRule && saRule.action === 'custom_attr') ? saRule.sfccField
+                        : ('shopify_' + String(sa.name || '').replace(/[^a-zA-Z0-9_]/g, '_'));
                     var sstr  = String(sval);
                     if (!sstr) continue;
                     varInner += '            <custom-attribute attribute-id="' + xmlEsc(saId) + '">' + xmlEsc(sstr) + '</custom-attribute>\n';
