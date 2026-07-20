@@ -1,18 +1,11 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8"/>
-    <meta name="viewport" content="width=device-width, initial-scale=1"/>
-    <title>${pdict.title} — ${pdict.platform.name}</title>
-    <link rel="stylesheet" href="${pdict.cssUrl}"/>
-</head>
-<body class="acc-page acc-page--wizard">
-    <div class="acc-shell">
+<isdecorate template="application/MenuFrame">
+<iscontent type="text/html" charset="UTF-8"/>
+<link rel="stylesheet" href="${pdict.cssUrl}"/>
+<div class="acc-page acc-page--wizard">
+<div class="acc-shell">
         <isinclude template="accelerator/components/header"/>
 
-        <a class="acc-back" href="${pdict.dashboardUrl}">
-            &larr; ${Resource.msg('accelerator.wizard.back', 'accelerator', null)}
-        </a>
+        <isinclude template="accelerator/components/migrationBackLink"/>
 
         <isinclude template="accelerator/components/stepper"/>
 
@@ -33,8 +26,8 @@
         <footer class="acc-wizard-footer">
             <isif condition="${pdict.prevStep}">
                 <a class="acc-btn acc-btn--ghost"
-                   href="${pdict.wizardBaseUrl}&amp;step=${pdict.prevStep}">
-                    &larr; ${Resource.msg('accelerator.wizard.previous', 'accelerator', null)}
+                   href="${pdict.wizardBaseUrl}&amp;step=${pdict.prevStepQuery}">
+                    ${Resource.msg('accelerator.wizard.previous', 'accelerator', null)}
                 </a>
             <iselse/>
                 <span></span>
@@ -42,15 +35,16 @@
 
             <isif condition="${pdict.isLastStep}">
                 <a class="acc-btn acc-btn--primary" href="${pdict.dashboardUrl}">
-                    ${pdict.nextStepLabel} &rarr;
+                    ${pdict.nextStepLabel}
                 </a>
             <iselseif condition="${pdict.nextStep}"/>
-                <a class="acc-btn acc-btn--primary"
-                   href="${pdict.wizardBaseUrl}&amp;step=${pdict.nextStep}">
-                    ${pdict.nextStepLabel} &rarr;
+                <a id="acc-next-btn"
+                   class="acc-btn acc-btn--primary${pdict.wizardStep.key === 'move' ? ' acc-btn--disabled' : ''}"
+                   href="${pdict.wizardBaseUrl}&amp;step=${pdict.nextStepQuery}">
+                    ${pdict.nextStepLabel}
                 </a>
             </isif>
         </footer>
     </div>
-</body>
-</html>
+</div>
+</isdecorate>

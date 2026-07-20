@@ -1,0 +1,12 @@
+<div id="acc-data-wizard-config" class="acc-hidden" aria-hidden="true">
+    <input type="hidden" id="acc-dw-step" value="${pdict.wizardStepKey}" />
+    <input type="hidden" id="acc-dw-test-url" value="<isprint value="${pdict.testConnectionUrl}" encoding="htmldoublequote"/>" />
+    <input type="hidden" id="acc-dw-wizard-base" value="<isprint value="${pdict.wizardBaseUrl}" encoding="htmldoublequote"/>" />
+    <input type="hidden" id="acc-dw-step-two-url" value="<isprint value="${pdict.wizardBaseUrl}" encoding="htmldoublequote"/>&amp;step=2" />
+    <input type="hidden" id="acc-dw-step-three-base" value="<isprint value="${pdict.wizardBaseUrl}" encoding="htmldoublequote"/>&amp;step=3" />
+    <input type="hidden" id="acc-dw-select-type-url" value="<isprint value="${pdict.selectTypeUrl}" encoding="htmldoublequote"/>" />
+    <input type="hidden" id="acc-dw-msg-connection-failed" value="${pdict.msgConnectionFailed}" />
+    <input type="hidden" id="acc-dw-msg-connection-success" value="${pdict.msgConnectionSuccess}" />
+    <input type="hidden" id="acc-dw-msg-select-count" value="${pdict.msgSelectTypeCountSuffix}" />
+    <input type="hidden" id="acc-dw-msg-select-none" value="${pdict.msgSelectTypeNoneSelected}" />
+</div>

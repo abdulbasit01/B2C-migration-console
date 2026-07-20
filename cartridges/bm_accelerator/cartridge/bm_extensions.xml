@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="ISO-8859-1"?>
 <extensions xmlns="http://www.demandware.com/xml/bmmodules/2007-12-11"
             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
             xsi:schemaLocation="http://www.demandware.com/xml/bmmodules/2007-12-11 bmext.xsd">
@@ -6,27 +6,161 @@
     <menuitem id="rc_accelerator_tools" site="true" position="99999">
         <name xml:lang="x-default">B2C Migration</name>
         <short_description xml:lang="x-default">Migration to Salesforce B2C Commerce</short_description>
-        <description xml:lang="x-default">Royal Cyber B2C Migration Console.</description>
+        <description xml:lang="x-default">Royal Cyber B2C Migration Console for schema and data migration from commercetools and Shopify.</description>
+        <icon>icons/accelerator.png</icon>
     </menuitem>
-
-    <menuaction id="rc_accelerator_console" menupath="rc_accelerator_tools" site="true" position="10">
-        <name xml:lang="x-default">Migration Console</name>
-        <short_description xml:lang="x-default">Platform tiles and migration wizard</short_description>
-        <description xml:lang="x-default">Open the migration dashboard.</description>
-        <exec pipeline="Accelerator" node="Start"/>
-        <sub-pipelines>
-            <pipeline name="Accelerator"/>
-        </sub-pipelines>
-    </menuaction>
 
     <menuaction id="rc_accelerator_wizard" menupath="rc_accelerator_tools" site="true" position="20">
         <name xml:lang="x-default">Start Migration Wizard</name>
-        <short_description xml:lang="x-default">Connect, fetch, map, move, and review</short_description>
-        <description xml:lang="x-default">Open the migration wizard.</description>
-        <exec pipeline="Accelerator" node="Wizard"/>
+        <short_description xml:lang="x-default">Open the migration dashboard</short_description>
+        <description xml:lang="x-default">Open the migration console dashboard.</description>
+        <exec pipeline="Accelerator" node="Start"/>
         <sub-pipelines>
-            <pipeline name="Accelerator"/>
+            <pipeline name="Accelerator-CategoryMigration"/>
+            <pipeline name="Accelerator-CategoryMigrationJS"/>
+            <pipeline name="Accelerator-CheckAttributeStatus"/>
+            <pipeline name="Accelerator-CheckCategoryAttributes"/>
+            <pipeline name="Accelerator-CheckCategoryProducts"/>
+            <pipeline name="Accelerator-CheckCustomerAttributes"/>
+            <pipeline name="Accelerator-CheckInventoryAttributes"/>
+            <pipeline name="Accelerator-CheckOrderAttributes"/>
+            <pipeline name="Accelerator-CheckPricebookAttributes"/>
+            <pipeline name="Accelerator-CheckProductAttributes"/>
+            <pipeline name="Accelerator-CheckShippingMethodAttributes"/>
+            <pipeline name="Accelerator-CheckStoreAttributes"/>
+            <pipeline name="Accelerator-CheckTaxAttributes"/>
+            <pipeline name="Accelerator-ClearAttrIdMap"/>
+            <pipeline name="Accelerator-ClearStoreAttrMap"/>
+            <pipeline name="Accelerator-CountOrders"/>
+            <pipeline name="Accelerator-CreateCTCategory"/>
+            <pipeline name="Accelerator-CreateCatalog"/>
+            <pipeline name="Accelerator-CreateCatalogOCAPI"/>
+            <pipeline name="Accelerator-CreateCategory"/>
+            <pipeline name="Accelerator-CreateCategoryAttributes"/>
+            <pipeline name="Accelerator-CreateCustomerAttributes"/>
+            <pipeline name="Accelerator-CreateInventoryAttributes"/>
+            <pipeline name="Accelerator-CreateOrderAttributes"/>
+            <pipeline name="Accelerator-CreatePricebookAttributes"/>
+            <pipeline name="Accelerator-CreateProductAttributes"/>
+            <pipeline name="Accelerator-CreateSfccCustomerGroups"/>
+            <pipeline name="Accelerator-CreateShippingMethodAttributes"/>
+            <pipeline name="Accelerator-CreateStoreAttributes"/>
+            <pipeline name="Accelerator-CreateTaxAttributes"/>
+            <pipeline name="Accelerator-CustomerMigration"/>
+            <pipeline name="Accelerator-CustomerMigrationCount"/>
+            <pipeline name="Accelerator-DataMigrationDashboard"/>
+            <pipeline name="Accelerator-DataMigrationFlow"/>
+            <pipeline name="Accelerator-DataMigrationLogout"/>
+            <pipeline name="Accelerator-DataWizard"/>
+            <pipeline name="Accelerator-DataWizardContinue"/>
+            <pipeline name="Accelerator-DataWizardSelectType"/>
+            <pipeline name="Accelerator-DeleteCustomerAttribute"/>
+            <pipeline name="Accelerator-DeleteInventoryAttribute"/>
+            <pipeline name="Accelerator-DeleteProductAttribute"/>
+            <pipeline name="Accelerator-DeleteShippingMethodAttribute"/>
+            <pipeline name="Accelerator-DeleteTaskAttrs"/>
+            <pipeline name="Accelerator-DownloadMigrationFile"/>
+            <pipeline name="Accelerator-DownloadProductXml"/>
+            <pipeline name="Accelerator-ExportOrders"/>
+            <pipeline name="Accelerator-FetchCTCategories"/>
+            <pipeline name="Accelerator-FetchCtpCustomerGroups"/>
+            <pipeline name="Accelerator-FetchSFCCCatalogs"/>
+            <pipeline name="Accelerator-FetchShopifyCategories"/>
+            <pipeline name="Accelerator-FullInventoryBuildBatch"/>
+            <pipeline name="Accelerator-FullMigrationBuildBatch"/>
+            <pipeline name="Accelerator-FullMigrationJobStatus"/>
+            <pipeline name="Accelerator-FullMigrationTriggerJob"/>
+            <pipeline name="Accelerator-FullPricebookBuildBatch"/>
+            <pipeline name="Accelerator-FullProductMigrationBuildBatch"/>
+            <pipeline name="Accelerator-FullShippingMethodBuildBatch"/>
+            <pipeline name="Accelerator-FullStoreBuildBatch"/>
+            <pipeline name="Accelerator-FullTaxBuildBatch"/>
+            <pipeline name="Accelerator-GetBundleProductsInfo"/>
+            <pipeline name="Accelerator-GetCustomerLists"/>
+            <pipeline name="Accelerator-GetExistingAttrs"/>
+            <pipeline name="Accelerator-GetMigratedAttrs"/>
+            <pipeline name="Accelerator-GetPricebooks"/>
+            <pipeline name="Accelerator-GetProductCatalogs"/>
+            <pipeline name="Accelerator-GetProductSetsInfo"/>
+            <pipeline name="Accelerator-GetSites"/>
+            <pipeline name="Accelerator-GetStoreSummary"/>
+            <pipeline name="Accelerator-GetSupplyChannels"/>
+            <pipeline name="Accelerator-GetTaxSummary"/>
+            <pipeline name="Accelerator-GetVariantAttrs"/>
+            <pipeline name="Accelerator-InventoryMigration"/>
+            <pipeline name="Accelerator-InventoryMigrationCount"/>
+            <pipeline name="Accelerator-ListShippingMethods"/>
+            <pipeline name="Accelerator-ListStores"/>
+            <pipeline name="Accelerator-MigrateCustomerAddresses"/>
+            <pipeline name="Accelerator-MigrateCustomerBatch"/>
+            <pipeline name="Accelerator-MigrateCustomerById"/>
+            <pipeline name="Accelerator-MigrateProductById"/>
+            <pipeline name="Accelerator-MigrateTask"/>
+            <pipeline name="Accelerator-OrderMigration"/>
+            <pipeline name="Accelerator-PricebookMigration"/>
+            <pipeline name="Accelerator-PricebookMigrationCount"/>
+            <pipeline name="Accelerator-ProductMigrationCount"/>
+            <pipeline name="Accelerator-ProductWizard"/>
+            <pipeline name="Accelerator-RunCategoryMigration"/>
+            <pipeline name="Accelerator-SaveMigrationResults"/>
+            <pipeline name="Accelerator-SavePreflightSelection"/>
+            <pipeline name="Accelerator-SaveProdConfig"/>
+            <pipeline name="Accelerator-SaveProdWizardResults"/>
+            <pipeline name="Accelerator-SaveSchemaSelection"/>
+            <pipeline name="Accelerator-SaveShopifyConfig"/>
+            <pipeline name="Accelerator-SaveVariantAttrSelection"/>
+            <pipeline name="Accelerator-ShippingMethodMigration"/>
+            <pipeline name="Accelerator-ShippingMethodMigrationCount"/>
+            <pipeline name="Accelerator-ShopifyConfig"/>
+            <pipeline name="Accelerator-Start"/>
+            <pipeline name="Accelerator-StoreMigration"/>
+            <pipeline name="Accelerator-StoreMigrationCount"/>
+            <pipeline name="Accelerator-TaxMigration"/>
+            <pipeline name="Accelerator-TaxMigrationCount"/>
+            <pipeline name="Accelerator-TestConnection"/>
+            <pipeline name="Accelerator-Wizard"/>
         </sub-pipelines>
+        <icon>icons/accelerator.png</icon>
+    </menuaction>
+
+    <menuaction id="rc_accelerator_product_wizard" menupath="rc_accelerator_tools" site="true" position="25">
+        <name xml:lang="x-default">Product Catalog Wizard</name>
+        <short_description xml:lang="x-default">Connect, fetch, configure, and move products</short_description>
+        <description xml:lang="x-default">Open the product catalog migration wizard.</description>
+        <exec pipeline="Accelerator" node="ProductWizard"/>
+        <sub-pipelines>
+            <pipeline name="Accelerator-ProductWizard"/>
+            <pipeline name="Accelerator-ProductMigration"/>
+            <pipeline name="Accelerator-ProductMigrationCount"/>
+            <pipeline name="Accelerator-CheckProductAttributes"/>
+            <pipeline name="Accelerator-CreateProductAttributes"/>
+            <pipeline name="Accelerator-FullProductMigrationBuildBatch"/>
+            <pipeline name="Accelerator-MigrateProductById"/>
+            <pipeline name="Accelerator-GetProductCatalogs"/>
+            <pipeline name="Accelerator-GetVariantAttrs"/>
+            <pipeline name="Accelerator-GetBundleProductsInfo"/>
+            <pipeline name="Accelerator-GetProductSetsInfo"/>
+            <pipeline name="Accelerator-DownloadProductXml"/>
+            <pipeline name="Accelerator-SaveProdConfig"/>
+            <pipeline name="Accelerator-SaveProdWizardResults"/>
+            <pipeline name="Accelerator-SaveVariantAttrSelection"/>
+            <pipeline name="Accelerator-FullMigrationBuildBatch"/>
+            <pipeline name="Accelerator-FullMigrationJobStatus"/>
+            <pipeline name="Accelerator-FullMigrationTriggerJob"/>
+        </sub-pipelines>
+        <icon>icons/accelerator.png</icon>
+    </menuaction>
+
+    <menuaction id="rc_accelerator_shopify_config" menupath="rc_accelerator_tools" site="true" position="30">
+        <name xml:lang="x-default">Shopify Configuration</name>
+        <short_description xml:lang="x-default">View Shopify credential status</short_description>
+        <description xml:lang="x-default">Shows whether Shopify credentials are configured in Site Preferences.</description>
+        <exec pipeline="Accelerator" node="ShopifyConfig"/>
+        <sub-pipelines>
+            <pipeline name="Accelerator-ShopifyConfig"/>
+            <pipeline name="Accelerator-SaveShopifyConfig"/>
+        </sub-pipelines>
+        <icon>icons/accelerator.png</icon>
     </menuaction>
 
     <menuaction id="rc_accelerator_prefs_link" menupath="site-prefs" site="true" position="5">
@@ -35,7 +169,7 @@
         <description xml:lang="x-default">Shortcut under Site Preferences.</description>
         <exec pipeline="Accelerator" node="Start"/>
         <sub-pipelines>
-            <pipeline name="Accelerator"/>
+            <pipeline name="Accelerator-Start"/>
         </sub-pipelines>
     </menuaction>
 

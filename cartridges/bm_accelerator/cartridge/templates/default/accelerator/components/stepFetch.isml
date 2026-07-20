@@ -1,22 +1,143 @@
 <section class="acc-step-panel">
     <h2 class="acc-step-panel__title">
-        Step ${pdict.currentStep} &mdash; <span class="acc-highlight">${pdict.stepContent.titleSuffix}</span>
+        Step <isprint value="${pdict.currentStep}" formatter="#"/> &mdash; <span class="acc-highlight">${pdict.stepContent.titleSuffix}</span>
     </h2>
-    <p class="acc-step-panel__intro">${pdict.stepContent.intro}</p>
-    <div class="acc-grid acc-grid--2">
+    <p class="acc-step-panel__intro"></p>
+
+    <div class="acc-fetch-toolbar">
+        <button type="button" id="acc-select-all" class="acc-btn acc-btn--ghost acc-btn--sm">Select all</button>
+        <button type="button" id="acc-deselect-all" class="acc-btn acc-btn--ghost acc-btn--sm">Deselect all</button>
+        <span class="acc-fetch-toolbar__count" id="acc-selection-count"></span>
+    </div>
+
+    <div class="acc-grid acc-grid--2" id="acc-schema-panels">
         <isloop items="${pdict.stepContent.sections}" var="section">
-            <div class="acc-panel">
-                <h3 class="acc-panel__title">${section.title}</h3>
-                <ul class="acc-checklist">
+            <div class="acc-panel${section.selectable ? ' acc-panel--selectable' : ' acc-panel--info'}"
+                 data-task-id="${section.selectable ? section.taskId : ''}">
+                <div class="acc-panel__header">
+                    <isif condition="${section.selectable}">
+                        <label class="acc-schema-check" style="display:inline-flex;align-items:center;gap:8px;">
+                            <input type="checkbox"
+                                class="acc-schema-checkbox me-2"
+                                data-task-id="${section.taskId}"
+                                checked="checked" />
+                                
+                            <h3 class="acc-panel__title mb-0" style="margin-bottom: 0;">
+                                ${section.title}
+                            </h3>
+                        </label>
+                    <iselse/>
+                        <h3 class="acc-panel__title acc-panel__title--muted" style="margin-bottom: 0;">
+                            ${section.title}
+                        </h3>
+                    </isif>
+                </div>
+                <ul class="acc-checklist acc-checklist--plain">
                     <isloop items="${section.items}" var="item">
-                        <li>
-                            <input type="checkbox" checked="checked" disabled="disabled" />
-                            <span>${item}</span>
-                        </li>
+                        <li><span>${item}</span></li>
                     </isloop>
                 </ul>
+                <isif condition="${!section.selectable}">
+                    <p class="acc-note acc-note--info">These resource types do not map to a standard B2C Commerce system object and are not included in schema migration.</p>
+                </isif>
             </div>
         </isloop>
     </div>
-    <p class="acc-note">${pdict.stepContent.summary}</p>
 </section>
+
+<script>
+(function () {
+    var nextUrl = '${pdict.wizardBaseUrl}&step=${pdict.nextStepQuery}';
+
+    function init() {
+    var continueBtn    = document.querySelector('.acc-wizard-footer a.acc-btn--primary');
+    var selectAllBtn   = document.getElementById('acc-select-all');
+    var deselectAllBtn = document.getElementById('acc-deselect-all');
+    var countEl        = document.getElementById('acc-selection-count');
+
+    function getBoxes() {
+        return document.querySelectorAll('.acc-schema-checkbox');
+    }
+
+    function getChecked() {
+        var boxes = getBoxes();
+        var ids   = [];
+        for (var i = 0; i < boxes.length; i++) {
+            if (boxes[i].checked) ids.push(boxes[i].getAttribute('data-task-id'));
+        }
+        return ids;
+    }
+
+    function syncPanelState(cb) {
+        var panel = cb.closest ? cb.closest('.acc-panel') : null;
+        if (!panel) {
+            var el = cb.parentNode;
+            while (el && el.className && el.className.indexOf('acc-panel') === -1) el = el.parentNode;
+            panel = el;
+        }
+        if (panel) {
+            if (cb.checked) {
+                panel.className = panel.className.replace(' acc-panel--unchecked', '');
+            } else {
+                if (panel.className.indexOf('acc-panel--unchecked') === -1) {
+                    panel.className += ' acc-panel--unchecked';
+                }
+            }
+        }
+    }
+
+    function updateCount() {
+        var ids = getChecked();
+        countEl.textContent = ids.length + ' schema(s) selected';
+    }
+
+    var boxes = getBoxes();
+    for (var i = 0; i < boxes.length; i++) {
+        (function (cb) {
+            cb.addEventListener('change', function () {
+                syncPanelState(cb);
+                updateCount();
+            });
+        }(boxes[i]));
+    }
+
+    selectAllBtn.addEventListener('click', function () {
+        var cbs = getBoxes();
+        for (var j = 0; j < cbs.length; j++) {
+            cbs[j].checked = true;
+            syncPanelState(cbs[j]);
+        }
+        updateCount();
+    });
+
+    deselectAllBtn.addEventListener('click', function () {
+        var cbs = getBoxes();
+        for (var j = 0; j < cbs.length; j++) {
+            cbs[j].checked = false;
+            syncPanelState(cbs[j]);
+        }
+        updateCount();
+    });
+
+    if (continueBtn) {
+        continueBtn.addEventListener('click', function (e) {
+            e.preventDefault();
+            var selected = getChecked();
+            if (!selected.length) {
+                alert('Please select at least one schema to continue.');
+                return;
+            }
+            window.location.href = nextUrl + '&schemas=' + encodeURIComponent(selected.join(','));
+        });
+    }
+
+    updateCount();
+    } // end init
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
+}());
+</script>

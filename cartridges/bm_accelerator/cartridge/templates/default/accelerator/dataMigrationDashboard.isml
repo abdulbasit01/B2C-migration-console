@@ -1,0 +1,261 @@
+<isdecorate template="application/MenuFrame">
+<iscontent type="text/html" charset="UTF-8"/>
+<link rel="stylesheet" href="${pdict.cssUrl}"/>
+<style>
+        .dm-shell { padding: 24px 28px; }
+
+        /* ── Step progress ───────────────────────────────────────── */
+        .dm-progress {
+            display: flex;
+            align-items: center;
+            margin-bottom: 22px;
+        }
+        .dm-progress__step {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #54698d;
+            white-space: nowrap;
+        }
+        .dm-progress__step--active { color: #16325c; }
+        .dm-progress__dot {
+            width: 28px; height: 28px;
+            border-radius: 50%;
+            background: #e0e5ee;
+            color: #54698d;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 13px; font-weight: 700;
+            flex-shrink: 0;
+        }
+        .dm-progress__dot--done   { background: #2e7d32; color: #fff; }
+        .dm-progress__dot--active { background: #0070d2; color: #fff; }
+        .dm-progress__line {
+            flex: 1;
+            height: 3px;
+            background: #0070d2;
+            margin: 0 12px;
+        }
+
+        /* ── Main card ───────────────────────────────────────────── */
+        .dm-card {
+            background: #fff;
+            border: 1px solid #dddbda;
+            border-radius: 8px;
+            padding: 24px;
+        }
+        .dm-card__title { font-size: 20px; font-weight: 700; color: #16325c; margin: 0 0 6px; }
+        .dm-card__title span { color: #0070d2; }
+        .dm-card__sub { font-size: 13px; color: #54698d; margin: 0 0 20px; }
+
+        /* ── Toolbar ─────────────────────────────────────────────── */
+        .dm-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+        .dm-toolbar__left { display: flex; gap: 8px; }
+        .dm-toolbar__btn {
+            padding: 5px 14px;
+            font-size: 13px;
+            border: 1px solid #dddbda;
+            border-radius: 4px;
+            background: #fff;
+            color: #16325c;
+            cursor: pointer;
+        }
+        .dm-toolbar__btn:hover { background: #f4f6f9; }
+        .dm-sel-count { font-size: 13px; color: #54698d; }
+
+        /* ── Migration type cards ────────────────────────────────── */
+        .dm-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 14px;
+            margin-bottom: 20px;
+        }
+
+        .dm-type {
+            border: 1px solid #dddbda;
+            border-radius: 8px;
+            padding: 18px;
+            background: #fff;
+            cursor: default;
+            transition: border-color 0.15s;
+        }
+        .dm-type--available { cursor: pointer; }
+        .dm-type--available:hover { border-color: #0070d2; }
+        .dm-type--checked { border: 2px solid #0070d2; }
+
+        .dm-type__header {
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            margin-bottom: 12px;
+        }
+        .dm-type__cb {
+            width: 16px; height: 16px;
+            accent-color: #0070d2;
+            flex-shrink: 0;
+        }
+        .dm-type__title { font-size: 15px; font-weight: 700; color: #16325c; }
+
+        .dm-type__list { list-style: none; padding: 0; margin: 0; }
+        .dm-type__list li { font-size: 13px; color: #444; padding: 3px 0; }
+
+        .dm-type__unavail {
+            background: #e8f0fe;
+            color: #3c4f7c;
+            border-radius: 4px;
+            padding: 10px 12px;
+            font-size: 12px;
+            margin-top: 14px;
+            line-height: 1.5;
+        }
+
+        /* ── Footer / nav ────────────────────────────────────────── */
+        .dm-ready { font-size: 13px; color: #54698d; font-weight: 600; }
+        .dm-nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-top: 20px;
+            margin-top: 4px;
+            border-top: 1px solid #e5e5e5;
+        }
+    </style>
+<div class="acc-page">
+<div class="acc-shell">
+    <isinclude template="accelerator/components/header"/>
+
+    <div class="dm-shell">
+
+        <!-- Step progress bar -->
+        <div class="dm-progress">
+            <div class="dm-progress__step">
+                <div class="dm-progress__dot dm-progress__dot--done">1</div>
+                <span>Connect</span>
+            </div>
+            <div class="dm-progress__line"></div>
+            <div class="dm-progress__step dm-progress__step--active">
+                <div class="dm-progress__dot dm-progress__dot--active">2</div>
+                <span>Select Data</span>
+            </div>
+        </div>
+
+        <!-- Main content card -->
+        <div class="dm-card">
+            <h2 class="dm-card__title">Step 2 &mdash; <span>Select data to migrate</span></h2>
+            <p class="dm-card__sub">Choose one data type to migrate. Each type follows its own migration flow.</p>
+
+            <!-- 4 type cards -->
+            <div class="dm-grid">
+
+                <!-- Orders: ready, selected by default -->
+                <div class="dm-type dm-type--available dm-type--checked" data-url="${pdict.orderMigrationUrl}" data-available="true">
+                    <div class="dm-type__header">
+                        <input type="checkbox" class="dm-type__cb" value="orders" checked/>
+                        <span class="dm-type__title">Orders</span>
+                    </div>
+                    <ul class="dm-type__list">
+                        <li>Order header, status and payments</li>
+                        <li>Line items and pricing</li>
+                        <li>Billing and shipping addresses</li>
+                        <li>SFCC IMPEX XML export</li>
+                    </ul>
+                </div>
+
+                <!-- Customers: ready -->
+                <div class="dm-type dm-type--available" data-url="${pdict.customerMigrationUrl}" data-available="true">
+                    <div class="dm-type__header">
+                        <input type="checkbox" class="dm-type__cb" value="customers"/>
+                        <span class="dm-type__title">Customers</span>
+                    </div>
+                    <ul class="dm-type__list">
+                        <li>Customer profiles</li>
+                        <li>Addresses</li>
+                        <li>Customer groups</li>
+                    </ul>
+                </div>
+
+                <!-- Products: ready -->
+                <div class="dm-type dm-type--available" data-url="${pdict.productMigrationUrl}" data-available="true">
+                    <div class="dm-type__header">
+                        <input type="checkbox" class="dm-type__cb" value="products"/>
+                        <span class="dm-type__title">Products</span>
+                    </div>
+                    <ul class="dm-type__list">
+                        <li>Product master data</li>
+                        <li>Variants &amp; SKUs</li>
+                        <li>Custom attributes</li>
+                    </ul>
+                </div>
+
+                <!-- Catalog: not yet available -->
+              
+                <div class="dm-type dm-type--available" data-url="${pdict.categoryMigrationUrl}" data-available="true">
+                    <div class="dm-type__header">
+                        <input type="checkbox" class="dm-type__cb" value="catalog"/>
+                        <span class="dm-type__title">Catalog</span>
+                    </div>
+                    <ul class="dm-type__list">
+                             <li>Category hierarchy</li>
+                        <li>Catalog assignments</li>
+                        <li>Navigation structure</li>
+                    </ul>
+                </div>
+
+            </div>
+
+            <span class="dm-ready">3 data type(s) ready</span>
+
+            <!-- Navigation -->
+            <div class="dm-nav">
+                <a href="${pdict.dashboardUrl}" class="acc-btn">Previous</a>
+                <button id="dm-continue" class="acc-btn acc-btn--primary">Continue</button>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+(function () {
+    var availableTypes = document.querySelectorAll('.dm-type--available');
+    var continueBtn    = document.getElementById('dm-continue');
+    var selectedCard   = null;
+
+    function selectCard(card) {
+        // Deselect all first
+        for (var i = 0; i < availableTypes.length; i++) {
+            availableTypes[i].classList.remove('dm-type--checked');
+            var cb = availableTypes[i].querySelector('.dm-type__cb');
+            if (cb) { cb.checked = false; }
+        }
+        // Select the clicked card
+        card.classList.add('dm-type--checked');
+        var cardCb = card.querySelector('.dm-type__cb');
+        if (cardCb) { cardCb.checked = true; }
+        selectedCard         = card;
+        continueBtn.disabled = false;
+    }
+
+    for (var i = 0; i < availableTypes.length; i++) {
+        (function (card) {
+            card.addEventListener('click', function () {
+                selectCard(card);
+            });
+        })(availableTypes[i]);
+    }
+
+    continueBtn.addEventListener('click', function () {
+        if (selectedCard) {
+            window.location.href = selectedCard.getAttribute('data-url');
+        }
+    });
+}());
+</script>
+</div>
+</isdecorate>

@@ -1,0 +1,27 @@
+<section class="acc-step-panel">
+    <h2 class="acc-step-panel__title">
+        Step <isprint value="${pdict.currentStep}" formatter="#"/> &mdash; Connect
+    </h2>
+    <p class="acc-step-panel__intro">
+        ${Resource.msg('accelerator.datawizard.connect.intro', 'accelerator', null)}
+    </p>
+
+    <form class="acc-form" id="prod-connect-form" action="#" method="post" onsubmit="return false;">
+        <input type="hidden" name="platformId" value="${pdict.platformId}"/>
+    </form>
+
+    <isif condition="${pdict.connectionSummary}">
+        <div class="acc-form" style="margin-top:12px;">
+            <isloop items="${pdict.connectionSummary.lines}" var="line">
+                <div class="acc-form__group" style="margin-bottom:8px;">
+                    <div class="acc-form__label">${line.label}</div>
+                    <div class="acc-form__input" style="background:#f3f2f2;border:1px solid #dddbda;">${line.value}</div>
+                </div>
+            </isloop>
+            <p class="acc-step-panel__intro" style="margin-top:12px;">
+                ${Resource.msg('accelerator.datawizard.connect.prefsHint', 'accelerator', null)}
+                <strong>${pdict.connectionSummary.prefsHint}</strong>
+            </p>
+        </div>
+    </isif>
+</section>

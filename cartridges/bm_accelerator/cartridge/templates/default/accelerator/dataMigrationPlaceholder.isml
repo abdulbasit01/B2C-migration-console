@@ -1,0 +1,25 @@
+<isdecorate template="application/MenuFrame">
+<iscontent type="text/html" charset="UTF-8"/>
+<link rel="stylesheet" href="${pdict.cssUrl}"/>
+<div class="acc-page">
+<div class="acc-shell">
+        <isinclude template="accelerator/components/header"/>
+
+        <nav class="acc-breadcrumb">
+            <a href="${pdict.dataSelectUrl}" class="acc-breadcrumb__link">${Resource.msg('accelerator.datawizard.flow.back', 'accelerator', null)}</a>
+            <span class="acc-breadcrumb__sep">/</span>
+            <span class="acc-breadcrumb__current">${pdict.dataType.label}</span>
+        </nav>
+
+        <section class="acc-section">
+            <div class="acc-placeholder">
+                <h2>${pdict.dataType.label} — ${Resource.msg('accelerator.datawizard.flow.soon', 'accelerator', null)}</h2>
+                <p>${Resource.msg('accelerator.datawizard.flow.soon.intro', 'accelerator', null)}</p>
+                <a class="acc-btn acc-btn--ghost" href="${pdict.dataSelectUrl}">
+                    ${Resource.msg('accelerator.datawizard.flow.back', 'accelerator', null)}
+                </a>
+            </div>
+        </section>
+    </div>
+</div>
+</isdecorate>

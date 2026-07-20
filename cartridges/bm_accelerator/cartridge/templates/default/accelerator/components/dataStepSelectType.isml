@@ -1,0 +1,51 @@
+<section class="acc-step-panel">
+    <h2 class="acc-step-panel__title">
+        Step <isprint value="${pdict.currentStep}" formatter="#"/> &mdash;
+        <span class="acc-highlight">${pdict.stepContent.titleSuffix}</span>
+    </h2>
+    <p class="acc-step-panel__intro">${pdict.stepContent.intro}</p>
+
+    <div class="acc-grid acc-grid--2" id="acc-data-type-panels">
+        <isloop items="${pdict.stepContent.sections}" var="section">
+            <isif condition="${section.selectable}">
+                <div class="acc-panel acc-panel--selectable" data-type-id="${section.taskId}">
+                    <div class="acc-panel__header">
+                        <label class="acc-schema-check" style="display:inline-flex;align-items:center;gap:8px;">
+                            <input type="radio"
+                                class="acc-data-type-radio"
+                                name="dataType"
+                                data-type-id="${section.taskId}"
+                                value="${section.taskId}" />
+                            <h3 class="acc-panel__title mb-0" style="margin-bottom: 0;">
+                                ${section.title}
+                            </h3>
+                        </label>
+                    </div>
+                    <ul class="acc-checklist acc-checklist--plain">
+                        <isloop items="${section.items}" var="item">
+                            <li><span>${item}</span></li>
+                        </isloop>
+                    </ul>
+                </div>
+            <iselse/>
+                <div class="acc-panel acc-panel--info">
+                    <div class="acc-panel__header">
+                        <h3 class="acc-panel__title acc-panel__title--muted" style="margin-bottom: 0;">
+                            ${section.title}
+                        </h3>
+                    </div>
+                    <ul class="acc-checklist acc-checklist--plain">
+                        <isloop items="${section.items}" var="item">
+                            <li><span>${item}</span></li>
+                        </isloop>
+                    </ul>
+                    <p class="acc-note acc-note--info">${Resource.msg('accelerator.datawizard.selectType.soonNote', 'accelerator', null)}</p>
+                </div>
+            </isif>
+        </isloop>
+    </div>
+
+    <isif condition="${!empty(pdict.stepContent.summary)}">
+        <p class="acc-step-panel__summary">${pdict.stepContent.summary}</p>
+    </isif>
+</section>

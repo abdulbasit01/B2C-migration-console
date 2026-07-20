@@ -1,0 +1,7 @@
+<div class="acc-back-nav">
+    <a class="acc-back" href="${pdict.dashboardUrl}">&larr; ${Resource.msg('accelerator.wizard.back', 'accelerator', null)}</a>
+    <isif condition="${!empty(pdict.dataWizardSelectUrl) && !pdict.hideDataSelectionBack}">
+        <span class="acc-back-nav__sep" aria-hidden="true">|</span>
+        <a class="acc-back" href="${pdict.dataWizardSelectUrl}">&larr; ${Resource.msg('accelerator.datawizard.flow.back', 'accelerator', null)}</a>
+    </isif>
+</div>

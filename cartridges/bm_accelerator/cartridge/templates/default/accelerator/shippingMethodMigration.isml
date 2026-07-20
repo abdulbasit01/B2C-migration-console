@@ -1,0 +1,588 @@
+<isdecorate template="application/MenuFrame">
+<iscontent type="text/html" charset="UTF-8"/>
+<link rel="stylesheet" href="${pdict.cssUrl}"/>
+<script src="${pdict.attrPreflightJsUrl}"></script>
+<style>
+        .acc-info-box { background: #f4f6f9; border: 1px solid #dddbda; border-radius: 4px; padding: 16px 20px; font-size: 13px; line-height: 1.6; margin-bottom: 20px; }
+        .acc-info-box strong { color: #16325c; }
+        .acc-info-box code { background: #e0e5ee; padding: 1px 5px; border-radius: 3px; font-family: monospace; font-size: 12px; }
+        .acc-field-error { display: none; color: #c62828; font-size: 12px; margin-top: 4px; }
+        .cm-attr-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .cm-attr-table thead tr { background: #f4f6f9; border-bottom: 2px solid #dddbda; }
+        .cm-attr-table th { padding: 9px 14px; text-align: left; font-size: 11px; font-weight: 700; color: #54698d; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; }
+        .cm-attr-table td { padding: 9px 14px; border-bottom: 1px solid #f0f2f8; color: #3e3e3c; vertical-align: middle; }
+        .cm-attr-id-input { background: #eaf0fb; border: 1px solid #c8d6f0; border-radius: 3px; font-family: monospace; font-size: 12px; color: #16325c; font-weight: 600; padding: 3px 8px; width: 190px; outline: none; box-sizing: border-box; }
+        .cm-attr-type-select { font-size: 12px; padding: 4px 6px; border: 1px solid #c8d6f0; border-radius: 3px; background: #fff; color: #16325c; min-width: 140px; max-width: 180px; }
+        .cm-btn { padding: 7px 16px; font-size: 13px; font-weight: 600; border-radius: 4px; cursor: pointer; border: 1px solid transparent; display: inline-block; line-height: 1.4; white-space: nowrap; }
+        .cm-btn--primary { background: #0070d2; color: #fff; border-color: #005fb2; }
+        .cm-btn--primary:disabled { background: #97c3ea; border-color: #97c3ea; cursor: default; }
+        .cm-btn--revert { background: #fff; color: #c62828; border: 1px solid #f0b4b4; padding: 4px 12px; font-size: 12px; font-weight: 600; border-radius: 4px; cursor: pointer; }
+        .cm-btn--revert:disabled { color: #c8c8c8; border-color: #e8e8e8; background: #fafafa; pointer-events: none; }
+        .sm-methods-panel { margin: 0 0 28px; border: 1px solid #dddbda; border-radius: 6px; overflow: hidden; }
+        .sm-methods-panel__head { background: #f4f6f9; border-bottom: 1px solid #dddbda; padding: 11px 20px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+        .sm-methods-panel__body { padding: 14px 20px; }
+        .sm-methods-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .sm-methods-table thead tr { background: #f8f9fb; border-bottom: 2px solid #dddbda; }
+        .sm-methods-table th { padding: 8px 12px; text-align: left; font-size: 11px; font-weight: 700; color: #54698d; text-transform: uppercase; }
+        .sm-methods-table td { padding: 8px 12px; border-bottom: 1px solid #f0f2f8; vertical-align: middle; }
+        .sm-methods-table code { background: #eaf0fb; padding: 2px 6px; border-radius: 3px; font-size: 11px; }
+        .sm-methods-table tr.sm-methods-row--skipped { opacity: 0.55; }
+    </style>
+<div class="acc-page" id="acc-ship-root"
+     data-migration-ui="<isprint value="${pdict.migrationUiJson}" encoding="htmldoublequote"/>"
+     data-clear-attr-map-url="<isprint value="${pdict.clearAttrMapUrl}" encoding="htmldoublequote"/>">
+<div class="acc-shell">
+    <isinclude template="accelerator/components/header"/>
+    <isinclude template="accelerator/components/migrationBackLink"/>
+    <section class="acc-section">
+        <header class="acc-section__head">
+            <h2>Shipping Method Migration &mdash; <span class="acc-highlight">${pdict.sourceLabel} &rarr; SFCC</span></h2>
+            <p style="font-size:14px;color:#54698d;margin-top:6px;max-width:720px;">
+                <isprint value="${pdict.migrationUi.shipIntro}" encoding="off"/>
+            </p>
+        </header>
+
+        <div id="acc-attr-preflight" style="margin:24px 0 28px;border:1px solid #dddbda;border-radius:6px;overflow:hidden;">
+            <script type="application/json" id="acc-migration-ui-data"><isprint value="${pdict.migrationUiJson}" encoding="off"/></script>
+            <div style="background:#f4f6f9;border-bottom:1px solid #dddbda;padding:11px 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                <span style="font-weight:700;font-size:14px;color:#16325c;">Attribute Pre-flight Check</span>
+                <button id="acc-check-attrs-btn" type="button" class="acc-btn acc-btn--ghost">${pdict.migrationUi.attrCheckBtn}</button>
+                <span id="acc-attr-check-msg" style="font-size:13px;color:#54698d;font-weight:600;"></span>
+            </div>
+            <div style="padding:14px 20px;">
+                <p style="font-size:13px;color:#54698d;margin:0;">
+                    <isprint value="${pdict.migrationUi.shipAttrScan}" encoding="off"/>
+                </p>
+                <div id="acc-attr-results" style="display:none;margin-top:14px;"></div>
+            </div>
+        </div>
+
+        <div id="acc-methods-panel" class="sm-methods-panel">
+            <div class="sm-methods-panel__head">
+                <span style="font-weight:700;font-size:14px;color:#16325c;">Shipping Methods to Migrate</span>
+                <button id="acc-reload-methods-btn" type="button" class="acc-btn acc-btn--ghost">Load Methods</button>
+                <span id="acc-methods-summary" style="font-size:13px;color:#54698d;font-weight:600;"></span>
+            </div>
+            <div class="sm-methods-panel__body">
+                <p style="font-size:13px;color:#54698d;margin:0 0 12px;">
+                    Uncheck any method you want to <strong>skip</strong>. Migration only processes checked methods.
+                </p>
+                <div id="acc-methods-loading" style="font-size:13px;color:#54698d;"><isprint value="${pdict.migrationUi.loadMethodsHint}" encoding="off"/></div>
+                <div id="acc-methods-error" style="display:none;font-size:13px;color:#c62828;margin-bottom:10px;"></div>
+                <div id="acc-methods-table-wrap" style="display:none;border:1px solid #e0e5ee;border-radius:4px;overflow:auto;max-height:320px;">
+                    <table class="sm-methods-table">
+                        <thead>
+                            <tr>
+                                <th style="width:36px;text-align:center;"><input type="checkbox" id="acc-methods-select-all" checked title="Select all"/></th>
+                                <th>Name</th>
+                                <th>${pdict.migrationUi.shipKeyCol}</th>
+                                <th>SFCC Method ID</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="acc-methods-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <span id="acc-ctp-keys-error" class="acc-field-error" style="display:none;margin-bottom:12px;"></span>
+
+        <div class="acc-info-box">
+            <strong>How migration works:</strong><br/>
+            <isprint value="${pdict.migrationUi.shipHowWorks}" encoding="off"/>
+            uploads to WebDAV at
+            <code>/Impex/${pdict.impexPath}/</code>
+            (e.g. <code>shipping-method-YYYYMMDD-v001.xml</code>).<br/>
+            Then run <strong>Merchant Tools &rarr; Ordering &rarr; Import &amp; Export &rarr; Import Shipping Methods</strong>
+            and point the import at the uploaded file.
+        </div>
+        <ul class="acc-phases" id="full-phase-list" style="display:none;margin-bottom:24px;">
+            <li class="acc-phases__item acc-phases__item--pending" id="full-phase-build">
+                <div class="acc-phases__head">
+                    <span>Phase 1 &mdash; Build &amp; Upload XML Files</span>
+                    <span class="acc-phases__status" id="full-status-build">pending</span>
+                </div>
+                <p class="acc-phases__detail" id="full-detail-build"></p>
+                <div class="acc-progress"><div class="acc-progress__bar" id="full-bar-build" style="width:0%"></div></div>
+            </li>
+            <li class="acc-phases__item acc-phases__item--pending" id="full-phase-import">
+                <div class="acc-phases__head">
+                    <span>Phase 2 &mdash; Import in Business Manager</span>
+                    <span class="acc-phases__status" id="full-status-import">pending</span>
+                </div>
+                <p class="acc-phases__detail" id="full-detail-import">Waiting for Phase 1&hellip;</p>
+                <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;">
+                    <a href="${pdict.impexUrl}"
+                       target="_blank"
+                       class="acc-btn acc-btn--ghost"
+                       style="text-decoration:none;font-size:13px;display:inline-block;padding:7px 16px;">
+                        Open IMPEX
+                    </a>
+                </div>
+            </li>
+        </ul>
+        <div id="full-move-status" class="acc-callout acc-callout--info" style="display:none;margin-bottom:20px;"></div>
+        <div class="acc-move-actions">
+            <button type="button" id="full-start-btn" class="acc-btn acc-btn--primary">Start Migration (Build XML)</button>
+            <span id="full-move-overall" style="margin-left:14px;font-size:13px;color:#54698d;"></span>
+        </div>
+    </section>
+</div>
+
+<div id="acc-preflight-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center;">
+    <div style="background:#fff;border-radius:6px;padding:28px 32px;max-width:620px;width:90%;max-height:82vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.3);">
+        <h3 style="margin:0 0 6px;color:#16325c;font-size:16px;">${pdict.migrationUi.attrModalTitle}</h3>
+        <p style="font-size:13px;color:#54698d;margin:0 0 16px;">Create missing ShippingMethod attributes now, or skip and migrate without them.</p>
+        <div id="acc-modal-attr-list"></div>
+        <p id="acc-modal-status" style="font-size:12px;margin:12px 0 0;min-height:16px;"></p>
+        <div style="margin-top:16px;display:flex;gap:12px;justify-content:flex-end;flex-wrap:wrap;">
+            <button id="acc-modal-skip" type="button" class="acc-btn acc-btn--ghost">Skip &amp; Migrate</button>
+            <button id="acc-modal-create" type="button" class="acc-btn acc-btn--primary">Create Attributes &amp; Migrate</button>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    var LIST_METHODS_URL = '${pdict.listMethodsUrl}';
+    var FULL_BATCH_URL   = '${pdict.fullBatchUrl}';
+    var CHECK_ATTRS_URL  = '${pdict.checkAttrsUrl}';    var CREATE_ATTRS_URL = '${pdict.createAttrsUrl}';
+    var CLEAR_ATTR_MAP_URL = '${pdict.clearAttrMapUrl}';
+    var DELETE_ATTR_URL  = '${pdict.deleteAttrUrl}';
+    var DATA_WIZARD_ENTRY_URL = '${pdict.dataWizardEntryUrl}';
+    var IMPEX_PATH = '${pdict.impexPath}';
+
+    var uiEl = document.getElementById('acc-ship-root');
+    var MIGRATION_UI = (window.AccAttrPreflight && window.AccAttrPreflight.readMigrationUi)
+        ? window.AccAttrPreflight.readMigrationUi()
+        : (function () {
+            var raw = uiEl ? uiEl.getAttribute('data-migration-ui') : '';
+            try { return raw ? JSON.parse(raw) : {}; } catch (e) { return {}; }
+        })();
+    var SRC = MIGRATION_UI.sourceShort || 'Source';
+
+    var ctpMethods = [];
+    function escHtml(val) {
+        if (val === null || val === undefined) return '';
+        return String(val)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    function updateMethodsSummary() {
+        var summaryEl = document.getElementById('acc-methods-summary');
+        var checked   = getSelectedMethodRefs().length;
+        var total     = ctpMethods.length;
+        if (summaryEl) {
+            summaryEl.textContent = total
+                ? checked + ' of ' + total + ' selected for migration'
+                : '';
+        }
+    }
+
+    function getSelectedMethodRefs() {
+        var refs = [];
+        var cbs  = document.querySelectorAll('.acc-method-cb');
+        for (var i = 0; i < cbs.length; i++) {
+            if (cbs[i].checked) {
+                refs.push(cbs[i].getAttribute('data-ref'));
+            }
+        }
+        return refs;
+    }
+
+    function renderMethodsTable(methods) {
+        ctpMethods = methods || [];
+        var loadingEl = document.getElementById('acc-methods-loading');
+        var errorEl   = document.getElementById('acc-methods-error');
+        var wrapEl    = document.getElementById('acc-methods-table-wrap');
+        var tbody     = document.getElementById('acc-methods-tbody');
+
+        loadingEl.style.display = 'none';
+        errorEl.style.display   = 'none';
+
+        if (!ctpMethods.length) {
+            errorEl.textContent = MIGRATION_UI.noShipMethods || ('No shipping methods found in ' + SRC + '.');
+            errorEl.style.display = 'block';
+            wrapEl.style.display = 'none';
+            updateMethodsSummary();
+            return;
+        }
+
+        var html = '';
+        for (var i = 0; i < ctpMethods.length; i++) {
+            var m = ctpMethods[i];
+            var status = [];
+            if (m.active) status.push('Active'); else status.push('Inactive');
+            if (m.isDefault) status.push('Default');
+            html += '<tr class="sm-methods-row" data-idx="' + i + '">'
+                + '<td style="text-align:center;"><input type="checkbox" class="acc-method-cb" data-ref="'
+                + escHtml(m.ref) + '" data-idx="' + i + '" checked/></td>'
+                + '<td>' + escHtml(m.name) + '</td>'
+                + '<td>' + (m.key ? '<code>' + escHtml(m.key) + '</code>' : '<span style="color:#8a9ab8;">—</span>') + '</td>'
+                + '<td><code>' + escHtml(m.sfccMethodId) + '</code></td>'
+                + '<td style="font-size:12px;color:#54698d;">' + escHtml(status.join(', ')) + '</td>'
+                + '</tr>';
+        }
+        tbody.innerHTML = html;
+        wrapEl.style.display = 'block';
+
+        var selectAll = document.getElementById('acc-methods-select-all');
+        selectAll.checked = true;
+        selectAll.onchange = function () {
+            var cbs = document.querySelectorAll('.acc-method-cb');
+            for (var c = 0; c < cbs.length; c++) {
+                cbs[c].checked = selectAll.checked;
+                var row = cbs[c].closest('tr');
+                if (row) row.className = selectAll.checked ? 'sm-methods-row' : 'sm-methods-row sm-methods-row--skipped';
+            }
+            updateMethodsSummary();
+        };
+
+        var methodCbs = document.querySelectorAll('.acc-method-cb');
+        for (var j = 0; j < methodCbs.length; j++) {
+            methodCbs[j].addEventListener('change', function () {
+                var row = this.closest('tr');
+                if (row) {
+                    row.className = this.checked ? 'sm-methods-row' : 'sm-methods-row sm-methods-row--skipped';
+                }
+                var all = document.querySelectorAll('.acc-method-cb');
+                var checkedCount = 0;
+                for (var a = 0; a < all.length; a++) { if (all[a].checked) checkedCount++; }
+                selectAll.checked = checkedCount === all.length;
+                selectAll.indeterminate = checkedCount > 0 && checkedCount < all.length;
+                updateMethodsSummary();
+            });
+        }
+        updateMethodsSummary();
+    }
+
+    function loadShippingMethods(fromUserClick) {
+        var loadingEl = document.getElementById('acc-methods-loading');
+        var errorEl   = document.getElementById('acc-methods-error');
+        var wrapEl    = document.getElementById('acc-methods-table-wrap');
+        var reloadBtn = document.getElementById('acc-reload-methods-btn');
+        loadingEl.style.display = 'block';
+        loadingEl.textContent = fromUserClick
+            ? (MIGRATION_UI.reloadingShipMethods || ('Reloading shipping methods from ' + SRC + '...'))
+            : (MIGRATION_UI.loadingShipMethods || ('Loading shipping methods from ' + SRC + '...'));
+        errorEl.style.display = 'none';
+        wrapEl.style.display = 'none';
+        if (reloadBtn) {
+            reloadBtn.disabled = true;
+            reloadBtn.textContent = 'Loading...';
+        }
+
+        get(LIST_METHODS_URL, function (data) {
+            if (reloadBtn) {
+                reloadBtn.disabled = false;
+                reloadBtn.textContent = 'Reload Methods';
+            }
+            if (!data.ok) {
+                loadingEl.style.display = 'none';
+                errorEl.textContent = 'Failed to load methods: ' + (data.error || 'Unknown error');
+                errorEl.style.display = 'block';
+                ctpMethods = [];
+                updateMethodsSummary();
+                return;
+            }
+            renderMethodsTable(data.methods || []);
+        });
+    }
+
+    document.getElementById('acc-reload-methods-btn').addEventListener('click', function () {
+        loadShippingMethods(true);
+    });
+    document.getElementById('acc-methods-loading').style.display = 'block';
+    document.getElementById('acc-methods-table-wrap').style.display = 'none';
+
+    var checkAttrsBtn = document.getElementById('acc-check-attrs-btn');    var attrCheckMsg  = document.getElementById('acc-attr-check-msg');
+    var attrResults   = document.getElementById('acc-attr-results');
+    var pendingMissing = [];
+
+    function renderAttrResults(missing) {
+        attrResults.innerHTML = '';
+        attrResults.style.display = 'block';
+        if (!missing.length) {
+            attrResults.innerHTML = '<p style="color:#2e7d32;font-size:13px;margin:0;">' + (MIGRATION_UI.allAttrsExist || ('All ' + SRC + ' attributes already exist in SFCC.')) + '</p>';
+            return;
+        }
+        var html = '<p style="font-size:13px;color:#54698d;margin:0 0 10px;">'
+            + (window.AccAttrPreflight ? window.AccAttrPreflight.missingCountLabel(MIGRATION_UI, missing.length) : missing.length + (MIGRATION_UI.attrsMissingCount || ' attribute(s) missing in SFCC:'))
+            + '</p>';
+        html += '<table class="cm-attr-table"><thead><tr><th style="width:36px;"><input type="checkbox" id="acc-attr-select-all" checked/></th><th>Attribute ID</th><th>Label</th><th>' + (MIGRATION_UI.sourceTypeCol || 'Source Type') + '</th><th>SFCC Type</th><th>Action</th></tr></thead><tbody>';
+        for (var i = 0; i < missing.length; i++) {
+            var m = missing[i];
+            html += '<tr id="acc-attr-row-' + i + '"><td style="text-align:center;"><input type="checkbox" class="acc-attr-cb" data-idx="' + i + '" checked/></td>'
+                + '<td><input type="text" class="cm-attr-id-input" data-idx="' + i + '" value="' + m.id + '"/></td>'
+                + '<td>' + (m.label || m.id) + '</td><td>' + m.ctpType + '</td><td>'
+                + window.AccAttrPreflight.sfccTypeSelectHtml(m, i) + '</td>'
+                + '<td><button type="button" class="cm-btn--revert acc-attr-revert-btn" data-idx="' + i + '" disabled>Revert</button></td></tr>';
+        }
+        html += '</tbody></table><div style="margin-top:14px;"><button type="button" id="acc-create-attrs-btn" class="cm-btn cm-btn--primary">Create Selected Attributes</button>'
+            + '<span id="acc-create-attrs-msg" style="font-size:13px;color:#54698d;margin-left:12px;"></span></div>';
+        attrResults.innerHTML = html;
+        document.getElementById('acc-attr-select-all').addEventListener('change', function () {
+            var cbs = document.querySelectorAll('.acc-attr-cb');
+            for (var c = 0; c < cbs.length; c++) cbs[c].checked = this.checked;
+        });
+        document.getElementById('acc-create-attrs-btn').addEventListener('click', createSelectedAttributes);
+    }
+
+    function createSelectedAttributes() {
+        var selected = [];
+        var cbs = document.querySelectorAll('.acc-attr-cb');
+        for (var c = 0; c < cbs.length; c++) {
+            if (cbs[c].checked) {
+                var idx = parseInt(cbs[c].getAttribute('data-idx'), 10);
+                var orig = pendingMissing[idx];
+                var idInput = document.querySelector('.cm-attr-id-input[data-idx="' + idx + '"]');
+                var editedId = (idInput && idInput.value.trim()) ? idInput.value.trim() : orig.id;
+                selected.push({
+                    id: editedId,
+                    canonicalId: orig.id,
+                    label: orig.label,
+                    ctpType: orig.ctpType,
+                    sfccType: window.AccAttrPreflight.readSfccType(idx, orig.sfccType),
+                    idx: idx
+                });
+            }
+        }
+        if (!selected.length) return;
+        var btn = document.getElementById('acc-create-attrs-btn');
+        var msg = document.getElementById('acc-create-attrs-msg');
+        btn.disabled = true;
+        btn.textContent = 'Creating...';
+        post(CREATE_ATTRS_URL, 'attrs=' + encodeURIComponent(JSON.stringify(selected)), function (data) {
+            var r = (data && data.result) ? data.result : {};
+            var failed = r.failed || 0;
+            var created = r.created || 0;
+            var exists = r.alreadyExists || 0;
+            var results = r.results || [];
+            var ri;
+
+            if (window.AccAttrPreflight && window.AccAttrPreflight.setRowAttrFeedback) {
+                for (ri = 0; ri < selected.length; ri++) {
+                    var rowResult = results[ri] || null;
+                    if (rowResult) {
+                        window.AccAttrPreflight.setRowAttrFeedback(
+                            selected[ri].idx,
+                            rowResult.status,
+                            rowResult.canonicalId || selected[ri].canonicalId,
+                            rowResult.id || selected[ri].id,
+                            rowResult.message
+                        );
+                    }
+                }
+            }
+
+            btn.disabled = false;
+            btn.textContent = (data.ok && !failed) ? 'Done' : 'Retry';
+            if (!data.ok && data.error && !results.length) {
+                msg.textContent = data.error;
+                msg.style.color = '#c62828';
+                return;
+            }
+            var parts = [];
+            if (created) parts.push(created + ' created');
+            if (exists) parts.push(exists + ' already exists');
+            if (failed) parts.push(failed + ' failed');
+            msg.textContent = parts.length ? parts.join(', ') : (data.ok ? 'Done' : 'Failed');
+            if (r.errors && r.errors.length && failed) {
+                msg.textContent += ' — ' + r.errors.join('; ');
+            }
+            msg.style.color = failed || !data.ok ? '#c62828' : (exists && !created ? '#1565c0' : '#2e7d32');
+        });
+    }
+
+    checkAttrsBtn.addEventListener('click', function () {
+        checkAttrsBtn.disabled = true;
+        checkAttrsBtn.textContent = MIGRATION_UI.attrCheckingBtn || 'Checking...';
+        attrCheckMsg.textContent = '';
+        get(CHECK_ATTRS_URL, function (data) {
+            checkAttrsBtn.disabled = false;
+            checkAttrsBtn.textContent = MIGRATION_UI.attrRecheckBtn || 'Re-check';
+            if (!data.ok) {
+                attrCheckMsg.textContent = 'Error: ' + (data.error || 'Check failed');
+                attrCheckMsg.style.color = '#c62828';
+                return;
+            }
+            pendingMissing = data.missing || [];
+            attrCheckMsg.textContent = pendingMissing.length
+                ? pendingMissing.length + (MIGRATION_UI.attrsMissingBrief || ' missing.')
+                : (MIGRATION_UI.attrsAllInSync || 'All in sync.');
+            attrCheckMsg.style.color = pendingMissing.length ? '#e65100' : '#2e7d32';
+            renderAttrResults(pendingMissing);
+        });
+    });
+
+    if (window.AccAttrPreflight && window.AccAttrPreflight.bindClearOnLeave) {
+        window.AccAttrPreflight.bindClearOnLeave(CLEAR_ATTR_MAP_URL, 'Accelerator-ShippingMethodMigration');
+    }
+
+    function setPhase(prefix, id, state, detail, pct) {
+        var li = document.getElementById(prefix + '-phase-' + id);
+        var st = document.getElementById(prefix + '-status-' + id);
+        var det = document.getElementById(prefix + '-detail-' + id);
+        var bar = document.getElementById(prefix + '-bar-' + id);
+        if (!li) return;
+        li.className = 'acc-phases__item acc-phases__item--' + state;
+        if (st) st.textContent = state;
+        if (det && detail !== null) det.textContent = detail || '';
+        if (bar) bar.style.width = (pct || 0) + '%';
+    }
+
+    function post(url, params, onDone) {
+        var req = new XMLHttpRequest();
+        req.open('POST', url, true);
+        req.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+        req.onreadystatechange = function () {
+            if (req.readyState !== 4) return;
+            var data;
+            try { data = JSON.parse(req.responseText); } catch (e) { data = { ok: false, error: 'Parse error' }; }
+            onDone(data);
+        };
+        req.send(params);
+    }
+
+    function get(url, onDone) {
+        var req = new XMLHttpRequest();
+        req.open('GET', url, true);
+        req.onreadystatechange = function () {
+            if (req.readyState !== 4) return;
+            var data;
+            try { data = JSON.parse(req.responseText); } catch (e) { data = { ok: false, error: 'Parse error' }; }
+            onDone(data);
+        };
+        req.send(null);
+    }
+
+    var startBtn = document.getElementById('full-start-btn');
+    var fullOverallEl = document.getElementById('full-move-overall');
+    var fullPhaseList = document.getElementById('full-phase-list');
+    var fullBuilt = 0, fullFailed = 0, fullFiles = 0, fullRunning = false, fullFinished = false;
+    var lastUploadedFile = '';
+    var fullSelectedKeys = [];
+
+    function goToSelectData() {
+        window.location.href = DATA_WIZARD_ENTRY_URL;
+    }
+
+    var preflightModal = document.getElementById('acc-preflight-modal');
+    var modalAttrList = document.getElementById('acc-modal-attr-list');
+    var modalSkipBtn = document.getElementById('acc-modal-skip');
+    var modalCreateBtn = document.getElementById('acc-modal-create');
+    var modalStatus = document.getElementById('acc-modal-status');
+    var modalCallback = null;
+
+    function runPreflightThenMigrate(onContinue) {
+        get(CHECK_ATTRS_URL, function (data) {
+            if (!data.ok || !data.missing || !data.missing.length) { onContinue(); return; }
+            modalAttrList.innerHTML = '<p style="font-size:13px;color:#54698d;">'
+                + (window.AccAttrPreflight ? window.AccAttrPreflight.missingBriefLabel(MIGRATION_UI, data.missing.length) : data.missing.length + (MIGRATION_UI.attrsMissingBrief || ' attribute(s) missing.'))
+                + '</p>';
+            modalCallback = onContinue;
+            modalCreateBtn.style.display = '';
+            preflightModal.style.display = 'flex';
+        });
+    }
+
+    modalSkipBtn.addEventListener('click', function () {
+        preflightModal.style.display = 'none';
+        if (modalCallback) modalCallback();
+    });
+    modalCreateBtn.addEventListener('click', function () {
+        modalCreateBtn.disabled = true;
+        get(CHECK_ATTRS_URL, function (checkData) {
+            var missing = (checkData && checkData.missing) ? checkData.missing : [];
+            post(CREATE_ATTRS_URL, 'attrs=' + encodeURIComponent(JSON.stringify(missing)), function (data) {
+                modalCreateBtn.disabled = false;
+                if (!data.ok) { modalStatus.textContent = data.error || 'Failed'; return; }
+                preflightModal.style.display = 'none';
+                if (modalCallback) modalCallback();
+            });
+        });
+    });
+
+    function runFullBatch(offset, total) {
+        var pct = (total > 0) ? Math.round((offset / total) * 100) : 0;
+        setPhase('full', 'build', 'active', offset + ' / ' + (total || '?') + ' processed', pct);
+        post(
+            FULL_BATCH_URL,
+            'offset=' + offset
+            + '&keys=' + encodeURIComponent(JSON.stringify(fullSelectedKeys))
+            + '&singleFile=true',            function (data) {
+            if (!data.ok) { setPhase('full', 'build', 'error', data.error || 'Failed', pct); finalizeFull(false); return; }
+            fullBuilt += (data.built || 0);
+            fullFailed += (data.failed || 0);
+            if (data.fileName) {
+                lastUploadedFile = data.fileName;
+                fullFiles = 1;
+            }
+            fullOverallEl.textContent = '1 file, ' + fullBuilt + ' method(s) built'
+                + (lastUploadedFile ? ' — ' + lastUploadedFile : '');
+            if (!data.done && data.singleFile !== true) { runFullBatch(data.nextOffset, data.total); }
+            else {
+                setPhase('full', 'build', fullFailed ? 'warning' : 'done', '1 file uploaded', 100);
+                finalizeFull(true);
+            }
+        });
+    }
+
+    function finalizeFull(success) {
+        fullRunning = false;
+        startBtn.disabled = false;
+        if (success) {
+            fullFinished = true;
+            startBtn.textContent = 'Finish';
+            var importDetail = 'Files uploaded to /Impex/' + IMPEX_PATH + '/';
+            if (lastUploadedFile) {
+                importDetail += ' Latest: ' + lastUploadedFile + '.';
+            }
+            importDetail += ' ' + (MIGRATION_UI.shipImportHint || 'Import shipping methods in Business Manager and point the import at the uploaded XML file.');
+            setPhase('full', 'import', 'active', importDetail, null);
+        } else {
+            fullFinished = false;
+            startBtn.textContent = 'Start Migration (Build XML)';
+        }
+    }
+
+    startBtn.addEventListener('click', function () {
+        if (fullFinished) {
+            goToSelectData();
+            return;
+        }
+
+        var keys   = getSelectedMethodRefs();
+        var errEl  = document.getElementById('acc-ctp-keys-error');
+
+        if (!keys.length) {            errEl.textContent = 'Select at least one shipping method in the list above.';
+            errEl.style.display = 'block';
+            return;
+        }
+        errEl.style.display = 'none';
+
+        if (fullRunning) return;
+        fullFinished = false;
+        lastUploadedFile = '';
+        startBtn.disabled = true;
+        startBtn.textContent = MIGRATION_UI.checkingAttrs || 'Checking attributes...';
+        runPreflightThenMigrate(function () {
+            fullRunning = true;
+            fullBuilt = 0; fullFailed = 0; fullFiles = 0;
+            fullSelectedKeys = keys;
+            startBtn.textContent = 'Building...';
+            fullPhaseList.style.display = 'block';
+            setPhase('full', 'build', 'pending', '', 0);
+            setPhase('full', 'import', 'pending', null, 0);
+            runFullBatch(0, keys.length);
+        });
+    });
+}());
+</script>
+</div>
+</div>
+</isdecorate>

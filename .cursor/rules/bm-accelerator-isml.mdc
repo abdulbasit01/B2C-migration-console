@@ -1,0 +1,15 @@
+---
+description: SFCC ISML patterns for bm_accelerator templates
+globs: cartridges/bm_accelerator/**/*.isml
+alwaysApply: false
+---
+
+# ISML rules (bm_accelerator)
+
+- Match schema wizard patterns in `components/stepFetch.isml` — plain `<script>` blocks, no CDATA
+- Put step scripts at bottom of `dataWizard.isml`, not inside `<main>`
+- Use `<isif>` for conditional attributes; avoid ternary in `checked="..."` attrs
+- No bare `&` in checklist/item text — use "and"
+- Pass user-facing strings to JS via `pdict.dataWizardMsgs`, not nested `Resource.msg()` in `<script>`
+- `isloop` + `status="ls"` + `!ls.last` for comma-separated JS arrays (see `stepMove.isml`)
+- Data connect Continue: form POST to `Accelerator-DataWizardContinue` (not AJAX-only)

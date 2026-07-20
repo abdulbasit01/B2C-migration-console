@@ -1,0 +1,59 @@
+<isdecorate template="application/MenuFrame">
+<iscontent type="text/html" charset="UTF-8"/>
+<link rel="stylesheet" href="${pdict.cssUrl}"/>
+<div class="acc-page acc-page--wizard">
+<div class="acc-shell">
+        <isinclude template="accelerator/components/header"/>
+
+        <isinclude template="accelerator/components/migrationBackLink"/>
+
+        <isif condition="${!empty(pdict.dataType)}">
+            <div class="acc-data-context">
+                <span class="acc-data-context__label">${Resource.msg('accelerator.datawizard.migrating', 'accelerator', null)}</span>
+                <span class="acc-data-context__value">${pdict.dataType.label}</span>
+            </div>
+        </isif>
+
+        <isinclude template="accelerator/components/stepper"/>
+
+        <main class="acc-wizard-card">
+            <isif condition="${pdict.wizardStepKey == 'connect'}">
+                <isinclude template="accelerator/components/dataStepConnect"/>
+            <iselseif condition="${pdict.wizardStepKey == 'selectType'}"/>
+                <isinclude template="accelerator/components/dataStepSelectType"/>
+            <iselse/>
+                <isinclude template="accelerator/components/dataStepTypePlaceholder"/>
+            </isif>
+        </main>
+
+        <footer class="acc-wizard-footer">
+            <isif condition="${pdict.prevStep}">
+                <a class="acc-btn acc-btn--ghost"
+                   href="${pdict.wizardBaseUrl}&amp;step=${pdict.prevStepQuery}">
+                    ${Resource.msg('accelerator.wizard.previous', 'accelerator', null)}
+                </a>
+            <iselse/>
+                <span></span>
+            </isif>
+
+            <isif condition="${pdict.wizardStepKey == 'connect'}">
+                <button type="button" id="data-wizard-continue" class="acc-btn acc-btn--primary">
+                    ${Resource.msg('accelerator.wizard.continue', 'accelerator', null)}
+                </button>
+            <iselseif condition="${pdict.wizardStepKey == 'selectType'}"/>
+                <form id="acc-data-type-form" method="POST" action="<isprint value="${pdict.selectTypeUrl}" encoding="htmldoublequote"/>">
+                    <input type="hidden" name="platform" value="${pdict.platform.id}" />
+                    <input type="hidden" name="type" id="acc-selected-type" value="" />
+                    <button type="button" id="data-type-continue" class="acc-btn acc-btn--primary">
+                        ${Resource.msg('accelerator.wizard.continue', 'accelerator', null)}
+                    </button>
+                </form>
+            <iselseif condition="${pdict.isLastStep}"/>
+                <a class="acc-btn acc-btn--primary" href="${pdict.dashboardUrl}">
+                    ${Resource.msg('accelerator.datawizard.finish', 'accelerator', null)}
+                </a>
+            </isif>
+        </footer>
+    </div>
+</div>
+</isdecorate>

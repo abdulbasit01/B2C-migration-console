@@ -1,0 +1,10 @@
+<isdecorate template="application/MenuFrame">
+<iscontent type="text/html" charset="UTF-8"/>
+<link rel="stylesheet" href="${pdict.cssUrl}"/>
+<div class="acc-page">
+<div class="acc-shell">
+        <isinclude template="accelerator/components/header"/>
+        <p>Data wizard shell OK (diag=shell).</p>
+    </div>
+</div>
+</isdecorate>

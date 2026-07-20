@@ -1,0 +1,49 @@
+<isdecorate template="application/MenuFrame">
+<iscontent type="text/html" charset="UTF-8"/>
+<link rel="stylesheet" href="${pdict.cssUrl}"/>
+<div class="acc-page acc-page--wizard">
+<div class="acc-shell">
+        <isinclude template="accelerator/components/header"/>
+
+        <isinclude template="accelerator/components/migrationBackLink"/>
+
+        <isinclude template="accelerator/components/stepper"/>
+
+        <main class="acc-wizard-card">
+            <isif condition="${pdict.wizardStep.key === 'prod-connect'}">
+                <isinclude template="accelerator/components/stepProdConnect"/>
+            <iselseif condition="${pdict.wizardStep.key === 'prod-fetch'}"/>
+                <isinclude template="accelerator/components/stepProdFetch"/>
+            <iselseif condition="${pdict.wizardStep.key === 'prod-configure'}"/>
+                <isinclude template="accelerator/components/stepProdConfigure"/>
+            <iselseif condition="${pdict.wizardStep.key === 'prod-move'}"/>
+                <isinclude template="accelerator/components/stepProdMove"/>
+            <iselse/>
+                <isinclude template="accelerator/components/stepProdView"/>
+            </isif>
+        </main>
+
+        <footer class="acc-wizard-footer">
+            <isif condition="${pdict.prevStep !== null}">
+                <a class="acc-btn acc-btn--ghost"
+                   href="${pdict.wizardBaseUrl}?step=${pdict.prevStep}">
+                    Previous
+                </a>
+            <iselse/>
+                <span></span>
+            </isif>
+
+            <isif condition="${pdict.isLastStep}">
+                <a class="acc-btn acc-btn--primary" href="${pdict.dashboardUrl}">
+                    Finish
+                </a>
+            <iselseif condition="${pdict.nextStep !== null}"/>
+                <a id="acc-next-btn"
+                   class="acc-btn acc-btn--primary${pdict.wizardStep.key === 'prod-move' ? ' acc-btn--disabled' : ''}">
+                    Continue
+                </a>
+            </isif>
+        </footer>
+    </div>
+</div>
+</isdecorate>

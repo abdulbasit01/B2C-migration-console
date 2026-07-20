@@ -1,27 +1,30 @@
 <section class="acc-step-panel">
     <h2 class="acc-step-panel__title">
-        Step ${pdict.currentStep} &mdash; Connect to <span class="acc-highlight">${pdict.platform.name}</span>
+        Step <isprint value="${pdict.currentStep}" formatter="#"/> &mdash; Connect to <span class="acc-highlight">${pdict.platform.name}</span>
     </h2>
-    <p class="acc-step-panel__intro">${pdict.platform.connectHint}</p>
-    <form class="acc-form" action="#" method="post" onsubmit="return false;">
-        <isloop items="${pdict.platform.connectFields}" var="field">
-            <div class="acc-form__group">
-                <label class="acc-form__label" for="field-${field.name}">
-                    ${field.label}
-                    <isif condition="${field.required}"><span class="acc-required">*</span></isif>
-                </label>
-                <input
-                    class="acc-form__input"
-                    id="field-${field.name}"
-                    name="${field.name}"
-                    type="${field.type}"
-                    value="${field.value}"
-                    <isif condition="${field.required}">required="required"</isif>
-                />
-            </div>
-        </isloop>
-        <button type="button" class="acc-btn acc-btn--secondary acc-form__test">
-            &#9889; ${Resource.msg('accelerator.wizard.testConnection', 'accelerator', null)}
-        </button>
+    <p class="acc-step-panel__intro">${Resource.msg('accelerator.datawizard.connect.intro', 'accelerator', null)}</p>
+
+    <form class="acc-form" id="acc-connect-form" action="#" method="post" onsubmit="return false;">
+        <input type="hidden" name="platformId" value="${pdict.platform.id}" />
     </form>
+
+    <isif condition="${pdict.connectionSummary}">
+        <div class="acc-form" style="margin-top:12px;">
+            <isloop items="${pdict.connectionSummary.lines}" var="line">
+                <div class="acc-form__group" style="margin-bottom:8px;">
+                    <div class="acc-form__label">${line.label}</div>
+                    <div class="acc-form__input" style="background:#f3f2f2;border:1px solid #dddbda;">${line.value}</div>
+                </div>
+            </isloop>
+            <p class="acc-step-panel__intro" style="margin-top:12px;">
+                ${Resource.msg('accelerator.datawizard.connect.prefsHint', 'accelerator', null)}
+                <strong>${pdict.connectionSummary.prefsHint}</strong>
+            </p>
+            <isif condition="${!pdict.connectionSummary.configured}">
+                <div class="acc-status acc-status--error" role="status">
+                    ${Resource.msg('accelerator.datawizard.connect.notConfigured', 'accelerator', null)}
+                </div>
+            </isif>
+        </div>
+    </isif>
 </section>

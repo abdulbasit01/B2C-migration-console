@@ -1,0 +1,139 @@
+<section class="acc-step-panel">
+    <h2 class="acc-step-panel__title">
+        Step <isprint value="${pdict.currentStep}" formatter="#"/> &mdash; <span class="acc-highlight">Configure</span>
+    </h2>
+    <p class="acc-step-panel__intro">
+        Set up your product migration options. Products will be exported as SFCC catalog XML and uploaded via WebDAV.
+    </p>
+
+    <!-- SFCC Catalog ID -->
+    <div class="acc-form__group">
+        <label class="acc-form__label" for="prod-catalog-id">
+            SFCC Catalog ID <span class="acc-required">*</span>
+        </label>
+        <input id="prod-catalog-id" name="catalogId" type="text" class="acc-form__input"
+               value="${pdict.stepContent.catalogId}"
+               placeholder="e.g. storefront-catalog-en"
+               style="max-width:320px;"/>
+        <span id="prod-catalog-id-error" style="display:none;color:#c62828;font-size:12px;margin-top:4px;"></span>
+        <p style="font-size:12px;color:#54698d;margin-top:6px;">
+            The ID of the SFCC master catalog where products will be imported.
+            Find it under <strong>Merchant Tools &rarr; Products and Catalogs &rarr; Catalogs</strong>.
+        </p>
+    </div>
+
+    <!-- Price Book ID + Currency -->
+    <div style="display:flex;gap:20px;flex-wrap:wrap;">
+        <div class="acc-form__group" style="flex:1;min-width:200px;">
+            <label class="acc-form__label" for="prod-pricebook-id">
+                SFCC Price Book ID <span class="acc-required">*</span>
+            </label>
+            <input id="prod-pricebook-id" name="pricebookId" type="text" class="acc-form__input"
+                   value="${pdict.stepContent.pricebookId}"
+                   placeholder="e.g. list-prices"
+                   style="max-width:260px;"/>
+            <p style="font-size:12px;color:#54698d;margin-top:6px;">
+                Target price book where variant prices will be imported.
+                Find it under <strong>Merchant Tools &rarr; Products and Catalogs &rarr; Price Books</strong>.
+            </p>
+        </div>
+        <div class="acc-form__group" style="flex:0 0 140px;">
+            <label class="acc-form__label" for="prod-currency">
+                Currency <span class="acc-required">*</span>
+            </label>
+            <input id="prod-currency" name="currency" type="text" class="acc-form__input"
+                   value="${pdict.stepContent.currency}"
+                   placeholder="e.g. USD"
+                   style="max-width:100px;text-transform:uppercase;"/>
+            <p style="font-size:12px;color:#54698d;margin-top:6px;">ISO 4217 code.</p>
+        </div>
+    </div>
+
+    <!-- Inventory List ID -->
+    <div class="acc-form__group">
+        <label class="acc-form__label" for="prod-inventory-id">
+            SFCC Inventory List ID <span class="acc-required">*</span>
+        </label>
+        <input id="prod-inventory-id" name="inventoryListId" type="text" class="acc-form__input"
+               value="${pdict.stepContent.inventoryListId}"
+               placeholder="e.g. default-inventory"
+               style="max-width:320px;"/>
+        <p style="font-size:12px;color:#54698d;margin-top:6px;">
+            Target inventory list where stock levels will be imported.
+            Find it under <strong>Merchant Tools &rarr; Products and Catalogs &rarr; Inventory</strong>.
+        </p>
+    </div>
+
+    <!-- Info box -->
+    <div style="background:#f4f6f9;border:1px solid #dddbda;border-radius:4px;padding:16px 20px;font-size:13px;line-height:1.7;margin-top:20px;">
+        <strong>What happens next (per batch of 500 products):</strong><br/>
+        <strong>products-N.xml</strong> — SFCC catalog XML (product records, variants, images, category assignments, SEO page-url)<br/>
+        <strong>pricebook-N.xml</strong> — SFCC pricebook XML (variant prices extracted from CTP embedded prices)<br/>
+        <strong>inventory-N.xml</strong> — SFCC inventory XML (stock levels from CTP Inventory API)<br/>
+        All files are uploaded to
+        <code style="background:#e0e5ee;padding:1px 5px;border-radius:3px;font-family:monospace;font-size:12px;">/Impex/src/instance/ctp-product-migration/</code>
+        via WebDAV, then a BM import job processes them.
+    </div>
+</section>
+
+<script>
+(function () {
+    var SAVE_URL = '${URLUtils.url("Accelerator-SaveProdConfig")}';
+    var NEXT_URL = '${pdict.wizardBaseUrl}?step=${pdict.nextStep}';
+
+    var catalogIdEl   = document.getElementById('prod-catalog-id');
+    var pricebookIdEl = document.getElementById('prod-pricebook-id');
+    var currencyEl    = document.getElementById('prod-currency');
+    var inventoryIdEl = document.getElementById('prod-inventory-id');
+    var catalogIdErr  = document.getElementById('prod-catalog-id-error');
+    var nextBtn       = document.getElementById('acc-next-btn');
+
+    catalogIdEl.addEventListener('input', function () {
+        catalogIdEl.style.borderColor = '';
+        catalogIdErr.style.display = 'none';
+    });
+
+    if (nextBtn) {
+        nextBtn.addEventListener('click', function (e) {
+            e.preventDefault();
+            var catalogId      = catalogIdEl.value.trim();
+            var pricebookId    = pricebookIdEl.value.trim() || 'list-prices';
+            var currency       = currencyEl.value.trim().toUpperCase() || 'USD';
+            var inventoryListId = inventoryIdEl.value.trim() || 'default-inventory';
+
+            if (!catalogId) {
+                catalogIdEl.style.borderColor = '#c62828';
+                catalogIdErr.textContent  = 'Catalog ID is required.';
+                catalogIdErr.style.display = 'inline';
+                return;
+            }
+
+            nextBtn.textContent = 'Saving…';
+            nextBtn.style.pointerEvents = 'none';
+
+            var req = new XMLHttpRequest();
+            req.open('POST', SAVE_URL, true);
+            req.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+            req.onreadystatechange = function () {
+                if (req.readyState !== 4) return;
+                var data;
+                try { data = JSON.parse(req.responseText); } catch (ex) { data = { ok: false }; }
+                if (data.ok) {
+                    window.location.href = NEXT_URL;
+                } else {
+                    nextBtn.textContent = 'Continue';
+                    nextBtn.style.pointerEvents = '';
+                    catalogIdErr.textContent = 'Failed to save: ' + (data.error || 'unknown error');
+                    catalogIdErr.style.display = 'inline';
+                }
+            };
+            req.send(
+                'catalogId='        + encodeURIComponent(catalogId)
+                + '&pricebookId='   + encodeURIComponent(pricebookId)
+                + '&currency='      + encodeURIComponent(currency)
+                + '&inventoryListId=' + encodeURIComponent(inventoryListId)
+            );
+        });
+    }
+}());
+</script>

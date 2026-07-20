@@ -1,6 +1,11 @@
 node_modules/
 cartridges/*/cartridge/static/
 
+# Legacy generated config (no longer produced; keep ignored if present locally)
+cartridges/bm_accelerator/cartridge/scripts/migration/config.js
+cartridges/bm_accelerator/cartridge/scripts/migration/sfcc-credentials.js
+.env
+
 coverage/
 npm-debug.log
 cartridges.zip
@@ -17,6 +22,5 @@ test/appium/webdriver/config.json
 .history
 *.iml
 .idea
-test
 test/acceptance/report
 test/integration/config.json

@@ -2,5 +2,9 @@ node_modules/
 cartridges/**/cartridge/static/
 coverage/
 doc/
+docs/
 bin/
 codecept.conf.js
+scripts/
+cartridges/bm_accelerator/cartridge/scripts/migration/config.js
+cartridges/bm_accelerator/cartridge/scripts/migration/sfcc-credentials.js

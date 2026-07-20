@@ -1,0 +1,120 @@
+<section class="acc-step-panel">
+    <h2 class="acc-step-panel__title">
+        Step <isprint value="${pdict.currentStep}" formatter="#"/> &mdash;
+        <span class="acc-highlight">${Resource.msg('accelerator.ordermigration.configure.title', 'accelerator', null)}</span>
+    </h2>
+    <p class="acc-step-panel__intro">${Resource.msg('accelerator.ordermigration.configure.intro', 'accelerator', null)}</p>
+
+    <div id="acc-attr-preflight" class="acc-order-attr-preflight">
+        <script type="application/json" id="acc-migration-ui-data"><isprint value="${pdict.migrationUiJson}" encoding="off"/></script>
+        <div class="acc-order-attr-preflight__head">
+            <span class="acc-order-attr-preflight__title">Attribute Pre-flight Check</span>
+            <button id="acc-check-attrs-btn" type="button" class="acc-btn acc-btn--ghost">${pdict.migrationUi.attrCheckBtn}</button>
+            <span id="acc-attr-check-msg" class="acc-order-attr-preflight__msg"></span>
+        </div>
+        <div class="acc-order-attr-preflight__body">
+            <p class="acc-order-attr-preflight__intro">
+                <isprint value="${pdict.migrationUi.orderAttrScan}" encoding="off"/>
+                Standard order fields map to native SFCC order XML and are not listed here.
+            </p>
+            <div id="acc-attr-results" class="acc-order-attr-preflight__results" style="display:none;"></div>
+        </div>
+    </div>
+
+    <div class="acc-info-panel">
+        <h3 class="acc-info-panel__title">${Resource.msg('accelerator.ordermigration.pipeline.heading', 'accelerator', null)}</h3>
+        <ol class="acc-pipeline-preview">
+            <isloop items="${pdict.exportPhases}" var="phase">
+                <li class="acc-pipeline-preview__item">${phase.label}</li>
+            </isloop>
+        </ol>
+    </div>
+
+    <form class="acc-form acc-form--enriched" id="acc-order-config-form" method="post" action="${pdict.orderConfigUrl}">
+        <input type="hidden" name="platformId" value="${pdict.platform.id}" />
+
+        <fieldset class="acc-fieldset">
+            <legend class="acc-fieldset__legend">${Resource.msg('accelerator.ordermigration.years', 'accelerator', null)}</legend>
+            <div class="acc-chip-group" role="radiogroup" aria-label="${Resource.msg('accelerator.ordermigration.years', 'accelerator', null)}">
+                <isif condition="${pdict.orderYears == '1'}">
+                    <label class="acc-chip acc-chip--selected">
+                        <input type="radio" name="years" value="1" checked="checked"/>
+                        1 ${Resource.msg('accelerator.ordermigration.year', 'accelerator', null)}
+                    </label>
+                <iselse/>
+                    <label class="acc-chip">
+                        <input type="radio" name="years" value="1"/>
+                        1 ${Resource.msg('accelerator.ordermigration.year', 'accelerator', null)}
+                    </label>
+                </isif>
+                <isif condition="${pdict.orderYears == '2'}">
+                    <label class="acc-chip acc-chip--selected">
+                        <input type="radio" name="years" value="2" checked="checked"/>
+                        2 ${Resource.msg('accelerator.ordermigration.years.plural', 'accelerator', null)}
+                    </label>
+                <iselse/>
+                    <label class="acc-chip">
+                        <input type="radio" name="years" value="2"/>
+                        2 ${Resource.msg('accelerator.ordermigration.years.plural', 'accelerator', null)}
+                    </label>
+                </isif>
+                <isif condition="${pdict.orderYears == '3'}">
+                    <label class="acc-chip acc-chip--selected">
+                        <input type="radio" name="years" value="3" checked="checked"/>
+                        3 ${Resource.msg('accelerator.ordermigration.years.plural', 'accelerator', null)}
+                    </label>
+                <iselse/>
+                    <label class="acc-chip">
+                        <input type="radio" name="years" value="3"/>
+                        3 ${Resource.msg('accelerator.ordermigration.years.plural', 'accelerator', null)}
+                    </label>
+                </isif>
+            </div>
+        </fieldset>
+
+        <div class="acc-form__group">
+            <label class="acc-form__label" for="order-order-state">${Resource.msg('accelerator.ordermigration.orderstate', 'accelerator', null)}</label>
+            <select id="order-order-state" name="orderState" class="acc-form__input">
+                <isloop items="${pdict.orderStateFilters}" var="filter">
+                    <isif condition="${pdict.orderOrderState == filter.value}">
+                        <option value="${filter.value}" selected="selected">${filter.label}</option>
+                    <iselse/>
+                        <option value="${filter.value}">${filter.label}</option>
+                    </isif>
+                </isloop>
+            </select>
+            <p class="acc-form__hint">${Resource.msg('accelerator.ordermigration.orderstate.hint', 'accelerator', null)}</p>
+        </div>
+
+        <div class="acc-form__group">
+            <label class="acc-form__label" for="order-payment-state">${Resource.msg('accelerator.ordermigration.paymentstate', 'accelerator', null)}</label>
+            <select id="order-payment-state" name="paymentState" class="acc-form__input">
+                <isloop items="${pdict.paymentStateFilters}" var="filter">
+                    <isif condition="${pdict.orderPaymentState == filter.value}">
+                        <option value="${filter.value}" selected="selected">${filter.label}</option>
+                    <iselse/>
+                        <option value="${filter.value}">${filter.label}</option>
+                    </isif>
+                </isloop>
+            </select>
+            <p class="acc-form__hint">${Resource.msg('accelerator.ordermigration.paymentstate.hint', 'accelerator', null)}</p>
+        </div>
+
+        <div class="acc-form__group">
+            <label class="acc-form__label" for="order-max-count">${Resource.msg('accelerator.ordermigration.maxcount', 'accelerator', null)}</label>
+            <input type="number" id="order-max-count" name="maxCount" class="acc-form__input"
+                   min="1" value="${pdict.orderMaxCount}"
+                   placeholder="${Resource.msg('accelerator.ordermigration.maxcount.placeholder', 'accelerator', null)}"/>
+            <p class="acc-form__hint">${Resource.msg('accelerator.ordermigration.maxcount.hint', 'accelerator', null)}</p>
+        </div>
+
+        <div class="acc-order-count" id="acc-order-count" aria-live="polite">
+            <h3 class="acc-order-count__title">${Resource.msg('accelerator.ordermigration.count.heading', 'accelerator', null)}</h3>
+            <p class="acc-order-count__value acc-order-count__value--idle" id="acc-order-count-value">${Resource.msg('accelerator.ordermigration.count.prompt', 'accelerator', null)}</p>
+            <p class="acc-order-count__detail acc-hidden" id="acc-order-count-export"></p>
+            <button type="button" id="acc-order-count-btn" class="acc-btn acc-btn--secondary acc-order-count__btn">
+                ${Resource.msg('accelerator.ordermigration.count.button', 'accelerator', null)}
+            </button>
+        </div>
+    </form>
+</section>

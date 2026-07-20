@@ -1,0 +1,273 @@
+<isdecorate template="application/MenuFrame">
+<iscontent type="text/html" charset="UTF-8"/>
+<link rel="stylesheet" href="${pdict.cssUrl}"/>
+<div class="acc-page acc-page--wizard">
+<div class="acc-shell">
+        <isinclude template="accelerator/components/dataWizardChrome"/>
+
+        <main class="acc-wizard-card">
+            <isinclude template="accelerator/components/dataStepOrderConfigure"/>
+        </main>
+
+        <footer class="acc-wizard-footer">
+            <isinclude template="accelerator/components/dataWizardNavPrev"/>
+            <button type="submit" form="acc-order-config-form" class="acc-btn acc-btn--primary">
+                ${Resource.msg('accelerator.wizard.continue', 'accelerator', null)}
+            </button>
+        </footer>
+
+        <isinclude template="accelerator/components/dataWizardConfig"/>
+    </div>
+    <script src="${pdict.attrPreflightJsUrl}"></script>
+    <script>
+    (function () {
+        var COUNT_URL        = '${pdict.orderCountUrl}';
+        var CHECK_ATTRS_URL  = '${pdict.checkAttrsUrl}';
+        var CREATE_ATTRS_URL = '${pdict.createAttrsUrl}';
+        var CLEAR_ATTR_MAP_URL = '${pdict.clearAttrMapUrl}';
+        var pendingMissing   = [];
+
+        if (window.AccAttrPreflight && window.AccAttrPreflight.bindClearOnLeave) {
+            window.AccAttrPreflight.bindClearOnLeave(CLEAR_ATTR_MAP_URL, 'Accelerator-OrderMigration');
+        }
+
+        function escHtml(val) {
+            if (val === null || val === undefined) return '';
+            return String(val)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        function getJson(url, onDone) {
+            var req = new XMLHttpRequest();
+            req.open('GET', url, true);
+            req.onreadystatechange = function () {
+                if (req.readyState !== 4) return;
+                var data;
+                try { data = JSON.parse(req.responseText); } catch (e) { data = { ok: false, error: 'Invalid response' }; }
+                onDone(data);
+            };
+            req.onerror = function () { onDone({ ok: false, error: 'Network error' }); };
+            req.send(null);
+        }
+
+        function cfgVal(id) {
+            var el = document.getElementById(id);
+            return el ? el.value : '';
+        }
+
+        function postForm(url, params, onDone) {
+            var req = new XMLHttpRequest();
+            req.open('POST', url, true);
+            req.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+            req.onreadystatechange = function () {
+                if (req.readyState !== 4) return;
+                var data;
+                try { data = JSON.parse(req.responseText); } catch (e) { data = { ok: false, error: 'Invalid response' }; }
+                onDone(data, req.status);
+            };
+            req.onerror = function () {
+                onDone({ ok: false, error: 'Network error' }, 0);
+            };
+            req.send(params);
+        }
+
+        function fmtNum(n) {
+            return String(n || 0).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+        }
+
+        function init() {
+            var countBtn      = document.getElementById('acc-order-count-btn');
+            var countValueEl  = document.getElementById('acc-order-count-value');
+            var countExportEl = document.getElementById('acc-order-count-export');
+            var msgs = {
+                loading: cfgVal('acc-dw-msg-count-loading'),
+                prompt:  cfgVal('acc-dw-msg-count-prompt'),
+                error:   cfgVal('acc-dw-msg-count-error'),
+                none:    cfgVal('acc-dw-msg-count-none'),
+                match:   cfgVal('acc-dw-msg-count-match'),
+                export:  cfgVal('acc-dw-msg-count-export')
+            };
+
+            function setCountExportVisible(show) {
+                if (!countExportEl) return;
+                if (show) {
+                    countExportEl.className = countExportEl.className.replace(' acc-hidden', '');
+                } else if (countExportEl.className.indexOf('acc-hidden') === -1) {
+                    countExportEl.className += ' acc-hidden';
+                }
+            }
+
+            function showCountIdle() {
+                if (!countValueEl) return;
+                countValueEl.textContent = msgs.prompt || 'Set your filters, then check how many orders match.';
+                countValueEl.className = 'acc-order-count__value acc-order-count__value--idle';
+                setCountExportVisible(false);
+            }
+
+            function showCountLoading() {
+                if (!countValueEl) return;
+                countValueEl.textContent = msgs.loading || ((window.AccAttrPreflight && window.AccAttrPreflight.readMigrationUi)
+                    ? window.AccAttrPreflight.readMigrationUi().orderCountChecking : 'Checking...');
+                countValueEl.className = 'acc-order-count__value acc-order-count__value--loading';
+                setCountExportVisible(false);
+            }
+
+            function showCountError(message) {
+                if (!countValueEl) return;
+                countValueEl.textContent = message || msgs.error || 'Unable to count orders';
+                countValueEl.className = 'acc-order-count__value acc-order-count__value--error';
+                setCountExportVisible(false);
+            }
+
+            function showCountResult(data) {
+                if (!countValueEl) return;
+                var total = data.total || 0;
+                var exportCount = data.exportCount || 0;
+                var maxEl = document.getElementById('order-max-count');
+                var maxVal = maxEl && maxEl.value ? parseInt(maxEl.value, 10) : 0;
+
+                if (total === 0) {
+                    countValueEl.textContent = msgs.none || 'No orders match your filters';
+                    countValueEl.className = 'acc-order-count__value acc-order-count__value--empty';
+                    setCountExportVisible(false);
+                    return;
+                }
+
+                countValueEl.textContent = fmtNum(total) + ' ' + (msgs.match || 'orders match your filters');
+                countValueEl.className = 'acc-order-count__value';
+
+                if (maxVal > 0 && exportCount < total && countExportEl) {
+                    countExportEl.textContent = fmtNum(exportCount) + ' ' + (msgs.export || 'orders will be exported (max count applied)');
+                    setCountExportVisible(true);
+                } else {
+                    setCountExportVisible(false);
+                }
+            }
+
+            function getFilterParams() {
+                var yearsEl = document.querySelector('#acc-order-config-form input[name="years"]:checked');
+                var stateEl = document.getElementById('order-order-state');
+                var payEl   = document.getElementById('order-payment-state');
+                var maxEl   = document.getElementById('order-max-count');
+                var body    = 'years=' + encodeURIComponent(yearsEl ? yearsEl.value : '1');
+                if (stateEl && stateEl.value) body += '&orderState=' + encodeURIComponent(stateEl.value);
+                if (payEl && payEl.value) body += '&paymentState=' + encodeURIComponent(payEl.value);
+                if (maxEl && maxEl.value) body += '&maxCount=' + encodeURIComponent(maxEl.value);
+                return body;
+            }
+
+            function fetchOrderCount() {
+                if (!COUNT_URL || !countValueEl) {
+                    showCountError(msgs.error || 'Unable to count orders');
+                    return;
+                }
+
+                showCountLoading();
+                if (countBtn) countBtn.disabled = true;
+
+                postForm(COUNT_URL, getFilterParams(), function (data) {
+                    if (countBtn) countBtn.disabled = false;
+                    if (!data.ok) {
+                        showCountError((msgs.error || 'Unable to count orders') + (data.error ? ': ' + data.error : ''));
+                        return;
+                    }
+                    showCountResult(data);
+                });
+            }
+
+            var chips = document.querySelectorAll('.acc-chip input[type="radio"]');
+            var ci = 0;
+            while (ci < chips.length) {
+                chips[ci].addEventListener('change', function () {
+                    var labels = document.querySelectorAll('.acc-chip');
+                    var li = 0;
+                    while (li < labels.length) {
+                        labels[li].className = labels[li].className.replace(' acc-chip--selected', '');
+                        li += 1;
+                    }
+                    if (this.parentNode) {
+                        var cn = this.parentNode.className || '';
+                        if (cn.indexOf('acc-chip--selected') === -1) {
+                            this.parentNode.className = cn + ' acc-chip--selected';
+                        }
+                    }
+                    showCountIdle();
+                });
+                ci += 1;
+            }
+
+            var stateEl = document.getElementById('order-order-state');
+            var payEl   = document.getElementById('order-payment-state');
+            var maxEl   = document.getElementById('order-max-count');
+            if (stateEl) stateEl.addEventListener('change', showCountIdle);
+            if (payEl) payEl.addEventListener('change', showCountIdle);
+            if (maxEl) maxEl.addEventListener('input', showCountIdle);
+
+            if (countBtn) {
+                countBtn.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    fetchOrderCount();
+                });
+            }
+
+            var checkAttrsBtn = document.getElementById('acc-check-attrs-btn');
+            var attrCheckMsg  = document.getElementById('acc-attr-check-msg');
+            var attrResults   = document.getElementById('acc-attr-results');
+
+            function renderAttrResults(missing) {
+                if (!attrResults) return;
+                if (!window.AccAttrPreflight || !window.AccAttrPreflight.renderMissingResults) {
+                    attrResults.innerHTML = '<p style="color:#c62828;font-size:13px;margin:0;">Attribute helper script failed to load.</p>';
+                    attrResults.style.display = 'block';
+                    return;
+                }
+                var ui = (window.AccAttrPreflight && window.AccAttrPreflight.readMigrationUi)
+                    ? window.AccAttrPreflight.readMigrationUi() : {};
+                window.AccAttrPreflight.renderMissingResults({
+                    container:      attrResults,
+                    missing:        missing,
+                    ui:             ui,
+                    createAttrsUrl: CREATE_ATTRS_URL,
+                    post:           postForm,
+                    getPending:     function () { return pendingMissing; }
+                });
+            }
+
+            if (checkAttrsBtn && CHECK_ATTRS_URL) {
+                checkAttrsBtn.addEventListener('click', function () {
+                    checkAttrsBtn.disabled = true;
+                    checkAttrsBtn.textContent = 'Checking...';
+                    if (attrCheckMsg) attrCheckMsg.textContent = '';
+                    getJson(CHECK_ATTRS_URL, function (data) {
+                        checkAttrsBtn.disabled = false;
+                        checkAttrsBtn.textContent = 'Re-check';
+                        if (!data.ok) {
+                            if (attrCheckMsg) {
+                                attrCheckMsg.textContent = 'Error: ' + (data.error || 'Check failed');
+                                attrCheckMsg.style.color = '#c62828';
+                            }
+                            return;
+                        }
+                        pendingMissing = data.missing || [];
+                        if (attrCheckMsg) {
+                            attrCheckMsg.textContent = pendingMissing.length ? (pendingMissing.length + ' missing.') : 'All in sync.';
+                            attrCheckMsg.style.color = pendingMissing.length ? '#e65100' : '#2e7d32';
+                        }
+                        renderAttrResults(pendingMissing);
+                    });
+                });
+            }
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
+        }
+    }());
+    </script>
+</div>
+</isdecorate>
