@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<metadata xmlns="http://www.demandware.com/xml/impex/metadata/2006-10-31">
+    <type-extension type-id="SitePreferences">
+        <custom-attribute-definitions>
+            <attribute-definition attribute-id="rcMigShopifyStoreUrl">
+                <display-name xml:lang="x-default">Shopify Store URL</display-name>
+                <description xml:lang="x-default">e.g. https://your-store.myshopify.com</description>
+                <type>string</type>
+                <mandatory-flag>false</mandatory-flag>
+                <externally-managed-flag>false</externally-managed-flag>
+            </attribute-definition>
+            <attribute-definition attribute-id="rcMigShopifyClientId">
+                <display-name xml:lang="x-default">Shopify Client ID</display-name>
+                <type>string</type>
+                <mandatory-flag>false</mandatory-flag>
+                <externally-managed-flag>false</externally-managed-flag>
+            </attribute-definition>
+            <attribute-definition attribute-id="rcMigShopifyClientSecret">
+                <display-name xml:lang="x-default">Shopify Client Secret / Access Token</display-name>
+                <description xml:lang="x-default">Client secret (shpss_) or Admin API access token (shpat_)</description>
+                <type>password</type>
+                <mandatory-flag>false</mandatory-flag>
+                <externally-managed-flag>false</externally-managed-flag>
+            </attribute-definition>
+            <attribute-definition attribute-id="rcMigShopifyApiVersion">
+                <display-name xml:lang="x-default">Shopify API Version</display-name>
+                <type>string</type>
+                <mandatory-flag>false</mandatory-flag>
+                <externally-managed-flag>false</externally-managed-flag>
+                <default-value>2025-01</default-value>
+            </attribute-definition>
+
+            <attribute-definition attribute-id="rcMigCtpProjectKey">
+                <display-name xml:lang="x-default">commercetools Project Key</display-name>
+                <type>string</type>
+                <mandatory-flag>false</mandatory-flag>
+                <externally-managed-flag>false</externally-managed-flag>
+            </attribute-definition>
+            <attribute-definition attribute-id="rcMigCtpClientId">
+                <display-name xml:lang="x-default">commercetools Client ID</display-name>
+                <type>string</type>
+                <mandatory-flag>false</mandatory-flag>
+                <externally-managed-flag>false</externally-managed-flag>
+            </attribute-definition>
+            <attribute-definition attribute-id="rcMigCtpClientSecret">
+                <display-name xml:lang="x-default">commercetools Client Secret</display-name>
+                <type>password</type>
+                <mandatory-flag>false</mandatory-flag>
+                <externally-managed-flag>false</externally-managed-flag>
+            </attribute-definition>
+            <attribute-definition attribute-id="rcMigCtpAuthUrl">
+                <display-name xml:lang="x-default">commercetools Auth URL</display-name>
+                <type>string</type>
+                <mandatory-flag>false</mandatory-flag>
+                <externally-managed-flag>false</externally-managed-flag>
+                <default-value>https://auth.us-central1.gcp.commercetools.com</default-value>
+            </attribute-definition>
+            <attribute-definition attribute-id="rcMigCtpApiUrl">
+                <display-name xml:lang="x-default">commercetools API URL</display-name>
+                <type>string</type>
+                <mandatory-flag>false</mandatory-flag>
+                <externally-managed-flag>false</externally-managed-flag>
+                <default-value>https://api.us-central1.gcp.commercetools.com</default-value>
+            </attribute-definition>
+
+            <attribute-definition attribute-id="rcMigOcapiClientId">
+                <display-name xml:lang="x-default">OCAPI / BM API Client ID</display-name>
+                <description xml:lang="x-default">Account Manager API client ID used for OCAPI Data API calls</description>
+                <type>string</type>
+                <mandatory-flag>false</mandatory-flag>
+                <externally-managed-flag>false</externally-managed-flag>
+            </attribute-definition>
+            <attribute-definition attribute-id="rcMigBmUsername">
+                <display-name xml:lang="x-default">BM Username (OCAPI User Grant)</display-name>
+                <description xml:lang="x-default">Used for OCAPI user-grant and WebDAV uploads</description>
+                <type>string</type>
+                <mandatory-flag>false</mandatory-flag>
+                <externally-managed-flag>false</externally-managed-flag>
+            </attribute-definition>
+            <attribute-definition attribute-id="rcMigBmPassword">
+                <display-name xml:lang="x-default">BM Password (OCAPI User Grant)</display-name>
+                <type>password</type>
+                <mandatory-flag>false</mandatory-flag>
+                <externally-managed-flag>false</externally-managed-flag>
+            </attribute-definition>
+            <attribute-definition attribute-id="rcMigOcapiVersion">
+                <display-name xml:lang="x-default">OCAPI Data API Version</display-name>
+                <type>string</type>
+                <mandatory-flag>false</mandatory-flag>
+                <externally-managed-flag>false</externally-managed-flag>
+                <default-value>v25_6</default-value>
+            </attribute-definition>
+        </custom-attribute-definitions>
+        <group-definitions>
+            <attribute-group group-id="RCMigrationConsole">
+                <display-name xml:lang="x-default">B2C Migration Console</display-name>
+                <attribute attribute-id="rcMigShopifyStoreUrl"/>
+                <attribute attribute-id="rcMigShopifyClientId"/>
+                <attribute attribute-id="rcMigShopifyClientSecret"/>
+                <attribute attribute-id="rcMigShopifyApiVersion"/>
+                <attribute attribute-id="rcMigCtpProjectKey"/>
+                <attribute attribute-id="rcMigCtpClientId"/>
+                <attribute attribute-id="rcMigCtpClientSecret"/>
+                <attribute attribute-id="rcMigCtpAuthUrl"/>
+                <attribute attribute-id="rcMigCtpApiUrl"/>
+                <attribute attribute-id="rcMigOcapiClientId"/>
+                <attribute attribute-id="rcMigBmUsername"/>
+                <attribute attribute-id="rcMigBmPassword"/>
+                <attribute attribute-id="rcMigOcapiVersion"/>
+            </attribute-group>
+        </group-definitions>
+    </type-extension>
+</metadata>

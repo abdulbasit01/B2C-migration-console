@@ -116,13 +116,8 @@ var PLATFORMS = [
         featured:    true,
         description: 'Migrate commercetools customers, products, categories, orders, and price lists into Salesforce B2C Commerce, mapping catalogs/pricing models with moderate transformation and extensions.',
         iconClass:   'platform-icon--commercetools',
-        connectHint: 'Credentials are pre-loaded from your project configuration.',
-        connectFields: [
-            { name: 'projectKey',   label: 'Project key',   type: 'text',     required: true,  value: '' },
-            { name: 'clientId',     label: 'Client ID',     type: 'text',     required: true,  value: '' },
-            { name: 'clientSecret', label: 'Client secret', type: 'password', required: true,  value: '' },
-            { name: 'apiUrl',       label: 'API URL',       type: 'text',     required: true,  value: '' }
-        ]
+        connectHint: 'Configure credentials under Site Preferences → B2C Migration Console, then test the connection.',
+        connectFields: []
     },
     {
         id:          'shopify',
@@ -132,13 +127,8 @@ var PLATFORMS = [
         confidence:  92,
         description: 'Migrate Shopify customers, products, collections, orders, and price lists into Salesforce B2C Commerce with high-confidence field mapping.',
         iconClass:   'platform-icon--shopify',
-        connectHint: 'Install the app on your store in Shopify Partners, then enter Client ID and Secret. Alternatively, paste an Admin API access token (shpat_…) in the Secret field.',
-        connectFields: [
-            { name: 'storeUrl',      label: 'Store URL',    type: 'text',     required: true,  value: '', placeholder: 'https://your-store.myshopify.com' },
-            { name: 'clientId',      label: 'Client ID',    type: 'text',     required: false, value: '', placeholder: '' },
-            { name: 'clientSecret',  label: 'Client secret or Admin API token', type: 'password', required: true,  value: '', placeholder: 'shpss_… or shpat_…' },
-            { name: 'apiVersion',    label: 'API version',  type: 'text',     required: false, value: '2026-07', placeholder: '' }
-        ]
+        connectHint: 'Configure Shopify credentials under Site Preferences → B2C Migration Console, then test the connection.',
+        connectFields: []
     },
     {
         id:          'bigcommerce',
@@ -148,12 +138,8 @@ var PLATFORMS = [
         confidence:  88,
         description: 'Migrate BigCommerce B2C customers, catalog, categories, orders, and contract pricing into Salesforce B2C Commerce.',
         iconClass:   'platform-icon--bigcommerce',
-        connectHint: 'Provide your BigCommerce store hash and API credentials.',
-        connectFields: [
-            { name: 'storeHash',   label: 'Store hash',   type: 'text',     required: true, value: '' },
-            { name: 'clientId',    label: 'Client ID',    type: 'text',     required: true, value: '' },
-            { name: 'accessToken', label: 'Access token', type: 'password', required: true, value: '' }
-        ]
+        connectHint: 'Provide your BigCommerce store hash and API credentials in Site Preferences when this platform is enabled.',
+        connectFields: []
     },
     {
         id:          'sap',

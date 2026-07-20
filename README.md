@@ -1,140 +1,84 @@
-# Storefront Reference Architecture (SFRA)
+# B2C Migration Console
 
-This is a repository for the Storefront Reference Architecture reference application.
+Royal Cyber Salesforce B2C Commerce **Business Manager** cartridge (`bm_accelerator`) for schema and data migration from **commercetools** and **Shopify**.
 
-Storefront Reference Architecture has a base cartridge (`app_storefront_base`) provided by Commerce Cloud that is never directly customized or edited. Instead, customization cartridges are layered on top of the base cartridge. This change is intended to allow for easier adoption of new features and bug fixes.
-Storefront Reference Architecture supplies an [plugin_applepay](https://github.com/SalesforceCommerceCloud/plugin-applepay) plugin cartridge to demonstrate how to layer customizations for the reference application.
+**Cartridge version:** 1.0.0
 
-Your feedback on the ease-of-use and limitations of this new architecture is invaluable during the developer preview. Particularly, feedback on any issues you encounter or workarounds you develop for efficiently customizing the base cartridge without editing it directly.
+## What it does
 
-# The latest version
+| Flow | Entry | Purpose |
+|------|-------|---------|
+| Schema wizard | Merchant Tools → B2C Migration → Start Migration Wizard | Fetch source attributes/metafields, map, create SFCC custom attributes |
+| Data wizard | Same dashboard → Data Migration | Export orders, customers, products, inventory, price books, tax, stores, shipping methods, categories |
+| Product wizard | B2C Migration → Product Catalog Wizard | Product-focused connect → configure → move |
+| Config | Site Preferences → **B2C Migration Console** | All runtime credentials (Shopify, CTP, OCAPI/BM) |
 
-The latest version of SFRA is 7.0.1
+Credentials are **not** entered in wizard forms. Configure Site Preferences, then use **Test Connection**.
 
-# Getting Started
+## Documentation
 
-1. Clone this repository.
+| Doc | Description |
+|-----|-------------|
+| [documentation/README.md](documentation/README.md) | Package overview |
+| [documentation/link_installation.md](documentation/link_installation.md) | Install, metadata import, cartridge path, preferences |
+| [documentation/link_user_guide.md](documentation/link_user_guide.md) | Operator guide |
+| [documentation/LINK_CERTIFICATION_CHANGE_REPORT.md](documentation/LINK_CERTIFICATION_CHANGE_REPORT.md) | LINK readiness change summary |
 
-2. Run `npm install` to install all of the local dependencies (SFRA has been tested with Node v18.19 and is recommended)
+## Quick start
 
-3. Run `npm run compile:js` from the command line that would compile all client-side JS files. Run `npm run compile:scss` and `npm run compile:fonts` that would do the same for css and fonts.
+1. Import `metadata/` (Site Import & Export): `services.xml` + `meta/system-objecttype-extensions.xml`
+2. Upload the cartridge: `npm run upload:accelerator` (requires `dw.json` for WebDAV)
+3. Add `bm_accelerator` to the **Business Manager** site cartridge path
+4. Enable **B2C Migration** for BM roles
+5. Set Site Preferences → **B2C Migration Console**
+6. Open **Merchant Tools → B2C Migration** and run **Test Connection**
 
-4. Create `dw.json` file in the root of the project. Providing a [WebDAV access key from BM](https://documentation.b2c.commercecloud.salesforce.com/DOC1/index.jsp?topic=%2Fcom.demandware.dochelp%2Fcontent%2Fb2c_commerce%2Ftopics%2Fadmin%2Fb2c_access_keys_for_business_manager.html) in the `password` field is optional, as you will be prompted if it is not provided.
+### Site preferences (group: B2C Migration Console)
+
+- Shopify: store URL, client ID, client secret/token, API version
+- commercetools: project key, client ID/secret, auth URL, API URL
+- SFCC: OCAPI client ID, BM username/password, OCAPI version
+
+Timeouts are configured in Service Framework profiles (`metadata/services.xml`), not site prefs.
+
+### `dw.json` (upload only)
 
 ```json
 {
-    "hostname": "your-sandbox-hostname.demandware.net",
-    "username": "AM username like me.myself@company.com",
+    "hostname": "your-sandbox.dx.commercecloud.salesforce.com",
+    "username": "you@company.com",
     "password": "your_webdav_access_key",
     "code-version": "version_to_upload_to"
 }
 ```
 
-5. Run `npm run uploadCartridge`. It will upload `app_storefront_base`, `modules` and `bm_app_storefront_base` cartridges to the sandbox you specified in `dw.json` file.
+Do not commit `dw.json`.
 
-6. Use https://github.com/SalesforceCommerceCloud/storefrontdata to zip and import site data on your sandbox.
+## NPM scripts
 
-7. Add the `app_storefront_base` cartridge to your cartridge path in _Administration > Sites > Manage Sites > RefArch - Settings_ (Note: This should already be populated by the sample data in Step 6).
-
-8. You should now be ready to navigate to and use your site.
-
-# NPM scripts
-
-Use the provided NPM scripts to compile and upload changes to your Sandbox.
-
-## Compiling your application
-
--   `npm run compile:scss` - Compiles all .scss files into CSS.
--   `npm run compile:js` - Compiles all .js files and aggregates them.
--   `npm run compile:fonts` - Copies all needed font files. Usually, this only has to be run once.
-
-If you are having an issue compiling scss files, try running 'npm rebuild node-sass' from within your local repo.
-
-## Linting your code
-
-`npm run lint` - Execute linting for all JavaScript and SCSS files in the project. You should run this command before committing your code.
-
-## Watching for changes and uploading
-
-`npm run watch` - Watches everything and recompiles (if necessary) and uploads to the sandbox. Requires a valid `dw.json` file at the root that is configured for the sandbox to upload.
-
-## Uploading
-
-`npm run uploadCartridge` - Will upload `app_storefront_base`, `modules` and `bm_app_storefront_base` to the server. Requires a valid `dw.json` file at the root that is configured for the sandbox to upload.
-
-`npm run upload <filepath>` - Will upload a given file to the server. Requires a valid `dw.json` file.
-
-# Testing
-
-## Running unit tests
-
-You can run `npm test` to execute all unit tests in the project. Run `npm run cover` to get coverage information. Coverage will be available in `coverage` folder under root directory.
-
--   UNIT test code coverage:
-
-1. Open a terminal and navigate to the root directory of the mfsg repository.
-2. Enter the command: `npm run cover`.
-3. Examine the report that is generated. For example: `Writing coverage reports at [/Users/yourusername/SCC/sfra/coverage]`
-4. Navigate to this directory on your local machine, open up the index.html file. This file contains a detailed report.
-
-## Running integration tests
-
-Integration tests are located in the `storefront-reference-architecture/test/integration` directory.
-
-To run integration tests you can use the following command:
-
-```
-npm run test:integration
+```bash
+npm install
+npm run upload:accelerator   # compile SCSS + upload bm_accelerator
+npm run lint:js
+npm test                     # unit tests (includes bm_accelerator order/bulk tests)
 ```
 
-**Note:** Please note that short form of this command will try to locate URL of your sandbox by reading `dw.json` file in the root directory of your project. If you don't have `dw.json` file, integration tests will fail.
-sample `dw.json` file (this file needs to be in the root of your project)
-
-```json
-{
-    "hostname": "devxx-sitegenesis-dw.demandware.net"
-}
-```
-
-You can also supply URL of the sandbox on the command line:
+## Layout
 
 ```
-npm run test:integration -- --baseUrl devxx-sitegenesis-dw.demandware.net
+cartridges/bm_accelerator/     BM extension cartridge
+metadata/                      services.xml + SitePreferences metadata
+documentation/                 LINK install / user / change docs
+test/unit/bm_accelerator/      Unit tests
 ```
 
-## Running acceptance tests
+## Security
 
-**Prerequisite:** The Java Runtime Environment (JRE 8+) is required to run Selenium and the acceptance tests. If you have not done so, install Java on your machine.
+- Runtime secrets: Site Preferences only (password-typed where appropriate)
+- Outbound HTTP: Service Framework (`accelerator.*` services)
+- BM endpoints: auth + CSRF via `requestGuard.js`
+- Never commit live credentials
 
-Acceptance tests are located in the `storefront-reference-architecture/test/acceptance` directory.
+## Note on SFRA leftovers
 
-The acceptance tests will run against the site specified in the hostname property of `dw.json`. ie. To run the tests on `abcd-123.dx.commercecloud.salesforce.com`, in your dw.json set the following:
-
-```
-"hostname": "abcd-123.dx.commercecloud.salesforce.com"
-```
-
-There are several NPM scripts available for running the acceptance tests. They all require a `--profile` parameter for setting the browser the tests will run against. ie. `npm run test:acceptance:smoke --profile chrome`
-
-Tests will generally run on Chrome, Safari, and Firefox.
-
-To run the tests in headless mode, set a HEADLESS environment to true before starting the npm run. ie. `HEADLESS=true && npm run test:acceptance:smoke --profile chrome`
-
--   `test:acceptance:custom` - runs all tests (Note: some tests will fail as the browser size defaults to desktop)
--   `test:acceptance:deep` - runs all storefront tests
--   `test:acceptance:smoke` - runs happy path tests
--   `test:acceptance:pagedesigner` - runs page designer tests
--   `test:acceptance:desktop` - runs storefront desktop tests
--   `test:acceptance:mobile` - runs storefront mobile tests
--   `test:acceptance:tablet` - runs storefront tablet tests
-
-### Notes
-
--   Selenium can be finicky to start. If the tests fail to start, simply rerun the command again until the tests start.
--   If you see version compatibility issues between browser and the driver, try configuring specific version of the driver in the [codecept config file](./codecept.conf.js). See the resolved [github issue](https://github.com/codeceptjs/CodeceptJS/issues/2885) for details.
-
-# [Contributing to SFRA](./CONTRIBUTING.md)
-
-# Page Designer Components for Storefront Reference Architecture
-
-See: [Page Designer Components](./page-designer-components.md)
+This repo started from SFRA scaffolding. The product deliverable is **`bm_accelerator`**. Prefer `npm run upload:accelerator` over full SFRA `uploadCartridge` unless you intentionally maintain storefront cartridges.

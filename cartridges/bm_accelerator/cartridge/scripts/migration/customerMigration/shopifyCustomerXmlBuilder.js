@@ -29,7 +29,7 @@ function buildCustomerXml(shopifyCustomer) {
 
     var shopifyId  = String(shopifyCustomer.id);
     var customerNo = shopifyId;
-    var password   = 'Rc1!' + shopifyId.substring(0, 12);
+    var password   = require('*/cartridge/scripts/migration/core/tempPassword').generate();
     var login      = xmlEsc(profile.login || profile.email);
 
     var xml = '    <customer customer-no="' + xmlEsc(customerNo) + '">\n';

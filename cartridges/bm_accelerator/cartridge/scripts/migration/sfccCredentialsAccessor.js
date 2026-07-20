@@ -1,12 +1,13 @@
 'use strict';
 
-var defaults = require('*/cartridge/scripts/migration/sfcc-credentials.defaults');
-var creds = defaults;
+/**
+ * BM credentials from Site Preferences only.
+ */
 
-try {
-    creds = require('*/cartridge/scripts/migration/sfcc-credentials');
-} catch (e) {
-    // sfcc-credentials.js not uploaded yet
-}
+var prefs = require('*/cartridge/scripts/migration/migrationPreferences');
+var fromPrefs = prefs.getBmCredentials();
 
-module.exports = creds;
+module.exports = {
+    bmUsername: fromPrefs.bmUsername || '',
+    bmPassword: fromPrefs.bmPassword || ''
+};

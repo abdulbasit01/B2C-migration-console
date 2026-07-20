@@ -89,7 +89,7 @@ var TASK_STANDARD_FIELDS = {
 
 // Shopify GraphQL metafield owner types per task (empty = standard fields only)
 var TASK_OWNER_TYPES = {
-    Product:                ['PRODUCT', 'VARIANT'],
+    Product:                ['PRODUCT', 'PRODUCTVARIANT'],
     Category:               ['COLLECTION'],
     Customer:               ['CUSTOMER'],
     Order:                  ['ORDER'],

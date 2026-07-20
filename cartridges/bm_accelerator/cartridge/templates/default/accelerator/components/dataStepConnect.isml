@@ -8,24 +8,28 @@
 
     <form class="acc-form" id="acc-data-connect-form" method="post" action="#" onsubmit="return false;">
         <input type="hidden" name="platformId" value="${pdict.platform.id}" />
-        <isloop items="${pdict.platform.connectFields}" var="field">
-            <div class="acc-form__group">
-                <label class="acc-form__label" for="data-field-${field.name}">
-                    ${field.label}
-                    <isif condition="${field.required}"><span class="acc-required">*</span></isif>
-                </label>
-                <input
-                    class="acc-form__input"
-                    id="data-field-${field.name}"
-                    name="${field.name}"
-                    type="${field.type}"
-                    value="${field.value}"
-                    <isif condition="${!empty(field.placeholder)}">placeholder="${field.placeholder}"</isif>
-                    <isif condition="${field.required}">required="required"</isif>
-                />
-            </div>
-        </isloop>
+        <input type="hidden" name="mode" value="data" />
     </form>
+
+    <isif condition="${pdict.connectionSummary}">
+        <div class="acc-form" style="margin-top:12px;">
+            <isloop items="${pdict.connectionSummary.lines}" var="line">
+                <div class="acc-form__group" style="margin-bottom:8px;">
+                    <div class="acc-form__label">${line.label}</div>
+                    <div class="acc-form__input" style="background:#f3f2f2;border:1px solid #dddbda;">${line.value}</div>
+                </div>
+            </isloop>
+            <p class="acc-step-panel__intro" style="margin-top:12px;">
+                ${Resource.msg('accelerator.datawizard.connect.prefsHint', 'accelerator', null)}
+                <strong>${pdict.connectionSummary.prefsHint}</strong>
+            </p>
+            <isif condition="${!pdict.connectionSummary.configured}">
+                <div class="acc-status acc-status--error" role="status">
+                    ${Resource.msg('accelerator.datawizard.connect.notConfigured', 'accelerator', null)}
+                </div>
+            </isif>
+        </div>
+    </isif>
 
     <div id="data-connection-status" class="acc-status acc-status--hidden" role="status"></div>
 </section>

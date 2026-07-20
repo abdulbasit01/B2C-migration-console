@@ -37,7 +37,7 @@ function buildCustomerXml(ctpCustomer) {
 
     var ctpId      = String(ctpCustomer.id);
     var customerNo = ctpId;
-    var password   = 'Rc1!' + ctpId.replace(/-/g, '').substring(0, 12);
+    var password   = require('*/cartridge/scripts/migration/core/tempPassword').generate();
     var login      = xmlEsc(profile.login || profile.email);
 
     var xml = '    <customer customer-no="' + xmlEsc(customerNo) + '">\n';

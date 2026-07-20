@@ -8,7 +8,6 @@ Royal Cyber SFCC BM cartridge for schema + data migration from commercetools/Sho
 - **Data wizard**: `Accelerator-DataWizard` (connect → select type → type-specific)
 - **Order export API**: `Accelerator-ExportOrders` (JSON)
 - **Tests**: `test/unit/bm_accelerator/orders/`
-- **CTP seeding**: `npm run seed:ctp-inventory` (5000 inventory records); `npm run seed:ctp-standalone-prices` (500 USD standalone prices); `npm run seed:ctp-orders` (500 orders)
 
 ## Order migration pipeline
 `ctpOrderConnector` → `ctpOrderMapper` → `orderValidator` → `sfccOrderXmlGenerator` → `impexGenerator` → `orderMigrationRunner`

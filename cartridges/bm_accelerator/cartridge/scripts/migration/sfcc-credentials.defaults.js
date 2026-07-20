@@ -1,9 +1,10 @@
 'use strict';
 
 /**
- * Placeholder BM credentials — overridden by sfcc-credentials.js after config:generate.
+ * Empty BM credential placeholders. Configure via Site Preferences.
+ * NEVER commit real passwords.
  */
 module.exports = {
-    bmUsername: 'habiba.ayaz@royalcyber.com',
-    bmPassword: 'CyberCommerce@1195'
+    bmUsername: '',
+    bmPassword: ''
 };

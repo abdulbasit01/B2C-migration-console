@@ -1,7 +1,7 @@
 node_modules/
 cartridges/*/cartridge/static/
 
-# Migration — auto-generated, never commit
+# Legacy generated config (no longer produced; keep ignored if present locally)
 cartridges/bm_accelerator/cartridge/scripts/migration/config.js
 cartridges/bm_accelerator/cartridge/scripts/migration/sfcc-credentials.js
 .env

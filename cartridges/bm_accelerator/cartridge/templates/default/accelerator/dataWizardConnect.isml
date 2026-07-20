@@ -78,13 +78,8 @@
             if (!continueBtn || !statusEl || !form) return;
 
             continueBtn.addEventListener('click', function () {
-                if (!validateForm(form)) {
-                    showStatus(statusEl, 'Please fill in all required fields.', true);
-                    return;
-                }
-
                 continueBtn.disabled = true;
-                showStatus(statusEl, 'Validating credentials...', false);
+                showStatus(statusEl, 'Validating credentials from Site Preferences...', false);
 
                 postForm(TEST_URL, buildParams(form), function (data) {
                     if (!data.ok) {

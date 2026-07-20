@@ -7,7 +7,6 @@
     "node": ">=4.0"
   },
   "scripts": {
-    "config:generate": "node scripts/generate-migration-config.js",
     "watch:scss": "sass --watch cartridges/bm_accelerator/cartridge/client/default/scss/accelerator-migration.scss:cartridges/bm_accelerator/cartridge/static/default/css/accelerator-migration.css",
     "watch:js": "sgmf-scripts --watch",
     "dev": "npm run compile:scss && npm run compile:js",
@@ -32,9 +31,9 @@
     "lint:isml": "isml-linter",
     "build:isml": "isml-linter --build",
     "fix:isml": "isml-linter --autofix",
-    "upload": "npm run config:generate && sgmf-scripts --upload",
-    "upload:accelerator": "npm run config:generate && npm run compile:scss && sgmf-scripts --uploadCartridge bm_accelerator",
-    "uploadCartridge": "npm run config:generate && npm run compile:scss && sgmf-scripts --uploadCartridge app_storefront_base && sgmf-scripts --uploadCartridge modules && sgmf-scripts --uploadCartridge bm_app_storefront_base && sgmf-scripts --uploadCartridge bm_accelerator",
+    "upload": "sgmf-scripts --upload",
+    "upload:accelerator": "npm run compile:scss && sgmf-scripts --uploadCartridge bm_accelerator",
+    "uploadCartridge": "npm run compile:scss && sgmf-scripts --uploadCartridge app_storefront_base && sgmf-scripts --uploadCartridge modules && sgmf-scripts --uploadCartridge bm_app_storefront_base && sgmf-scripts --uploadCartridge bm_accelerator",
     "watch": "sgmf-scripts --watch",
     "watch:static": "sgmf-scripts --watch static",
     "release": "node bin/Makefile release --"

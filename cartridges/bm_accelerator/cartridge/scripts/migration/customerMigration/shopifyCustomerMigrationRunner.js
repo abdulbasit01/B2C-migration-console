@@ -1,6 +1,5 @@
 'use strict';
 
-var UUIDUtils    = require('dw/util/UUIDUtils');
 var fetcher      = require('*/cartridge/scripts/migration/customerMigration/shopifyCustomerFetcher');
 var transformer  = require('*/cartridge/scripts/migration/customerMigration/shopifyCustomerTransformer');
 var writer       = require('*/cartridge/scripts/migration/customerMigration/sfccCustomerWriter');
@@ -52,7 +51,7 @@ function runProfileBatchById(shopifyId, listId) {
                  errors: [(shopifyCustomer.email || shopifyId) + ': transform — ' + (te.message || String(te))], mappings: [] };
     }
 
-    var tempPassword = 'Rc1!' + UUIDUtils.createUUID();
+    var tempPassword = require('*/cartridge/scripts/migration/core/tempPassword').generate();
     var result;
     try {
         result = writer.createCustomer(null, listId, transformed.profile, tempPassword);
