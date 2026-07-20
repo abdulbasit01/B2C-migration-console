@@ -1,15 +1,14 @@
 'use strict';
 
-var http           = require('*/cartridge/scripts/migration/core/http');
-var cfg            = require('*/cartridge/scripts/migration/configAccessor');
 var shopifyApi     = require('*/cartridge/scripts/migration/core/shopifyApi');
+var cfg            = require('*/cartridge/scripts/migration/configAccessor');
 var sourceAttrIds  = require('*/cartridge/scripts/migration/core/sourceAttrIds');
 
 var SFCC_OWNER_TYPES = {
     Order:                  ['ORDER'],
     ProductInventoryRecord: [],
     Store:                  ['LOCATION'],
-    PriceBook:              ['PRODUCT', 'VARIANT'],
+    PriceBook:              ['PRODUCT', 'PRODUCTVARIANT'],
     ShippingMethod:         [],
     TaxClass:               []
 };
@@ -17,13 +16,9 @@ var SFCC_OWNER_TYPES = {
 function fetchMetafieldDefs(ownerType) {
     var creds = cfg.shopify;
     shopifyApi.getCreds(creds);
-    var url   = shopifyApi.adminBase(creds) + '/graphql.json';
     var query = '{ metafieldDefinitions(ownerType: ' + ownerType + ', first: 250) { nodes { name key namespace type { name } } } }';
-    var res   = http.post(url, shopifyApi.authHeaders(creds), JSON.stringify({ query: query }));
-    if (res.status !== 200 || !res.data || !res.data.data) {
-        return [];
-    }
-    var mfDefs = res.data.data.metafieldDefinitions;
+    var res   = shopifyApi.graphql(query, {}, creds);
+    var mfDefs = res && res.metafieldDefinitions;
     return (mfDefs && mfDefs.nodes) ? mfDefs.nodes : [];
 }
 

@@ -23,6 +23,7 @@ function clearShopifySessionCreds() {
     delete session.custom.shopifyStoreUrl;
     delete session.custom.shopifyClientId;
     delete session.custom.shopifyClientSecret;
+    delete session.custom.shopifyAccessToken;
     delete session.custom.shopifyApiVersion;
 }
 

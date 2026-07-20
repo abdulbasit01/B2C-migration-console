@@ -101,9 +101,9 @@ bm_accelerator/
 │   ├── accelerator/
 │   │   └── migrationData.js    ← Defines all platforms and wizard steps
 │   └── migration/
-│       ├── config.js           ← Your actual credentials (never committed to git)
 │       ├── config.defaults.js  ← Empty template (safe to commit)
-│       ├── configAccessor.js   ← Combines config file + session credentials
+│       ├── configAccessor.js   ← Reads Site Preferences into config
+│       ├── migrationPreferences.js ← Site preference overlay
 │       ├── sfccClient.js       ← Talks to the SFCC API to create fields
 │       ├── core/
 │       │   ├── http.js         ← Simple wrapper for making HTTP requests
@@ -158,10 +158,10 @@ The tool uses the Business Manager username, password, and Client ID to get a SF
 
 | File                     | Saved to Git? | Why                                      |
 |--------------------------|---------------|------------------------------------------|
-| `config.js`              | NO            | Contains live API credentials — secret  |
+| Site Preferences         | N/A (BM)      | Runtime credentials for Migration Console |
 | `config.defaults.js`     | YES           | Empty template, no real credentials      |
-| `sfcc-credentials.js`    | NO            | Contains BM username and password        |
 | `sfcc-credentials.defaults.js` | YES    | Empty template                           |
+| `dw.json`                | NO            | WebDAV upload auth                       |
 
 GitHub automatically blocks any commit that contains API keys or secrets.
 

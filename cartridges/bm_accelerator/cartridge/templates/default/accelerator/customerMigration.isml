@@ -309,7 +309,8 @@
                 <code>/Impex/${pdict.impexPath}/</code> (e.g. <code>customer-YYYYMMDD-v001.xml</code>).<br/>
                 Phase 2 is a manual BM step: run <strong>Administration &rarr; Site Development &rarr; Import &amp; Export
                 &rarr; Import Customers</strong> and point it at the uploaded files.
-                Customers receive a deterministic temporary password (<code>Rc1!</code> + first 12 chars of the ${pdict.platformLabel} ID);
+                Customers receive a random temporary password generated at migration time.
+                They must reset their password on first login.
                 they must use <em>Forgot Password</em> to set their own.
             </div>
 

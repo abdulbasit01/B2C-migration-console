@@ -41,20 +41,14 @@ function createShippingMethod(token, siteId, method) {
         }
     }
 
-    var HTTPClient = require('dw/net/HTTPClient');
-    var client     = new HTTPClient();
-    client.setTimeout(30000);
-    client.open('PUT', url);
-    client.setRequestHeader('Authorization', 'Bearer ' + tok);
-    client.setRequestHeader('Content-Type', 'application/json');
-    client.send(JSON.stringify(payload));
+    var res = sfccClient.doPut(url, tok, payload);
 
-    var status = client.getStatusCode();
+    var status = res.status;
     if (status >= 200 && status < 300) {
         return { ok: true, skipped: false, error: null };
     }
 
-    var text = client.getText() || '';
+    var text = res.text || '';
     var textLc = text.toLowerCase();
     if (status === 409 || textLc.indexOf('exist') >= 0 || textLc.indexOf('duplicate') >= 0) {
         return { ok: false, skipped: true, error: null };

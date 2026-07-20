@@ -30,10 +30,10 @@
                         <strong style="font-size:1rem;color:#16325c;">Shopify</strong>
                     </div>
                     <p style="font-size:0.85rem;color:#54698d;margin-bottom:12px;">
-                        Save your Shopify Admin API credentials. These persist across sessions and are used for all Shopify migration tasks.
+                        View Shopify credential status. Configure values under Site Preferences → B2C Migration Console.
                     </p>
                     <a href="${pdict.shopifyConfigUrl}" class="acc-btn acc-btn--primary" style="display:inline-block;text-decoration:none;">
-                        Configure Shopify
+                        View Shopify status
                     </a>
                 </div>
             </div>

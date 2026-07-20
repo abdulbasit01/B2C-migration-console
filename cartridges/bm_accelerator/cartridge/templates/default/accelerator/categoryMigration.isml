@@ -242,7 +242,7 @@ Next steps: 1. Click Open IMPEX Folder. 2. Select the file and run the import jo
     var jsScript = document.createElement('script');
     jsScript.src = '${pdict.jsUrl}';
     jsScript.onload = function() { initApp(); };
-    jsScript.onerror = function() { console.error('Failed to load categoryMigration JS from: ${pdict.jsUrl}'); };
+    jsScript.onerror = function() { /* categoryMigration script failed to load */ };
     document.head.appendChild(jsScript);
 }());
 </script>
