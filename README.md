@@ -22,7 +22,6 @@ Credentials are **not** entered in wizard forms. Configure Site Preferences, the
 | [documentation/README.md](documentation/README.md) | Package overview |
 | [documentation/link_installation.md](documentation/link_installation.md) | Install, metadata import, cartridge path, preferences |
 | [documentation/link_user_guide.md](documentation/link_user_guide.md) | Operator guide |
-| [documentation/LINK_CERTIFICATION_CHANGE_REPORT.md](documentation/LINK_CERTIFICATION_CHANGE_REPORT.md) | LINK readiness change summary |
 
 ## Quick start
 

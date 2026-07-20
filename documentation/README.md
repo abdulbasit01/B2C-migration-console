@@ -19,7 +19,6 @@ Royal Cyber Business Manager cartridge for schema and data migration from commer
 |------|----------|
 | [link_installation.md](link_installation.md) | Installers — metadata, cartridge path, preferences |
 | [link_user_guide.md](link_user_guide.md) | Operators — wizards and data flows |
-| [LINK_CERTIFICATION_CHANGE_REPORT.md](LINK_CERTIFICATION_CHANGE_REPORT.md) | Reviewers — LINK readiness changes |
 
 Root [README.md](../README.md) is the project entry point.
 
