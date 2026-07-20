@@ -64,7 +64,8 @@ function getCtpShippingMethodFields() {
 }
 
 function checkMissingAttributes() {
-    return runner.checkMissing(SFCC_OBJECT_TYPE, getCtpShippingMethodFields);
+    var attrIdMapSession = require('*/cartridge/scripts/migration/core/attrIdMapSession');
+    return runner.checkMissing(SFCC_OBJECT_TYPE, getCtpShippingMethodFields, null, attrIdMapSession.read('shippingMethod'));
 }
 
 function createAttributes(attrs) {

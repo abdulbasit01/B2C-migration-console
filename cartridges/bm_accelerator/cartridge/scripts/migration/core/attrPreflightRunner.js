@@ -55,20 +55,23 @@ function normalizeField(field, platformId) {
  * @param {string} sfccObjectType
  * @param {Function} getCtpFieldsFn - () => Array of { name, label, ctpType } or trace attrs
  * @param {Function} [getExtraFieldsFn] - (platformId) => Array of extra trace attrs
+ * @param {Object.<string, string>} [attrIdMap] - source attr id → SFCC attr id remaps
  * @returns {Array}
  */
-function checkMissing(sfccObjectType, getCtpFieldsFn, getExtraFieldsFn) {
+function checkMissing(sfccObjectType, getCtpFieldsFn, getExtraFieldsFn, attrIdMap) {
     var platformId  = registry.getPlatformId();
     var group       = sourceAttrIds.getAttrGroup(platformId);
     var enrich      = getEnricher(platformId);
     var sfccToken   = sfccClient.getSFCCToken();
     var existingIds = sfccClient.getExistingAttributeIds(sfccToken, sfccObjectType);
+    var map         = attrIdMap && typeof attrIdMap === 'object' ? attrIdMap : {};
     var missing     = [];
     var seen        = {};
     var fields      = [];
     var i;
     var norm;
     var id;
+    var resolvedId;
 
     try {
         sfccClient.ensureAttributeGroup(sfccToken, sfccObjectType, group.id, group.name);
@@ -92,7 +95,10 @@ function checkMissing(sfccObjectType, getCtpFieldsFn, getExtraFieldsFn) {
         id   = norm.sfccId;
         if (!id || seen[id]) continue;
         seen[id] = true;
-        if (!existingIds[id]) {
+
+        resolvedId = map[id] && String(map[id]).trim() ? String(map[id]).trim() : id;
+
+        if (!existingIds[resolvedId]) {
             missing.push(enrich({
                 id:         id,
                 label:      norm.label,
@@ -101,7 +107,7 @@ function checkMissing(sfccObjectType, getCtpFieldsFn, getExtraFieldsFn) {
             }));
         } else {
             try {
-                sfccClient.addAttributeToGroup(sfccToken, sfccObjectType, group.id, id);
+                sfccClient.addAttributeToGroup(sfccToken, sfccObjectType, group.id, resolvedId);
             } catch (age) {}
         }
     }
@@ -110,28 +116,69 @@ function checkMissing(sfccObjectType, getCtpFieldsFn, getExtraFieldsFn) {
 }
 
 /**
+ * Create attribute definitions with exists/created/mapped result shape.
  * @param {string} sfccObjectType
+ * @param {string} groupId
+ * @param {string} groupName
  * @param {Array} attrs
- * @returns {{ created: number, failed: number, errors: Array }}
+ * @returns {{
+ *   created: number,
+ *   failed: number,
+ *   alreadyExists: number,
+ *   errors: Array,
+ *   createdAttrs: Array,
+ *   mappedAttrs: Array,
+ *   results: Array
+ * }}
  */
-function createAttributes(sfccObjectType, attrs) {
-    var platformId = registry.getPlatformId();
-    var group      = sourceAttrIds.getAttrGroup(platformId);
-    var sfccToken  = sfccClient.getSFCCToken();
-    var created    = 0;
-    var failed     = 0;
-    var errors     = [];
+function createDefinitions(sfccObjectType, groupId, groupName, attrs) {
+    var platformId  = registry.getPlatformId();
+    var sfccToken   = sfccClient.getSFCCToken();
+    var existingIds = sfccClient.getExistingAttributeIds(sfccToken, sfccObjectType);
+    var created     = 0;
+    var failed      = 0;
+    var alreadyExists = 0;
+    var errors      = [];
+    var createdAttrs = [];
+    var mappedAttrs  = [];
+    var results      = [];
     var i;
     var attr;
     var attrId;
+    var canonicalId;
 
     try {
-        sfccClient.ensureAttributeGroup(sfccToken, sfccObjectType, group.id, group.name);
+        sfccClient.ensureAttributeGroup(sfccToken, sfccObjectType, groupId, groupName);
     } catch (ge) {}
 
     for (i = 0; i < attrs.length; i++) {
-        attr   = attrs[i];
-        attrId = sourceAttrIds.remapCamelAttrId(attr.id, platformId);
+        attr        = attrs[i];
+        attrId      = sourceAttrIds.remapCamelAttrId(attr.id, platformId);
+        canonicalId = attr.canonicalId || attr.sourceId || attr.id || attrId;
+
+        if (!attrId) {
+            failed++;
+            if (errors.length < 5) errors.push('(empty): Attribute ID is required');
+            results.push({
+                id: '', canonicalId: canonicalId || '', status: 'error',
+                message: 'Attribute ID is required'
+            });
+            continue;
+        }
+
+        if (existingIds[attrId]) {
+            alreadyExists++;
+            try {
+                sfccClient.addAttributeToGroup(sfccToken, sfccObjectType, groupId, attrId);
+            } catch (age) {}
+            mappedAttrs.push({ id: attrId, canonicalId: canonicalId });
+            results.push({
+                id: attrId, canonicalId: canonicalId, status: 'exists',
+                message: 'Already exists in SFCC'
+            });
+            continue;
+        }
+
         try {
             var def = attrBuilder.buildAttrDefinition(
                 attrId,
@@ -139,18 +186,50 @@ function createAttributes(sfccObjectType, attrs) {
                 attr.label    || attrId
             );
             sfccClient.createAttributeDefinition(sfccToken, sfccObjectType, def);
-            sfccClient.addAttributeToGroup(sfccToken, sfccObjectType, group.id, attrId);
+            sfccClient.addAttributeToGroup(sfccToken, sfccObjectType, groupId, attrId);
+            existingIds[attrId] = true;
             created++;
+            createdAttrs.push({ id: attrId, canonicalId: canonicalId });
+            mappedAttrs.push({ id: attrId, canonicalId: canonicalId });
+            results.push({
+                id: attrId, canonicalId: canonicalId, status: 'created',
+                message: 'Created'
+            });
         } catch (e) {
             failed++;
-            if (errors.length < 5) errors.push(attrId + ': ' + (e.message || String(e)));
+            var errMsg = e.message || String(e);
+            if (errors.length < 5) errors.push(attrId + ': ' + errMsg);
+            results.push({
+                id: attrId, canonicalId: canonicalId, status: 'error',
+                message: errMsg
+            });
         }
     }
-    return { created: created, failed: failed, errors: errors };
+    return {
+        created:       created,
+        failed:        failed,
+        alreadyExists: alreadyExists,
+        errors:        errors,
+        createdAttrs:  createdAttrs,
+        mappedAttrs:   mappedAttrs,
+        results:       results
+    };
+}
+
+/**
+ * @param {string} sfccObjectType
+ * @param {Array} attrs
+ * @returns {{ created: number, failed: number, alreadyExists: number, errors: Array, createdAttrs: Array, mappedAttrs: Array, results: Array }}
+ */
+function createAttributes(sfccObjectType, attrs) {
+    var platformId = registry.getPlatformId();
+    var group      = sourceAttrIds.getAttrGroup(platformId);
+    return createDefinitions(sfccObjectType, group.id, group.name, attrs);
 }
 
 module.exports = {
     checkMissing:       checkMissing,
     createAttributes:   createAttributes,
+    createDefinitions:  createDefinitions,
     normalizeField:     normalizeField
 };

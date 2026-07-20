@@ -226,7 +226,7 @@ var SK_SHOPIFY_FILE    = 'shopifyProdFileName';
 var TEMP_SHOPIFY_PRODS = 'shopify-run-body.xml';
 var TEMP_SHOPIFY_CATS  = 'shopify-run-cats.xml';
 
-function runShopifyBatch(cursor, catalogId) {
+function runShopifyBatch(cursor, catalogId, selectedVarAttrs) {
     var shopifyFetcher     = require('*/cartridge/scripts/migration/productMigration/shopifyProductFetcher');
     var shopifyTransformer = require('*/cartridge/scripts/migration/productMigration/shopifyProductTransformer');
 
@@ -260,7 +260,7 @@ function runShopifyBatch(cursor, catalogId) {
         return finalizeShopify(catalogId, total, impexPath, fileName);
     }
 
-    var parts = xmlBuilder.buildXmlParts(rawProds, catalogId, null, shopifyTransformer.transformProduct);
+    var parts = xmlBuilder.buildXmlParts(rawProds, catalogId, selectedVarAttrs, shopifyTransformer.transformProduct);
     appendLocal(TEMP_SHOPIFY_PRODS, parts.productsXml);
     appendLocal(TEMP_SHOPIFY_CATS,  parts.categoriesXml);
 
@@ -343,7 +343,7 @@ function finalizeShopify(catalogId, total, impexPath, fileName) {
  *
  * @param {number|string|null} offsetOrCursor - numeric offset (CTP) or cursor string (Shopify)
  * @param {string} catalogId
- * @param {Array}  selectedVarAttrs           - CTP only; ignored for Shopify
+ * @param {Array}  selectedVarAttrs           - selected variant option/attr names (both platforms)
  * @param {string} platform                   - 'shopify' | 'commercetools'
  * @returns {{ ok, total, nextOffset, done, built, failed, errors, setCount, bundleCount }}
  */
@@ -354,7 +354,7 @@ function runBatch(offsetOrCursor, catalogId, selectedVarAttrs, platform) {
         var cursor = (offsetOrCursor === null || offsetOrCursor === 0
             || offsetOrCursor === '0' || offsetOrCursor === '')
             ? null : String(offsetOrCursor);
-        return runShopifyBatch(cursor, catalogId);
+        return runShopifyBatch(cursor, catalogId, selectedVarAttrs);
     }
 
     var offset = typeof offsetOrCursor === 'number'

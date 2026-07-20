@@ -25,6 +25,8 @@ var SHOPIFY_ATTR_GROUP_NAME = 'Shopify Migration';
  * @returns {Array} [{ id, label, sfccType, sfccNativeField, sfccNativeNote, sfccNativeAction }]
  */
 function checkMissingAttributes() {
+    var attrIdMapSession = require('*/cartridge/scripts/migration/core/attrIdMapSession');
+    var attrMap      = attrIdMapSession.read('customer');
     var sfccToken    = sfccClient.getSFCCToken();
     var profileAttrs = sfccClient.getAttributeDefinitions(sfccToken, 'Profile');
     var customerAttrs = sfccClient.getAttributeDefinitions(sfccToken, 'Customer');
@@ -37,8 +39,9 @@ function checkMissingAttributes() {
     var missing = [];
     for (var i = 0; i < SHOPIFY_BUILTIN_FIELDS.length; i++) {
         var f = SHOPIFY_BUILTIN_FIELDS[i];
-        if (existingIds[f.id]) {
-            try { sfccClient.addAttributeToGroup(sfccToken, 'Profile', SHOPIFY_ATTR_GROUP_ID, f.id); } catch (age) {}
+        var resolved = attrIdMapSession.resolve(f.id, attrMap);
+        if (existingIds[resolved]) {
+            try { sfccClient.addAttributeToGroup(sfccToken, 'Profile', SHOPIFY_ATTR_GROUP_ID, resolved); } catch (age) {}
             continue;
         }
         var rule = nativeFieldMap.getEffectiveRule('shopify', 'Customer', f.id, f.label, sysAttrs);
@@ -60,33 +63,11 @@ function checkMissingAttributes() {
  * Create the given attribute definitions on the SFCC Profile system object
  * and assign each to the "Shopify Migration" attribute group.
  * @param {Array} attrs - [{ id, label, sfccType }]
- * @returns {{ created: number, failed: number, errors: Array }}
+ * @returns {{ created: number, failed: number, alreadyExists: number, errors: Array, mappedAttrs: Array, results: Array }}
  */
 function createAttributes(attrs) {
-    var sfccToken = sfccClient.getSFCCToken();
-    var created   = 0;
-    var failed    = 0;
-    var errors    = [];
-
-    try { sfccClient.ensureAttributeGroup(sfccToken, 'Profile', SHOPIFY_ATTR_GROUP_ID, SHOPIFY_ATTR_GROUP_NAME); } catch (ge) {}
-
-    for (var i = 0; i < attrs.length; i++) {
-        var attr = attrs[i];
-        try {
-            var def = attrBuilder.buildAttrDefinition(
-                attr.id,
-                attr.sfccType || 'string',
-                attr.label    || attr.id
-            );
-            sfccClient.createAttributeDefinition(sfccToken, 'Profile', def);
-            sfccClient.addAttributeToGroup(sfccToken, 'Profile', SHOPIFY_ATTR_GROUP_ID, attr.id);
-            created++;
-        } catch (e) {
-            failed++;
-            if (errors.length < 5) errors.push(attr.id + ': ' + (e.message || String(e)));
-        }
-    }
-    return { created: created, failed: failed, errors: errors };
+    var runner = require('*/cartridge/scripts/migration/core/attrPreflightRunner');
+    return runner.createDefinitions('Profile', SHOPIFY_ATTR_GROUP_ID, SHOPIFY_ATTR_GROUP_NAME, attrs);
 }
 
 module.exports = {

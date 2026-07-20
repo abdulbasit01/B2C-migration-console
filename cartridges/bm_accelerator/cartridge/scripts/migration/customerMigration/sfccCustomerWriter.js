@@ -62,13 +62,14 @@ function createCustomer(token, listId, profile, password) {
 
         // Write all custom attributes from the transformer output.
         // Keys prefixed with "c_" are custom attribute names (transformer convention).
-        // Each assignment is individually guarded so one missing definition doesn't
-        // prevent the rest from being written.
+        // Visit-scoped renames (attrIdMap) are applied so Shopify/CTP create-as-rename works.
+        var attrIdMapSession = require('*/cartridge/scripts/migration/core/attrIdMapSession');
+        var attrMap = attrIdMapSession.read('customer');
         var customKeys = Object.keys(profile);
         for (var ci = 0; ci < customKeys.length; ci++) {
             var ck = customKeys[ci];
             if (ck.length > 2 && ck.charAt(0) === 'c' && ck.charAt(1) === '_') {
-                var sfccAttrId = ck.slice(2); // strip "c_" prefix
+                var sfccAttrId = attrIdMapSession.resolve(ck.slice(2), attrMap);
                 var attrVal    = profile[ck];
                 if (attrVal !== null && attrVal !== undefined) {
                     try { p.custom[sfccAttrId] = attrVal; } catch (ce) { /* attr not defined in SFCC yet */ }
