@@ -102,6 +102,14 @@ function countryDisplayLabel(code) {
  * Overview rows for the tax migration UI.
  * @returns {{ rows: Array, classLabels: string, countryLabels: string, classCount: number, rateCount: number, jurisdictionCount: number }}
  */
+function rateAmount(rate) {
+    if (!rate || rate.amount === null || rate.amount === undefined || rate.amount === '') {
+        return 0;
+    }
+    var n = Number(rate.amount);
+    return isNaN(n) ? 0 : n;
+}
+
 function getTaxOverview() {
     var categories = fetchAllTaxCategories();
     var rows       = [];
@@ -109,6 +117,7 @@ function getTaxOverview() {
     var countryMap = {};
     var jurisSet   = {};
     var totalRates = 0;
+    var nonZeroRates = 0;
     var ci;
     var ri;
 
@@ -126,12 +135,18 @@ function getTaxOverview() {
 
         var rates         = cat.rates || [];
         var rowCountryMap = {};
+        var rowNonZero    = 0;
         totalRates += rates.length;
 
         for (ri = 0; ri < rates.length; ri++) {
             var rate    = rates[ri];
             var country = rate.country || '';
             if (!country) continue;
+
+            if (rateAmount(rate) > 0) {
+                nonZeroRates++;
+                rowNonZero++;
+            }
 
             var state = rate.state || '';
             jurisSet[country + '|' + (state || '-')] = true;
@@ -148,12 +163,13 @@ function getTaxOverview() {
         }
 
         rows.push({
-            classKey:       classKey,
-            className:      className,
-            classLabel:     classLabel || classKey,
-            countryLabels:  countryLabels.join(', '),
-            countries:      countryCodes,
-            rateCount:      rates.length
+            classKey:         classKey,
+            className:        className,
+            classLabel:       classLabel || classKey,
+            countryLabels:    countryLabels.join(', '),
+            countries:        countryCodes,
+            rateCount:        rates.length,
+            nonZeroRateCount: rowNonZero
         });
     }
 
@@ -170,6 +186,7 @@ function getTaxOverview() {
         countryLabels:     allCountryLabels.join(', '),
         classCount:        categories.length,
         rateCount:         totalRates,
+        nonZeroRateCount:  nonZeroRates,
         jurisdictionCount: Object.keys(jurisSet).length
     };
 }
@@ -183,6 +200,7 @@ function getFullTaxSummary() {
     return {
         classCount:        overview.classCount,
         rateCount:         overview.rateCount,
+        nonZeroRateCount:  overview.nonZeroRateCount,
         jurisdictionCount: overview.jurisdictionCount
     };
 }
