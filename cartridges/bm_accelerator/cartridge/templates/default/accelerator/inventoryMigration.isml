@@ -58,6 +58,7 @@
              data-channels-url="<isprint value="${pdict.supplyChannelsUrl}" encoding="htmldoublequote"/>"
              data-check-attrs-url="<isprint value="${pdict.checkAttrsUrl}" encoding="htmldoublequote"/>"
              data-create-attrs-url="<isprint value="${pdict.createAttrsUrl}" encoding="htmldoublequote"/>"
+             data-clear-attr-map-url="<isprint value="${pdict.clearAttrMapUrl}" encoding="htmldoublequote"/>"
              data-wizard-entry-url="<isprint value="${pdict.dataWizardEntryUrl}" encoding="htmldoublequote"/>"
              data-impex-path="<isprint value="${pdict.impexPath}" encoding="htmldoublequote"/>"
              data-preset-list-id="<isprint value="${pdict.presetListId}" encoding="htmldoublequote"/>"

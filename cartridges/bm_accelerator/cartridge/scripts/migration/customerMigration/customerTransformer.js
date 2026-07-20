@@ -87,12 +87,15 @@ function transformCustomer(ctpCustomer) {
 
     // Map CTP custom fields → SFCC custom attributes (requires matching attr definitions in SFCC)
     if (ctpCustomer.custom && ctpCustomer.custom.fields) {
+        var attrIdMapSession = require('*/cartridge/scripts/migration/core/attrIdMapSession');
+        var attrMap = attrIdMapSession.read('customer');
         var fields = ctpCustomer.custom.fields;
         var keys   = Object.keys(fields);
         for (var i = 0; i < keys.length; i++) {
             var val = fields[keys[i]];
             if (val !== null && val !== undefined) {
-                profile['c_' + keys[i]] = val;
+                var sfccAttrId = attrIdMapSession.resolve(keys[i], attrMap);
+                profile['c_' + sfccAttrId] = val;
             }
         }
     }

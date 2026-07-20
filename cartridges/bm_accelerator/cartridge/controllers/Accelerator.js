@@ -58,6 +58,57 @@ function jsonResponse(obj) {
 }
 
 /**
+ * Persist attr renames and return standard create-attrs JSON.
+ * @param {string} moduleKey
+ * @param {Function} createFn - (attrs) => result
+ * @param {Array} attrs
+ */
+function respondCreateAttributes(moduleKey, createFn, attrs) {
+    var attrIdMapSession = require('*/cartridge/scripts/migration/core/attrIdMapSession');
+    var result = createFn(attrs);
+    if (result && result.mappedAttrs && result.mappedAttrs.length) {
+        attrIdMapSession.saveFromAttrs(moduleKey, result.mappedAttrs);
+    }
+    jsonResponse({
+        ok:     !(result && result.failed > 0),
+        result: result
+    });
+}
+
+/**
+ * @param {string} moduleKey
+ */
+function clearModuleAttrIdMap(moduleKey) {
+    require('*/cartridge/scripts/migration/core/attrIdMapSession').clear(moduleKey);
+}
+
+/**
+ * @param {string} moduleKey
+ * @returns {string}
+ */
+function clearAttrMapUrlFor(moduleKey) {
+    return URLUtils.url('Accelerator-ClearAttrIdMap', 'module', moduleKey).toString();
+}
+
+/**
+ * Parse attrs JSON from request; writes error JSON and returns null on failure.
+ * @returns {Array|null}
+ */
+function parseAttrsParam() {
+    var rawAttrs = getParam('attrs');
+    var attrs    = [];
+    try { attrs = JSON.parse(rawAttrs || '[]'); } catch (e) {
+        jsonResponse({ ok: false, error: 'Invalid attrs JSON' });
+        return null;
+    }
+    if (!attrs.length) {
+        jsonResponse({ ok: false, error: 'No attributes provided' });
+        return null;
+    }
+    return attrs;
+}
+
+/**
  * JSON-encoded value safe to embed in inline <script> (includes quotes).
  * @param {*} val
  * @returns {string}
@@ -488,6 +539,8 @@ exports.OrderMigration = function () {
     var bmLinks        = require('*/cartridge/scripts/accelerator/bmLinks');
     var jobsUrl        = bmLinks.getImportExportUrl();
 
+    clearModuleAttrIdMap('order');
+
     ISML.renderTemplate('accelerator/orderMigration', withBmFrame({
         title:               Resource.msg('accelerator.ordermigration.heading', 'accelerator', null),
         subtitle:            Resource.msg('accelerator.subtitle', 'accelerator', null),
@@ -503,6 +556,7 @@ exports.OrderMigration = function () {
         exportUrl:           URLUtils.url('Accelerator-ExportOrders').toString(),
         checkAttrsUrl:       URLUtils.url('Accelerator-CheckOrderAttributes').toString(),
         createAttrsUrl:      URLUtils.url('Accelerator-CreateOrderAttributes').toString(),
+        clearAttrMapUrl:     clearAttrMapUrlFor('order'),
         impexUrl:            pageCtx.impexUrl,
         jobsUrl:             jobsUrl,
         orderStateFilters:   migrationData.getOrderStateFilters(platformId),
@@ -660,19 +714,11 @@ exports.CheckOrderAttributes = function () {
 exports.CheckOrderAttributes.public = true;
 
 exports.CreateOrderAttributes = function () {
-    var rawAttrs = getParam('attrs');
-    var attrs    = [];
-    try { attrs = JSON.parse(rawAttrs || '[]'); } catch (e) {
-        jsonResponse({ ok: false, error: 'Invalid attrs JSON' });
-        return;
-    }
-    if (!attrs.length) {
-        jsonResponse({ ok: false, error: 'No attributes provided' });
-        return;
-    }
+    var attrs = parseAttrsParam();
+    if (!attrs) return;
     try {
         var checker = require('*/cartridge/scripts/migration/orders/orderAttrChecker');
-        jsonResponse({ ok: true, result: checker.createAttributes(attrs) });
+        respondCreateAttributes('order', function (a) { return checker.createAttributes(a); }, attrs);
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
     }
@@ -1131,6 +1177,9 @@ exports.CustomerMigration = function () {
     var isShopify  = platformId === 'shopify';
     var pageCtx    = migrationPageContext(platformId, 'customer');
     var listsUrl   = URLUtils.url('Accelerator-GetCustomerLists').toString();
+
+    clearModuleAttrIdMap('customer');
+
     ISML.renderTemplate('accelerator/customerMigration', withBmFrame({
         title:          Resource.msg('accelerator.title', 'accelerator', null),
         subtitle:       Resource.msg('accelerator.subtitle', 'accelerator', null),
@@ -1164,6 +1213,7 @@ exports.CustomerMigration = function () {
         customerListsUrl:    listsUrl,
         checkAttrsUrl:       URLUtils.url('Accelerator-CheckCustomerAttributes').toString(),
         createAttrsUrl:      URLUtils.url('Accelerator-CreateCustomerAttributes').toString(),
+        clearAttrMapUrl:     clearAttrMapUrlFor('customer'),
         deleteAttrUrl:       URLUtils.url('Accelerator-DeleteCustomerAttribute').toString(),
         fetchGroupsUrl:      URLUtils.url('Accelerator-FetchCtpCustomerGroups').toString(),
         createGroupsUrl:     URLUtils.url('Accelerator-CreateSfccCustomerGroups').toString()
@@ -1331,15 +1381,20 @@ exports.GetBundleProductsInfo.public = true;
 
 exports.GetVariantAttrs = function () {
     var platform = String(session.custom.migrationPlatformId || 'commercetools');
-    if (platform === 'shopify') {
-        // Shopify variant options are included automatically — no user selection needed
-        jsonResponse({ ok: true, attrs: [], savedSelection: null, shopify: true });
-        return;
-    }
     try {
-        var checker    = require('*/cartridge/scripts/migration/productMigration/productAttrChecker');
-        var sfccClient = require('*/cartridge/scripts/migration/sfccClient');
-        var fields     = checker.getCtpProductTypeFields();
+        var sfccClient       = require('*/cartridge/scripts/migration/sfccClient');
+        var attrIdMapSession = require('*/cartridge/scripts/migration/core/attrIdMapSession');
+        var attrMap          = attrIdMapSession.read('product');
+        var fields           = [];
+        var isShopify        = platform === 'shopify';
+
+        if (isShopify) {
+            var shopifyChecker = require('*/cartridge/scripts/migration/productMigration/shopifyProductAttrChecker');
+            fields = shopifyChecker.getShopifyVariantOptionFields();
+        } else {
+            var checker = require('*/cartridge/scripts/migration/productMigration/productAttrChecker');
+            fields = checker.getCtpProductTypeFields();
+        }
 
         var existingIds = {};
         try {
@@ -1349,13 +1404,18 @@ exports.GetVariantAttrs = function () {
 
         var enriched = [];
         for (var i = 0; i < fields.length; i++) {
-            var f = fields[i];
+            var f            = fields[i];
+            var canonicalId  = f.sfccId;
+            var resolvedId   = attrIdMapSession.resolve(canonicalId, attrMap);
+            var remapped     = !!(resolvedId && canonicalId && resolvedId !== canonicalId);
             enriched.push({
-                name:         f.name,
-                sfccId:       f.sfccId,
-                label:        f.label,
-                ctpType:      f.ctpType,
-                existsInSfcc: !!existingIds[f.sfccId]
+                name:           f.name,
+                sfccId:         resolvedId,
+                originalSfccId: canonicalId,
+                remapped:       remapped,
+                label:          f.label,
+                ctpType:        f.ctpType,
+                existsInSfcc:   !!existingIds[resolvedId]
             });
         }
 
@@ -1364,7 +1424,12 @@ exports.GetVariantAttrs = function () {
         if (savedRaw) {
             try { savedSelection = JSON.parse(savedRaw); } catch (pe) {}
         }
-        jsonResponse({ ok: true, attrs: enriched, savedSelection: savedSelection });
+        jsonResponse({
+            ok:             true,
+            attrs:          enriched,
+            savedSelection: savedSelection,
+            shopify:        isShopify
+        });
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
     }
@@ -1403,14 +1468,25 @@ exports.SaveVariantAttrSelection = function () {
         var selected  = [];
         if (attrsJson) { try { selected = JSON.parse(attrsJson); } catch (pe) {} }
 
-        var checker    = require('*/cartridge/scripts/migration/productMigration/productAttrChecker');
+        var platform = String(session.custom.migrationPlatformId || 'commercetools');
         var sfccClient = require('*/cartridge/scripts/migration/sfccClient');
+        var attrIdMapSession = require('*/cartridge/scripts/migration/core/attrIdMapSession');
+        var attrMap    = attrIdMapSession.read('product');
 
-        // Build ctpName → sfccId map
-        var ctpFields      = checker.getCtpProductTypeFields();
+        // Build sourceName → field map
         var ctpNameToField = {};
-        for (var fi = 0; fi < ctpFields.length; fi++) {
-            ctpNameToField[ctpFields[fi].name] = ctpFields[fi];
+        if (platform === 'shopify') {
+            var shopifyChecker = require('*/cartridge/scripts/migration/productMigration/shopifyProductAttrChecker');
+            var shopifyFields  = shopifyChecker.getShopifyVariantOptionFields();
+            for (var sfi = 0; sfi < shopifyFields.length; sfi++) {
+                ctpNameToField[shopifyFields[sfi].name] = shopifyFields[sfi];
+            }
+        } else {
+            var checker    = require('*/cartridge/scripts/migration/productMigration/productAttrChecker');
+            var ctpFields  = checker.getCtpProductTypeFields();
+            for (var fi = 0; fi < ctpFields.length; fi++) {
+                ctpNameToField[ctpFields[fi].name] = ctpFields[fi];
+            }
         }
 
         // Check which attrs currently exist in SFCC (best-effort — if OCAPI fails, skip validation)
@@ -1425,7 +1501,9 @@ exports.SaveVariantAttrSelection = function () {
             var notInSfcc = [];
             for (var si = 0; si < selected.length; si++) {
                 var field = ctpNameToField[selected[si]];
-                if (field && !existingIds[field.sfccId]) {
+                if (!field) continue;
+                var resolvedSfccId = attrIdMapSession.resolve(field.sfccId, attrMap);
+                if (!existingIds[resolvedSfccId]) {
                     notInSfcc.push(selected[si]);
                 }
             }
@@ -1465,21 +1543,13 @@ exports.CheckCustomerAttributes.public = true;
  * POST: attrs=<json-array of {id, label, sfccType}>
  */
 exports.CreateCustomerAttributes = function () {
-    var rawAttrs = getParam('attrs');
-    var attrs    = [];
-    try { attrs = JSON.parse(rawAttrs || '[]'); } catch (e) {
-        jsonResponse({ ok: false, error: 'Invalid attrs JSON' });
-        return;
-    }
-    if (!attrs.length) {
-        jsonResponse({ ok: false, error: 'No attributes provided' });
-        return;
-    }
+    var attrs = parseAttrsParam();
+    if (!attrs) return;
     try {
         var checker2 = (resolvePlatform() === 'shopify')
             ? require('*/cartridge/scripts/migration/customerMigration/shopifyCustomerAttrChecker')
             : require('*/cartridge/scripts/migration/customerMigration/customerAttrChecker');
-        jsonResponse({ ok: true, result: checker2.createAttributes(attrs) });
+        respondCreateAttributes('customer', function (a) { return checker2.createAttributes(a); }, attrs);
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
     }
@@ -1642,6 +1712,8 @@ exports.ShippingMethodMigration = function () {
     var bmLinks = require('*/cartridge/scripts/accelerator/bmLinks');
     var jobsUrl = bmLinks.getImportExportUrl();
 
+    clearModuleAttrIdMap('shippingMethod');
+
     ISML.renderTemplate('accelerator/shippingMethodMigration', withBmFrame({
         title:        Resource.msg('accelerator.title', 'accelerator', null),
         subtitle:     Resource.msg('accelerator.subtitle', 'accelerator', null),
@@ -1661,6 +1733,7 @@ exports.ShippingMethodMigration = function () {
         fullBatchUrl:      URLUtils.url('Accelerator-FullShippingMethodBuildBatch').toString(),
         checkAttrsUrl:     URLUtils.url('Accelerator-CheckShippingMethodAttributes').toString(),
         createAttrsUrl:    URLUtils.url('Accelerator-CreateShippingMethodAttributes').toString(),
+        clearAttrMapUrl:   clearAttrMapUrlFor('shippingMethod'),
         deleteAttrUrl:     URLUtils.url('Accelerator-DeleteShippingMethodAttribute').toString(),
         jobsUrl:           jobsUrl
     }));
@@ -1723,19 +1796,11 @@ exports.CheckShippingMethodAttributes = function () {
 exports.CheckShippingMethodAttributes.public = true;
 
 exports.CreateShippingMethodAttributes = function () {
-    var rawAttrs = getParam('attrs');
-    var attrs    = [];
-    try { attrs = JSON.parse(rawAttrs || '[]'); } catch (e) {
-        jsonResponse({ ok: false, error: 'Invalid attrs JSON' });
-        return;
-    }
-    if (!attrs.length) {
-        jsonResponse({ ok: false, error: 'No attributes provided' });
-        return;
-    }
+    var attrs = parseAttrsParam();
+    if (!attrs) return;
     try {
         var checker2 = require('*/cartridge/scripts/migration/shippingMethodMigration/shippingMethodAttrChecker');
-        jsonResponse({ ok: true, result: checker2.createAttributes(attrs) });
+        respondCreateAttributes('shippingMethod', function (a) { return checker2.createAttributes(a); }, attrs);
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
     }
@@ -1830,6 +1895,8 @@ exports.InventoryMigration = function () {
     var pageCtx        = migrationPageContext(platformId, 'inventory');
     var jobsUrl        = bmLinks.getImportExportUrl();
 
+    clearModuleAttrIdMap('inventory');
+
     ISML.renderTemplate('accelerator/inventoryMigration', withBmFrame({
         title:               Resource.msg('accelerator.title', 'accelerator', null),
         subtitle:            Resource.msg('accelerator.subtitle', 'accelerator', null),
@@ -1847,6 +1914,7 @@ exports.InventoryMigration = function () {
         supplyChannelsUrl:   URLUtils.url('Accelerator-GetSupplyChannels').toString(),
         checkAttrsUrl:       URLUtils.url('Accelerator-CheckInventoryAttributes').toString(),
         createAttrsUrl:      URLUtils.url('Accelerator-CreateInventoryAttributes').toString(),
+        clearAttrMapUrl:     clearAttrMapUrlFor('inventory'),
         impexUrl:            pageCtx.impexUrl,
         cssUrl:              URLUtils.staticURL('/css/accelerator-migration.css').toString(),
         attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString(),
@@ -1881,19 +1949,11 @@ exports.CheckInventoryAttributes = function () {
 exports.CheckInventoryAttributes.public = true;
 
 exports.CreateInventoryAttributes = function () {
-    var rawAttrs = getParam('attrs');
-    var attrs    = [];
-    try { attrs = JSON.parse(rawAttrs || '[]'); } catch (e) {
-        jsonResponse({ ok: false, error: 'Invalid attrs JSON' });
-        return;
-    }
-    if (!attrs.length) {
-        jsonResponse({ ok: false, error: 'No attributes provided' });
-        return;
-    }
+    var attrs = parseAttrsParam();
+    if (!attrs) return;
     try {
         var checker2 = require('*/cartridge/scripts/migration/inventoryMigration/inventoryAttrChecker');
-        jsonResponse({ ok: true, result: checker2.createAttributes(attrs) });
+        respondCreateAttributes('inventory', function (a) { return checker2.createAttributes(a); }, attrs);
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
     }
@@ -1964,6 +2024,8 @@ exports.PricebookMigration = function () {
     var pageCtx        = migrationPageContext(platformId, 'pricebook');
     var jobsUrl        = bmLinks.getImportExportUrl();
 
+    clearModuleAttrIdMap('pricebook');
+
     ISML.renderTemplate('accelerator/pricebookMigration', withBmFrame({
         title:               Resource.msg('accelerator.title', 'accelerator', null),
         subtitle:            Resource.msg('accelerator.subtitle', 'accelerator', null),
@@ -1981,6 +2043,7 @@ exports.PricebookMigration = function () {
         pricebooksUrl:       URLUtils.url('Accelerator-GetPricebooks').toString(),
         checkAttrsUrl:       URLUtils.url('Accelerator-CheckPricebookAttributes').toString(),
         createAttrsUrl:      URLUtils.url('Accelerator-CreatePricebookAttributes').toString(),
+        clearAttrMapUrl:     clearAttrMapUrlFor('pricebook'),
         impexUrl:            pageCtx.impexUrl,
         cssUrl:              URLUtils.staticURL('/css/accelerator-migration.css').toString(),
         attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString(),
@@ -2037,15 +2100,11 @@ exports.CheckPricebookAttributes = function () {
 exports.CheckPricebookAttributes.public = true;
 
 exports.CreatePricebookAttributes = function () {
-    var attrsRaw = getParam('attrs');
-    if (!attrsRaw) {
-        jsonResponse({ ok: false, error: 'attrs parameter is required' });
-        return;
-    }
+    var attrs = parseAttrsParam();
+    if (!attrs) return;
     try {
-        var attrs = JSON.parse(attrsRaw);
         var checker2 = require('*/cartridge/scripts/migration/pricebookMigration/pricebookAttrChecker');
-        jsonResponse({ ok: true, result: checker2.createAttributes(attrs) });
+        respondCreateAttributes('pricebook', function (a) { return checker2.createAttributes(a); }, attrs);
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
     }
@@ -2122,6 +2181,8 @@ exports.TaxMigration = function () {
     var pageCtx        = migrationPageContext(platformId, 'tax');
     var jobsUrl        = bmLinks.getImportExportUrl();
 
+    clearModuleAttrIdMap('tax');
+
     ISML.renderTemplate('accelerator/taxMigration', withBmFrame({
         title:               Resource.msg('accelerator.title', 'accelerator', null),
         subtitle:            Resource.msg('accelerator.subtitle', 'accelerator', null),
@@ -2138,6 +2199,7 @@ exports.TaxMigration = function () {
         summaryUrl:          URLUtils.url('Accelerator-GetTaxSummary').toString(),
         checkAttrsUrl:       URLUtils.url('Accelerator-CheckTaxAttributes').toString(),
         createAttrsUrl:      URLUtils.url('Accelerator-CreateTaxAttributes').toString(),
+        clearAttrMapUrl:     clearAttrMapUrlFor('tax'),
         impexUrl:            pageCtx.impexUrl,
         cssUrl:              URLUtils.staticURL('/css/accelerator-migration.css').toString(),
         attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString(),
@@ -2159,20 +2221,11 @@ exports.CheckTaxAttributes = function () {
 exports.CheckTaxAttributes.public = true;
 
 exports.CreateTaxAttributes = function () {
-    response.setContentType('application/json');
-    var rawAttrs = getParam('attrs');
-    var attrs    = [];
-    try { attrs = JSON.parse(rawAttrs || '[]'); } catch (e) {
-        jsonResponse({ ok: false, error: 'Invalid attrs JSON' });
-        return;
-    }
-    if (!attrs.length) {
-        jsonResponse({ ok: false, error: 'No attributes provided' });
-        return;
-    }
+    var attrs = parseAttrsParam();
+    if (!attrs) return;
     try {
         var checker = require('*/cartridge/scripts/migration/taxMigration/taxAttrChecker');
-        jsonResponse({ ok: true, result: checker.createAttributes(attrs) });
+        respondCreateAttributes('tax', function (a) { return checker.createAttributes(a); }, attrs);
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
     }
@@ -2234,6 +2287,9 @@ exports.StoreMigration = function () {
     var pageCtx        = migrationPageContext(platformId, 'store');
     var jobsUrl        = bmLinks.getImportExportUrl();
 
+    // Attribute rename map is visit-scoped — reset on page load / re-entry.
+    clearModuleAttrIdMap('store');
+
     ISML.renderTemplate('accelerator/storeMigration', withBmFrame({
         title:               Resource.msg('accelerator.title', 'accelerator', null),
         subtitle:            Resource.msg('accelerator.subtitle', 'accelerator', null),
@@ -2249,14 +2305,38 @@ exports.StoreMigration = function () {
         listStoresUrl:       URLUtils.url('Accelerator-ListStores').toString(),
         checkAttrsUrl:       URLUtils.url('Accelerator-CheckStoreAttributes').toString(),
         createAttrsUrl:      URLUtils.url('Accelerator-CreateStoreAttributes').toString(),
+        clearAttrMapUrl:     clearAttrMapUrlFor('store'),
         impexUrl:            pageCtx.impexUrl,
         cssUrl:              URLUtils.staticURL('/css/accelerator-migration.css').toString(),
         attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString(),
-        storeMigrationJsUrl: URLUtils.staticURL('/js/store-migration.js').toString() + '?v=5',
+        storeMigrationJsUrl: URLUtils.staticURL('/js/store-migration.js').toString() + '?v=9',
         jobsUrl:             jobsUrl
     }));
 };
 exports.StoreMigration.public = true;
+
+exports.ClearAttrIdMap = function () {
+    response.setContentType('application/json');
+    try {
+        var moduleKey = getParam('module') || '';
+        if (!moduleKey) {
+            jsonResponse({ ok: false, error: 'module is required' });
+            return;
+        }
+        clearModuleAttrIdMap(moduleKey);
+        jsonResponse({ ok: true });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.ClearAttrIdMap.public = true;
+
+/** @deprecated use ClearAttrIdMap?module=store */
+exports.ClearStoreAttrMap = function () {
+    clearModuleAttrIdMap('store');
+    jsonResponse({ ok: true });
+};
+exports.ClearStoreAttrMap.public = true;
 
 exports.CheckStoreAttributes = function () {
     response.setContentType('application/json');
@@ -2270,20 +2350,11 @@ exports.CheckStoreAttributes = function () {
 exports.CheckStoreAttributes.public = true;
 
 exports.CreateStoreAttributes = function () {
-    response.setContentType('application/json');
-    var rawAttrs = getParam('attrs');
-    var attrs    = [];
-    try { attrs = JSON.parse(rawAttrs || '[]'); } catch (e) {
-        jsonResponse({ ok: false, error: 'Invalid attrs JSON' });
-        return;
-    }
-    if (!attrs.length) {
-        jsonResponse({ ok: false, error: 'No attributes provided' });
-        return;
-    }
+    var attrs = parseAttrsParam();
+    if (!attrs) return;
     try {
         var checker = require('*/cartridge/scripts/migration/storeMigration/storeAttrChecker');
-        jsonResponse({ ok: true, result: checker.createAttributes(attrs) });
+        respondCreateAttributes('store', function (a) { return checker.createAttributes(a); }, attrs);
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
     }
@@ -2451,6 +2522,12 @@ exports.FullMigrationJobStatus.public = true;
 exports.ProductWizard = function () {
     var platformId = resolvePlatform();
     var pageCtx    = migrationPageContext(platformId, 'product');
+
+    // Visit-scoped remaps reset on full page load / refresh (same as other modules).
+    clearModuleAttrIdMap('product');
+    try { session.custom.selectedVariantAttrs = ''; } catch (e1) { /* ignore */ }
+    try { session.custom.preflightSelection = ''; } catch (e2) { /* ignore */ }
+
     ISML.renderTemplate('accelerator/productMigration', withBmFrame({
         title:          Resource.msg('accelerator.title', 'accelerator', null),
         subtitle:       Resource.msg('accelerator.subtitle', 'accelerator', null),
@@ -2468,6 +2545,7 @@ exports.ProductWizard = function () {
         fullBatchUrl:   URLUtils.url('Accelerator-FullProductMigrationBuildBatch').toString(),
         checkAttrsUrl:       URLUtils.url('Accelerator-CheckProductAttributes').toString(),
         createAttrsUrl:      URLUtils.url('Accelerator-CreateProductAttributes').toString(),
+        clearAttrMapUrl:     clearAttrMapUrlFor('product'),
         deleteAttrUrl:       URLUtils.url('Accelerator-DeleteProductAttribute').toString(),
         catalogsUrl:         URLUtils.url('Accelerator-GetProductCatalogs').toString(),
         downloadXmlUrl:      URLUtils.url('Accelerator-DownloadProductXml').toString(),
@@ -2630,25 +2708,14 @@ exports.CheckProductAttributes.public = true;
  * POST: attrs=<json-array of {id, label, sfccType}>
  */
 exports.CreateProductAttributes = function () {
-    var rawAttrs = getParam('attrs');
-    var attrs    = [];
-    try { attrs = JSON.parse(rawAttrs || '[]'); } catch (e) {
-        jsonResponse({ ok: false, error: 'Invalid attrs JSON' });
-        return;
-    }
-    if (!attrs.length) {
-        jsonResponse({ ok: false, error: 'No attributes provided' });
-        return;
-    }
+    var attrs = parseAttrsParam();
+    if (!attrs) return;
     var platform = String(session.custom.migrationPlatformId || 'commercetools');
     try {
-        if (platform === 'shopify') {
-            var shopifyChecker2 = require('*/cartridge/scripts/migration/productMigration/shopifyProductAttrChecker');
-            jsonResponse({ ok: true, result: shopifyChecker2.createAttributes(attrs) });
-        } else {
-            var checker2 = require('*/cartridge/scripts/migration/productMigration/productAttrChecker');
-            jsonResponse({ ok: true, result: checker2.createAttributes(attrs) });
-        }
+        var checker2 = (platform === 'shopify')
+            ? require('*/cartridge/scripts/migration/productMigration/shopifyProductAttrChecker')
+            : require('*/cartridge/scripts/migration/productMigration/productAttrChecker');
+        respondCreateAttributes('product', function (a) { return checker2.createAttributes(a); }, attrs);
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
     }
@@ -3624,6 +3691,8 @@ exports.CategoryMigration = function () {
     Logger.info('CategoryMigration URLs: migrate={0} impex={1} import={2}',
         migrateUrl, impexFolderUrl, importPageUrl);
 
+    clearModuleAttrIdMap('category');
+
     ISML.renderTemplate('accelerator/categoryMigration', withBmFrame({
         title          : 'Category Migration',
         subtitle       : '',
@@ -3654,6 +3723,7 @@ exports.CategoryMigration = function () {
         checkProductsUrl      : URLUtils.url('Accelerator-CheckCategoryProducts').toString(),
         attrPreflightJsUrl    : URLUtils.staticURL('/js/attr-preflight.js').toString(),
         createAttrsUrl        : URLUtils.url('Accelerator-CreateCategoryAttributes').toString(),
+        clearAttrMapUrl       : clearAttrMapUrlFor('category'),
         jsUrl: URLUtils.url('Accelerator-CategoryMigrationJS').toString() + '?v=' + new Date().getTime()
     }));
 };
@@ -3758,6 +3828,9 @@ exports.CreateCategoryAttributes = function () {
         var catAttrMgr   = require('*/cartridge/scripts/catalog/categoryAttributeMgr');
         var catPlatform  = String(session.custom.migrationPlatformId || 'commercetools');
         var result = catAttrMgr.createAttributes(attrs, catPlatform);
+        if (result && result.mappedAttrs && result.mappedAttrs.length) {
+            require('*/cartridge/scripts/migration/core/attrIdMapSession').saveFromAttrs('category', result.mappedAttrs);
+        }
         // Persist canonical→actual ID mapping in session so RunCategoryMigration
         // can remap customAttribute keys even when the user navigates across pages.
         // Always write the session key (even when no rename) so stale mappings are

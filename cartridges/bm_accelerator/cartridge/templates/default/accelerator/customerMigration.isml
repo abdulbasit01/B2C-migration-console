@@ -382,6 +382,7 @@
     var PRESET_LIST_ID   = '${pdict.customerListId}';
     var CHECK_ATTRS_URL   = '${pdict.checkAttrsUrl}';
     var CREATE_ATTRS_URL  = '${pdict.createAttrsUrl}';
+    var CLEAR_ATTR_MAP_URL = '${pdict.clearAttrMapUrl}';
     var DELETE_ATTR_URL   = '${pdict.deleteAttrUrl}';
     var FETCH_GROUPS_URL  = '${pdict.fetchGroupsUrl}';
     var CREATE_GROUPS_URL = '${pdict.createGroupsUrl}';
@@ -729,6 +730,7 @@
                     var editedId = (idInput && idInput.value.trim()) ? idInput.value.trim() : orig.id;
                     selected.push({
                         id: editedId,
+                        canonicalId: orig.id,
                         label: orig.label,
                         ctpType: orig.ctpType,
                         sfccType: window.AccAttrPreflight.readSfccType(idx, orig.sfccType)
@@ -764,20 +766,49 @@
                 return;
             }
 
-            var r    = data.result || {};
-            var text = r.created + ' created' + (r.failed ? ', ' + r.failed + ' failed' : '') + '.';
-            if (r.errors && r.errors.length) text += ' ' + r.errors[0];
+            var r       = data.result || {};
+            var created = r.created || 0;
+            var exists  = r.alreadyExists || 0;
+            var failed  = r.failed || 0;
+            var results = r.results || [];
+            var parts   = [];
+            if (created) parts.push(created + ' created');
+            if (exists) parts.push(exists + ' already exists');
+            if (failed) parts.push(failed + ' failed');
+            var text = parts.length ? parts.join(', ') + '.' : 'Done.';
+            if (r.errors && r.errors.length && failed) text += ' ' + r.errors[0];
 
-            if (btn) { btn.disabled = true; btn.textContent = '✓ Done'; }
+            if (btn) {
+                btn.disabled    = !!failed;
+                btn.textContent = failed ? 'Retry' : '✓ Done';
+            }
             if (msg) {
                 msg.textContent = text;
-                msg.style.color = r.failed ? '#c62828' : '#2e7d32';
+                msg.style.color = failed ? '#c62828' : (exists && !created ? '#1565c0' : '#2e7d32');
             }
 
-            // Enable Revert buttons for every row that was just created
+            if (window.AccAttrPreflight && window.AccAttrPreflight.setRowAttrFeedback && results.length) {
+                for (var ri = 0; ri < selected.length; ri++) {
+                    var rowResult = results[ri] || null;
+                    var rowIdx    = selectedIndices[ri];
+                    if (rowResult != null && rowIdx != null) {
+                        window.AccAttrPreflight.setRowAttrFeedback(
+                            rowIdx,
+                            rowResult.status,
+                            rowResult.canonicalId || selected[ri].canonicalId,
+                            rowResult.id || selected[ri].id,
+                            rowResult.message
+                        );
+                    }
+                }
+            }
+
+            // Enable Revert buttons for rows that were created
             var indices = selectedIndices || [];
-            for (var ri = 0; ri < indices.length; ri++) {
-                var revertBtn = document.querySelector('.acc-attr-revert-btn[data-idx="' + indices[ri] + '"]');
+            for (var rb = 0; rb < indices.length; rb++) {
+                var createResult = results[rb] || null;
+                if (!createResult || createResult.status !== 'created') continue;
+                var revertBtn = document.querySelector('.acc-attr-revert-btn[data-idx="' + indices[rb] + '"]');
                 if (revertBtn) {
                     revertBtn.disabled = false;
                     revertBtn.title    = '';
@@ -818,6 +849,11 @@
         };
         req.send(null);
     });
+
+    if (window.AccAttrPreflight && window.AccAttrPreflight.bindClearOnLeave) {
+        window.AccAttrPreflight.bindClearOnLeave(CLEAR_ATTR_MAP_URL, 'Accelerator-CustomerMigration');
+    }
+
     document.getElementById('acc-ctp-ids').addEventListener('input', function () { clearError('acc-ctp-ids', 'acc-ctp-ids-error'); });
 
     // -- Shared helpers -------------------------------------------------------
