@@ -36,6 +36,7 @@ function applyToConfig(cfg) {
 
     out.shopify = out.shopify || {};
     out.ctp = out.ctp || {};
+    out.sap = out.sap || {};
     out.sfcc = out.sfcc || {};
 
     out.shopify.storeUrl     = getPref('rcMigShopifyStoreUrl', out.shopify.storeUrl || '');
@@ -48,6 +49,11 @@ function applyToConfig(cfg) {
     out.ctp.clientSecret = getPref('rcMigCtpClientSecret', out.ctp.clientSecret || '');
     out.ctp.authUrl      = getPref('rcMigCtpAuthUrl', out.ctp.authUrl || 'https://auth.us-central1.gcp.commercetools.com');
     out.ctp.apiUrl       = getPref('rcMigCtpApiUrl', out.ctp.apiUrl || 'https://api.us-central1.gcp.commercetools.com');
+
+    out.sap.baseUrl      = getPref('rcMigSapBaseUrl', out.sap.baseUrl || '');
+    out.sap.baseSite     = getPref('rcMigSapBaseSite', out.sap.baseSite || '');
+    out.sap.clientId     = getPref('rcMigSapClientId', out.sap.clientId || '');
+    out.sap.clientSecret = getPref('rcMigSapClientSecret', out.sap.clientSecret || '');
 
     out.sfcc.bmClientId = getPref('rcMigOcapiClientId', out.sfcc.bmClientId || '');
     out.sfcc.metaVersion = getPref('rcMigOcapiVersion', out.sfcc.metaVersion || 'v25_6');

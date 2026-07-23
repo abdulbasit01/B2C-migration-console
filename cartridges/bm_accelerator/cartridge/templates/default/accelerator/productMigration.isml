@@ -167,6 +167,13 @@
                     (suitable for testing / selective imports). <strong>Full</strong> migrates all products in batches
                     via XML/WebDAV (suitable for production).
                 </p>
+            <iselseif condition="${pdict.platformId === 'sap'}">
+                <h2>Product Data Migration &mdash; <span class="acc-highlight">SAP Commerce &rarr; SFCC</span></h2>
+                <p style="font-size:14px;color:#54698d;margin-top:6px;max-width:640px;">
+                    Choose a migration mode below. <strong>Partial</strong> migrates a specific product by SAP product code
+                    (suitable for testing / selective imports). <strong>Full</strong> migrates all products in batches
+                    via XML/WebDAV (suitable for production).
+                </p>
             <iselse/>
                 <h2>Product Data Migration &mdash; <span class="acc-highlight">Commercetools &rarr; SFCC</span></h2>
                 <p style="font-size:14px;color:#54698d;margin-top:6px;max-width:640px;">
@@ -198,6 +205,8 @@
                 <span style="font-weight:700;font-size:14px;color:#16325c;">Attribute Pre-flight Check</span>
                 <isif condition="${pdict.platformId === 'shopify'}">
                     <button id="prod-check-attrs-btn" type="button" class="acc-btn acc-btn--ghost">Check Shopify Attributes</button>
+                <iselseif condition="${pdict.platformId === 'sap'}">
+                    <button id="prod-check-attrs-btn" type="button" class="acc-btn acc-btn--ghost">Check SAP Attributes</button>
                 <iselse/>
                     <button id="prod-check-attrs-btn" type="button" class="acc-btn acc-btn--ghost">Check CTP Attributes</button>
                 </isif>
@@ -209,6 +218,13 @@
                         Checks whether required Shopify tracking attributes
                         (<code>shopify_product_id</code>, <code>shopify_handle</code>, <code>shopify_status</code>)
                         and discovered variant option attributes exist on the SFCC <strong>Product</strong> system object.
+                        Missing attributes can be created (or renamed) here before the migration runs.
+                    </p>
+                <iselseif condition="${pdict.platformId === 'sap'}">
+                    <p style="font-size:13px;color:#54698d;margin:0;">
+                        Checks whether required SAP Commerce tracking attributes
+                        (<code>sap_product_id</code>) and discovered variant option attributes exist on the
+                        SFCC <strong>Product</strong> system object.
                         Missing attributes can be created (or renamed) here before the migration runs.
                     </p>
                 <iselse/>
@@ -235,6 +251,11 @@
                         Select which Shopify variant option attributes to include in the SFCC XML during migration.
                         Unselected options will be excluded. By default all discovered options are included.
                         After creating/renaming attributes in Check Shopify Attributes, click Reload to refresh SFCC IDs.
+                    </p>
+                <iselseif condition="${pdict.platformId === 'sap'}">
+                    <p style="font-size:13px;color:#54698d;margin:0;">
+                        Select which SAP Commerce variant option attributes to include in the SFCC XML during migration.
+                        By default all discovered variant option qualifiers are included.
                     </p>
                 <iselse/>
                     <p style="font-size:13px;color:#54698d;margin:0;">
@@ -272,6 +293,22 @@
                     <textarea id="prod-ctp-ids" class="acc-form__input"
                               rows="3"
                               placeholder="e.g. my-product-handle, another-product, 1234567890"
+                              style="width:100%;max-width:680px;resize:vertical;font-family:monospace;font-size:12px;"></textarea>
+                    <span id="prod-ctp-ids-error" class="acc-field-error"></span>
+                </div>
+            <iselseif condition="${pdict.platformId === 'sap'}">
+                <p style="font-size:13px;color:#54698d;margin:0 0 16px;">
+                    Fetches a specific product from SAP Commerce by product code and imports it into SFCC.
+                    Useful for testing individual products before running a full migration.
+                </p>
+                <div style="margin-bottom:20px;">
+                    <label for="prod-ctp-ids" style="font-weight:600;font-size:14px;display:block;margin-bottom:6px;">
+                        SAP Product Codes <span style="color:#c62828;">*</span>
+                        <span style="font-weight:400;color:#54698d;font-size:13px;">(comma-separated)</span>
+                    </label>
+                    <textarea id="prod-ctp-ids" class="acc-form__input"
+                              rows="3"
+                              placeholder="e.g. 300938, 3413800"
                               style="width:100%;max-width:680px;resize:vertical;font-family:monospace;font-size:12px;"></textarea>
                     <span id="prod-ctp-ids-error" class="acc-field-error"></span>
                 </div>
@@ -326,6 +363,11 @@
                 <p style="font-size:13px;color:#54698d;margin:0 0 16px;">
                     Fetches all products from Shopify in batches of 50 (via GraphQL cursor pagination), builds SFCC catalog XML,
                     and uploads to WebDAV. After upload, import the XML files in Business Manager.
+                </p>
+            <iselseif condition="${pdict.platformId === 'sap'}">
+                <p style="font-size:13px;color:#54698d;margin:0 0 16px;">
+                    Fetches all products from SAP Commerce (OCC <code>/products/search</code>) in batches of 100,
+                    builds SFCC catalog XML, and uploads to WebDAV. After upload, import the XML files in Business Manager.
                 </p>
             <iselse/>
                 <p style="font-size:13px;color:#54698d;margin:0 0 16px;">
@@ -510,7 +552,7 @@
         pendingMissing        = missing;
         attrResults.innerHTML = '';
 
-        var srcLabel = PLATFORM_ID === 'shopify' ? 'Shopify' : 'CTP';
+        var srcLabel = PLATFORM_ID === 'shopify' ? 'Shopify' : (PLATFORM_ID === 'sap' ? 'SAP' : 'CTP');
 
         if (!missing.length) {
             attrResults.innerHTML = '<p style="color:#2e7d32;font-size:13px;margin:0;">'
@@ -675,14 +717,16 @@
         if (!attrs || !attrs.length) {
             var emptyMsg = PLATFORM_ID === 'shopify'
                 ? 'No variant option attributes found in sampled Shopify products.'
-                : 'No variant attributes found in CTP product types.';
+                : (PLATFORM_ID === 'sap'
+                    ? 'No variant option attributes found in sampled SAP Commerce products.'
+                    : 'No variant attributes found in CTP product types.');
             varAttrsResults.innerHTML = '<p style="color:#54698d;font-size:13px;margin:0;">' + emptyMsg + '</p>';
             varAttrsResults.style.display = 'block';
             return;
         }
 
-        var nameCol = PLATFORM_ID === 'shopify' ? 'Option Name' : 'CTP Attribute Name';
-        var typeCol = PLATFORM_ID === 'shopify' ? 'Type' : 'CTP Type';
+        var nameCol = PLATFORM_ID === 'shopify' ? 'Option Name' : (PLATFORM_ID === 'sap' ? 'Option Qualifier' : 'CTP Attribute Name');
+        var typeCol = PLATFORM_ID === 'shopify' ? 'Type' : (PLATFORM_ID === 'sap' ? 'Type' : 'CTP Type');
         var html = '<div style="border:1px solid #e0e5ee;border-radius:4px;overflow:hidden;">'
             + '<table class="cm-attr-table">'
             + '<thead><tr>'
@@ -913,7 +957,7 @@
         }
         document.getElementById('prod-catalog-id-error').style.display = 'none';
         var rawIds = document.getElementById('prod-ctp-ids').value.trim();
-        var idFieldLabel = PLATFORM_ID === 'shopify' ? 'Shopify Product Handles/IDs' : 'CTP Product IDs';
+        var idFieldLabel = PLATFORM_ID === 'shopify' ? 'Shopify Product Handles/IDs' : (PLATFORM_ID === 'sap' ? 'SAP Product Codes' : 'CTP Product IDs');
         if (!rawIds) {
             showError('prod-ctp-ids', 'prod-ctp-ids-error', idFieldLabel + ' are required.');
             return;
