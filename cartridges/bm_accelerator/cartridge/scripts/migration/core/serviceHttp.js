@@ -13,6 +13,7 @@ var SERVICE_IDS = {
     generic: 'accelerator.http.generic',
     shopify: 'accelerator.shopify.api',
     ctp:     'accelerator.ctp.api',
+    sap:     'accelerator.sap.api',
     sfcc:    'accelerator.sfcc.ocapi',
     webdav:  'accelerator.sfcc.webdav'
 };

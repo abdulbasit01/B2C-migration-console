@@ -227,6 +227,11 @@ function buildConnectionCreds(platformId) {
         creds.clientSecret = cfg.shopify.clientSecret || '';
         creds.accessToken  = cfg.shopify.accessToken || '';
         creds.apiVersion   = cfg.shopify.apiVersion || '2025-01';
+    } else if (platformId === 'sap') {
+        creds.baseUrl      = cfg.sap.baseUrl || '';
+        creds.baseSite     = cfg.sap.baseSite || '';
+        creds.clientId     = cfg.sap.clientId || '';
+        creds.clientSecret = cfg.sap.clientSecret || '';
     }
 
     return creds;
@@ -255,6 +260,12 @@ function buildConnectionSummary(platformId) {
         lines.push({ label: 'Client ID', value: cfg.shopify.clientId || '(not set)' });
         lines.push({ label: 'Secret / token', value: hasSecret ? 'Configured' : '(not set)' });
         lines.push({ label: 'API version', value: cfg.shopify.apiVersion || '(not set)' });
+    } else if (platformId === 'sap') {
+        configured = !!(cfg.sap.baseUrl && cfg.sap.baseSite && cfg.sap.clientId && cfg.sap.clientSecret);
+        lines.push({ label: 'Base URL', value: cfg.sap.baseUrl || '(not set)' });
+        lines.push({ label: 'Base Site', value: cfg.sap.baseSite || '(not set)' });
+        lines.push({ label: 'Client ID', value: cfg.sap.clientId || '(not set)' });
+        lines.push({ label: 'Client secret', value: cfg.sap.clientSecret ? 'Configured' : '(not set)' });
     }
 
     return {
@@ -1365,6 +1376,10 @@ exports.GetProductSetsInfo = function () {
         jsonResponse({ ok: true, sets: [], note: 'Shopify set/bundle detection uses the Product Type field at migration time.' });
         return;
     }
+    if (platform === 'sap') {
+        jsonResponse({ ok: true, sets: [], note: 'SAP Commerce product set detection is not yet implemented (planned for a later phase).' });
+        return;
+    }
     try {
         var scanner = require('*/cartridge/scripts/migration/productMigration/ctpProductTypeScanner');
         jsonResponse({ ok: true, sets: scanner.getProductSetsSummary() });
@@ -1383,6 +1398,10 @@ exports.GetBundleProductsInfo = function () {
     var platform = String(session.custom.migrationPlatformId || 'commercetools');
     if (platform === 'shopify') {
         jsonResponse({ ok: true, bundles: [], note: 'Shopify set/bundle detection uses the Product Type field at migration time.' });
+        return;
+    }
+    if (platform === 'sap') {
+        jsonResponse({ ok: true, bundles: [], note: 'SAP Commerce bundle detection is not yet implemented (planned for a later phase).' });
         return;
     }
     try {
@@ -1406,6 +1425,9 @@ exports.GetVariantAttrs = function () {
         if (isShopify) {
             var shopifyChecker = require('*/cartridge/scripts/migration/productMigration/shopifyProductAttrChecker');
             fields = shopifyChecker.getShopifyVariantOptionFields();
+        } else if (platform === 'sap') {
+            var sapChecker = require('*/cartridge/scripts/migration/productMigration/sapProductAttrChecker');
+            fields = sapChecker.getSapVariantOptionFields();
         } else {
             var checker = require('*/cartridge/scripts/migration/productMigration/productAttrChecker');
             fields = checker.getCtpProductTypeFields();
@@ -2601,6 +2623,9 @@ exports.ProductMigrationCount = function () {
         if (platform === 'shopify') {
             var shopifyFetcher = require('*/cartridge/scripts/migration/productMigration/shopifyProductFetcher');
             jsonResponse({ ok: true, total: shopifyFetcher.getCount() });
+        } else if (platform === 'sap') {
+            var sapFetcherCount = require('*/cartridge/scripts/migration/productMigration/sapProductFetcher');
+            jsonResponse({ ok: true, total: sapFetcherCount.getCount() });
         } else {
             var prodFetcher = require('*/cartridge/scripts/migration/productMigration/ctpProductFetcher');
             jsonResponse({ ok: true, total: prodFetcher.getCount() });
@@ -2691,6 +2716,9 @@ exports.CheckProductAttributes = function () {
         if (platform === 'shopify') {
             var shopifyChecker = require('*/cartridge/scripts/migration/productMigration/shopifyProductAttrChecker');
             jsonResponse({ ok: true, missing: shopifyChecker.checkMissingAttributes() });
+        } else if (platform === 'sap') {
+            var sapChecker = require('*/cartridge/scripts/migration/productMigration/sapProductAttrChecker');
+            jsonResponse({ ok: true, missing: sapChecker.checkMissingAttributes() });
         } else {
             var checker = require('*/cartridge/scripts/migration/productMigration/productAttrChecker');
             jsonResponse({ ok: true, missing: checker.checkMissingAttributes() });
@@ -2712,7 +2740,9 @@ exports.CreateProductAttributes = function () {
     try {
         var checker2 = (platform === 'shopify')
             ? require('*/cartridge/scripts/migration/productMigration/shopifyProductAttrChecker')
-            : require('*/cartridge/scripts/migration/productMigration/productAttrChecker');
+            : (platform === 'sap')
+                ? require('*/cartridge/scripts/migration/productMigration/sapProductAttrChecker')
+                : require('*/cartridge/scripts/migration/productMigration/productAttrChecker');
         respondCreateAttributes('product', function (a) { return checker2.createAttributes(a); }, attrs);
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
