@@ -35,5 +35,17 @@
                 "note": "SFCC Profile already has native phone fields (phoneHome, phoneBusiness, phoneMobile, fax) — this maps to phoneMobile instead of a new custom attribute."
             }
         }
+    },
+    "sap": {
+        "Product": {
+            "code":        { "sfccField": "ID",              "action": "skip" },
+            "name":        { "sfccField": "displayName",      "action": "skip" },
+            "summary":     { "sfccField": "shortDescription", "action": "skip" },
+            "description": { "sfccField": "longDescription",  "action": "skip" },
+            "manufacturer": { "sfccField": "manufacturer-name", "action": "skip" },
+            "ean":          { "sfccField": "ean",               "action": "skip" },
+            "Color":        { "sfccField": "color",             "action": "custom_attr" },
+            "Size":         { "sfccField": "size",               "action": "custom_attr" }
+        }
     }
 }

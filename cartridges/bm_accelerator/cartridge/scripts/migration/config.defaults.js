@@ -19,6 +19,12 @@ module.exports = {
         authUrl:      'https://auth.us-central1.gcp.commercetools.com',
         apiUrl:       'https://api.us-central1.gcp.commercetools.com'
     },
+    sap: {
+        baseUrl:      '',
+        baseSite:     '',
+        clientId:     '',
+        clientSecret: ''
+    },
     sfcc: {
         bmClientId:      '',
         version:         'v25_6',

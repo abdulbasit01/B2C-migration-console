@@ -63,6 +63,34 @@
                 <default-value>https://api.us-central1.gcp.commercetools.com</default-value>
             </attribute-definition>
 
+            <attribute-definition attribute-id="rcMigSapBaseUrl">
+                <display-name xml:lang="x-default">SAP Commerce Base URL</display-name>
+                <description xml:lang="x-default">e.g. https://api.your-tenant.commerce.ondemand.com</description>
+                <type>string</type>
+                <mandatory-flag>false</mandatory-flag>
+                <externally-managed-flag>false</externally-managed-flag>
+            </attribute-definition>
+            <attribute-definition attribute-id="rcMigSapBaseSite">
+                <display-name xml:lang="x-default">SAP Commerce Base Site</display-name>
+                <description xml:lang="x-default">OCC baseSiteId, e.g. apparel-uk</description>
+                <type>string</type>
+                <mandatory-flag>false</mandatory-flag>
+                <externally-managed-flag>false</externally-managed-flag>
+            </attribute-definition>
+            <attribute-definition attribute-id="rcMigSapClientId">
+                <display-name xml:lang="x-default">SAP Commerce OAuth Client ID</display-name>
+                <type>string</type>
+                <mandatory-flag>false</mandatory-flag>
+                <externally-managed-flag>false</externally-managed-flag>
+            </attribute-definition>
+            <attribute-definition attribute-id="rcMigSapClientSecret">
+                <display-name xml:lang="x-default">SAP Commerce OAuth Client Secret</display-name>
+                <description xml:lang="x-default">client_credentials grant secret</description>
+                <type>password</type>
+                <mandatory-flag>false</mandatory-flag>
+                <externally-managed-flag>false</externally-managed-flag>
+            </attribute-definition>
+
             <attribute-definition attribute-id="rcMigOcapiClientId">
                 <display-name xml:lang="x-default">OCAPI / BM API Client ID</display-name>
                 <description xml:lang="x-default">Account Manager API client ID used for OCAPI Data API calls</description>
@@ -103,6 +131,10 @@
                 <attribute attribute-id="rcMigCtpClientSecret"/>
                 <attribute attribute-id="rcMigCtpAuthUrl"/>
                 <attribute attribute-id="rcMigCtpApiUrl"/>
+                <attribute attribute-id="rcMigSapBaseUrl"/>
+                <attribute attribute-id="rcMigSapBaseSite"/>
+                <attribute attribute-id="rcMigSapClientId"/>
+                <attribute attribute-id="rcMigSapClientSecret"/>
                 <attribute attribute-id="rcMigOcapiClientId"/>
                 <attribute attribute-id="rcMigBmUsername"/>
                 <attribute attribute-id="rcMigBmPassword"/>

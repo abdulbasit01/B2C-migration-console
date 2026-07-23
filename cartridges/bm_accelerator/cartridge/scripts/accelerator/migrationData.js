@@ -145,11 +145,11 @@ var PLATFORMS = [
         id:          'sap',
         name:        'SAP Commerce',
         tagline:     'B2C, OCC, Integrations',
-        status:      'soon',
-        confidence:  0,
-        description: 'SAP Commerce Cloud to Salesforce B2C Commerce migration path (planned).',
+        status:      'ready',
+        confidence:  60,
+        description: 'Migrate SAP Commerce Cloud (Hybris) products into Salesforce B2C Commerce via the OCC v2 REST API. Phase 1: Product only — Customer, Order, and Catalog are planned for later phases.',
         iconClass:   'platform-icon--sap',
-        connectHint: '',
+        connectHint: 'Configure SAP Commerce OCC credentials (Base URL, Base Site, Client ID/Secret) under Site Preferences → B2C Migration Console, then test the connection.',
         connectFields: []
     }
 ];
