@@ -21,7 +21,7 @@
 <isinclude template="accelerator/components/migrationBackLink"/>
 <section class="acc-section">
 <header class="acc-section__head">
-<h2>Category Data Migration - <isif condition="${pdict.platform === 'shopify'}">Shopify<iselse/>Commercetools</isif> to SFCC</h2>
+<h2>Category Data Migration - <isif condition="${pdict.platform === 'shopify'}">Shopify<iselseif condition="${pdict.platform === 'sap'}"/>SAP<iselse/>Commercetools</isif> to SFCC</h2>
 </header>
 
 <div style="background:#f4f6f9;border:1px solid #dddbda;border-radius:4px;padding:0;margin-bottom:20px;overflow:hidden;">
@@ -96,7 +96,7 @@
 </div>
 <div class="acc-move-actions">
 <button type="button" id="btn-check-attrs" class="acc-btn acc-btn--primary">Check Attributes</button>
-<button type="button" id="btn-create-selected-attrs" class="acc-btn acc-btn--primary" style="display:none;margin-left:10px;">Create Selected</button>
+<button type="button" id="btn-create-selected-attrs" class="acc-btn acc-btn--primary" style="margin-left:10px;">Create Attributes</button>
 <button type="button" id="btn-skip-attrs" class="acc-btn acc-btn--ghost" style="margin-left:10px;">Skip to Step 2</button>
 <span id="attr-overall" style="margin-left:14px;font-size:13px;color:#54698d;"></span>
 </div>
@@ -117,7 +117,7 @@ Click Save and Apply Changes to confirm.
 </div>
 <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
 <input type="text" id="hierarchy-search" placeholder="Search by name or ID" style="width:220px;padding:6px 10px;font-size:13px;border:1px solid #dddbda;border-radius:4px;"/>
-<button type="button" id="btn-load-categories" class="acc-btn acc-btn--secondary">Load Categories from <isif condition="${pdict.platform === 'shopify'}">Shopify<iselse/>CT</isif></button>
+<button type="button" id="btn-load-categories" class="acc-btn acc-btn--secondary">Load Categories from <isif condition="${pdict.platform === 'shopify'}">Shopify<iselseif condition="${pdict.platform === 'sap'}"/>SAP<iselse/>CT</isif></button>
 <button type="button" id="btn-reset-hierarchy" class="acc-btn acc-btn--ghost">Reset All</button>
 <button type="button" id="btn-save-hierarchy" class="acc-btn acc-btn--primary">Save and Apply Changes</button>
 <span style="border-left:1px solid #dddbda;height:24px;display:inline-block;vertical-align:middle;"></span>
@@ -167,7 +167,7 @@ Drop here to make Root (L1) category
 <th style="background:#f4f6f9;padding:8px 10px;text-align:center;border-bottom:2px solid #dddbda;font-weight:600;color:#16325c;font-size:12px;width:60px;" title="Check categories to include in XML export">Export</th>
 </tr></thead>
 <tbody id="main-cat-tbody">
-<tr><td colspan="7" style="text-align:center;padding:30px;color:#54698d;">Click Load Categories from <isif condition="${pdict.platform === 'shopify'}">Shopify<iselse/>CT</isif> to begin.</td></tr>
+<tr><td colspan="7" style="text-align:center;padding:30px;color:#54698d;">Click Load Categories from <isif condition="${pdict.platform === 'shopify'}">Shopify<iselseif condition="${pdict.platform === 'sap'}"/>SAP<iselse/>CT</isif> to begin.</td></tr>
 </tbody>
 </table>
 </div>

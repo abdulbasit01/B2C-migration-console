@@ -12,6 +12,8 @@ var CTP_ATTR_GROUP_ID        = 'CTPMigration';
 var CTP_ATTR_GROUP_NAME      = 'CTP Migration';
 var SHOPIFY_ATTR_GROUP_ID    = 'ShopifyMigration';
 var SHOPIFY_ATTR_GROUP_NAME  = 'Shopify Migration';
+var SAP_ATTR_GROUP_ID        = 'SAPMigration';
+var SAP_ATTR_GROUP_NAME      = 'SAP Migration';
 
 var ALL_SFCC_TYPES = [
     { value: 'string',   label: 'String'   },
@@ -31,19 +33,24 @@ var SHOPIFY_ATTRS = [
 ];
 
 var CT_ATTRS = [
-    { id: 'ctId',       label: 'CTP Category ID',       sfccType: 'string' },
     { id: 'ctSlug',     label: 'CTP Category Slug',     sfccType: 'string' },
     { id: 'ctPosition', label: 'CTP Category Position', sfccType: 'double' }
 ];
 
+var SAP_ATTRS = [
+    { id: 'sapCode', label: 'SAP Category Code', sfccType: 'string' }
+];
+
 function getRequiredAttrs(platform) {
-    return platform === 'shopify' ? SHOPIFY_ATTRS : CT_ATTRS;
+    if (platform === 'shopify') return SHOPIFY_ATTRS;
+    if (platform === 'sap')     return SAP_ATTRS;
+    return CT_ATTRS;
 }
 
 function getAttrGroup(platform) {
-    return platform === 'shopify'
-        ? { id: SHOPIFY_ATTR_GROUP_ID, name: SHOPIFY_ATTR_GROUP_NAME }
-        : { id: CTP_ATTR_GROUP_ID,     name: CTP_ATTR_GROUP_NAME };
+    if (platform === 'shopify') return { id: SHOPIFY_ATTR_GROUP_ID, name: SHOPIFY_ATTR_GROUP_NAME };
+    if (platform === 'sap')     return { id: SAP_ATTR_GROUP_ID,     name: SAP_ATTR_GROUP_NAME };
+    return { id: CTP_ATTR_GROUP_ID, name: CTP_ATTR_GROUP_NAME };
 }
 
 /**
@@ -125,18 +132,20 @@ function createAttributes(attrs, platform) {
 
     for (var i = 0; i < attrs.length; i++) {
         var attr = attrs[i];
+        var createOk = false;
         try {
             if (attr.originalId && attr.originalId !== attr.id) {
                 try { sfccClient.deleteAttributeDefinition(token, CATEGORY_OBJECT, attr.originalId); } catch (de) {}
             }
             var def = attrBuilder.buildAttrDefinition(attr.id, attr.sfccType || 'string', attr.label || attr.id);
             sfccClient.createAttributeDefinition(token, CATEGORY_OBJECT, def);
-            sfccClient.addAttributeToGroup(token, CATEGORY_OBJECT, group.id, attr.id);
+            createOk = true;
             created++;
         } catch (e) {
             failed++;
             if (errors.length < 5) errors.push(attr.id + ': ' + (e.message || String(e)));
         }
+        try { sfccClient.addAttributeToGroup(token, CATEGORY_OBJECT, group.id, attr.id); } catch (age) {}
     }
     return { created: created, failed: failed, errors: errors };
 }
@@ -153,7 +162,9 @@ function deleteAttribute(attrId) {
 module.exports = {
     SHOPIFY_ATTRS           : SHOPIFY_ATTRS,
     CT_ATTRS                : CT_ATTRS,
+    SAP_ATTRS               : SAP_ATTRS,
     getRequiredAttrs        : getRequiredAttrs,
+    getAttrGroup            : getAttrGroup,
     checkAttributes         : checkAttributes,
     createAttributes        : createAttributes,
     createMissingAttributes : createMissingAttributes,
