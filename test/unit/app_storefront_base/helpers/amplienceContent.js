@@ -67,6 +67,75 @@ describe('amplienceContent storefront helper', function () {
         expect(model.fields[1].value).to.equal('https://cdn.example.com/hotspot.png');
     });
 
+    it('groups locale preview fields into a localized dropdown field', function () {
+        var asset = {
+            ID: 'amp-seo-page',
+            name: 'SEO Page',
+            online: true,
+            custom: {
+                amplienceWidgetType: 'amplienceWidget',
+                amplienceSourceJson: JSON.stringify({
+                    seo: {
+                        title: {
+                            values: [
+                                { locale: 'en-US', value: 'Personalisation' },
+                                { locale: 'fr-FR', value: 'Personnalisation' }
+                            ]
+                        },
+                        noindex: false
+                    }
+                }),
+                amplienceWidgetAttributes: '{}',
+                body: '<p></p>'
+            }
+        };
+
+        var model = amplienceContent.resolveFromContentAsset(asset);
+        var localized = model.fields.filter(function (field) {
+            return field.type === 'localized';
+        });
+
+        expect(localized.length).to.be.at.least(1);
+        expect(localized[0].options.length).to.equal(2);
+        expect(localized[0].markup).to.contain('amp-locale-select');
+    });
+
+    it('prefers amplienceSourceJson over shallow previewFields for locale dropdowns', function () {
+        var asset = {
+            ID: 'amp-seo-page-2',
+            name: 'SEO Page',
+            online: true,
+            custom: {
+                amplienceWidgetType: 'amplienceWidget',
+                amplienceSourceJson: JSON.stringify({
+                    seo: {
+                        title: {
+                            values: [
+                                { locale: 'en-US', value: 'FAQ' },
+                                { locale: 'fr-FR', value: 'FAQ FR' },
+                                { locale: 'de-DE', value: 'FAQ DE' }
+                            ]
+                        }
+                    }
+                }),
+                amplienceWidgetAttributes: JSON.stringify({
+                    previewFields: [
+                        { name: 'seo', type: 'object', value: '2 properties' }
+                    ]
+                }),
+                body: '<p></p>'
+            }
+        };
+
+        var model = amplienceContent.resolveFromContentAsset(asset);
+        var localized = model.fields.filter(function (field) {
+            return field.type === 'localized';
+        });
+
+        expect(localized.length).to.equal(1);
+        expect(localized[0].options.length).to.equal(3);
+    });
+
     it('loads assets by content ID via ContentMgr', function () {
         ContentMgr.__setContent('amp-mens-fashion', {
             ID: 'amp-mens-fashion',
@@ -150,6 +219,50 @@ describe('amplienceContent storefront helper', function () {
         expect(result.hasNext).to.equal(true);
     });
 
+    it('filters assets by search query across name and ids', function () {
+        var assets = [
+            {
+                ID: 'amp-hero-banner',
+                name: 'Women Fashion Hero',
+                online: true,
+                custom: {
+                    amplienceWidgetType: 'mainBanner',
+                    amplienceContentId: 'ba65f899-6545-4a21-8f09-00387d3a4b7d',
+                    amplienceWidgetAttributes: '{}'
+                }
+            },
+            {
+                ID: 'amp-editorial-1',
+                name: 'About Us Copy',
+                online: true,
+                custom: {
+                    amplienceWidgetType: 'editorialRichText',
+                    amplienceContentId: '11111111-1111-1111-1111-111111111111',
+                    amplienceWidgetAttributes: '{}'
+                }
+            }
+        ];
+
+        ContentMgr.__setFolder('amplience', {
+            online: true,
+            getOnlineContent: function () {
+                return assets;
+            }
+        });
+
+        var byType = amplienceContent.getAmplienceAssets({
+            type: 'editorialRichText'
+        });
+        var byQuery = amplienceContent.getAmplienceAssets({
+            query: 'ba65f899'
+        });
+
+        expect(byType.total).to.equal(1);
+        expect(byType.items[0].id).to.equal('amp-editorial-1');
+        expect(byQuery.total).to.equal(1);
+        expect(byQuery.items[0].id).to.equal('amp-hero-banner');
+    });
+
     it('reports when the assigned library has no Amplience folder', function () {
         var result = amplienceContent.getAmplienceAssets();
 
@@ -220,5 +333,87 @@ describe('amplienceContent storefront helper', function () {
         expect(model.fields.some(function (field) {
             return field.type === 'text' && field.value === 'Hello from Amplience';
         })).to.equal(true);
+    });
+
+    it('does not add locale dropdown metadata to banner gallery cards', function () {
+        var asset = {
+            ID: 'amp-hero',
+            name: 'Hero',
+            online: true,
+            custom: {
+                amplienceWidgetType: 'mainBanner',
+                amplienceImageUrl: 'https://cdn.example.com/hero.png',
+                amplienceWidgetAttributes: JSON.stringify({
+                    heading: '<h1>Hero</h1>'
+                }),
+                body: '<p></p>'
+            }
+        };
+
+        var model = amplienceContent.resolveFromContentAsset(asset);
+        var galleryModel = amplienceContent.enrichGalleryModel(model, asset);
+
+        expect(galleryModel.availableLocales).to.have.lengthOf(0);
+        expect(galleryModel.fields).to.have.lengthOf(0);
+    });
+
+    it('uses a card-level locale on gallery models without per-field dropdowns', function () {
+        var asset = {
+            ID: 'amp-seo-gallery',
+            name: 'SEO Gallery',
+            online: true,
+            custom: {
+                amplienceWidgetType: 'amplienceWidget',
+                amplienceSourceJson: JSON.stringify({
+                    seo: {
+                        title: {
+                            values: [
+                                { locale: 'en-US', value: 'Personalisation' },
+                                { locale: 'fr-FR', value: 'Personnalisation' }
+                            ]
+                        }
+                    }
+                }),
+                amplienceWidgetAttributes: '{}',
+                body: '<p></p>'
+            }
+        };
+
+        var model = amplienceContent.resolveFromContentAsset(asset);
+        var galleryModel = amplienceContent.enrichGalleryModel(model, asset);
+
+        expect(galleryModel.availableLocales).to.have.lengthOf(2);
+        expect(galleryModel.previewLocale).to.equal('en-US');
+        expect(galleryModel.fields[0].markup).to.not.contain('amp-locale-select');
+        expect(galleryModel.fields[0].markup).to.contain('Personalisation');
+    });
+
+    it('returns locale-specific gallery preview html from migrated source', function () {
+        ContentMgr.__setContent('amp-seo-gallery', {
+            ID: 'amp-seo-gallery',
+            name: 'SEO Gallery',
+            online: true,
+            custom: {
+                amplienceWidgetType: 'amplienceWidget',
+                amplienceSourceJson: JSON.stringify({
+                    seo: {
+                        title: {
+                            values: [
+                                { locale: 'en-US', value: 'Personalisation' },
+                                { locale: 'fr-FR', value: 'Personnalisation' }
+                            ]
+                        }
+                    }
+                }),
+                amplienceWidgetAttributes: '{}',
+                body: '<p></p>'
+            }
+        });
+
+        var preview = amplienceContent.getGalleryPreviewForLocale('amp-seo-gallery', 'fr-FR');
+
+        expect(preview.ok).to.equal(true);
+        expect(preview.html).to.contain('Personnalisation');
+        expect(preview.locale).to.equal('fr-FR');
     });
 });

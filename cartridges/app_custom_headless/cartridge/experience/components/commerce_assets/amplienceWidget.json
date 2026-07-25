@@ -1,0 +1,51 @@
+{
+    "name": "Amplience Content Widget",
+    "description": "Headless widget that references Amplience CMS content by delivery key for SFCC Page Designer",
+    "group": "commerce_assets",
+    "attribute_definition_groups": [
+        {
+            "id": "amplienceSource",
+            "name": "Amplience Source",
+            "description": "Reference to published Amplience content",
+            "attribute_definitions": [
+                {
+                    "id": "hubName",
+                    "name": "Hub Name",
+                    "description": "Amplience CDN hub name",
+                    "type": "string",
+                    "required": true
+                },
+                {
+                    "id": "deliveryKey",
+                    "name": "Delivery Key",
+                    "description": "Amplience content delivery key",
+                    "type": "string",
+                    "required": true
+                },
+                {
+                    "id": "targetWidget",
+                    "name": "Target SFCC Widget",
+                    "description": "Mapped Page Designer component type",
+                    "type": "enum",
+                    "values": [
+                        "campaignBanner",
+                        "editorialRichText",
+                        "mainBanner",
+                        "imageAndText",
+                        "amplienceWidget"
+                    ],
+                    "required": false
+                },
+                {
+                    "id": "previewHtml",
+                    "name": "Preview HTML",
+                    "description": "Fallback markup for headless rendering",
+                    "type": "markup",
+                    "required": false
+                }
+            ]
+        }
+    ],
+    "region_definitions": [],
+    "arch_type": "headless"
+}

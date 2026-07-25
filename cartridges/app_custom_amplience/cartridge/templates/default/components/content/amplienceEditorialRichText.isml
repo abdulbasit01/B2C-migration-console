@@ -1,7 +1,28 @@
 <article class="amp-rich-text">
-    <isif condition="${pdict.amp.hasBody}">
-        <isprint value="${pdict.amp.bodyHtml}" encoding="off" />
-    <iselse/>
-        <h2>${pdict.amp.name}</h2>
+
+    <isif condition="${!empty(pdict.amp.heading)}">
+
+        <div class="amp-rich-text__header">
+
+            <isprint value="${pdict.amp.heading}" encoding="off" />
+
+        </div>
+
     </isif>
+
+    <isif condition="${pdict.amp.hasBody}">
+
+        <div class="amp-rich-text__body">
+
+            <isprint value="${pdict.amp.bodyHtml}" encoding="off" />
+
+        </div>
+
+    <iselseif condition="${empty(pdict.amp.heading)}">
+
+        <h2>${pdict.amp.name}</h2>
+
+    </isif>
+
 </article>
+

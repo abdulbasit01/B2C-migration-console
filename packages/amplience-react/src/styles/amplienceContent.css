@@ -1,0 +1,171 @@
+.amp-main-banner {
+    position: relative;
+    min-height: 20rem;
+    overflow: hidden;
+    color: #fff;
+    background: #002b5c;
+}
+
+.amp-main-banner img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.amp-main-banner::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, rgba(0, 43, 92, 0.9), rgba(0, 43, 92, 0.15));
+}
+
+.amp-main-banner__overlay {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 20rem;
+    width: 100%;
+    padding: 2.5rem;
+    text-align: center;
+}
+
+.amp-main-banner--align-left .amp-main-banner__overlay {
+    justify-content: flex-start;
+    text-align: left;
+}
+
+.amp-main-banner--align-right .amp-main-banner__overlay {
+    justify-content: flex-end;
+    text-align: right;
+}
+
+.amp-main-banner--align-center .amp-main-banner__overlay {
+    justify-content: center;
+    text-align: center;
+}
+
+.amp-main-banner__overlay h1,
+.amp-main-banner__overlay h2,
+.amp-main-banner__overlay p {
+    color: #fff;
+    width: 100%;
+}
+
+.amp-campaign-banner {
+    padding: 2rem;
+    color: #fff;
+    background: #004a82;
+    text-align: center;
+}
+
+.amp-campaign-banner h1,
+.amp-campaign-banner h2,
+.amp-campaign-banner p {
+    color: #fff;
+}
+
+.amp-image-text {
+    display: grid;
+    min-height: 18rem;
+}
+
+@media (min-width: 544px) {
+    .amp-image-text {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+.amp-image-text__media img {
+    width: 100%;
+    height: 100%;
+    min-height: 18rem;
+    object-fit: cover;
+}
+
+.amp-image-text__copy,
+.amp-rich-text,
+.amp-widget-fallback {
+    padding: 1.5rem;
+}
+
+.amp-image-text__copy h1,
+.amp-image-text__copy h2,
+.amp-rich-text h1,
+.amp-rich-text h2,
+.amp-widget-fallback h2 {
+    color: #002b5c;
+}
+
+.amp-widget-fallback__field {
+    padding-bottom: 0.8rem;
+    margin-bottom: 0.8rem;
+    border-bottom: 1px solid #e8edf2;
+}
+
+.amp-widget-fallback__field span {
+    color: #f58220;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.amp-widget-fallback__field--localized {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.amp-locale-toolbar {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem 0.45rem;
+}
+
+.amp-locale-toolbar__label {
+    color: #64748b;
+    font-size: 0.62rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.amp-locale-select {
+    width: auto;
+    min-width: 0;
+    max-width: 7rem;
+    padding: 0.2rem 0.35rem;
+    border: 1px solid #ccd7e3;
+    border-radius: 4px;
+    color: #002b5c;
+    background: #fff;
+    font-size: 0.68rem;
+    font-weight: 600;
+    line-height: 1.2;
+}
+
+.amp-widget-fallback__field--localized p {
+    margin: 0;
+    color: #002b5c;
+    font-size: 0.9rem;
+    word-break: break-word;
+}
+
+.amp-widget-fallback__image img {
+    display: block;
+    max-width: 100%;
+}
+
+.amp-detail__live-error {
+    margin-top: 0.75rem;
+    color: #f8d7da;
+    background: #842029;
+    border-radius: 0.5rem;
+    padding: 0.6rem 0.85rem;
+    font-size: 0.9rem;
+}

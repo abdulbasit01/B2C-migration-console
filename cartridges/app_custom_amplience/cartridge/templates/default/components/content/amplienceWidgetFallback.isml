@@ -17,15 +17,8 @@
 
     <isif condition="${!empty(pdict.amp.fields)}">
         <isloop items="${pdict.amp.fields}" var="field">
-            <isif condition="${field.type == 'image' && !empty(field.value)}">
-                <figure class="amp-widget-fallback__image">
-                    <img src="${field.value}" alt="${field.name}" loading="lazy" />
-                </figure>
-            <iselseif condition="${!empty(field.value)}">
-                <div class="amp-widget-fallback__field">
-                    <span>${field.name}</span>
-                    <p>${field.value}</p>
-                </div>
+            <isif condition="${!empty(field.markup)}">
+                <isprint value="${field.markup}" encoding="off" />
             </isif>
         </isloop>
     </isif>

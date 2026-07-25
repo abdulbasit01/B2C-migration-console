@@ -299,15 +299,121 @@
     }
 
     /**
+     * Collapse locale-suffixed preview fields into dropdown rows.
+     * @param {Object[]} fields - Flat preview field descriptors
+     * @returns {Object[]} Grouped fields with localized dropdown options
+     */
+    function groupLocalizedPreviewFields(fields) {
+        if (!fields || !fields.length) return [];
+
+        var output = [];
+        var groupMap = {};
+        var groupOrder = [];
+        var i;
+        var field;
+        var match;
+        var baseName;
+        var suffix;
+
+        /**
+         * Format a locale key for dropdown display.
+         * @param {string} localeKey - Locale or index suffix
+         * @returns {string} Display label
+         */
+        function formatLocaleLabel(localeKey) {
+            var key = String(localeKey || '').trim();
+            if (!key) return 'Value';
+            if (/^[a-z]{2}([-_][a-z]{2})?$/i.test(key)) {
+                return key.toUpperCase().replace('_', '-');
+            }
+            if (/^\d+$/.test(key)) {
+                return 'Item ' + (parseInt(key, 10) + 1);
+            }
+            return key;
+        }
+
+        /**
+         * Flush accumulated locale field groups into output.
+         * @returns {void}
+         */
+        function flushGroups() {
+            var g;
+            var base;
+            var items;
+            var preferred;
+            var j;
+
+            for (g = 0; g < groupOrder.length; g++) {
+                base = groupOrder[g];
+                items = groupMap[base];
+                if (items && items.length) {
+                    if (items.length === 1) {
+                        output.push({
+                            name: base + '[' + items[0].locale + ']',
+                            type: items[0].type,
+                            value: items[0].value
+                        });
+                    } else {
+                        preferred = items[0];
+                        for (j = 0; j < items.length; j++) {
+                            if (String(items[j].locale).toLowerCase().indexOf('en') === 0) {
+                                preferred = items[j];
+                                break;
+                            }
+                        }
+
+                        output.push({
+                            name: base,
+                            type: 'localized',
+                            value: preferred.value,
+                            options: items
+                        });
+                    }
+                }
+            }
+
+            groupMap = {};
+            groupOrder = [];
+        }
+
+        for (i = 0; i < fields.length; i++) {
+            field = fields[i];
+            match = String(field.name || '').match(/^(.+)\[([^\]]+)\]$/);
+            if (match) {
+                baseName = match[1];
+                suffix = match[2];
+                if (!groupMap[baseName]) {
+                    groupMap[baseName] = [];
+                    groupOrder.push(baseName);
+                }
+                groupMap[baseName].push({
+                    locale: suffix,
+                    label: formatLocaleLabel(suffix),
+                    value: field.value,
+                    type: field.type || 'text'
+                });
+            } else {
+                flushGroups();
+                output.push(field);
+            }
+        }
+
+        flushGroups();
+        return output;
+    }
+
+    /**
      * Build HTML for preview field rows.
      * @param {Object[]} fields - field descriptors
      * @param {Object[]} images - image descriptors
      * @returns {string} html
      */
     function buildFieldsHtml(fields, images) {
+        var groupedFields = groupLocalizedPreviewFields(fields || []);
         var html = '<ul class="cms-preview-fields">';
         var shown = {};
         var i;
+        var j;
 
         if (images && images.length) {
             for (i = 0; i < images.length; i++) {
@@ -322,10 +428,29 @@
             }
         }
 
-        if (fields && fields.length) {
-            for (i = 0; i < fields.length; i++) {
-                var f = fields[i];
-                if (!shown[f.name] && f.type !== 'image') {
+        for (i = 0; i < groupedFields.length; i++) {
+            var f = groupedFields[i];
+            if (!shown[f.name]) {
+                if (f.type === 'localized' && f.options && f.options.length) {
+                    html += '<li class="cms-preview-fields__row cms-preview-fields__row--localized">'
+                        + '<span class="cms-preview-fields__name">' + escHtml(f.name) + '</span>'
+                        + '<span class="cms-preview-fields__value">'
+                        + '<span class="cms-locale-toolbar">'
+                        + '<span class="cms-locale-toolbar__label">Lang</span>'
+                        + '<select class="cms-locale-select" aria-label="' + escHtml(f.name) + ' locale">';
+                    for (j = 0; j < f.options.length; j++) {
+                        html += '<option value="' + j + '"' + (j === 0 ? ' selected' : '') + '>'
+                            + escHtml(f.options[j].label) + '</option>';
+                    }
+                    html += '</select></span>';
+                    for (j = 0; j < f.options.length; j++) {
+                        html += '<span class="cms-locale-panel' + (j === 0 ? '' : ' cms-locale-panel--hidden')
+                            + '" data-locale-index="' + j + '">'
+                            + escHtml(String(f.options[j].value || ''))
+                            + '</span>';
+                    }
+                    html += '</span></li>';
+                } else if (f.type !== 'image') {
                     html += '<li class="cms-preview-fields__row">'
                         + '<span class="cms-preview-fields__name">' + escHtml(f.name) + '</span>'
                         + '<span class="cms-preview-fields__value">' + escHtml(f.value) + '</span>'
@@ -1134,6 +1259,25 @@
                 resyncMigratedFolder(cfg);
             });
         }
+
+        document.addEventListener('change', function (event) {
+            var select = event.target;
+            if (!select || !select.classList || !select.classList.contains('cms-locale-select')) {
+                return;
+            }
+            var row = select.closest('.cms-preview-fields__row--localized');
+            if (!row) return;
+            var panels = row.querySelectorAll('.cms-locale-panel');
+            var index = String(select.value);
+            var pi;
+            for (pi = 0; pi < panels.length; pi++) {
+                if (String(panels[pi].getAttribute('data-locale-index')) === index) {
+                    panels[pi].classList.remove('cms-locale-panel--hidden');
+                } else {
+                    panels[pi].classList.add('cms-locale-panel--hidden');
+                }
+            }
+        });
     }
 
     if (document.readyState === 'loading') {

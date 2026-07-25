@@ -1,0 +1,276 @@
+.amp-demo-page {
+    padding: 1rem 0 3rem;
+}
+
+.amp-demo-page--compact {
+    padding-top: 0.5rem;
+}
+
+.amp-demo-page__back {
+    display: inline-block;
+    margin-bottom: 0.5rem;
+    color: #004a82;
+    font-size: 0.88rem;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.amp-demo-page__back:hover {
+    text-decoration: underline;
+}
+
+.amp-demo-page__eyebrow {
+    color: #f58220;
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.amp-demo-page__intro h1 {
+    color: #002b5c;
+    margin-bottom: 0.75rem;
+}
+
+.amp-demo-page__meta {
+    color: #5f6b76;
+    font-size: 0.88rem;
+}
+
+.amp-demo-page__meta code {
+    font-family: 'IBM Plex Mono', 'Consolas', monospace;
+    color: #004a82;
+    font-size: 0.85em;
+}
+
+.amp-demo-page__error,
+.amp-demo-slot__error {
+    color: #842029;
+    background: #f8d7da;
+    border-radius: 0.5rem;
+    padding: 0.75rem 1rem;
+}
+
+.amp-demo-slot__draft {
+    margin: 0;
+    padding: 0.5rem 1rem;
+    color: #664d03;
+    background: #fff9e6;
+    border-bottom: 1px solid #ffe69c;
+    font-size: 0.82rem;
+}
+
+.amp-demo-slot {
+    margin-top: 1.25rem;
+    border: 1px solid #dce3ea;
+    border-radius: 14px;
+    overflow: hidden;
+    background: #fff;
+    box-shadow: 0 8px 24px rgba(0, 43, 92, 0.06);
+}
+
+.amp-demo-page--compact .amp-demo-slot {
+    margin-top: 0.75rem;
+}
+
+.amp-demo-slot__header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.65rem 1rem;
+    padding: 0.85rem 1rem;
+    background: #fafbfc;
+    border-bottom: 1px solid #eef2f6;
+}
+
+.amp-demo-slot__heading {
+    min-width: 0;
+    flex: 1 1 12rem;
+}
+
+.amp-demo-slot__header h2 {
+    margin: 0;
+    font-size: 1.05rem;
+    line-height: 1.35;
+    color: #002b5c;
+    overflow-wrap: anywhere;
+}
+
+.amp-demo-slot__meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+    margin-top: 0.35rem;
+}
+
+.amp-demo-slot__type {
+    color: #f58220;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.amp-demo-slot__badge {
+    display: inline-block;
+    padding: 0.1rem 0.45rem;
+    border-radius: 999px;
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.amp-demo-slot__badge--draft {
+    color: #664d03;
+    background: #fff3cd;
+}
+
+.amp-demo-slot__badge--live {
+    color: #0f5132;
+    background: #d1e7dd;
+}
+
+.amp-demo-slot__id {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.15rem;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+    text-align: right;
+    flex-shrink: 0;
+}
+
+.amp-demo-slot__id:hover code {
+    background: #dbeafe;
+}
+
+.amp-demo-slot__id-label {
+    color: #64748b;
+    font-size: 0.62rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.amp-demo-slot__id code {
+    display: inline-block;
+    padding: 0.25rem 0.45rem;
+    border-radius: 5px;
+    color: #0f3d66;
+    background: #e8f0f8;
+    font-family: 'IBM Plex Mono', 'Consolas', monospace;
+    font-size: 0.72rem;
+    font-weight: 500;
+    max-width: 14rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.amp-demo-page__info {
+    font-size: 0.85rem;
+    color: #54698d;
+    background: #f4f6f9;
+    border-left: 3px solid #d8dde6;
+    border-radius: 0 4px 4px 0;
+    padding: 0.6rem 0.75rem;
+    margin: 0.75rem 0 0;
+    line-height: 1.5;
+}
+
+.amp-demo-slot__status {
+    padding: 1rem;
+    color: #5f6b76;
+}
+
+.amp-demo-slot__error p {
+    margin: 0 0 0.5rem;
+}
+
+.amp-demo-slot__hint {
+    font-size: 0.9rem;
+    color: #5f6b76;
+}
+
+.amp-demo-page__examples {
+    line-height: 1.8;
+    padding-left: 1.25rem;
+}
+
+.amp-demo-slot__content {
+    overflow: hidden;
+}
+
+.amp-demo-slot--mainBanner .amp-demo-slot__content .amp-main-banner,
+.amp-demo-slot--campaignBanner .amp-demo-slot__content .amp-main-banner {
+    min-height: 14rem;
+    aspect-ratio: 21 / 9;
+}
+
+.amp-demo-slot__content .amp-main-banner__overlay {
+    padding: 1.5rem;
+    box-sizing: border-box;
+}
+
+.amp-demo-slot__content .amp-main-banner__overlay > div,
+.amp-demo-slot__content .amp-main-banner__overlay h1,
+.amp-demo-slot__content .amp-main-banner__overlay h2,
+.amp-demo-slot__content .amp-main-banner__overlay p {
+    max-width: 100%;
+    margin: 0;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.amp-demo-slot--mainBanner .amp-demo-slot__content .amp-main-banner--align-right .amp-main-banner__overlay > div,
+.amp-demo-slot--mainBanner .amp-demo-slot__content .amp-main-banner--align-right .amp-main-banner__overlay h1,
+.amp-demo-slot--mainBanner .amp-demo-slot__content .amp-main-banner--align-right .amp-main-banner__overlay h2 {
+    max-width: min(100%, 28rem);
+    margin-left: auto;
+}
+
+.amp-demo-slot--mainBanner .amp-demo-slot__content .amp-main-banner--align-left .amp-main-banner__overlay > div,
+.amp-demo-slot--mainBanner .amp-demo-slot__content .amp-main-banner--align-left .amp-main-banner__overlay h1,
+.amp-demo-slot--mainBanner .amp-demo-slot__content .amp-main-banner--align-left .amp-main-banner__overlay h2 {
+    max-width: min(100%, 28rem);
+    margin-right: auto;
+}
+
+.amp-demo-slot__content .amp-campaign-banner {
+    padding: 1.5rem;
+    text-align: left;
+}
+
+.amp-demo-slot__content .amp-campaign-banner h1,
+.amp-demo-slot__content .amp-campaign-banner h2,
+.amp-demo-slot__content .amp-campaign-banner p {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.amp-demo-slot__content .amp-image-text {
+    min-height: 0;
+}
+
+@media (max-width: 640px) {
+    .amp-demo-slot__header {
+        flex-direction: column;
+    }
+
+    .amp-demo-slot__id {
+        align-items: flex-start;
+        text-align: left;
+        width: 100%;
+    }
+
+    .amp-demo-slot__id code {
+        max-width: 100%;
+    }
+}

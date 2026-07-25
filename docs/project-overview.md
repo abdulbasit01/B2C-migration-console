@@ -180,3 +180,15 @@ GitHub automatically blocks any commit that contains API keys or secrets.
 | `Accelerator-RunMigration`      | Creates one batch of fields in SFCC   |
 | `Accelerator-SaveMigrationResults` | Saves the migration results        |
 | `Accelerator-DeleteAttributes`  | Deletes all migrated fields (reset)   |
+
+---
+
+## Amplience content migration & React storefront
+
+Content migration (Amplience → SFCC → React) is documented separately:
+
+**[Amplience Content — Data Flow & Architecture](amplience-content-data-flow.md)**
+
+Covers: BM wizard import, SFCC catalog APIs, React gallery, Amplience CDN live fetch, Headless Page Designer, and dev vs production behaviour.
+
+Local React demo: `react-storefront/README.md`

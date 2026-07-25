@@ -22,3 +22,8 @@ Royal Cyber SFCC BM cartridge for schema + data migration from commercetools/Sho
 - ISML: no CDATA in scripts; escape `&` in display strings
 - Rhino: use `encodeURIComponent`, not `StringUtils.encodeURIComponent`
 - `session.custom` flags are strings (`'true'`), not booleans
+
+## Amplience content architecture
+- **Catalog:** SFCC `amplience/` folder → `AmplienceContent-List` (React gallery reads this, not the full Amplience hub)
+- **Live bodies:** Amplience CDN via `contentId` / `deliveryKey` on migrated SFCC assets
+- **Full flow:** `docs/amplience-content-data-flow.md` (Confluence-ready)

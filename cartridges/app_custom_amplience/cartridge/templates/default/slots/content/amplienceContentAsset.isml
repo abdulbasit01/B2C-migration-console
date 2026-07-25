@@ -1,7 +1,7 @@
 <isif condition="${!empty(pdict.content)}">
     <isscript>
         var helper = require('*/cartridge/scripts/helpers/amplienceContent');
-        pdict.amp = helper.getAmplienceAsset(pdict.content.ID, { live: true });
+        pdict.amp = helper.getAmplienceAsset(pdict.content.ID, { live: false });
     </isscript>
     <isinclude template="components/content/amplienceAsset" />
 </isif>

@@ -1,0 +1,42 @@
+<isdecorate template="common/layout/page">
+    <isscript>
+        var assets = require('*/cartridge/scripts/assets.js');
+        assets.addCss('/css/amplienceContent.css');
+        assets.addJs('/js/amplienceLocaleSelect.js');
+    </isscript>
+
+    <main class="amp-compose container">
+        <header class="amp-compose__header">
+            <a class="amp-detail__back" href="${URLUtils.url('AmplienceContent-Show')}">
+                &larr; All migrated content
+            </a>
+            <p class="amp-gallery__eyebrow">Composed page</p>
+            <h1>Amplience page preview</h1>
+            <p>
+                Stack multiple migrated components in order (banner, rich text, etc.).
+                Add SFCC content IDs to the URL:
+                <code>?cids=amp-first,amp-second</code>
+            </p>
+        </header>
+
+        <isif condition="${empty(pdict.items)}">
+            <div class="alert alert-info">
+                No components to render. Open items in the gallery, copy their SFCC content IDs,
+                then compose a page like:
+                <code>AmplienceContent-Compose?cids=amp-hero,amp-rich-text</code>
+            </div>
+        <iselse/>
+            <isloop items="${pdict.items}" var="item">
+                <section class="amp-compose__section">
+                    <header class="amp-compose__section-meta">
+                        <h2>${item.name}</h2>
+                        <span>${item.widgetLabel || item.widgetType}</span>
+                    </header>
+                    <isinclude template="components/content/amplienceAsset">
+                        <isparam name="amp" value="${item}"/>
+                    </isinclude>
+                </section>
+            </isloop>
+        </isif>
+    </main>
+</isdecorate>

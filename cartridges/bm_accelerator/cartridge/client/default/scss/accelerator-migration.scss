@@ -2366,6 +2366,50 @@ table.main > tbody > tr,
   word-break: break-word;
 }
 
+.cms-locale-toolbar {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  margin-bottom: 4px;
+}
+
+.cms-locale-toolbar__label {
+  color: #54698d;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.cms-locale-select {
+  display: inline-block;
+  width: auto;
+  min-width: 0;
+  max-width: 7rem;
+  margin-bottom: 0;
+  padding: 2px 6px;
+  border: 1px solid #d8dde6;
+  border-radius: 4px;
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.cms-locale-panel--hidden {
+  display: none;
+}
+
+.cms-preview-fields__row--localized .cms-preview-fields__value {
+  display: grid;
+  gap: 4px;
+}
+
+.cms-preview-fields__row--localized .cms-locale-panel {
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .cms-preview-fields__value img {
   max-width: 180px;
   max-height: 100px;

@@ -2,7 +2,7 @@
   "caches": [
     {
       "id": "amplienceLiveCdn",
-      "expiration": 60
+      "expiration": 300
     }
   ]
 }

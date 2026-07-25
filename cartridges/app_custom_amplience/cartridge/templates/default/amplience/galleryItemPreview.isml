@@ -1,0 +1,3 @@
+<isif condition="${!empty(pdict.item)}">
+    <isinclude template="components/content/amplienceAsset" attribute="amp" value="${pdict.item}" />
+</isif>

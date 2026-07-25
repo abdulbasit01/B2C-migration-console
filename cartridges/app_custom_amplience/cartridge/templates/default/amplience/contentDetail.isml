@@ -2,6 +2,7 @@
     <isscript>
         var assets = require('*/cartridge/scripts/assets.js');
         assets.addCss('/css/amplienceContent.css');
+        assets.addJs('/js/amplienceLocaleSelect.js');
     </isscript>
 
     <main class="amp-detail container">
@@ -21,6 +22,7 @@
             <a class="amp-detail__live" href="${URLUtils.url('AmplienceContent-Detail', 'cid', pdict.amp.id, 'nocache', '1')}">
                 Force refresh now
             </a>
+            <span class="amp-detail__live-hint">Uses CDN cache (~5 min). Force refresh bypasses cache for this item only.</span>
             <isif condition="${!empty(pdict.amp.liveError)}">
                 <p class="amp-detail__live-error">${pdict.amp.liveError}</p>
             </isif>
