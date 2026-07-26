@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<services xmlns="http://www.demandware.com/xml/impex/services/2014-09-26">
+
+    <!-- Credential URLs are placeholders; runtime code overrides via svc.setURL() -->
+    <service-credential service-credential-id="accelerator.http.credential">
+        <url>https://localhost/</url>
+        <user-id/>
+        <password/>
+    </service-credential>
+
+    <service-credential service-credential-id="accelerator.shopify.credential">
+        <url>https://localhost/</url>
+        <user-id/>
+        <password/>
+    </service-credential>
+
+    <service-credential service-credential-id="accelerator.ctp.credential">
+        <url>https://localhost/</url>
+        <user-id/>
+        <password/>
+    </service-credential>
+
+    <service-credential service-credential-id="accelerator.sap.credential">
+        <url>https://localhost/</url>
+        <user-id/>
+        <password/>
+    </service-credential>
+
+    <service-credential service-credential-id="accelerator.sfcc.credential">
+        <url>https://localhost/</url>
+        <user-id/>
+        <password/>
+    </service-credential>
+
+    <service-credential service-credential-id="accelerator.webdav.credential">
+        <url>https://localhost/</url>
+        <user-id/>
+        <password/>
+    </service-credential>
+
+    <service-profile service-profile-id="accelerator.http.profile">
+        <timeout-millis>30000</timeout-millis>
+        <rate-limit-enabled>false</rate-limit-enabled>
+        <rate-limit-calls>0</rate-limit-calls>
+        <rate-limit-millis>0</rate-limit-millis>
+        <cb-enabled>true</cb-enabled>
+        <cb-calls>10</cb-calls>
+        <cb-millis>30000</cb-millis>
+    </service-profile>
+
+    <service-profile service-profile-id="accelerator.shopify.profile">
+        <timeout-millis>60000</timeout-millis>
+        <rate-limit-enabled>false</rate-limit-enabled>
+        <rate-limit-calls>0</rate-limit-calls>
+        <rate-limit-millis>0</rate-limit-millis>
+        <cb-enabled>true</cb-enabled>
+        <cb-calls>10</cb-calls>
+        <cb-millis>30000</cb-millis>
+    </service-profile>
+
+    <service-profile service-profile-id="accelerator.sap.profile">
+        <timeout-millis>30000</timeout-millis>
+        <rate-limit-enabled>false</rate-limit-enabled>
+        <rate-limit-calls>0</rate-limit-calls>
+        <rate-limit-millis>0</rate-limit-millis>
+        <cb-enabled>true</cb-enabled>
+        <cb-calls>10</cb-calls>
+        <cb-millis>30000</cb-millis>
+    </service-profile>
+
+    <service-profile service-profile-id="accelerator.sfcc.profile">
+        <timeout-millis>30000</timeout-millis>
+        <rate-limit-enabled>false</rate-limit-enabled>
+        <rate-limit-calls>0</rate-limit-calls>
+        <rate-limit-millis>0</rate-limit-millis>
+        <cb-enabled>true</cb-enabled>
+        <cb-calls>5</cb-calls>
+        <cb-millis>20000</cb-millis>
+    </service-profile>
+
+    <service-profile service-profile-id="accelerator.webdav.profile">
+        <timeout-millis>60000</timeout-millis>
+        <rate-limit-enabled>false</rate-limit-enabled>
+        <rate-limit-calls>0</rate-limit-calls>
+        <rate-limit-millis>0</rate-limit-millis>
+        <cb-enabled>true</cb-enabled>
+        <cb-calls>5</cb-calls>
+        <cb-millis>20000</cb-millis>
+    </service-profile>
+
+    <service service-id="accelerator.http.generic">
+        <service-type>HTTP</service-type>
+        <enabled>true</enabled>
+        <log-prefix>accHttp</log-prefix>
+        <comm-log-enabled>false</comm-log-enabled>
+        <force-prd-enabled>false</force-prd-enabled>
+        <mock-mode-enabled>false</mock-mode-enabled>
+        <profile-id>accelerator.http.profile</profile-id>
+        <credential-id>accelerator.http.credential</credential-id>
+    </service>
+
+    <service service-id="accelerator.shopify.api">
+        <service-type>HTTP</service-type>
+        <enabled>true</enabled>
+        <log-prefix>accShopify</log-prefix>
+        <comm-log-enabled>false</comm-log-enabled>
+        <force-prd-enabled>false</force-prd-enabled>
+        <mock-mode-enabled>false</mock-mode-enabled>
+        <profile-id>accelerator.shopify.profile</profile-id>
+        <credential-id>accelerator.shopify.credential</credential-id>
+    </service>
+
+    <service service-id="accelerator.ctp.api">
+        <service-type>HTTP</service-type>
+        <enabled>true</enabled>
+        <log-prefix>accCtp</log-prefix>
+        <comm-log-enabled>false</comm-log-enabled>
+        <force-prd-enabled>false</force-prd-enabled>
+        <mock-mode-enabled>false</mock-mode-enabled>
+        <profile-id>accelerator.http.profile</profile-id>
+        <credential-id>accelerator.ctp.credential</credential-id>
+    </service>
+
+    <service service-id="accelerator.sap.api">
+        <service-type>HTTP</service-type>
+        <enabled>true</enabled>
+        <log-prefix>accSap</log-prefix>
+        <comm-log-enabled>false</comm-log-enabled>
+        <force-prd-enabled>false</force-prd-enabled>
+        <mock-mode-enabled>false</mock-mode-enabled>
+        <profile-id>accelerator.sap.profile</profile-id>
+        <credential-id>accelerator.sap.credential</credential-id>
+    </service>
+
+    <service service-id="accelerator.sfcc.ocapi">
+        <service-type>HTTP</service-type>
+        <enabled>true</enabled>
+        <log-prefix>accSfcc</log-prefix>
+        <comm-log-enabled>false</comm-log-enabled>
+        <force-prd-enabled>false</force-prd-enabled>
+        <mock-mode-enabled>false</mock-mode-enabled>
+        <profile-id>accelerator.sfcc.profile</profile-id>
+        <credential-id>accelerator.sfcc.credential</credential-id>
+    </service>
+
+    <service service-id="accelerator.sfcc.webdav">
+        <service-type>HTTP</service-type>
+        <enabled>true</enabled>
+        <log-prefix>accWebdav</log-prefix>
+        <comm-log-enabled>false</comm-log-enabled>
+        <force-prd-enabled>false</force-prd-enabled>
+        <mock-mode-enabled>false</mock-mode-enabled>
+        <profile-id>accelerator.webdav.profile</profile-id>
+        <credential-id>accelerator.webdav.credential</credential-id>
+    </service>
+
+</services>

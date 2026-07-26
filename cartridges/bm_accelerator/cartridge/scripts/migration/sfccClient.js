@@ -2,14 +2,14 @@
 
 /* global request */
 
-var HTTPClient = require('dw/net/HTTPClient');
-var Encoding   = require('dw/crypto/Encoding');
-var Bytes      = require('dw/util/Bytes');
-var cfg        = require('*/cartridge/scripts/migration/configAccessor');
-var creds      = require('*/cartridge/scripts/migration/sfccCredentialsAccessor');
+var serviceHttp = require('*/cartridge/scripts/migration/core/serviceHttp');
+var Encoding    = require('dw/crypto/Encoding');
+var Bytes       = require('dw/util/Bytes');
+var cfg         = require('*/cartridge/scripts/migration/configAccessor');
+var creds       = require('*/cartridge/scripts/migration/sfccCredentialsAccessor');
 
 /**
- * Build runtime SFCC settings — baseUrl from live request, credentials from generated files.
+ * Build runtime SFCC settings — baseUrl from live request, credentials from prefs/files.
  * @returns {Object} SFCC settings
  */
 function getSFCCSettings() {
@@ -37,63 +37,56 @@ function metaUrl(path) {
  */
 function getSFCCToken() {
     var s           = getSFCCSettings();
-    var credentials = toBase64(s.bmUsername + ':' + s.bmPassword + ':' + s.bmClientId);
-    var body        = 'grant_type=urn%3Ademandware%3Aparams%3Aoauth%3Agrant-type%3Aclient-id%3Adwsid%3Adwsecuretoken';
-
-    var client = new HTTPClient();
-    client.setTimeout(30000);
-    client.open('POST', s.baseUrl + '/dw/oauth2/access_token?client_id=' + encodeURIComponent(s.bmClientId));
-    client.setRequestHeader('Authorization', 'Basic ' + credentials);
-    client.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
-    client.send(body);
-
-    var text = client.text || '';
-    var data;
-    try { data = JSON.parse(text || '{}'); } catch (pe) { data = {}; }
-    if (client.statusCode !== 200 || !data.access_token) {
-        throw new Error('SFCC token failed (' + client.statusCode + ') host=' + s.baseUrl + ' client=' + s.bmClientId + ' user=' + s.bmUsername + ': ' + (text || '(empty)'));
+    if (!s.bmUsername || !s.bmPassword || !s.bmClientId) {
+        throw new Error('SFCC BM credentials are not configured. Set Site Preferences → B2C Migration Console.');
     }
-    return data.access_token;
+    var credentials = toBase64(s.bmUsername + ':' + s.bmPassword + ':' + s.bmClientId);
+    var body        = 'grant_type=urn%3Ademandware%3Aparams%3Aoauth%3Agrant-type%3Aclient-id%3Adwsid%3Adwsecuretoken&client_id=' + encodeURIComponent(s.bmClientId);
+
+    var res = serviceHttp.post('sfcc',
+        s.baseUrl + '/dw/oauth2/access_token?client_id=' + encodeURIComponent(s.bmClientId),
+        {
+            Authorization:  'Basic ' + credentials,
+            'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body
+    );
+
+    if (res.status !== 200 || !res.data || !res.data.access_token) {
+        throw new Error('SFCC token failed (' + res.status + ')');
+    }
+    return res.data.access_token;
 }
 
 function doPut(url, token, payload) {
-    var client = new HTTPClient();
-    client.setTimeout(30000);
-    client.open('PUT', url);
-    client.setRequestHeader('Authorization', 'Bearer ' + token);
-    client.setRequestHeader('Content-Type', 'application/json');
-    client.send(JSON.stringify(payload));
-    return { status: client.getStatusCode(), text: client.getText() };
+    return serviceHttp.put('sfcc', url, {
+        Authorization:  'Bearer ' + token,
+        'Content-Type': 'application/json'
+    }, JSON.stringify(payload));
 }
 
 function doPost(url, token, payload) {
-    var client = new HTTPClient();
-    client.setTimeout(30000);
-    client.open('POST', url);
-    client.setRequestHeader('Authorization', 'Bearer ' + token);
-    client.setRequestHeader('Content-Type', 'application/json');
-    client.send(JSON.stringify(payload));
-    return { status: client.getStatusCode(), text: client.getText() };
+    return serviceHttp.post('sfcc', url, {
+        Authorization:  'Bearer ' + token,
+        'Content-Type': 'application/json'
+    }, JSON.stringify(payload));
 }
 
 function doGet(url, token) {
-    var client = new HTTPClient();
-    client.setTimeout(30000);
-    client.open('GET', url);
-    client.setRequestHeader('Authorization', 'Bearer ' + token);
-    client.setRequestHeader('Content-Type', 'application/json');
-    client.send();
-    return { status: client.getStatusCode(), data: JSON.parse(client.getText() || '{}') };
+    return serviceHttp.get('sfcc', url, {
+        Authorization:  'Bearer ' + token,
+        'Content-Type': 'application/json'
+    });
 }
 
 /**
- * Get all existing custom attribute IDs for an SFCC system object type.
- * @param {string} token - SFCC access token
- * @param {string} objectType - SFCC system object (Product, Customer, Order, etc.)
- * @returns {Object} map of existing attribute IDs { id: true }
+ * Get every attribute definition for an SFCC system object type.
+ * @param {string} token
+ * @param {string} objectType
+ * @returns {Array<{ id: string, displayName: string, system: boolean }>}
  */
-function getExistingAttributeIds(token, objectType) {
-    var ids      = {};
+function getAttributeDefinitions(token, objectType) {
+    var attrs    = [];
     var start    = 0;
     var pageSize = 200;
     var total    = null;
@@ -105,36 +98,52 @@ function getExistingAttributeIds(token, objectType) {
 
         if (total === null) total = res.data.total || 0;
         var page = res.data.data || [];
-        for (var i = 0; i < page.length; i++) { ids[page[i].id] = true; }
+        for (var i = 0; i < page.length; i++) {
+            var a = page[i];
+            attrs.push({
+                id:          a.id,
+                displayName: (a.display_name && a.display_name.default) || a.id,
+                system:      !!a.system
+            });
+        }
         start += pageSize;
     } while (start < total);
 
+    return attrs;
+}
+
+/**
+ * @param {string} token
+ * @param {string} objectType
+ * @returns {Object}
+ */
+function getExistingAttributeIds(token, objectType) {
+    var attrs = getAttributeDefinitions(token, objectType);
+    var ids   = {};
+    for (var i = 0; i < attrs.length; i++) { ids[attrs[i].id] = true; }
     return ids;
 }
 
-
 /**
- * Create a single custom attribute definition on an SFCC system object.
- * @param {string} token - SFCC access token
- * @param {string} objectType - SFCC system object (Product, Customer, Order, etc.)
- * @param {Object} attrDef - attribute definition payload from transformers.js
- * @returns {boolean} true if created, false if already exists
+ * @param {string} token
+ * @param {string} objectType
+ * @param {Object} attrDef
+ * @returns {boolean}
  */
 function createAttributeDefinition(token, objectType, attrDef) {
     var url = metaUrl('/system_object_definitions/' + objectType + '/attribute_definitions/' + encodeURIComponent(attrDef.id));
     var res = doPut(url, token, attrDef);
     if (res.status >= 400) {
-        throw new Error('Attribute create failed [' + objectType + '.' + attrDef.id + '] (' + res.status + '): ' + res.text);
+        throw new Error('Attribute create failed [' + objectType + '.' + attrDef.id + '] (' + res.status + ')');
     }
     return true;
 }
 
 /**
- * Migrate schema for one SFCC object type: compare existing attributes with new ones, create missing.
- * @param {string} token - SFCC access token
- * @param {string} objectType - SFCC system object type
- * @param {Array} attrDefs - attribute definition payloads from transformers.js
- * @returns {Object} { created, skipped, failed }
+ * @param {string} token
+ * @param {string} objectType
+ * @param {Array} attrDefs
+ * @returns {Object}
  */
 function migrateObjectSchema(token, objectType, attrDefs) {
     var result   = { created: 0, skipped: 0, failed: 0 };
@@ -157,17 +166,13 @@ function migrateObjectSchema(token, objectType, attrDefs) {
 }
 
 /**
- * Create (or update) a custom attribute group on an SFCC system object.
- * Idempotent — safe to call even if the group already exists.
- * @param {string} token       - SFCC access token
- * @param {string} objectType  - SFCC system object type (e.g. 'Profile')
- * @param {string} groupId     - attribute group ID
- * @param {string} displayName - human-readable group name
+ * @param {string} token
+ * @param {string} objectType
+ * @param {string} groupId
+ * @param {string} displayName
  */
 function ensureAttributeGroup(token, objectType, groupId, displayName) {
     var url = metaUrl('/system_object_definitions/' + objectType + '/attribute_groups/' + encodeURIComponent(groupId));
-    // GET first — skip PUT if the group already exists.
-    // Unconditional PUT replaces the group resource and clears all linked attribute_definitions.
     var getRes = doGet(url, token);
     if (getRes.status === 200) return true;
     var res = doPut(url, token, {
@@ -176,19 +181,16 @@ function ensureAttributeGroup(token, objectType, groupId, displayName) {
         position:     1
     });
     if (res.status >= 400) {
-        throw new Error('Attribute group ensure failed [' + objectType + '/' + groupId + '] (' + res.status + '): ' + res.text);
+        throw new Error('Attribute group ensure failed [' + objectType + '/' + groupId + '] (' + res.status + ')');
     }
     return true;
 }
 
 /**
- * Add an attribute definition to an attribute group so it appears in BM.
- * Uses PUT …/attribute_groups/{groupId}/attribute_definitions/{attributeId}
- * which is the standard SFCC OCAPI pattern for linking a definition to a group.
- * @param {string} token       - SFCC access token
- * @param {string} objectType  - SFCC system object type
- * @param {string} groupId     - attribute group ID
- * @param {string} attributeId - attribute definition ID to link
+ * @param {string} token
+ * @param {string} objectType
+ * @param {string} groupId
+ * @param {string} attributeId
  */
 function addAttributeToGroup(token, objectType, groupId, attributeId) {
     var url = metaUrl(
@@ -198,27 +200,24 @@ function addAttributeToGroup(token, objectType, groupId, attributeId) {
     );
     var res = doPut(url, token, { id: attributeId, position: 0 });
     if (res.status >= 400) {
-        throw new Error('Add attr to group failed [' + groupId + '/' + attributeId + '] (' + res.status + '): ' + res.text);
+        throw new Error('Add attr to group failed [' + groupId + '/' + attributeId + '] (' + res.status + ')');
     }
     return true;
 }
 
 /**
- * Delete a single custom attribute definition from an SFCC system object.
- * @param {string} token      - SFCC access token
- * @param {string} objectType - SFCC system object type
- * @param {string} attrId     - attribute ID to delete
- * @returns {boolean} true if deleted or not found
+ * @param {string} token
+ * @param {string} objectType
+ * @param {string} attrId
+ * @returns {boolean}
  */
 function deleteAttributeDefinition(token, objectType, attrId) {
-    var client = new HTTPClient();
-    client.setTimeout(30000);
-    client.open('DELETE', metaUrl('/system_object_definitions/' + objectType + '/attribute_definitions/' + encodeURIComponent(attrId)));
-    client.setRequestHeader('Authorization', 'Bearer ' + token);
-    client.send();
-    var status = client.getStatusCode();
-    if (status >= 400 && status !== 404) {
-        throw new Error('Delete failed [' + objectType + '.' + attrId + '] (' + status + ')');
+    var res = serviceHttp.del('sfcc',
+        metaUrl('/system_object_definitions/' + objectType + '/attribute_definitions/' + encodeURIComponent(attrId)),
+        { Authorization: 'Bearer ' + token }
+    );
+    if (res.status >= 400 && res.status !== 404) {
+        throw new Error('Delete failed [' + objectType + '.' + attrId + '] (' + res.status + ')');
     }
     return true;
 }
@@ -227,11 +226,13 @@ module.exports = {
     getSFCCToken:              getSFCCToken,
     getSFCCSettings:           getSFCCSettings,
     doGet:                     doGet,
+    getAttributeDefinitions:   getAttributeDefinitions,
     getExistingAttributeIds:   getExistingAttributeIds,
     createAttributeDefinition: createAttributeDefinition,
     deleteAttributeDefinition: deleteAttributeDefinition,
     migrateObjectSchema:       migrateObjectSchema,
     ensureAttributeGroup:      ensureAttributeGroup,
     addAttributeToGroup:       addAttributeToGroup,
-    doPut:                     doPut
+    doPut:                     doPut,
+    doPost:                    doPost
 };

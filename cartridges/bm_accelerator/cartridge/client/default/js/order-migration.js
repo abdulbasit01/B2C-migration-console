@@ -24,6 +24,7 @@
             exportUrl:          root.getAttribute('data-export-url') || '',
             checkAttrsUrl:      root.getAttribute('data-check-attrs-url') || '',
             createAttrsUrl:     root.getAttribute('data-create-attrs-url') || '',
+            clearAttrMapUrl:    root.getAttribute('data-clear-attr-map-url') || '',
             dataWizardEntryUrl: root.getAttribute('data-wizard-entry-url') || '',
             impexPath:          root.getAttribute('data-impex-path') || '',
             ui:                 readUi(root)
@@ -81,6 +82,9 @@
     function boot() {
         var cfg = readCfg();
         var ui  = cfg.ui || {};
+        if (window.AccAttrPreflight && window.AccAttrPreflight.bindClearOnLeave) {
+            window.AccAttrPreflight.bindClearOnLeave(cfg.clearAttrMapUrl, 'Accelerator-OrderMigration');
+        }
         var yearsEl       = document.getElementById('acc-ord-years');
         var stateEl       = document.getElementById('acc-ord-order-state');
         var payEl         = document.getElementById('acc-ord-payment-state');
@@ -186,78 +190,18 @@
 
         function renderAttrResults(missing) {
             if (!attrResults) return;
-            attrResults.innerHTML = '';
-            attrResults.style.display = 'block';
-            if (!missing.length) {
-                attrResults.innerHTML = '<p style="color:#2e7d32;font-size:13px;margin:0;">' + (ui.orderAllAttrsExist || ui.allAttrsExist || 'All attributes already exist in SFCC.') + '</p>';
-                return;
-            }
-            if (!window.AccAttrPreflight) {
+            if (!window.AccAttrPreflight || !window.AccAttrPreflight.renderMissingResults) {
                 attrResults.innerHTML = '<p style="color:#c62828;font-size:13px;margin:0;">Attribute helper script failed to load.</p>';
+                attrResults.style.display = 'block';
                 return;
             }
-            var html = '<p style="font-size:13px;color:#54698d;margin:0 0 10px;">'
-                + (window.AccAttrPreflight ? window.AccAttrPreflight.missingCountLabel(ui, missing.length) : missing.length + (ui.attrsMissingCount || ' attribute(s) missing in SFCC:'))
-                + '</p>';
-            html += '<div style="border:1px solid #e0e5ee;border-radius:4px;overflow:hidden;"><table class="cm-attr-table"><thead><tr>'
-                + '<th style="width:36px;"><input type="checkbox" id="acc-attr-select-all" checked/></th>'
-                + '<th>Attribute ID</th><th>Label</th><th>' + (ui.sourceTypeCol || 'Source Type') + '</th><th>SFCC Type</th></tr></thead><tbody>';
-            var i;
-            for (i = 0; i < missing.length; i++) {
-                var m = missing[i];
-                html += '<tr><td style="text-align:center;"><input type="checkbox" class="acc-attr-cb" data-idx="' + i + '" checked/></td>'
-                    + '<td><input type="text" class="cm-attr-id-input" data-idx="' + i + '" value="' + escHtml(m.id) + '"/></td>'
-                    + '<td>' + escHtml(m.label || m.id) + '</td>'
-                    + '<td style="color:#8a9ab8;">' + escHtml(m.ctpType) + '</td>'
-                    + '<td>' + window.AccAttrPreflight.sfccTypeSelectHtml(m, i) + '</td></tr>';
-            }
-            html += '</tbody></table></div>';
-            html += '<div style="margin-top:14px;"><button type="button" id="acc-create-attrs-btn" class="cm-btn cm-btn--primary">Create Selected Attributes</button>'
-                + '<span id="acc-create-attrs-msg" style="font-size:13px;color:#54698d;margin-left:12px;"></span></div>';
-            attrResults.innerHTML = html;
-
-            var selectAllAttr = document.getElementById('acc-attr-select-all');
-            var createBtn = document.getElementById('acc-create-attrs-btn');
-            if (selectAllAttr) {
-                selectAllAttr.addEventListener('change', function () {
-                    var cbs = document.querySelectorAll('.acc-attr-cb');
-                    var c;
-                    for (c = 0; c < cbs.length; c++) cbs[c].checked = this.checked;
-                });
-            }
-            if (createBtn) createBtn.addEventListener('click', createSelectedAttrs);
-        }
-
-        function createSelectedAttrs() {
-            var selected = [];
-            var cbs = document.querySelectorAll('.acc-attr-cb');
-            var c;
-            for (c = 0; c < cbs.length; c++) {
-                if (cbs[c].checked) {
-                    var idx = parseInt(cbs[c].getAttribute('data-idx'), 10);
-                    var orig = pendingMissing[idx];
-                    var idInput = document.querySelector('.cm-attr-id-input[data-idx="' + idx + '"]');
-                    selected.push({
-                        id: orig.id,
-                        label: orig.label,
-                        ctpType: orig.ctpType,
-                        sfccType: window.AccAttrPreflight.readSfccType(idx, orig.sfccType)
-                    });
-                    if (idInput && idInput.value.trim()) {
-                        selected[selected.length - 1].id = idInput.value.trim();
-                    }
-                }
-            }
-            if (!selected.length) return;
-            var btn = document.getElementById('acc-create-attrs-btn');
-            var msg = document.getElementById('acc-create-attrs-msg');
-            if (btn) { btn.disabled = true; btn.textContent = 'Creating...'; }
-            post(cfg.createAttrsUrl, 'attrs=' + encodeURIComponent(JSON.stringify(selected)), function (data) {
-                if (btn) { btn.disabled = false; btn.textContent = data.ok ? 'Done' : 'Retry'; }
-                if (msg) {
-                    msg.textContent = data.ok ? ((data.result.created || 0) + ' created') : (data.error || 'Failed');
-                    msg.style.color = data.ok ? '#2e7d32' : '#c62828';
-                }
+            window.AccAttrPreflight.renderMissingResults({
+                container:      attrResults,
+                missing:        missing,
+                ui:             ui,
+                createAttrsUrl: cfg.createAttrsUrl,
+                post:           post,
+                getPending:     function () { return pendingMissing; }
             });
         }
 

@@ -1,13 +1,26 @@
 'use strict';
 
-var transformer   = require('*/cartridge/scripts/migration/customerMigration/shopifyCustomerTransformer');
-var ctpXmlBuilder = require('*/cartridge/scripts/migration/customerMigration/customerXmlBuilder');
-var groupFetcher  = require('*/cartridge/scripts/migration/customerMigration/shopifyCustomerGroupFetcher');
+var transformer      = require('*/cartridge/scripts/migration/customerMigration/shopifyCustomerTransformer');
+var ctpXmlBuilder    = require('*/cartridge/scripts/migration/customerMigration/customerXmlBuilder');
+var groupFetcher     = require('*/cartridge/scripts/migration/customerMigration/shopifyCustomerGroupFetcher');
+var attrIdMapSession = require('*/cartridge/scripts/migration/core/attrIdMapSession');
 
 var xmlEsc          = ctpXmlBuilder.xmlEsc;
 var buildAddressXml = ctpXmlBuilder.buildAddressXml;
 var XML_HEADER      = ctpXmlBuilder.XML_HEADER;
 var XML_FOOTER      = ctpXmlBuilder.XML_FOOTER;
+
+function resolveCustomerAttrId(canonicalId) {
+    return attrIdMapSession.resolve(canonicalId, attrIdMapSession.read('customer'));
+}
+
+function customAttrXml(attrId, value) {
+    return '                <custom-attribute attribute-id="' + xmlEsc(attrId) + '">' + xmlEsc(value) + '</custom-attribute>\n';
+}
+
+function customBoolAttrXml(attrId, value) {
+    return '                <custom-attribute attribute-id="' + xmlEsc(attrId) + '">' + (value ? 'true' : 'false') + '</custom-attribute>\n';
+}
 
 function buildCustomerXml(shopifyCustomer) {
     var transformed = transformer.transformCustomer(shopifyCustomer);
@@ -16,7 +29,7 @@ function buildCustomerXml(shopifyCustomer) {
 
     var shopifyId  = String(shopifyCustomer.id);
     var customerNo = shopifyId;
-    var password   = 'Rc1!' + shopifyId.substring(0, 12);
+    var password   = require('*/cartridge/scripts/migration/core/tempPassword').generate();
     var login      = xmlEsc(profile.login || profile.email);
 
     var xml = '    <customer customer-no="' + xmlEsc(customerNo) + '">\n';
@@ -34,14 +47,24 @@ function buildCustomerXml(shopifyCustomer) {
 
     // custom-attributes belongs to the Profile system object — nested inside <profile>, last child
     xml += '            <custom-attributes>\n';
-    xml += '                <custom-attribute attribute-id="shopify_customer_id">' + xmlEsc(profile.c_shopify_customer_id) + '</custom-attribute>\n';
-    if (profile.c_shopify_note)               xml += '                <custom-attribute attribute-id="shopify_note">'               + xmlEsc(profile.c_shopify_note)               + '</custom-attribute>\n';
-    if (profile.c_shopify_verified_email !== undefined)    xml += '                <custom-attribute attribute-id="shopify_verified_email">'    + (profile.c_shopify_verified_email ? 'true' : 'false')    + '</custom-attribute>\n';
-    if (profile.c_shopify_accepts_marketing !== undefined) xml += '                <custom-attribute attribute-id="shopify_accepts_marketing">' + (profile.c_shopify_accepts_marketing ? 'true' : 'false') + '</custom-attribute>\n';
-    if (profile.c_shopify_orders_count !== undefined)      xml += '                <custom-attribute attribute-id="shopify_orders_count">'      + xmlEsc(profile.c_shopify_orders_count)      + '</custom-attribute>\n';
-    if (profile.c_shopify_total_spent !== undefined)       xml += '                <custom-attribute attribute-id="shopify_total_spent">'       + xmlEsc(profile.c_shopify_total_spent)       + '</custom-attribute>\n';
+    xml += customAttrXml(resolveCustomerAttrId('shopify_customer_id'), profile.c_shopify_customer_id);
+    if (profile.c_shopify_note) {
+        xml += customAttrXml(resolveCustomerAttrId('shopify_note'), profile.c_shopify_note);
+    }
+    if (profile.c_shopify_verified_email !== undefined) {
+        xml += customBoolAttrXml(resolveCustomerAttrId('shopify_verified_email'), profile.c_shopify_verified_email);
+    }
+    if (profile.c_shopify_accepts_marketing !== undefined) {
+        xml += customBoolAttrXml(resolveCustomerAttrId('shopify_accepts_marketing'), profile.c_shopify_accepts_marketing);
+    }
+    if (profile.c_shopify_orders_count !== undefined) {
+        xml += customAttrXml(resolveCustomerAttrId('shopify_orders_count'), profile.c_shopify_orders_count);
+    }
+    if (profile.c_shopify_total_spent !== undefined) {
+        xml += customAttrXml(resolveCustomerAttrId('shopify_total_spent'), profile.c_shopify_total_spent);
+    }
     if (profile.c_shopify_tags && profile.c_shopify_tags.length) {
-        xml += '                <custom-attribute attribute-id="shopify_tags">\n';
+        xml += '                <custom-attribute attribute-id="' + xmlEsc(resolveCustomerAttrId('shopify_tags')) + '">\n';
         for (var t = 0; t < profile.c_shopify_tags.length; t++) {
             xml += '                    <value>' + xmlEsc(profile.c_shopify_tags[t]) + '</value>\n';
         }

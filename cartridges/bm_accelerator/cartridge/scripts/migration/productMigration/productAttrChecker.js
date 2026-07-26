@@ -98,6 +98,8 @@ function getCtpProductTypeFields() {
  * @returns {Array} [{ id, label, ctpType, sfccType }]
  */
 function checkMissingAttributes() {
+    var attrIdMapSession = require('*/cartridge/scripts/migration/core/attrIdMapSession');
+    var attrMap     = attrIdMapSession.read('product');
     var sfccToken   = sfccClient.getSFCCToken();
     var existingIds = sfccClient.getExistingAttributeIds(sfccToken, 'Product');
 
@@ -106,17 +108,23 @@ function checkMissingAttributes() {
     var missing = [];
     var seen    = {};
 
+    function resolvedExists(sourceId) {
+        return !!existingIds[attrIdMapSession.resolve(sourceId, attrMap)];
+    }
+
     // 1. Static built-in tracking attrs always needed for product migration
     for (var j = 0; j < CTP_BUILTIN_FIELDS.length; j++) {
         var bf = CTP_BUILTIN_FIELDS[j];
         if (seen[bf.sfccId]) continue;
         seen[bf.sfccId] = true;
-        if (!existingIds[bf.sfccId]) {
+        if (!resolvedExists(bf.sfccId)) {
             missing.push(typeMap.enrichMissingAttribute({
                 id: bf.sfccId, label: bf.label, ctpType: bf.ctpType, sfccType: 'string'
             }));
         } else {
-            try { sfccClient.addAttributeToGroup(sfccToken, 'Product', CTP_ATTR_GROUP_ID, bf.sfccId); } catch (age) {}
+            try {
+                sfccClient.addAttributeToGroup(sfccToken, 'Product', CTP_ATTR_GROUP_ID, attrIdMapSession.resolve(bf.sfccId, attrMap));
+            } catch (age) {}
         }
     }
 
@@ -127,14 +135,16 @@ function checkMissingAttributes() {
         var id    = field.sfccId;
         if (seen[id]) continue;
         seen[id] = true;
-        if (!existingIds[id]) {
+        if (!resolvedExists(id)) {
             missing.push(typeMap.enrichMissingAttribute({
                 id:       id,
                 label:    field.label,
                 ctpType:  field.ctpType
             }, typeMap.resolveProductType));
         } else {
-            try { sfccClient.addAttributeToGroup(sfccToken, 'Product', CTP_ATTR_GROUP_ID, id); } catch (age) {}
+            try {
+                sfccClient.addAttributeToGroup(sfccToken, 'Product', CTP_ATTR_GROUP_ID, attrIdMapSession.resolve(id, attrMap));
+            } catch (age) {}
         }
     }
 
@@ -145,35 +155,11 @@ function checkMissingAttributes() {
  * Create the given attribute definitions on the SFCC Product system object
  * and assign each to the "CTP Migration" attribute group.
  * @param {Array} attrs - [{ id, label, sfccType }]
- * @returns {{ created: number, failed: number, errors: Array }}
+ * @returns {{ created: number, failed: number, alreadyExists: number, errors: Array, mappedAttrs: Array, results: Array }}
  */
 function createAttributes(attrs) {
-    var sfccToken = sfccClient.getSFCCToken();
-    var created   = 0;
-    var failed    = 0;
-    var errors    = [];
-
-    try {
-        sfccClient.ensureAttributeGroup(sfccToken, 'Product', CTP_ATTR_GROUP_ID, CTP_ATTR_GROUP_NAME);
-    } catch (ge) {}
-
-    for (var i = 0; i < attrs.length; i++) {
-        var attr = attrs[i];
-        try {
-            var def = attrBuilder.buildAttrDefinition(
-                attr.id,
-                attr.sfccType || 'string',
-                attr.label    || attr.id
-            );
-            sfccClient.createAttributeDefinition(sfccToken, 'Product', def);
-            sfccClient.addAttributeToGroup(sfccToken, 'Product', CTP_ATTR_GROUP_ID, attr.id);
-            created++;
-        } catch (e) {
-            failed++;
-            if (errors.length < 5) errors.push(attr.id + ': ' + (e.message || String(e)));
-        }
-    }
-    return { created: created, failed: failed, errors: errors };
+    var runner = require('*/cartridge/scripts/migration/core/attrPreflightRunner');
+    return runner.createDefinitions('Product', CTP_ATTR_GROUP_ID, CTP_ATTR_GROUP_NAME, attrs);
 }
 
 module.exports = {

@@ -1,7 +1,8 @@
 'use strict';
 
-var ctpTransformer = require('*/cartridge/scripts/migration/productMigration/productTransformer');
-var nativeMap      = require('*/cartridge/scripts/migration/config/nativeFieldMap');
+var ctpTransformer   = require('*/cartridge/scripts/migration/productMigration/productTransformer');
+var nativeMap        = require('*/cartridge/scripts/migration/config/nativeFieldMap');
+var attrIdMapSession = require('*/cartridge/scripts/migration/core/attrIdMapSession');
 
 function xmlEsc(val) {
     if (val === null || val === undefined) return '';
@@ -11,6 +12,15 @@ function xmlEsc(val) {
         .replace(/>/g,  '&gt;')
         .replace(/"/g,  '&quot;')
         .replace(/'/g,  '&apos;');
+}
+
+/**
+ * Resolve SFCC product attribute ID, applying visit-scoped renames.
+ * @param {string} canonicalSfccId
+ * @returns {string}
+ */
+function resolveProductAttrId(canonicalSfccId) {
+    return attrIdMapSession.resolve(canonicalSfccId, attrIdMapSession.read('product'));
 }
 
 var UUID_RE_XML = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -74,12 +84,13 @@ function buildPageAttributes(t) {
  * Build <variations> block with <attributes> (variation axes from variant attrs)
  * and <variants> list.
  * Reference: <attributes> first, then <variants>.
- * isShopify: true when the product comes from the Shopify transformer.
+ * platform: 'shopify' | 'sap' | 'ctp' (default) — which transformer produced t.
  */
-function buildVariationsXml(t, selectedVarAttrs, isShopify) {
+function buildVariationsXml(t, selectedVarAttrs, platform) {
     var xml = '        <variations>\n';
+    var isShopify = platform === 'shopify';
     var hasVarSelection = selectedVarAttrs && selectedVarAttrs.length;
-    var attrPrefix = isShopify ? 'shopify_' : 'ctp_';
+    var attrPrefix = platform === 'shopify' ? 'shopify_' : (platform === 'sap' ? 'sap_' : 'ctp_');
 
     // Collect unique variation attribute names + values across all variants.
     // CTP: value can be string, number, or { key, label } enum.
@@ -92,19 +103,29 @@ function buildVariationsXml(t, selectedVarAttrs, isShopify) {
             var a   = attrs[ai];
             var val = a.value;
             if (val === null || val === undefined) continue;
-            // CTP: only include axes that are in the selected variant attrs list
-            // Shopify: include all (no selection step)
-            if (!isShopify && hasVarSelection && selectedVarAttrs.indexOf(a.name) === -1) continue;
-            if (!isShopify && !hasVarSelection) continue;
-
-            var axisRule;
-            if (!isShopify) {
-                axisRule = nativeMap.getRule('commercetools', 'Product', a.name);
-                if (axisRule && axisRule.action === 'skip') continue;
+            // CTP: only include axes that are in the selected variant attrs list (or none if unset).
+            // Shopify: include all when unset; when set, include selected options (+ price/barcode extras).
+            if (isShopify) {
+                if (hasVarSelection
+                    && selectedVarAttrs.indexOf(a.name) === -1
+                    && a.name !== 'price' && a.name !== 'compareAtPrice' && a.name !== 'barcode') {
+                    continue;
+                }
+            } else {
+                if (hasVarSelection && selectedVarAttrs.indexOf(a.name) === -1) continue;
+                if (!hasVarSelection) continue;
             }
-            // Use same SFCC ID as variant custom attr so axis ID and value ID match
-            var sfccAxisId = (!isShopify && axisRule && axisRule.action === 'custom_attr') ? axisRule.sfccField
+
+            var axisRule = nativeMap.getRule(
+                platform === 'shopify' ? 'shopify' : (platform === 'sap' ? 'sap' : 'commercetools'),
+                'Product', a.name);
+            if (axisRule && axisRule.action === 'skip') continue;
+            // Use same SFCC ID as variant custom attr so axis ID and value ID match.
+            // custom_attr rules map to a native SFCC field (e.g. Shopify "Color" -> "color")
+            // instead of the platform-prefixed custom attribute ID.
+            var sfccAxisId = (axisRule && axisRule.action === 'custom_attr') ? axisRule.sfccField
                 : (attrPrefix + String(a.name || '').replace(/[^a-zA-Z0-9_]/g, '_'));
+            sfccAxisId = resolveProductAttrId(sfccAxisId);
 
             var key     = '';
             var display = '';
@@ -250,20 +271,29 @@ function buildProductXml(t, selectedVarAttrs) {
 
     productXml += buildPageAttributes(t);
 
-    var isShopify = !!t.shopifyId;
+    var sourcePlatform = t.shopifyId ? 'shopify' : (t.sapId ? 'sap' : 'ctp');
 
-    // Custom attrs for source-platform tracking
-    if (isShopify) {
+    // Custom attrs for source-platform tracking (respect visit-scoped renames)
+    if (sourcePlatform === 'shopify') {
         productXml += '        <custom-attributes>\n';
-        productXml += '            <custom-attribute attribute-id="shopify_product_id">' + xmlEsc(t.shopifyId)  + '</custom-attribute>\n';
-        productXml += '            <custom-attribute attribute-id="shopify_handle">'     + xmlEsc(t.productId) + '</custom-attribute>\n';
-        if (t.shopifyStatus) productXml += '            <custom-attribute attribute-id="shopify_status">' + xmlEsc(t.shopifyStatus) + '</custom-attribute>\n';
+        productXml += '            <custom-attribute attribute-id="' + xmlEsc(resolveProductAttrId('shopify_product_id')) + '">' + xmlEsc(t.shopifyId)  + '</custom-attribute>\n';
+        productXml += '            <custom-attribute attribute-id="' + xmlEsc(resolveProductAttrId('shopify_handle')) + '">'     + xmlEsc(t.productId) + '</custom-attribute>\n';
+        if (t.shopifyStatus) {
+            productXml += '            <custom-attribute attribute-id="' + xmlEsc(resolveProductAttrId('shopify_status')) + '">' + xmlEsc(t.shopifyStatus) + '</custom-attribute>\n';
+        }
+        productXml += '        </custom-attributes>\n';
+    } else if (sourcePlatform === 'sap' && t.sapApprovalStatus) {
+        // sap_product_id is intentionally omitted here — it's always identical to
+        // t.productId (the master's own SFCC ID) for SAP, so tracking it as a
+        // separate custom attribute would just duplicate the native product ID.
+        productXml += '        <custom-attributes>\n';
+        productXml += '            <custom-attribute attribute-id="' + xmlEsc(resolveProductAttrId('sap_approval_status')) + '">' + xmlEsc(t.sapApprovalStatus) + '</custom-attribute>\n';
         productXml += '        </custom-attributes>\n';
     } else if (t.ctpId || t.ctpKey) {
         productXml += '        <custom-attributes>\n';
-        if (t.ctpId)       productXml += '            <custom-attribute attribute-id="ctp_product_id">'   + xmlEsc(t.ctpId)       + '</custom-attribute>\n';
-        if (t.ctpKey)      productXml += '            <custom-attribute attribute-id="ctp_product_key">'  + xmlEsc(t.ctpKey)      + '</custom-attribute>\n';
-        if (t.productKind) productXml += '            <custom-attribute attribute-id="ctp_product_type">' + xmlEsc(t.productKind) + '</custom-attribute>\n';
+        if (t.ctpId)       productXml += '            <custom-attribute attribute-id="' + xmlEsc(resolveProductAttrId('ctp_product_id')) + '">'   + xmlEsc(t.ctpId)       + '</custom-attribute>\n';
+        if (t.ctpKey)      productXml += '            <custom-attribute attribute-id="' + xmlEsc(resolveProductAttrId('ctp_product_key')) + '">'  + xmlEsc(t.ctpKey)      + '</custom-attribute>\n';
+        if (t.productKind) productXml += '            <custom-attribute attribute-id="' + xmlEsc(resolveProductAttrId('ctp_product_type')) + '">' + xmlEsc(t.productKind) + '</custom-attribute>\n';
         productXml += '        </custom-attributes>\n';
     }
 
@@ -274,7 +304,7 @@ function buildProductXml(t, selectedVarAttrs) {
         productXml += buildProductSetProductsXml(t.setProducts);
     } else if (t.hasVariants) {
         // base product with variants
-        productXml += buildVariationsXml(t, selectedVarAttrs, isShopify);
+        productXml += buildVariationsXml(t, selectedVarAttrs, sourcePlatform);
     }
 
     // classification-category: use first CTP category key if available
@@ -289,7 +319,8 @@ function buildProductXml(t, selectedVarAttrs) {
 
     // ── Variant products (base products only — sets/bundles have no SFCC variants) ──
     if (t.productKind === 'base' && t.hasVariants) {
-        var isShopifyVar = !!t.shopifyId;
+        var isShopifyVar = sourcePlatform === 'shopify';
+        var isSapVar     = sourcePlatform === 'sap';
         for (var vi = 0; vi < t.variants.length; vi++) {
             var v = t.variants[vi];
             productXml += '    <product product-id="' + xmlEsc(v.productId) + '">\n';
@@ -306,21 +337,54 @@ function buildProductXml(t, selectedVarAttrs) {
             var hasVarSelection = selectedVarAttrs && selectedVarAttrs.length;
 
             if (isShopifyVar) {
-                // Shopify: include all variant option attrs; link back to parent via shopify_product_id
-                varInner = t.shopifyId ? '            <custom-attribute attribute-id="shopify_product_id">' + xmlEsc(t.shopifyId) + '</custom-attribute>\n' : '';
+                // Shopify: respect selection when set; always keep price/barcode extras + parent link
+                varInner = t.shopifyId
+                    ? '            <custom-attribute attribute-id="' + xmlEsc(resolveProductAttrId('shopify_product_id')) + '">' + xmlEsc(t.shopifyId) + '</custom-attribute>\n'
+                    : '';
                 for (var sai = 0; sai < (v.attributes || []).length; sai++) {
                     var sa    = v.attributes[sai];
                     var sval  = sa.value;
                     if (sval === null || sval === undefined) continue;
                     if (Array.isArray(sval)) continue;
-                    var saId  = 'shopify_' + String(sa.name || '').replace(/[^a-zA-Z0-9_]/g, '_');
+                    if (hasVarSelection
+                        && selectedVarAttrs.indexOf(sa.name) === -1
+                        && sa.name !== 'price' && sa.name !== 'compareAtPrice' && sa.name !== 'barcode') {
+                        continue;
+                    }
+                    var saRule = nativeMap.getRule('shopify', 'Product', sa.name);
+                    if (saRule && saRule.action === 'skip') continue;
+                    var saId  = (saRule && saRule.action === 'custom_attr') ? saRule.sfccField
+                        : ('shopify_' + String(sa.name || '').replace(/[^a-zA-Z0-9_]/g, '_'));
+                    saId = resolveProductAttrId(saId);
                     var sstr  = String(sval);
                     if (!sstr) continue;
                     varInner += '            <custom-attribute attribute-id="' + xmlEsc(saId) + '">' + xmlEsc(sstr) + '</custom-attribute>\n';
                 }
+            } else if (isSapVar) {
+                // SAP: link back to parent via sap_product_id; write variant qualifiers unfiltered
+                // (Phase 1 — no explicit-selection UI step for SAP yet, mirrors Shopify's default-include behavior).
+                varInner = t.sapId
+                    ? '            <custom-attribute attribute-id="' + xmlEsc(resolveProductAttrId('sap_product_id')) + '">' + xmlEsc(t.sapId) + '</custom-attribute>\n'
+                    : '';
+                for (var qai = 0; qai < (v.attributes || []).length; qai++) {
+                    var qa   = v.attributes[qai];
+                    var qval = qa.value;
+                    if (qval === null || qval === undefined) continue;
+                    if (Array.isArray(qval)) continue;
+                    var qaRule = nativeMap.getRule('sap', 'Product', qa.name);
+                    if (qaRule && qaRule.action === 'skip') continue;
+                    var qaId  = (qaRule && qaRule.action === 'custom_attr') ? qaRule.sfccField
+                        : ('sap_' + String(qa.name || '').replace(/[^a-zA-Z0-9_]/g, '_'));
+                    qaId = resolveProductAttrId(qaId);
+                    var qstr = String(qval);
+                    if (!qstr) continue;
+                    varInner += '            <custom-attribute attribute-id="' + xmlEsc(qaId) + '">' + xmlEsc(qstr) + '</custom-attribute>\n';
+                }
             } else {
                 // CTP: only write attrs the user explicitly selected.
-                varInner = t.ctpId ? '            <custom-attribute attribute-id="ctp_product_id">' + xmlEsc(t.ctpId) + '</custom-attribute>\n' : '';
+                varInner = t.ctpId
+                    ? '            <custom-attribute attribute-id="' + xmlEsc(resolveProductAttrId('ctp_product_id')) + '">' + xmlEsc(t.ctpId) + '</custom-attribute>\n'
+                    : '';
                 for (var ai = 0; ai < (v.attributes || []).length; ai++) {
                     var a    = v.attributes[ai];
                     var val  = a.value;
@@ -332,6 +396,7 @@ function buildProductXml(t, selectedVarAttrs) {
                     if (rule && rule.action === 'skip') continue;
                     var aId  = (rule && rule.action === 'custom_attr') ? rule.sfccField
                         : ('ctp_' + String(a.name || '').replace(/[^a-zA-Z0-9_]/g, '_'));
+                    aId = resolveProductAttrId(aId);
                     var strVal;
                     if (typeof val === 'object' && !Array.isArray(val)) {
                         // CTP enum/lenum: { key, label }

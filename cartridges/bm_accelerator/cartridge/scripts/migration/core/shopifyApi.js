@@ -1,7 +1,7 @@
 'use strict';
 
-var HTTPClient = require('dw/net/HTTPClient');
-var cfg        = require('*/cartridge/scripts/migration/configAccessor');
+var serviceHttp = require('*/cartridge/scripts/migration/core/serviceHttp');
+var cfg         = require('*/cartridge/scripts/migration/configAccessor');
 
 var _cachedToken    = null;
 var _tokenExpiresAt = 0;
@@ -76,22 +76,16 @@ function fetchAccessToken(creds) {
         + '&client_id='     + encodeURIComponent(c.clientId)
         + '&client_secret=' + encodeURIComponent(c.clientSecret);
 
-    var client = new HTTPClient();
-    client.setTimeout(30000);
-    client.open('POST', store + '/admin/oauth/access_token');
-    client.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
-    client.send(body);
+    var res = serviceHttp.post('shopify', store + '/admin/oauth/access_token', {
+        'Content-Type': 'application/x-www-form-urlencoded'
+    }, body);
 
-    var text = client.getText() || '';
-    var data = {};
-    try { data = JSON.parse(text || '{}'); } catch (e) { /* ignore */ }
-
-    if (client.getStatusCode() !== 200 || !data.access_token) {
-        throw new Error(parseOAuthError(client.getStatusCode(), text, data));
+    if (res.status !== 200 || !res.data || !res.data.access_token) {
+        throw new Error(parseOAuthError(res.status, res.text, res.data || {}));
     }
 
-    _cachedToken    = data.access_token;
-    _tokenExpiresAt = Date.now() + (data.expires_in || 3600) * 1000;
+    _cachedToken    = res.data.access_token;
+    _tokenExpiresAt = Date.now() + (res.data.expires_in || 3600) * 1000;
     return _cachedToken;
 }
 
@@ -141,28 +135,7 @@ function authHeaders(creds) {
  * @returns {{ status: number, data: Object, text: string, link: string }}
  */
 function send(method, url, headers, body) {
-    var client = new HTTPClient();
-    client.setTimeout(60000);
-    client.open(method, url);
-
-    var keys = Object.keys(headers || {});
-    var i;
-    for (i = 0; i < keys.length; i++) {
-        client.setRequestHeader(keys[i], headers[keys[i]]);
-    }
-
-    client.send(body !== undefined ? String(body) : '');
-
-    var text = client.getText() || '';
-    var data = {};
-    try { data = JSON.parse(text || '{}'); } catch (e) { /* ignore */ }
-
-    return {
-        status: client.getStatusCode(),
-        data:   data,
-        text:   text,
-        link:   client.getResponseHeader('Link') || ''
-    };
+    return serviceHttp.request('shopify', method, url, headers, body);
 }
 
 /**

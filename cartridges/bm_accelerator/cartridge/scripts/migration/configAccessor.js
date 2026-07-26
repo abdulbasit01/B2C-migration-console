@@ -1,81 +1,67 @@
 'use strict';
 
+/**
+ * Runtime migration config from Site Preferences (LINK configuration standard).
+ * Empty defaults apply when prefs are not set.
+ */
+
 var defaults = require('*/cartridge/scripts/migration/config.defaults');
-var base = defaults;
+var prefs = require('*/cartridge/scripts/migration/migrationPreferences');
 
-try {
-    base = require('*/cartridge/scripts/migration/config');
-} catch (e) {
-    // config.js not uploaded — dashboard still loads with defaults
-}
-
-// Shallow-clone so overlays never mutate the file config
 var cfg = {};
-var baseKeys = Object.keys(base);
-for (var i = 0; i < baseKeys.length; i++) {
-    cfg[baseKeys[i]] = base[baseKeys[i]];
+var baseKeys = Object.keys(defaults);
+var i;
+for (i = 0; i < baseKeys.length; i++) {
+    cfg[baseKeys[i]] = defaults[baseKeys[i]];
 }
 
-// Overlay Shopify credentials from saved config file (persists across sessions)
+cfg = prefs.applyToConfig(cfg);
+
+// Local dev / upload: overlay Amplience credentials from auto-generated config.js (.env).
 try {
-    var File       = require('dw/io/File');
-    var FileReader = require('dw/io/FileReader');
-    var configFile = new File(File.IMPEX + '/src/migration/shopify-config.json');
-    if (configFile.exists()) {
-        var fr   = new FileReader(configFile, 'UTF-8');
-        var line; var raw = '';
-        while ((line = fr.readLine()) !== null) { raw += line; }
-        fr.close();
-        var saved = JSON.parse(raw);
-        if (saved && saved.storeUrl) {
-            cfg.shopify = {
-                storeUrl:     saved.storeUrl     || '',
-                clientId:     saved.clientId     || '',
-                clientSecret: saved.clientSecret || '',
-                apiVersion:   saved.apiVersion   || '2025-01'
-            };
+    var fileCfg = require('*/cartridge/scripts/migration/config');
+    if (fileCfg && fileCfg.amplience) {
+        cfg.amplience = cfg.amplience || {};
+        if (fileCfg.amplience.hubName) {
+            cfg.amplience.hubName = fileCfg.amplience.hubName;
+        }
+        if (fileCfg.amplience.personalAccessToken) {
+            cfg.amplience.personalAccessToken = fileCfg.amplience.personalAccessToken;
+        }
+        if (fileCfg.amplience.clientId) {
+            cfg.amplience.clientId = fileCfg.amplience.clientId;
+        }
+        if (fileCfg.amplience.clientSecret) {
+            cfg.amplience.clientSecret = fileCfg.amplience.clientSecret;
+        }
+        if (fileCfg.amplience.defaultDeliveryKey) {
+            cfg.amplience.defaultDeliveryKey = fileCfg.amplience.defaultDeliveryKey;
         }
     }
 } catch (e) {
-    // file not found or parse error — fall through to session overlay
+    // config.js not generated — run npm run config:generate
 }
 
-// Overlay Shopify credentials saved to session during TestConnection (trumps file)
+// Amplience BM wizard: overlay session credentials saved during TestConnection.
 try {
     /* global session */
     if (session && session.custom) {
-        var sessionUrl    = String(session.custom.shopifyStoreUrl     || '');
-        var sessionId     = String(session.custom.shopifyClientId     || '');
-        var sessionSecret = String(session.custom.shopifyClientSecret || '');
-        var sessionToken  = String(session.custom.shopifyAccessToken  || '');
-        var sessionVer    = String(session.custom.shopifyApiVersion   || '');
-        if (sessionUrl || sessionId || sessionToken) {
-            cfg.shopify = {
-                storeUrl:     sessionUrl    || (base.shopify ? base.shopify.storeUrl     : ''),
-                clientId:     sessionId     || (base.shopify ? base.shopify.clientId     : ''),
-                clientSecret: sessionSecret || (base.shopify ? base.shopify.clientSecret : ''),
-                accessToken:  sessionToken  || (base.shopify ? base.shopify.accessToken  : ''),
-                apiVersion:   sessionVer    || (base.shopify ? base.shopify.apiVersion   : '2026-07')
-            };
-        }
-
-        var ampHub     = String(session.custom.amplienceHubName || '');
-        var ampPat     = String(session.custom.ampliencePersonalAccessToken || '');
-        var ampId      = String(session.custom.amplienceClientId || '');
-        var ampSecret  = String(session.custom.amplienceClientSecret || '');
-        var ampKey     = String(session.custom.amplienceDefaultDeliveryKey || '');
+        var ampHub = String(session.custom.amplienceHubName || '');
+        var ampPat = String(session.custom.ampliencePersonalAccessToken || '');
+        var ampId = String(session.custom.amplienceClientId || '');
+        var ampSecret = String(session.custom.amplienceClientSecret || '');
+        var ampKey = String(session.custom.amplienceDefaultDeliveryKey || '');
         if (ampHub || ampPat || ampId || ampSecret) {
-            cfg.amplience = {
-                hubName:             ampHub    || (base.amplience ? base.amplience.hubName             : ''),
-                personalAccessToken: ampPat    || (base.amplience ? base.amplience.personalAccessToken : ''),
-                clientId:            ampId     || (base.amplience ? base.amplience.clientId            : ''),
-                clientSecret:        ampSecret || (base.amplience ? base.amplience.clientSecret        : ''),
-                defaultDeliveryKey:  ampKey    || (base.amplience ? base.amplience.defaultDeliveryKey  : '')
-            };
+            cfg.amplience = cfg.amplience || {};
+            cfg.amplience.hubName = ampHub || cfg.amplience.hubName || '';
+            cfg.amplience.personalAccessToken = ampPat || cfg.amplience.personalAccessToken || '';
+            cfg.amplience.clientId = ampId || cfg.amplience.clientId || '';
+            cfg.amplience.clientSecret = ampSecret || cfg.amplience.clientSecret || '';
+            cfg.amplience.defaultDeliveryKey = ampKey || cfg.amplience.defaultDeliveryKey || '';
         }
     }
 } catch (e) {
-    // session not in scope (unit tests) — use file config as-is
+    // session not in scope (unit tests)
 }
 
 module.exports = cfg;

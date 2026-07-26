@@ -44,11 +44,11 @@ var METAFIELD_TYPE_MAP = {
 
 // GraphQL owner type → SFCC system object type
 var OWNER_TYPE_MAP = {
-    PRODUCT:    'Product',
-    VARIANT:    'Product',
-    COLLECTION: 'Category',
-    CUSTOMER:   'Customer',
-    ORDER:      'Order'
+    PRODUCT:         'Product',
+    PRODUCTVARIANT:  'Product',
+    COLLECTION:      'Category',
+    CUSTOMER:        'Customer',
+    ORDER:           'Order'
 };
 
 var _PERFECT = ['single_line_text_field', 'multi_line_text_field', 'number_integer', 'number_decimal', 'boolean', 'date', 'date_time'];

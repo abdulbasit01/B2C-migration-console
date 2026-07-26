@@ -2,7 +2,10 @@
 
 var registry = require('*/cartridge/scripts/migration/core/dataSourceRegistry');
 var sourceAttrIds = require('*/cartridge/scripts/migration/core/sourceAttrIds');
+var attrIdMapSession = require('*/cartridge/scripts/migration/core/attrIdMapSession');
 var fetcher  = registry.getFetcher('store');
+
+var MODULE_KEY = 'store';
 
 function getLocalized(obj) {
     return fetcher.getLocalized(obj);
@@ -50,18 +53,93 @@ function firstCountry(store) {
     return countries.length ? countries[0] : '';
 }
 
-function buildCustomAttributes(storeId, country, store, channel) {
-    var prefix = sourceAttrIds.getPrefix(registry.getPlatformId());
-    var attrs  = {
-        countryCodeValue: country || '',
-        inventoryListId:  'inventory_m_store_' + storeId
-    };
-    attrs[prefix + 'StoreId']  = (store && store.id) ? store.id : '';
-    attrs[prefix + 'StoreKey']  = (store && store.key) ? store.key : '';
-    if (channel) {
-        attrs[prefix + 'ChannelId']  = channel.id || '';
-        attrs[prefix + 'ChannelKey'] = channel.key || '';
+function readAttrIdMap() {
+    return attrIdMapSession.read(MODULE_KEY);
+}
+
+function clearAttrIdMap() {
+    attrIdMapSession.clear(MODULE_KEY);
+}
+
+function saveAttrIdMapFromAttrs(attrs) {
+    attrIdMapSession.saveFromAttrs(MODULE_KEY, attrs);
+}
+
+/**
+ * Serialize a CTP custom field value for store IMPEX XML.
+ * @param {*} val
+ * @returns {string}
+ */
+function formatCustomFieldValue(val) {
+    if (val === null || val === undefined) return '';
+    if (typeof val === 'boolean' || typeof val === 'number') return String(val);
+    if (typeof val === 'string') return val;
+    if (Array.isArray(val)) {
+        var parts = [];
+        var ai;
+        for (ai = 0; ai < val.length; ai++) {
+            var item = formatCustomFieldValue(val[ai]);
+            if (item) parts.push(item);
+        }
+        return parts.join(',');
     }
+    if (typeof val === 'object') {
+        if (val.centAmount !== undefined && val.currencyCode) {
+            var digits = typeof val.fractionDigits === 'number' ? val.fractionDigits : 2;
+            return (val.centAmount / Math.pow(10, digits)).toFixed(digits) + ' ' + val.currencyCode;
+        }
+        if (val.id && (val.typeId || val.type_id)) {
+            return String(val.id);
+        }
+        var localized = getLocalized(val);
+        if (localized) return localized;
+        try {
+            return JSON.stringify(val);
+        } catch (e) {
+            return '';
+        }
+    }
+    return String(val);
+}
+
+/**
+ * Resolve SFCC attribute-id for a source field (applies user renames).
+ * @param {string} sourceId
+ * @param {Object.<string, string>} [attrIdMap]
+ * @returns {string}
+ */
+function resolveAttrId(sourceId, attrIdMap) {
+    return attrIdMapSession.resolve(sourceId, attrIdMap || readAttrIdMap());
+}
+
+function buildCustomAttributes(storeId, country, store, channel, attrIdMap) {
+    var prefix = sourceAttrIds.getPrefix(registry.getPlatformId());
+    var map    = attrIdMap || readAttrIdMap();
+    var attrs  = {};
+    var countryKey = resolveAttrId('countryCodeValue', map);
+    var invKey     = resolveAttrId('inventoryListId', map);
+    attrs[countryKey] = country || '';
+    attrs[invKey]     = 'inventory_m_store_' + storeId;
+    attrs[resolveAttrId(prefix + 'StoreId', map)]  = (store && store.id) ? store.id : '';
+    attrs[resolveAttrId(prefix + 'StoreKey', map)] = (store && store.key) ? store.key : '';
+    if (channel) {
+        attrs[resolveAttrId(prefix + 'ChannelId', map)]  = channel.id || '';
+        attrs[resolveAttrId(prefix + 'ChannelKey', map)] = channel.key || '';
+    }
+
+    if (store && store.custom && store.custom.fields) {
+        var fields = store.custom.fields;
+        var keys   = Object.keys(fields);
+        var i;
+        for (i = 0; i < keys.length; i++) {
+            var sourceKey = keys[i];
+            var sfccId    = resolveAttrId(sourceKey, map);
+            var formatted = formatCustomFieldValue(fields[sourceKey]);
+            if (formatted === '') continue;
+            attrs[sfccId] = formatted;
+        }
+    }
+
     return attrs;
 }
 
@@ -71,9 +149,10 @@ function buildCustomAttributes(storeId, country, store, channel) {
  * @param {Object} store
  * @param {Object} channelById
  * @param {string} [storeIdOverride]
+ * @param {Object.<string, string>} [attrIdMap]
  * @returns {Object|null}
  */
-function transformStore(store, channelById, storeIdOverride) {
+function transformStore(store, channelById, storeIdOverride, attrIdMap) {
     if (!store) return null;
 
     var storeKey = store.key || store.id || '';
@@ -85,6 +164,7 @@ function transformStore(store, channelById, storeIdOverride) {
     var channel      = fetcher.findLinkedChannel(store, channelById);
     var addr         = channel && channel.address ? channel.address : null;
     var geo          = channel ? parseGeoLocation(channel.geoLocation) : { latitude: '', longitude: '' };
+    var map          = attrIdMap || readAttrIdMap();
 
     if (addr && addr.country) {
         country = addr.country;
@@ -106,7 +186,7 @@ function transformStore(store, channelById, storeIdOverride) {
         storeLocatorEnabled:       true,
         demandwarePosEnabled:      false,
         posEnabled:                false,
-        customAttributes:          buildCustomAttributes(storeId, country, store, channel)
+        customAttributes:          buildCustomAttributes(storeId, country, store, channel, map)
     };
 }
 
@@ -114,14 +194,16 @@ function transformStore(store, channelById, storeIdOverride) {
  * Build store records from CTP stores.
  * @param {Array} stores
  * @param {Object} channelById
+ * @param {Object.<string, string>} [attrIdMap]
  * @returns {Array}
  */
-function buildStoreRecords(stores, channelById) {
+function buildStoreRecords(stores, channelById, attrIdMap) {
     var out = [];
+    var map = attrIdMap || readAttrIdMap();
     var i;
 
     for (i = 0; i < stores.length; i++) {
-        var record = transformStore(stores[i], channelById, null);
+        var record = transformStore(stores[i], channelById, null, map);
         if (record) out.push(record);
     }
 
@@ -152,9 +234,15 @@ function toSummary(store) {
 }
 
 module.exports = {
-    transformStore:    transformStore,
-    buildStoreRecords: buildStoreRecords,
-    sanitizeStoreId:   sanitizeStoreId,
-    toMigrationRef:    toMigrationRef,
-    toSummary:         toSummary
+    transformStore:         transformStore,
+    buildStoreRecords:      buildStoreRecords,
+    sanitizeStoreId:        sanitizeStoreId,
+    toMigrationRef:         toMigrationRef,
+    toSummary:              toSummary,
+    readAttrIdMap:          readAttrIdMap,
+    clearAttrIdMap:         clearAttrIdMap,
+    saveAttrIdMapFromAttrs: saveAttrIdMapFromAttrs,
+    resolveAttrId:          resolveAttrId,
+    formatCustomFieldValue: formatCustomFieldValue,
+    MODULE_KEY:             MODULE_KEY
 };

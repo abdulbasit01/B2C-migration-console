@@ -7,7 +7,6 @@
     "node": ">=4.0"
   },
   "scripts": {
-    "config:generate": "node scripts/generate-migration-config.js",
     "watch:scss": "sass --watch cartridges/bm_accelerator/cartridge/client/default/scss/accelerator-migration.scss:cartridges/bm_accelerator/cartridge/static/default/css/accelerator-migration.css",
     "watch:js": "sgmf-scripts --watch",
     "dev": "npm run compile:scss && npm run compile:js",
@@ -19,6 +18,7 @@
     "export:amplience-catalog": "node scripts/export-amplience-catalog.js",
     "sync:amplience-core": "node scripts/sync-amplience-core-to-sfcc.js",
     "generate:headless": "node scripts/generate-headless-experience-metadata.js",
+    "config:generate": "node scripts/generate-migration-config.js",
     "cover": "sgmf-scripts --cover 'test/unit'",
     "test:integration": "sgmf-scripts --integration 'test/integration/**/*.js'",
     "test:acceptance:custom": "npx codeceptjs run --plugins retryFailedStep --profile",

@@ -3,18 +3,11 @@
 var fetcher     = require('*/cartridge/scripts/migration/productMigration/ctpProductFetcher');
 var transformer = require('*/cartridge/scripts/migration/productMigration/productTransformer');
 var sfccClient  = require('*/cartridge/scripts/migration/sfccClient');
-var HTTPClient  = require('dw/net/HTTPClient');
 
 var BATCH_SIZE = 50;
 
 function doPut(url, token, payload) {
-    var client = new HTTPClient();
-    client.setTimeout(30000);
-    client.open('PUT', url);
-    client.setRequestHeader('Authorization', 'Bearer ' + token);
-    client.setRequestHeader('Content-Type', 'application/json');
-    client.send(JSON.stringify(payload));
-    return { status: client.getStatusCode(), text: client.getText() };
+    return sfccClient.doPut(url, token, payload);
 }
 
 function buildPayload(transformed) {

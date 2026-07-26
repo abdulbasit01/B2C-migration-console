@@ -30,10 +30,10 @@ function createCustomer(token, listId, profile, password) {
 
         // CustomerMgr.createCustomer(login, pass, customerNo:String) sets a specific number.
         // CustomerMgr.createCustomer(login, pass, list:CustomerList) auto-generates a numeric ID.
-        // We use the CTP UUID as-is as the customer number to match full-migration XML.
-        var ctpNo    = profile.c_ctp_customer_id ? String(profile.c_ctp_customer_id) : null;
-        var customer = ctpNo
-            ? CustomerMgr.createCustomer(login, password, ctpNo)
+        // We use the source system's own ID as-is as the customer number to match full-migration XML.
+        var sourceNo = profile.c_ctp_customer_id || profile.c_shopify_customer_id || null;
+        var customer = sourceNo
+            ? CustomerMgr.createCustomer(login, password, String(sourceNo))
             : CustomerMgr.createCustomer(login, password, list);
         if (!customer) {
             Transaction.rollback();
@@ -47,6 +47,7 @@ function createCustomer(token, listId, profile, password) {
         if (profile.last_name)    p.setLastName(profile.last_name);
         if (profile.company_name) p.setCompanyName(profile.company_name);
         if (profile.salutation)   p.setSalutation(profile.salutation);
+        if (profile.phone)        p.setPhoneMobile(profile.phone);
 
         if (profile.birthday) {
             try {
@@ -61,13 +62,14 @@ function createCustomer(token, listId, profile, password) {
 
         // Write all custom attributes from the transformer output.
         // Keys prefixed with "c_" are custom attribute names (transformer convention).
-        // Each assignment is individually guarded so one missing definition doesn't
-        // prevent the rest from being written.
+        // Visit-scoped renames (attrIdMap) are applied so Shopify/CTP create-as-rename works.
+        var attrIdMapSession = require('*/cartridge/scripts/migration/core/attrIdMapSession');
+        var attrMap = attrIdMapSession.read('customer');
         var customKeys = Object.keys(profile);
         for (var ci = 0; ci < customKeys.length; ci++) {
             var ck = customKeys[ci];
             if (ck.length > 2 && ck.charAt(0) === 'c' && ck.charAt(1) === '_') {
-                var sfccAttrId = ck.slice(2); // strip "c_" prefix
+                var sfccAttrId = attrIdMapSession.resolve(ck.slice(2), attrMap);
                 var attrVal    = profile[ck];
                 if (attrVal !== null && attrVal !== undefined) {
                     try { p.custom[sfccAttrId] = attrVal; } catch (ce) { /* attr not defined in SFCC yet */ }

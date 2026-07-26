@@ -7,6 +7,7 @@ var Bytes       = require('dw/util/Bytes');
 var typeMap     = require('*/cartridge/scripts/migration/connectors/ctp/ctpTypeMap');
 var sfccClient  = require('*/cartridge/scripts/migration/sfccClient');
 var attrBuilder = require('*/cartridge/scripts/migration/core/attrBuilder');
+var nativeFieldMap = require('*/cartridge/scripts/migration/config/nativeFieldMap');
 
 // CTP built-in customer fields that have no standard SFCC equivalent.
 // Each entry maps the CTP field name to the SFCC custom attribute ID we create/populate.
@@ -82,14 +83,42 @@ function getCtpCustomerFields() {
  */
 function checkMissingAttributes() {
     // Customer profile custom attributes live on the 'Profile' system object, not 'Customer'.
-    var sfccToken   = sfccClient.getSFCCToken();
-    var existingIds = sfccClient.getExistingAttributeIds(sfccToken, 'Profile');
+    var attrIdMapSession = require('*/cartridge/scripts/migration/core/attrIdMapSession');
+    var attrMap      = attrIdMapSession.read('customer');
+    var sfccToken    = sfccClient.getSFCCToken();
+    var profileAttrs = sfccClient.getAttributeDefinitions(sfccToken, 'Profile');
+    var customerAttrs = sfccClient.getAttributeDefinitions(sfccToken, 'Customer');
+    var sysAttrs     = profileAttrs.concat(customerAttrs); // Customer + Profile — customer-related native fields span both
+    var existingIds  = {};
+    for (var pa = 0; pa < profileAttrs.length; pa++) existingIds[profileAttrs[pa].id] = true;
 
     // Ensure the attribute group exists on every check so attrs can be linked below.
     try { sfccClient.ensureAttributeGroup(sfccToken, 'Profile', CTP_ATTR_GROUP_ID, CTP_ATTR_GROUP_NAME); } catch (ge) {}
 
     var missing = [];
     var seen    = {};
+
+    /**
+     * Attach native-field metadata to an entry, unless there's a confident (action:"skip")
+     * SFCC system-field equivalent — in that case the field needs no custom attribute at all,
+     * so the caller should not add it to the missing list.
+     * @returns {Object|null} entry with metadata attached, or null when it should be skipped entirely
+     */
+    function withNativeHint(entry, sourceId, sourceLabel) {
+        var rule = nativeFieldMap.getEffectiveRule('commercetools', 'Customer', sourceId, sourceLabel, sysAttrs);
+        if (rule && rule.action === 'skip') return null;
+        if (rule) {
+            entry.sfccNativeField  = rule.sfccField;
+            entry.sfccNativeNote   = rule.note;
+            entry.sfccNativeAction = rule.action;
+        }
+        return entry;
+    }
+
+    function resolvedExists(sourceId) {
+        var resolved = attrIdMapSession.resolve(sourceId, attrMap);
+        return !!existingIds[resolved];
+    }
 
     // 1. CTP custom type fields (dynamic — defined in CTP via the Types API)
     var ctpFields = getCtpCustomerFields();
@@ -98,15 +127,17 @@ function checkMissingAttributes() {
         var id    = field.name;
         if (seen[id]) continue;
         seen[id] = true;
-        if (!existingIds[id]) {
-            missing.push(typeMap.enrichMissingAttribute({
+        if (!resolvedExists(id)) {
+            var ctpEntry = withNativeHint(typeMap.enrichMissingAttribute({
                 id:    field.name,
                 label: field.label,
                 ctpType: field.ctpType
-            }));
+            }), field.name, field.label);
+            if (ctpEntry) missing.push(ctpEntry);
         } else {
-            // Attr exists but may not be in the group yet (e.g. created before group logic was added).
-            try { sfccClient.addAttributeToGroup(sfccToken, 'Profile', CTP_ATTR_GROUP_ID, id); } catch (age) {}
+            try {
+                sfccClient.addAttributeToGroup(sfccToken, 'Profile', CTP_ATTR_GROUP_ID, attrIdMapSession.resolve(id, attrMap));
+            } catch (age) {}
         }
     }
 
@@ -115,13 +146,15 @@ function checkMissingAttributes() {
         var bf = CTP_BUILTIN_FIELDS[j];
         if (seen[bf.sfccId]) continue;
         seen[bf.sfccId] = true;
-        if (!existingIds[bf.sfccId]) {
-            missing.push(typeMap.enrichMissingAttribute({
+        if (!resolvedExists(bf.sfccId)) {
+            var bfEntry = withNativeHint(typeMap.enrichMissingAttribute({
                 id: bf.sfccId, label: bf.label, ctpType: bf.ctpType, sfccType: 'string'
-            }));
+            }), bf.sfccId, bf.label);
+            if (bfEntry) missing.push(bfEntry);
         } else {
-            // Attr exists but may not be in the group yet.
-            try { sfccClient.addAttributeToGroup(sfccToken, 'Profile', CTP_ATTR_GROUP_ID, bf.sfccId); } catch (age) {}
+            try {
+                sfccClient.addAttributeToGroup(sfccToken, 'Profile', CTP_ATTR_GROUP_ID, attrIdMapSession.resolve(bf.sfccId, attrMap));
+            } catch (age) {}
         }
     }
 
@@ -139,33 +172,8 @@ var CTP_ATTR_GROUP_NAME = 'CTP Migration';
  * @returns {{ created: number, failed: number, errors: Array }}
  */
 function createAttributes(attrs) {
-    var sfccToken = sfccClient.getSFCCToken();
-    var created   = 0;
-    var failed    = 0;
-    var errors    = [];
-
-    // Ensure the attribute group exists once before creating any attrs
-    try {
-        sfccClient.ensureAttributeGroup(sfccToken, 'Profile', CTP_ATTR_GROUP_ID, CTP_ATTR_GROUP_NAME);
-    } catch (ge) { /* non-fatal — attrs can still be created without a group */ }
-
-    for (var i = 0; i < attrs.length; i++) {
-        var attr = attrs[i];
-        try {
-            var def = attrBuilder.buildAttrDefinition(
-                attr.id,
-                attr.sfccType || 'string',
-                attr.label    || attr.id
-            );
-            sfccClient.createAttributeDefinition(sfccToken, 'Profile', def);
-            sfccClient.addAttributeToGroup(sfccToken, 'Profile', CTP_ATTR_GROUP_ID, attr.id);
-            created++;
-        } catch (e) {
-            failed++;
-            if (errors.length < 5) errors.push(attr.id + ': ' + (e.message || String(e)));
-        }
-    }
-    return { created: created, failed: failed, errors: errors };
+    var runner = require('*/cartridge/scripts/migration/core/attrPreflightRunner');
+    return runner.createDefinitions('Profile', CTP_ATTR_GROUP_ID, CTP_ATTR_GROUP_NAME, attrs);
 }
 
 module.exports = {

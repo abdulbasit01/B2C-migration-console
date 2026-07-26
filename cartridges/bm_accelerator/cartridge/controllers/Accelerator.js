@@ -43,9 +43,10 @@ function toStepQuery(n) {
  * @returns {Object}
  */
 function withBmFrame(pdict, menuActionId) {
+    var requestGuard = require('*/cartridge/scripts/accelerator/requestGuard');
     pdict.SelectedMenuItem = 'rc_accelerator_tools';
     pdict.CurrentMenuItemId = menuActionId || 'rc_accelerator_wizard';
-    return pdict;
+    return requestGuard.attachCsrf(pdict);
 }
 
 /**
@@ -55,6 +56,57 @@ function withBmFrame(pdict, menuActionId) {
 function jsonResponse(obj) {
     response.setContentType('application/json');
     response.writer.print(JSON.stringify(obj));
+}
+
+/**
+ * Persist attr renames and return standard create-attrs JSON.
+ * @param {string} moduleKey
+ * @param {Function} createFn - (attrs) => result
+ * @param {Array} attrs
+ */
+function respondCreateAttributes(moduleKey, createFn, attrs) {
+    var attrIdMapSession = require('*/cartridge/scripts/migration/core/attrIdMapSession');
+    var result = createFn(attrs);
+    if (result && result.mappedAttrs && result.mappedAttrs.length) {
+        attrIdMapSession.saveFromAttrs(moduleKey, result.mappedAttrs);
+    }
+    jsonResponse({
+        ok:     !(result && result.failed > 0),
+        result: result
+    });
+}
+
+/**
+ * @param {string} moduleKey
+ */
+function clearModuleAttrIdMap(moduleKey) {
+    require('*/cartridge/scripts/migration/core/attrIdMapSession').clear(moduleKey);
+}
+
+/**
+ * @param {string} moduleKey
+ * @returns {string}
+ */
+function clearAttrMapUrlFor(moduleKey) {
+    return URLUtils.url('Accelerator-ClearAttrIdMap', 'module', moduleKey).toString();
+}
+
+/**
+ * Parse attrs JSON from request; writes error JSON and returns null on failure.
+ * @returns {Array|null}
+ */
+function parseAttrsParam() {
+    var rawAttrs = getParam('attrs');
+    var attrs    = [];
+    try { attrs = JSON.parse(rawAttrs || '[]'); } catch (e) {
+        jsonResponse({ ok: false, error: 'Invalid attrs JSON' });
+        return null;
+    }
+    if (!attrs.length) {
+        jsonResponse({ ok: false, error: 'No attributes provided' });
+        return null;
+    }
+    return attrs;
 }
 
 /**
@@ -154,53 +206,121 @@ function migrationPageContext(platformId, moduleKey) {
 }
 
 /**
- * Build connector credentials from submitted form params.
+ * Build connector credentials from Site Preferences, with optional request overlay for Amplience CMS forms.
  * @param {string} platformId - source platform identifier
  * @returns {Object} credentials object for the connector
  */
 function buildConnectionCreds(platformId) {
-    var cfg    = require('*/cartridge/scripts/migration/configAccessor');
-    var params = request.httpParameterMap;
-    var creds  = {};
-    var fieldNames = ['projectKey', 'clientId', 'clientSecret', 'apiUrl', 'authUrl', 'storeUrl', 'apiVersion', 'storeHash', 'hubName', 'defaultDeliveryKey', 'personalAccessToken'];
-
-    for (var fi = 0; fi < fieldNames.length; fi++) {
-        var fn  = fieldNames[fi];
-        var val = String((params[fn] && params[fn].stringValue) || '');
-        if (val) creds[fn] = val;
-    }
-
-    /**
-     * @param {string} paramName - form field name
-     * @param {string} configValue - fallback value from config
-     * @returns {string} resolved secret value
-     */
-    function resolveSecret(paramName, configValue) {
-        var raw = creds[paramName] || '';
-        return (raw && raw.indexOf('•') === -1) ? raw : (configValue || '');
-    }
+    var cfg = require('*/cartridge/scripts/migration/configAccessor');
+    var creds = {};
 
     if (platformId === 'commercetools') {
-        creds.clientSecret = resolveSecret('clientSecret', cfg.ctp.clientSecret);
-        creds.authUrl      = creds.authUrl || cfg.ctp.authUrl || 'https://auth.us-central1.gcp.commercetools.com';
-        creds.apiUrl       = creds.apiUrl  || cfg.ctp.apiUrl  || 'https://api.us-central1.gcp.commercetools.com';
-        creds.projectKey   = creds.projectKey || cfg.ctp.projectKey || '';
+        creds.projectKey   = cfg.ctp.projectKey || '';
+        creds.clientId     = cfg.ctp.clientId || '';
+        creds.clientSecret = cfg.ctp.clientSecret || '';
+        creds.authUrl      = cfg.ctp.authUrl || 'https://auth.us-central1.gcp.commercetools.com';
+        creds.apiUrl       = cfg.ctp.apiUrl || 'https://api.us-central1.gcp.commercetools.com';
     } else if (platformId === 'shopify') {
-        creds.storeUrl     = creds.storeUrl     || cfg.shopify.storeUrl     || '';
-        creds.clientId     = creds.clientId     || cfg.shopify.clientId     || '';
-        creds.apiVersion   = creds.apiVersion   || cfg.shopify.apiVersion   || '2025-01';
-        creds.clientSecret = resolveSecret('clientSecret', cfg.shopify.clientSecret);
-        creds.accessToken  = resolveSecret('accessToken', cfg.shopify.accessToken || '');
+        creds.storeUrl     = cfg.shopify.storeUrl || '';
+        creds.clientId     = cfg.shopify.clientId || '';
+        creds.clientSecret = cfg.shopify.clientSecret || '';
+        creds.accessToken  = cfg.shopify.accessToken || '';
+        creds.apiVersion   = cfg.shopify.apiVersion || '2025-01';
     } else if (platformId === 'amplience') {
-        creds.clientId              = creds.clientId              || (cfg.amplience ? cfg.amplience.clientId              : '');
-        creds.clientSecret          = resolveSecret('clientSecret', cfg.amplience ? cfg.amplience.clientSecret : '');
-        creds.personalAccessToken   = resolveSecret('personalAccessToken', cfg.amplience ? cfg.amplience.personalAccessToken : '');
-        creds.hubName               = creds.hubName               || (cfg.amplience ? cfg.amplience.hubName               : '');
-        creds.defaultDeliveryKey    = creds.defaultDeliveryKey    || (cfg.amplience ? cfg.amplience.defaultDeliveryKey    : '');
+        var cfgAmp = cfg.amplience || {};
+        var params = request.httpParameterMap;
+
+        /**
+         * @param {string} name
+         * @returns {string}
+         */
+        function paramVal(name) {
+            return String((params[name] && params[name].stringValue) || '');
+        }
+
+        /**
+         * @param {string} name
+         * @param {string} configValue
+         * @returns {string}
+         */
+        function resolveSecret(name, configValue) {
+            var raw = paramVal(name);
+            return (raw && raw.indexOf('•') === -1) ? raw : (configValue || '');
+        }
+
+        creds.hubName             = paramVal('hubName')             || cfgAmp.hubName             || '';
+        creds.personalAccessToken = resolveSecret('personalAccessToken', cfgAmp.personalAccessToken);
+        creds.clientId            = paramVal('clientId')            || cfgAmp.clientId            || '';
+        creds.clientSecret        = resolveSecret('clientSecret', cfgAmp.clientSecret);
+        creds.defaultDeliveryKey  = paramVal('defaultDeliveryKey')  || cfgAmp.defaultDeliveryKey  || '';
+    } else if (platformId === 'sap') {
+        creds.baseUrl      = cfg.sap.baseUrl || '';
+        creds.baseSite     = cfg.sap.baseSite || '';
+        creds.clientId     = cfg.sap.clientId || '';
+        creds.clientSecret = cfg.sap.clientSecret || '';
     }
 
     return creds;
 }
+
+/**
+ * @param {string} platformId
+ * @param {Object} creds
+ * @returns {boolean}
+ */
+function hasConnectionCreds(platformId, creds) {
+    if (platformId === 'amplience') {
+        var hasAmpSecret = !!(creds.personalAccessToken || creds.clientSecret);
+        return !!(creds.hubName && hasAmpSecret);
+    }
+    return buildConnectionSummary(platformId).configured;
+}
+
+/**
+ * Non-secret summary of configured prefs for the Connect step UI.
+ * @param {string} platformId
+ * @returns {{ configured: boolean, lines: Array<{label: string, value: string}>, prefsHint: string }}
+ */
+function buildConnectionSummary(platformId) {
+    var cfg = require('*/cartridge/scripts/migration/configAccessor');
+    var lines = [];
+    var configured = false;
+
+    if (platformId === 'commercetools') {
+        configured = !!(cfg.ctp.projectKey && cfg.ctp.clientId && cfg.ctp.clientSecret);
+        lines.push({ label: 'Project key', value: cfg.ctp.projectKey || '(not set)' });
+        lines.push({ label: 'Client ID', value: cfg.ctp.clientId || '(not set)' });
+        lines.push({ label: 'Client secret', value: cfg.ctp.clientSecret ? 'Configured' : '(not set)' });
+        lines.push({ label: 'API URL', value: cfg.ctp.apiUrl || '(not set)' });
+    } else if (platformId === 'shopify') {
+        var hasSecret = !!(cfg.shopify.clientSecret || cfg.shopify.accessToken);
+        configured = !!(cfg.shopify.storeUrl && hasSecret);
+        lines.push({ label: 'Store URL', value: cfg.shopify.storeUrl || '(not set)' });
+        lines.push({ label: 'Client ID', value: cfg.shopify.clientId || '(not set)' });
+        lines.push({ label: 'Secret / token', value: hasSecret ? 'Configured' : '(not set)' });
+        lines.push({ label: 'API version', value: cfg.shopify.apiVersion || '(not set)' });
+    } else if (platformId === 'sap') {
+        configured = !!(cfg.sap.baseUrl && cfg.sap.baseSite && cfg.sap.clientId && cfg.sap.clientSecret);
+        lines.push({ label: 'Base URL', value: cfg.sap.baseUrl || '(not set)' });
+        lines.push({ label: 'Base Site', value: cfg.sap.baseSite || '(not set)' });
+        lines.push({ label: 'Client ID', value: cfg.sap.clientId || '(not set)' });
+        lines.push({ label: 'Client secret', value: cfg.sap.clientSecret ? 'Configured' : '(not set)' });
+    } else if (platformId === 'amplience') {
+        var hasAmpSecret = !!(cfg.amplience && (cfg.amplience.personalAccessToken || cfg.amplience.clientSecret));
+        configured = !!(cfg.amplience && cfg.amplience.hubName && hasAmpSecret);
+        lines.push({ label: 'Hub name', value: (cfg.amplience && cfg.amplience.hubName) || '(not set)' });
+        lines.push({ label: 'Personal access token', value: (cfg.amplience && cfg.amplience.personalAccessToken) ? 'Configured' : '(not set)' });
+        lines.push({ label: 'Client ID', value: (cfg.amplience && cfg.amplience.clientId) || '(not set)' });
+        lines.push({ label: 'Default delivery key', value: (cfg.amplience && cfg.amplience.defaultDeliveryKey) || '(not set)' });
+    }
+
+    return {
+        configured: configured,
+        lines:      lines,
+        prefsHint:  'Site Preferences → Custom Preferences → B2C Migration Console'
+    };
+}
+
 
 /**
  * Build the View step content from session results.
@@ -247,8 +367,7 @@ function buildViewContent(sessionResults) {
 // ─── AJAX endpoints ───────────────────────────────────────────────────────────
 
 /**
- * Test connection with credentials from the connect form.
- * Dispatches to the correct connector via registry — no platform-specific code here.
+ * Test connection using Site Preference credentials (Amplience CMS also accepts the connect form).
  */
 exports.TestConnection = function () {
     var platformId = getParam('platformId') || 'commercetools';
@@ -259,19 +378,20 @@ exports.TestConnection = function () {
         return;
     }
 
-    // Build creds object from submitted form fields
     var creds = buildConnectionCreds(platformId);
+    var summary = buildConnectionSummary(platformId);
+    if (!hasConnectionCreds(platformId, creds)) {
+        jsonResponse({
+            ok: false,
+            error: platformId === 'amplience'
+                ? 'Hub name and Personal Access Token are required.'
+                : ('Credentials are not configured. Set them under ' + summary.prefsHint + '.')
+        });
+        return;
+    }
 
     try {
         var result = connector.testConnectionWith(creds);
-        // Persist Shopify credentials to session so Steps 2/3 can use them without config.js
-        if (platformId === 'shopify') {
-            session.custom.shopifyStoreUrl     = creds.storeUrl     || '';
-            session.custom.shopifyClientId     = creds.clientId     || '';
-            session.custom.shopifyClientSecret = creds.clientSecret || '';
-            session.custom.shopifyAccessToken  = creds.accessToken  || '';
-            session.custom.shopifyApiVersion   = creds.apiVersion   || '2026-07';
-        }
         if (platformId === 'amplience') {
             session.custom.amplienceHubName              = creds.hubName              || '';
             session.custom.ampliencePersonalAccessToken  = creds.personalAccessToken  || '';
@@ -503,6 +623,8 @@ exports.OrderMigration = function () {
     var bmLinks        = require('*/cartridge/scripts/accelerator/bmLinks');
     var jobsUrl        = bmLinks.getImportExportUrl();
 
+    clearModuleAttrIdMap('order');
+
     ISML.renderTemplate('accelerator/orderMigration', withBmFrame({
         title:               Resource.msg('accelerator.ordermigration.heading', 'accelerator', null),
         subtitle:            Resource.msg('accelerator.subtitle', 'accelerator', null),
@@ -518,6 +640,7 @@ exports.OrderMigration = function () {
         exportUrl:           URLUtils.url('Accelerator-ExportOrders').toString(),
         checkAttrsUrl:       URLUtils.url('Accelerator-CheckOrderAttributes').toString(),
         createAttrsUrl:      URLUtils.url('Accelerator-CreateOrderAttributes').toString(),
+        clearAttrMapUrl:     clearAttrMapUrlFor('order'),
         impexUrl:            pageCtx.impexUrl,
         jobsUrl:             jobsUrl,
         orderStateFilters:   migrationData.getOrderStateFilters(platformId),
@@ -667,6 +790,7 @@ exports.CountOrders.public = true;
 exports.CheckOrderAttributes = function () {
     try {
         var checker = require('*/cartridge/scripts/migration/orders/orderAttrChecker');
+        // runner.checkMissing uses Shopify metafields when platform is shopify
         jsonResponse({ ok: true, missing: checker.checkMissingAttributes() });
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
@@ -675,19 +799,11 @@ exports.CheckOrderAttributes = function () {
 exports.CheckOrderAttributes.public = true;
 
 exports.CreateOrderAttributes = function () {
-    var rawAttrs = getParam('attrs');
-    var attrs    = [];
-    try { attrs = JSON.parse(rawAttrs || '[]'); } catch (e) {
-        jsonResponse({ ok: false, error: 'Invalid attrs JSON' });
-        return;
-    }
-    if (!attrs.length) {
-        jsonResponse({ ok: false, error: 'No attributes provided' });
-        return;
-    }
+    var attrs = parseAttrsParam();
+    if (!attrs) return;
     try {
         var checker = require('*/cartridge/scripts/migration/orders/orderAttrChecker');
-        jsonResponse({ ok: true, result: checker.createAttributes(attrs) });
+        respondCreateAttributes('order', function (a) { return checker.createAttributes(a); }, attrs);
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
     }
@@ -888,6 +1004,7 @@ exports.DataWizard = function () {
         continueUrl:         URLUtils.url('Accelerator-DataWizardContinue').toString(),
         selectTypeUrl:       URLUtils.url('Accelerator-DataWizardSelectType', 'platform', platformId).toString(),
         testConnectionUrl:   URLUtils.url('Accelerator-TestConnection').toString(),
+        connectionSummary:   buildConnectionSummary(platformId),
         categoryMigrationUrl: URLUtils.url('Accelerator-CategoryMigration').toString(),
         dataWizardJsUrl:     URLUtils.staticURL('/js/data-wizard.js').toString() + '?v=4',
         migrationUi:         migrationData.getMigrationUi(platformId),
@@ -912,18 +1029,14 @@ exports.DataWizardContinue = function () {
     }
 
     try {
+        var summary = buildConnectionSummary(platformId);
+        if (!summary.configured) {
+            dataMigrationSession.clearConnection();
+            response.redirect(stepOneUrl);
+            return;
+        }
         var result = connector.testConnectionWith(buildConnectionCreds(platformId));
         dataMigrationSession.markConnected(platformId, result.expiresIn);
-
-        if (platformId === 'shopify') {
-            var creds = buildConnectionCreds(platformId);
-            session.custom.shopifyStoreUrl     = creds.storeUrl     || '';
-            session.custom.shopifyClientId     = creds.clientId     || '';
-            session.custom.shopifyClientSecret = creds.clientSecret || '';
-            session.custom.shopifyAccessToken  = creds.accessToken  || '';
-            session.custom.shopifyApiVersion   = creds.apiVersion   || '2026-07';
-        }
-
         response.redirect(stepTwoUrl);
     } catch (e) {
         dataMigrationSession.clearConnection();
@@ -1129,6 +1242,8 @@ exports.Wizard = function () {
         dashboardUrl:  URLUtils.url('Accelerator-Start').toString(),
         dataWizardSelectUrl: dataMigrationSession.dataWizardSelectUrl(platformId),
         wizardBaseUrl: URLUtils.url('Accelerator-Wizard', 'platform', platform.id).toString(),
+        connectionSummary: buildConnectionSummary(platformId),
+        testConnectionUrl: URLUtils.url('Accelerator-TestConnection').toString(),
         cssUrl:        URLUtils.staticURL('/css/accelerator-migration.css').toString()
     }));
 };
@@ -1143,11 +1258,22 @@ exports.CustomerMigration = function () {
     var cfg2           = require('*/cartridge/scripts/migration/configAccessor');
     var customerListId = (cfg2.sfcc && cfg2.sfcc.customerListId) ? cfg2.sfcc.customerListId : '';
     var platformId = resolvePlatform();
+    var isShopify  = platformId === 'shopify';
     var pageCtx    = migrationPageContext(platformId, 'customer');
     var listsUrl   = URLUtils.url('Accelerator-GetCustomerLists').toString();
+
+    clearModuleAttrIdMap('customer');
+
     ISML.renderTemplate('accelerator/customerMigration', withBmFrame({
         title:          Resource.msg('accelerator.title', 'accelerator', null),
         subtitle:       Resource.msg('accelerator.subtitle', 'accelerator', null),
+        isShopify:      isShopify,
+        platformLabel:  pageCtx.sourceLabel,
+        sourceIdLabel:  isShopify ? 'Shopify Customer ID(s)' : 'Commercetools Customer UUID(s)',
+        sourceIdPlaceholder: isShopify ? 'e.g. 8474509455577, 8474509619417, ...' : 'e.g. a1b2c3d4-e5f6-7890-abcd-ef1234567890, ...',
+        sourceIdFormatNote:  isShopify
+            ? 'Enter the numeric Shopify customer ID(s) shown in the Shopify admin URL for each customer.'
+            : 'Enter the UUID(s) from the Commercetools platform (format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx).',
         customerListId: customerListId,
         dashboardUrl:   URLUtils.url('Accelerator-Start').toString(),
         impexPath:      pageCtx.impexPath,
@@ -1171,6 +1297,7 @@ exports.CustomerMigration = function () {
         customerListsUrl:    listsUrl,
         checkAttrsUrl:       URLUtils.url('Accelerator-CheckCustomerAttributes').toString(),
         createAttrsUrl:      URLUtils.url('Accelerator-CreateCustomerAttributes').toString(),
+        clearAttrMapUrl:     clearAttrMapUrlFor('customer'),
         deleteAttrUrl:       URLUtils.url('Accelerator-DeleteCustomerAttribute').toString(),
         fetchGroupsUrl:      URLUtils.url('Accelerator-FetchCtpCustomerGroups').toString(),
         createGroupsUrl:     URLUtils.url('Accelerator-CreateSfccCustomerGroups').toString()
@@ -1218,11 +1345,14 @@ exports.GetCustomerLists = function () {
 exports.GetCustomerLists.public = true;
 
 /**
- * Fetch all customer groups from CTP and return as JSON.
+ * Fetch all customer groups from the source platform and return as JSON.
+ * CTP: actual customer groups. Shopify: derived from distinct customer tags.
  */
 exports.FetchCtpCustomerGroups = function () {
     try {
-        var groupFetcher = require('*/cartridge/scripts/migration/customerMigration/ctpCustomerGroupFetcher');
+        var groupFetcher = (resolvePlatform() === 'shopify')
+            ? require('*/cartridge/scripts/migration/customerMigration/shopifyCustomerGroupFetcher')
+            : require('*/cartridge/scripts/migration/customerMigration/ctpCustomerGroupFetcher');
         jsonResponse({ ok: true, groups: groupFetcher.fetchGroups() });
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
@@ -1304,6 +1434,10 @@ exports.GetProductSetsInfo = function () {
         jsonResponse({ ok: true, sets: [], note: 'Shopify set/bundle detection uses the Product Type field at migration time.' });
         return;
     }
+    if (platform === 'sap') {
+        jsonResponse({ ok: true, sets: [], note: 'SAP Commerce product set detection is not yet implemented (planned for a later phase).' });
+        return;
+    }
     try {
         var scanner = require('*/cartridge/scripts/migration/productMigration/ctpProductTypeScanner');
         jsonResponse({ ok: true, sets: scanner.getProductSetsSummary() });
@@ -1324,6 +1458,10 @@ exports.GetBundleProductsInfo = function () {
         jsonResponse({ ok: true, bundles: [], note: 'Shopify set/bundle detection uses the Product Type field at migration time.' });
         return;
     }
+    if (platform === 'sap') {
+        jsonResponse({ ok: true, bundles: [], note: 'SAP Commerce bundle detection is not yet implemented (planned for a later phase).' });
+        return;
+    }
     try {
         var scanner = require('*/cartridge/scripts/migration/productMigration/ctpProductTypeScanner');
         jsonResponse({ ok: true, bundles: scanner.getBundleProductsSummary() });
@@ -1335,15 +1473,23 @@ exports.GetBundleProductsInfo.public = true;
 
 exports.GetVariantAttrs = function () {
     var platform = String(session.custom.migrationPlatformId || 'commercetools');
-    if (platform === 'shopify') {
-        // Shopify variant options are included automatically — no user selection needed
-        jsonResponse({ ok: true, attrs: [], savedSelection: null, shopify: true });
-        return;
-    }
     try {
-        var checker    = require('*/cartridge/scripts/migration/productMigration/productAttrChecker');
-        var sfccClient = require('*/cartridge/scripts/migration/sfccClient');
-        var fields     = checker.getCtpProductTypeFields();
+        var sfccClient       = require('*/cartridge/scripts/migration/sfccClient');
+        var attrIdMapSession = require('*/cartridge/scripts/migration/core/attrIdMapSession');
+        var attrMap          = attrIdMapSession.read('product');
+        var fields           = [];
+        var isShopify        = platform === 'shopify';
+
+        if (isShopify) {
+            var shopifyChecker = require('*/cartridge/scripts/migration/productMigration/shopifyProductAttrChecker');
+            fields = shopifyChecker.getShopifyVariantOptionFields();
+        } else if (platform === 'sap') {
+            var sapChecker = require('*/cartridge/scripts/migration/productMigration/sapProductAttrChecker');
+            fields = sapChecker.getSapVariantOptionFields();
+        } else {
+            var checker = require('*/cartridge/scripts/migration/productMigration/productAttrChecker');
+            fields = checker.getCtpProductTypeFields();
+        }
 
         var existingIds = {};
         try {
@@ -1353,13 +1499,18 @@ exports.GetVariantAttrs = function () {
 
         var enriched = [];
         for (var i = 0; i < fields.length; i++) {
-            var f = fields[i];
+            var f            = fields[i];
+            var canonicalId  = f.sfccId;
+            var resolvedId   = attrIdMapSession.resolve(canonicalId, attrMap);
+            var remapped     = !!(resolvedId && canonicalId && resolvedId !== canonicalId);
             enriched.push({
-                name:         f.name,
-                sfccId:       f.sfccId,
-                label:        f.label,
-                ctpType:      f.ctpType,
-                existsInSfcc: !!existingIds[f.sfccId]
+                name:           f.name,
+                sfccId:         resolvedId,
+                originalSfccId: canonicalId,
+                remapped:       remapped,
+                label:          f.label,
+                ctpType:        f.ctpType,
+                existsInSfcc:   !!existingIds[resolvedId]
             });
         }
 
@@ -1368,7 +1519,12 @@ exports.GetVariantAttrs = function () {
         if (savedRaw) {
             try { savedSelection = JSON.parse(savedRaw); } catch (pe) {}
         }
-        jsonResponse({ ok: true, attrs: enriched, savedSelection: savedSelection });
+        jsonResponse({
+            ok:             true,
+            attrs:          enriched,
+            savedSelection: savedSelection,
+            shopify:        isShopify
+        });
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
     }
@@ -1407,14 +1563,25 @@ exports.SaveVariantAttrSelection = function () {
         var selected  = [];
         if (attrsJson) { try { selected = JSON.parse(attrsJson); } catch (pe) {} }
 
-        var checker    = require('*/cartridge/scripts/migration/productMigration/productAttrChecker');
+        var platform = String(session.custom.migrationPlatformId || 'commercetools');
         var sfccClient = require('*/cartridge/scripts/migration/sfccClient');
+        var attrIdMapSession = require('*/cartridge/scripts/migration/core/attrIdMapSession');
+        var attrMap    = attrIdMapSession.read('product');
 
-        // Build ctpName → sfccId map
-        var ctpFields      = checker.getCtpProductTypeFields();
+        // Build sourceName → field map
         var ctpNameToField = {};
-        for (var fi = 0; fi < ctpFields.length; fi++) {
-            ctpNameToField[ctpFields[fi].name] = ctpFields[fi];
+        if (platform === 'shopify') {
+            var shopifyChecker = require('*/cartridge/scripts/migration/productMigration/shopifyProductAttrChecker');
+            var shopifyFields  = shopifyChecker.getShopifyVariantOptionFields();
+            for (var sfi = 0; sfi < shopifyFields.length; sfi++) {
+                ctpNameToField[shopifyFields[sfi].name] = shopifyFields[sfi];
+            }
+        } else {
+            var checker    = require('*/cartridge/scripts/migration/productMigration/productAttrChecker');
+            var ctpFields  = checker.getCtpProductTypeFields();
+            for (var fi = 0; fi < ctpFields.length; fi++) {
+                ctpNameToField[ctpFields[fi].name] = ctpFields[fi];
+            }
         }
 
         // Check which attrs currently exist in SFCC (best-effort — if OCAPI fails, skip validation)
@@ -1429,7 +1596,9 @@ exports.SaveVariantAttrSelection = function () {
             var notInSfcc = [];
             for (var si = 0; si < selected.length; si++) {
                 var field = ctpNameToField[selected[si]];
-                if (field && !existingIds[field.sfccId]) {
+                if (!field) continue;
+                var resolvedSfccId = attrIdMapSession.resolve(field.sfccId, attrMap);
+                if (!existingIds[resolvedSfccId]) {
                     notInSfcc.push(selected[si]);
                 }
             }
@@ -1454,7 +1623,9 @@ exports.SaveVariantAttrSelection.public = true;
  */
 exports.CheckCustomerAttributes = function () {
     try {
-        var checker = require('*/cartridge/scripts/migration/customerMigration/customerAttrChecker');
+        var checker = (resolvePlatform() === 'shopify')
+            ? require('*/cartridge/scripts/migration/customerMigration/shopifyCustomerAttrChecker')
+            : require('*/cartridge/scripts/migration/customerMigration/customerAttrChecker');
         jsonResponse({ ok: true, missing: checker.checkMissingAttributes() });
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
@@ -1467,19 +1638,13 @@ exports.CheckCustomerAttributes.public = true;
  * POST: attrs=<json-array of {id, label, sfccType}>
  */
 exports.CreateCustomerAttributes = function () {
-    var rawAttrs = getParam('attrs');
-    var attrs    = [];
-    try { attrs = JSON.parse(rawAttrs || '[]'); } catch (e) {
-        jsonResponse({ ok: false, error: 'Invalid attrs JSON' });
-        return;
-    }
-    if (!attrs.length) {
-        jsonResponse({ ok: false, error: 'No attributes provided' });
-        return;
-    }
+    var attrs = parseAttrsParam();
+    if (!attrs) return;
     try {
-        var checker2 = require('*/cartridge/scripts/migration/customerMigration/customerAttrChecker');
-        jsonResponse({ ok: true, result: checker2.createAttributes(attrs) });
+        var checker2 = (resolvePlatform() === 'shopify')
+            ? require('*/cartridge/scripts/migration/customerMigration/shopifyCustomerAttrChecker')
+            : require('*/cartridge/scripts/migration/customerMigration/customerAttrChecker');
+        respondCreateAttributes('customer', function (a) { return checker2.createAttributes(a); }, attrs);
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
     }
@@ -1513,8 +1678,10 @@ exports.DeleteCustomerAttribute.public = true;
  */
 exports.CustomerMigrationCount = function () {
     try {
-        var ctpFetcher = require('*/cartridge/scripts/migration/customerMigration/ctpCustomerFetcher');
-        jsonResponse({ ok: true, total: ctpFetcher.getCount() });
+        var countFetcher = (resolvePlatform() === 'shopify')
+            ? require('*/cartridge/scripts/migration/customerMigration/shopifyCustomerFetcher')
+            : require('*/cartridge/scripts/migration/customerMigration/ctpCustomerFetcher');
+        jsonResponse({ ok: true, total: countFetcher.getCount() });
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
     }
@@ -1532,6 +1699,14 @@ exports.MigrateCustomerBatch = function () {
 
     if (!listId) {
         jsonResponse({ ok: false, error: 'listId parameter is required' });
+        return;
+    }
+    if (resolvePlatform() === 'shopify') {
+        jsonResponse({
+            ok:    false,
+            error: 'Sequential partial migration is not supported for Shopify yet — '
+                 + 'enter specific customer IDs above, or use Full Migration for the whole store.'
+        });
         return;
     }
     try {
@@ -1588,7 +1763,9 @@ exports.FullMigrationBuildBatch = function () {
         return;
     }
     try {
-        var fullRunner = require('*/cartridge/scripts/migration/customerMigration/fullMigrationRunner');
+        var fullRunner = (resolvePlatform() === 'shopify')
+            ? require('*/cartridge/scripts/migration/customerMigration/shopifyFullMigrationRunner')
+            : require('*/cartridge/scripts/migration/customerMigration/fullMigrationRunner');
         jsonResponse(fullRunner.runBatch(offset, listId));
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
@@ -1609,7 +1786,9 @@ exports.MigrateCustomerById = function () {
         return;
     }
     try {
-        var byIdRunner = require('*/cartridge/scripts/migration/customerMigration/customerMigrationRunner');
+        var byIdRunner = (resolvePlatform() === 'shopify')
+            ? require('*/cartridge/scripts/migration/customerMigration/shopifyCustomerMigrationRunner')
+            : require('*/cartridge/scripts/migration/customerMigration/customerMigrationRunner');
         jsonResponse(byIdRunner.runProfileBatchById(ctpId, listId));
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
@@ -1627,6 +1806,8 @@ exports.ShippingMethodMigration = function () {
     var pageCtx    = migrationPageContext(platformId, 'shippingMethod');
     var bmLinks = require('*/cartridge/scripts/accelerator/bmLinks');
     var jobsUrl = bmLinks.getImportExportUrl();
+
+    clearModuleAttrIdMap('shippingMethod');
 
     ISML.renderTemplate('accelerator/shippingMethodMigration', withBmFrame({
         title:        Resource.msg('accelerator.title', 'accelerator', null),
@@ -1647,6 +1828,7 @@ exports.ShippingMethodMigration = function () {
         fullBatchUrl:      URLUtils.url('Accelerator-FullShippingMethodBuildBatch').toString(),
         checkAttrsUrl:     URLUtils.url('Accelerator-CheckShippingMethodAttributes').toString(),
         createAttrsUrl:    URLUtils.url('Accelerator-CreateShippingMethodAttributes').toString(),
+        clearAttrMapUrl:   clearAttrMapUrlFor('shippingMethod'),
         deleteAttrUrl:     URLUtils.url('Accelerator-DeleteShippingMethodAttribute').toString(),
         jobsUrl:           jobsUrl
     }));
@@ -1662,28 +1844,18 @@ exports.GetSites = function () {
         var sfccClientSites = require('*/cartridge/scripts/migration/sfccClient');
         var token           = sfccClientSites.getSFCCToken();
         var s               = sfccClientSites.getSFCCSettings();
-        var HTTPClientSites = require('dw/net/HTTPClient');
-        var client          = new HTTPClientSites();
         var url             = s.baseUrl + '/s/-/dw/data/' + s.metaVersion
             + '/sites?client_id=' + encodeURIComponent(s.bmClientId);
 
-        client.setTimeout(15000);
-        client.open('GET', url);
-        client.setRequestHeader('Authorization', 'Bearer ' + token);
-        client.send('');
-
-        var sc   = client.getStatusCode();
-        var body = {};
-        try { body = JSON.parse(client.getText() || '{}'); } catch (pe) {}
-
-        if (sc !== 200) {
-            jsonResponse({ ok: false, error: 'HTTP ' + sc });
+        var res = sfccClientSites.doGet(url, token);
+        if (res.status !== 200) {
+            jsonResponse({ ok: false, error: 'HTTP ' + res.status });
             return;
         }
 
         var result = [];
         var seen   = {};
-        var data   = body.data || [];
+        var data   = (res.data && res.data.data) || [];
         for (var i = 0; i < data.length; i++) {
             var siteId = data[i].id;
             if (siteId && !seen[siteId]) {
@@ -1709,19 +1881,11 @@ exports.CheckShippingMethodAttributes = function () {
 exports.CheckShippingMethodAttributes.public = true;
 
 exports.CreateShippingMethodAttributes = function () {
-    var rawAttrs = getParam('attrs');
-    var attrs    = [];
-    try { attrs = JSON.parse(rawAttrs || '[]'); } catch (e) {
-        jsonResponse({ ok: false, error: 'Invalid attrs JSON' });
-        return;
-    }
-    if (!attrs.length) {
-        jsonResponse({ ok: false, error: 'No attributes provided' });
-        return;
-    }
+    var attrs = parseAttrsParam();
+    if (!attrs) return;
     try {
         var checker2 = require('*/cartridge/scripts/migration/shippingMethodMigration/shippingMethodAttrChecker');
-        jsonResponse({ ok: true, result: checker2.createAttributes(attrs) });
+        respondCreateAttributes('shippingMethod', function (a) { return checker2.createAttributes(a); }, attrs);
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
     }
@@ -1816,6 +1980,8 @@ exports.InventoryMigration = function () {
     var pageCtx        = migrationPageContext(platformId, 'inventory');
     var jobsUrl        = bmLinks.getImportExportUrl();
 
+    clearModuleAttrIdMap('inventory');
+
     ISML.renderTemplate('accelerator/inventoryMigration', withBmFrame({
         title:               Resource.msg('accelerator.title', 'accelerator', null),
         subtitle:            Resource.msg('accelerator.subtitle', 'accelerator', null),
@@ -1833,6 +1999,7 @@ exports.InventoryMigration = function () {
         supplyChannelsUrl:   URLUtils.url('Accelerator-GetSupplyChannels').toString(),
         checkAttrsUrl:       URLUtils.url('Accelerator-CheckInventoryAttributes').toString(),
         createAttrsUrl:      URLUtils.url('Accelerator-CreateInventoryAttributes').toString(),
+        clearAttrMapUrl:     clearAttrMapUrlFor('inventory'),
         impexUrl:            pageCtx.impexUrl,
         cssUrl:              URLUtils.staticURL('/css/accelerator-migration.css').toString(),
         attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString(),
@@ -1867,19 +2034,11 @@ exports.CheckInventoryAttributes = function () {
 exports.CheckInventoryAttributes.public = true;
 
 exports.CreateInventoryAttributes = function () {
-    var rawAttrs = getParam('attrs');
-    var attrs    = [];
-    try { attrs = JSON.parse(rawAttrs || '[]'); } catch (e) {
-        jsonResponse({ ok: false, error: 'Invalid attrs JSON' });
-        return;
-    }
-    if (!attrs.length) {
-        jsonResponse({ ok: false, error: 'No attributes provided' });
-        return;
-    }
+    var attrs = parseAttrsParam();
+    if (!attrs) return;
     try {
         var checker2 = require('*/cartridge/scripts/migration/inventoryMigration/inventoryAttrChecker');
-        jsonResponse({ ok: true, result: checker2.createAttributes(attrs) });
+        respondCreateAttributes('inventory', function (a) { return checker2.createAttributes(a); }, attrs);
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
     }
@@ -1950,6 +2109,8 @@ exports.PricebookMigration = function () {
     var pageCtx        = migrationPageContext(platformId, 'pricebook');
     var jobsUrl        = bmLinks.getImportExportUrl();
 
+    clearModuleAttrIdMap('pricebook');
+
     ISML.renderTemplate('accelerator/pricebookMigration', withBmFrame({
         title:               Resource.msg('accelerator.title', 'accelerator', null),
         subtitle:            Resource.msg('accelerator.subtitle', 'accelerator', null),
@@ -1967,6 +2128,7 @@ exports.PricebookMigration = function () {
         pricebooksUrl:       URLUtils.url('Accelerator-GetPricebooks').toString(),
         checkAttrsUrl:       URLUtils.url('Accelerator-CheckPricebookAttributes').toString(),
         createAttrsUrl:      URLUtils.url('Accelerator-CreatePricebookAttributes').toString(),
+        clearAttrMapUrl:     clearAttrMapUrlFor('pricebook'),
         impexUrl:            pageCtx.impexUrl,
         cssUrl:              URLUtils.staticURL('/css/accelerator-migration.css').toString(),
         attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString(),
@@ -2023,15 +2185,11 @@ exports.CheckPricebookAttributes = function () {
 exports.CheckPricebookAttributes.public = true;
 
 exports.CreatePricebookAttributes = function () {
-    var attrsRaw = getParam('attrs');
-    if (!attrsRaw) {
-        jsonResponse({ ok: false, error: 'attrs parameter is required' });
-        return;
-    }
+    var attrs = parseAttrsParam();
+    if (!attrs) return;
     try {
-        var attrs = JSON.parse(attrsRaw);
         var checker2 = require('*/cartridge/scripts/migration/pricebookMigration/pricebookAttrChecker');
-        jsonResponse({ ok: true, result: checker2.createAttributes(attrs) });
+        respondCreateAttributes('pricebook', function (a) { return checker2.createAttributes(a); }, attrs);
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
     }
@@ -2108,6 +2266,8 @@ exports.TaxMigration = function () {
     var pageCtx        = migrationPageContext(platformId, 'tax');
     var jobsUrl        = bmLinks.getImportExportUrl();
 
+    clearModuleAttrIdMap('tax');
+
     ISML.renderTemplate('accelerator/taxMigration', withBmFrame({
         title:               Resource.msg('accelerator.title', 'accelerator', null),
         subtitle:            Resource.msg('accelerator.subtitle', 'accelerator', null),
@@ -2124,6 +2284,7 @@ exports.TaxMigration = function () {
         summaryUrl:          URLUtils.url('Accelerator-GetTaxSummary').toString(),
         checkAttrsUrl:       URLUtils.url('Accelerator-CheckTaxAttributes').toString(),
         createAttrsUrl:      URLUtils.url('Accelerator-CreateTaxAttributes').toString(),
+        clearAttrMapUrl:     clearAttrMapUrlFor('tax'),
         impexUrl:            pageCtx.impexUrl,
         cssUrl:              URLUtils.staticURL('/css/accelerator-migration.css').toString(),
         attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString(),
@@ -2145,20 +2306,11 @@ exports.CheckTaxAttributes = function () {
 exports.CheckTaxAttributes.public = true;
 
 exports.CreateTaxAttributes = function () {
-    response.setContentType('application/json');
-    var rawAttrs = getParam('attrs');
-    var attrs    = [];
-    try { attrs = JSON.parse(rawAttrs || '[]'); } catch (e) {
-        jsonResponse({ ok: false, error: 'Invalid attrs JSON' });
-        return;
-    }
-    if (!attrs.length) {
-        jsonResponse({ ok: false, error: 'No attributes provided' });
-        return;
-    }
+    var attrs = parseAttrsParam();
+    if (!attrs) return;
     try {
         var checker = require('*/cartridge/scripts/migration/taxMigration/taxAttrChecker');
-        jsonResponse({ ok: true, result: checker.createAttributes(attrs) });
+        respondCreateAttributes('tax', function (a) { return checker.createAttributes(a); }, attrs);
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
     }
@@ -2220,6 +2372,9 @@ exports.StoreMigration = function () {
     var pageCtx        = migrationPageContext(platformId, 'store');
     var jobsUrl        = bmLinks.getImportExportUrl();
 
+    // Attribute rename map is visit-scoped — reset on page load / re-entry.
+    clearModuleAttrIdMap('store');
+
     ISML.renderTemplate('accelerator/storeMigration', withBmFrame({
         title:               Resource.msg('accelerator.title', 'accelerator', null),
         subtitle:            Resource.msg('accelerator.subtitle', 'accelerator', null),
@@ -2235,14 +2390,38 @@ exports.StoreMigration = function () {
         listStoresUrl:       URLUtils.url('Accelerator-ListStores').toString(),
         checkAttrsUrl:       URLUtils.url('Accelerator-CheckStoreAttributes').toString(),
         createAttrsUrl:      URLUtils.url('Accelerator-CreateStoreAttributes').toString(),
+        clearAttrMapUrl:     clearAttrMapUrlFor('store'),
         impexUrl:            pageCtx.impexUrl,
         cssUrl:              URLUtils.staticURL('/css/accelerator-migration.css').toString(),
         attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString(),
-        storeMigrationJsUrl: URLUtils.staticURL('/js/store-migration.js').toString() + '?v=5',
+        storeMigrationJsUrl: URLUtils.staticURL('/js/store-migration.js').toString() + '?v=9',
         jobsUrl:             jobsUrl
     }));
 };
 exports.StoreMigration.public = true;
+
+exports.ClearAttrIdMap = function () {
+    response.setContentType('application/json');
+    try {
+        var moduleKey = getParam('module') || '';
+        if (!moduleKey) {
+            jsonResponse({ ok: false, error: 'module is required' });
+            return;
+        }
+        clearModuleAttrIdMap(moduleKey);
+        jsonResponse({ ok: true });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.ClearAttrIdMap.public = true;
+
+/** @deprecated use ClearAttrIdMap?module=store */
+exports.ClearStoreAttrMap = function () {
+    clearModuleAttrIdMap('store');
+    jsonResponse({ ok: true });
+};
+exports.ClearStoreAttrMap.public = true;
 
 exports.CheckStoreAttributes = function () {
     response.setContentType('application/json');
@@ -2256,20 +2435,11 @@ exports.CheckStoreAttributes = function () {
 exports.CheckStoreAttributes.public = true;
 
 exports.CreateStoreAttributes = function () {
-    response.setContentType('application/json');
-    var rawAttrs = getParam('attrs');
-    var attrs    = [];
-    try { attrs = JSON.parse(rawAttrs || '[]'); } catch (e) {
-        jsonResponse({ ok: false, error: 'Invalid attrs JSON' });
-        return;
-    }
-    if (!attrs.length) {
-        jsonResponse({ ok: false, error: 'No attributes provided' });
-        return;
-    }
+    var attrs = parseAttrsParam();
+    if (!attrs) return;
     try {
         var checker = require('*/cartridge/scripts/migration/storeMigration/storeAttrChecker');
-        jsonResponse({ ok: true, result: checker.createAttributes(attrs) });
+        respondCreateAttributes('store', function (a) { return checker.createAttributes(a); }, attrs);
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
     }
@@ -2363,22 +2533,18 @@ exports.FullMigrationTriggerJob = function () {
     }
     try {
         var sfccClient4 = require('*/cartridge/scripts/migration/sfccClient');
+        var cfg4        = require('*/cartridge/scripts/migration/configAccessor');
         var token       = sfccClient4.getSFCCToken();
-        var HTTPClient4 = require('dw/net/HTTPClient');
-        var http4       = new HTTPClient4();
+        var version     = (cfg4.sfcc && cfg4.sfcc.metaVersion) || 'v25_6';
         var url4        = 'https://' + request.httpHost
-                        + '/s/-/dw/data/v24_5/jobs/' + encodeURIComponent(jobId) + '/executions';
-        http4.open('POST', url4);
-        http4.setRequestHeader('Authorization', 'Bearer ' + token);
-        http4.setRequestHeader('Content-Type', 'application/json');
-        http4.send('{}');
-        var sc4 = http4.statusCode;
+                        + '/s/-/dw/data/' + version + '/jobs/' + encodeURIComponent(jobId) + '/executions';
+        var res4 = sfccClient4.doPost(url4, token, {});
+        var sc4 = res4.status;
         if (sc4 === 200 || sc4 === 201) {
-            var resp4 = {};
-            try { resp4 = JSON.parse(http4.text || '{}'); } catch (pe) { resp4 = {}; }
+            var resp4 = res4.data || {};
             jsonResponse({ ok: true, executionId: String(resp4.id || ''), status: String(resp4.status || 'pending') });
         } else {
-            jsonResponse({ ok: false, error: 'OCAPI trigger failed (HTTP ' + sc4 + '): ' + (http4.text || '') });
+            jsonResponse({ ok: false, error: 'OCAPI trigger failed (HTTP ' + sc4 + ')' });
         }
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
@@ -2399,19 +2565,16 @@ exports.FullMigrationJobStatus = function () {
     }
     try {
         var sfccClient5 = require('*/cartridge/scripts/migration/sfccClient');
+        var cfg5        = require('*/cartridge/scripts/migration/configAccessor');
         var token5      = sfccClient5.getSFCCToken();
-        var HTTPClient5 = require('dw/net/HTTPClient');
-        var http5       = new HTTPClient5();
+        var version5    = (cfg5.sfcc && cfg5.sfcc.metaVersion) || 'v25_6';
         var url5        = 'https://' + request.httpHost
-                        + '/s/-/dw/data/v24_5/jobs/' + encodeURIComponent(jobId5)
+                        + '/s/-/dw/data/' + version5 + '/jobs/' + encodeURIComponent(jobId5)
                         + '/executions/' + encodeURIComponent(executionId5);
-        http5.open('GET', url5);
-        http5.setRequestHeader('Authorization', 'Bearer ' + token5);
-        http5.send(null);
-        var sc5 = http5.statusCode;
+        var res5 = sfccClient5.doGet(url5, token5);
+        var sc5 = res5.status;
         if (sc5 === 200) {
-            var resp5 = {};
-            try { resp5 = JSON.parse(http5.text || '{}'); } catch (pe) { resp5 = {}; }
+            var resp5 = res5.data || {};
             var dur5 = resp5.duration ? Math.round(resp5.duration / 1000) : null;
             jsonResponse({
                 ok:       true,
@@ -2437,6 +2600,12 @@ exports.FullMigrationJobStatus.public = true;
 exports.ProductWizard = function () {
     var platformId = resolvePlatform();
     var pageCtx    = migrationPageContext(platformId, 'product');
+
+    // Visit-scoped remaps reset on full page load / refresh (same as other modules).
+    clearModuleAttrIdMap('product');
+    try { session.custom.selectedVariantAttrs = ''; } catch (e1) { /* ignore */ }
+    try { session.custom.preflightSelection = ''; } catch (e2) { /* ignore */ }
+
     ISML.renderTemplate('accelerator/productMigration', withBmFrame({
         title:          Resource.msg('accelerator.title', 'accelerator', null),
         subtitle:       Resource.msg('accelerator.subtitle', 'accelerator', null),
@@ -2454,6 +2623,7 @@ exports.ProductWizard = function () {
         fullBatchUrl:   URLUtils.url('Accelerator-FullProductMigrationBuildBatch').toString(),
         checkAttrsUrl:       URLUtils.url('Accelerator-CheckProductAttributes').toString(),
         createAttrsUrl:      URLUtils.url('Accelerator-CreateProductAttributes').toString(),
+        clearAttrMapUrl:     clearAttrMapUrlFor('product'),
         deleteAttrUrl:       URLUtils.url('Accelerator-DeleteProductAttribute').toString(),
         catalogsUrl:         URLUtils.url('Accelerator-GetProductCatalogs').toString(),
         downloadXmlUrl:      URLUtils.url('Accelerator-DownloadProductXml').toString(),
@@ -2511,6 +2681,9 @@ exports.ProductMigrationCount = function () {
         if (platform === 'shopify') {
             var shopifyFetcher = require('*/cartridge/scripts/migration/productMigration/shopifyProductFetcher');
             jsonResponse({ ok: true, total: shopifyFetcher.getCount() });
+        } else if (platform === 'sap') {
+            var sapFetcherCount = require('*/cartridge/scripts/migration/productMigration/sapProductFetcher');
+            jsonResponse({ ok: true, total: sapFetcherCount.getCount() });
         } else {
             var prodFetcher = require('*/cartridge/scripts/migration/productMigration/ctpProductFetcher');
             jsonResponse({ ok: true, total: prodFetcher.getCount() });
@@ -2524,7 +2697,7 @@ exports.ProductMigrationCount.public = true;
 /**
  * Full Product Migration — fetch one batch of products, build catalog XML, upload via WebDAV.
  * POST: offset=<number> (CTP) or offset=<cursor-string> (Shopify, empty/0 = first page)
- * catalogId is read from request param or config.js (sfcc.catalogId).
+ * catalogId is read from request param or Site Preferences / defaults (sfcc.catalogId).
  */
 exports.FullProductMigrationBuildBatch = function () {
     var platform  = String(session.custom.migrationPlatformId || 'commercetools');
@@ -2540,7 +2713,7 @@ exports.FullProductMigrationBuildBatch = function () {
                  || (migCfg.sfcc && migCfg.sfcc.catalogId ? String(migCfg.sfcc.catalogId) : '');
 
     if (!catalogId) {
-        jsonResponse({ ok: false, error: 'sfcc.catalogId is not configured in config.js' });
+        jsonResponse({ ok: false, error: 'sfcc.catalogId is not configured' });
         return;
     }
     var selectedVarAttrs = null;
@@ -2573,7 +2746,7 @@ exports.MigrateProductById = function () {
     var catalogId = getParam('catalogId')
                  || (migCfg.sfcc && migCfg.sfcc.catalogId ? String(migCfg.sfcc.catalogId) : '');
     if (!catalogId) {
-        jsonResponse({ ok: false, error: 'sfcc.catalogId is not configured in config.js' });
+        jsonResponse({ ok: false, error: 'sfcc.catalogId is not configured' });
         return;
     }
     var selectedVarAttrs = null;
@@ -2601,6 +2774,9 @@ exports.CheckProductAttributes = function () {
         if (platform === 'shopify') {
             var shopifyChecker = require('*/cartridge/scripts/migration/productMigration/shopifyProductAttrChecker');
             jsonResponse({ ok: true, missing: shopifyChecker.checkMissingAttributes() });
+        } else if (platform === 'sap') {
+            var sapChecker = require('*/cartridge/scripts/migration/productMigration/sapProductAttrChecker');
+            jsonResponse({ ok: true, missing: sapChecker.checkMissingAttributes() });
         } else {
             var checker = require('*/cartridge/scripts/migration/productMigration/productAttrChecker');
             jsonResponse({ ok: true, missing: checker.checkMissingAttributes() });
@@ -2616,25 +2792,16 @@ exports.CheckProductAttributes.public = true;
  * POST: attrs=<json-array of {id, label, sfccType}>
  */
 exports.CreateProductAttributes = function () {
-    var rawAttrs = getParam('attrs');
-    var attrs    = [];
-    try { attrs = JSON.parse(rawAttrs || '[]'); } catch (e) {
-        jsonResponse({ ok: false, error: 'Invalid attrs JSON' });
-        return;
-    }
-    if (!attrs.length) {
-        jsonResponse({ ok: false, error: 'No attributes provided' });
-        return;
-    }
+    var attrs = parseAttrsParam();
+    if (!attrs) return;
     var platform = String(session.custom.migrationPlatformId || 'commercetools');
     try {
-        if (platform === 'shopify') {
-            var shopifyChecker2 = require('*/cartridge/scripts/migration/productMigration/shopifyProductAttrChecker');
-            jsonResponse({ ok: true, result: shopifyChecker2.createAttributes(attrs) });
-        } else {
-            var checker2 = require('*/cartridge/scripts/migration/productMigration/productAttrChecker');
-            jsonResponse({ ok: true, result: checker2.createAttributes(attrs) });
-        }
+        var checker2 = (platform === 'shopify')
+            ? require('*/cartridge/scripts/migration/productMigration/shopifyProductAttrChecker')
+            : (platform === 'sap')
+                ? require('*/cartridge/scripts/migration/productMigration/sapProductAttrChecker')
+                : require('*/cartridge/scripts/migration/productMigration/productAttrChecker');
+        respondCreateAttributes('product', function (a) { return checker2.createAttributes(a); }, attrs);
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
     }
@@ -2778,7 +2945,18 @@ function getCategoryMigrationJS() {
     L.push('};');
 
     L.push('function a(k,v){return " "+k+"="+String.fromCharCode(34)+v+String.fromCharCode(34);}');
-    L.push('_APP.onExportChange=function(catId,val){_APP.selectedForExport[catId]=val;};');
+    L.push('_APP.onExportChange=function(catId,val){');
+    L.push('  _APP.selectedForExport[catId]=val;');
+    L.push('  if(val){');
+    L.push('    var pid=_APP.effectiveParentId(catId);');
+    L.push('    while(pid&&pid!=="root"){');
+    L.push('      _APP.selectedForExport[pid]=true;');
+    L.push('      var pCb=document.querySelector(".cat-export-cb[data-catid=\'"+pid+"\']");');
+    L.push('      if(pCb)pCb.checked=true;');
+    L.push('      pid=_APP.effectiveParentId(pid);');
+    L.push('    }');
+    L.push('  }');
+    L.push('};');
     L.push('_APP.selectAllExport=function(){');
     L.push('  if(!_APP.allCategories)return;');
     L.push('  var hasProdData=Object.keys(_APP.productCounts||{}).length>0;');
@@ -3599,6 +3777,8 @@ exports.CategoryMigration = function () {
     Logger.info('CategoryMigration URLs: migrate={0} impex={1} import={2}',
         migrateUrl, impexFolderUrl, importPageUrl);
 
+    clearModuleAttrIdMap('category');
+
     ISML.renderTemplate('accelerator/categoryMigration', withBmFrame({
         title          : 'Category Migration',
         subtitle       : '',
@@ -3629,6 +3809,7 @@ exports.CategoryMigration = function () {
         checkProductsUrl      : URLUtils.url('Accelerator-CheckCategoryProducts').toString(),
         attrPreflightJsUrl    : URLUtils.staticURL('/js/attr-preflight.js').toString(),
         createAttrsUrl        : URLUtils.url('Accelerator-CreateCategoryAttributes').toString(),
+        clearAttrMapUrl       : clearAttrMapUrlFor('category'),
         jsUrl: URLUtils.url('Accelerator-CategoryMigrationJS').toString() + '?v=' + new Date().getTime()
     }));
 };
@@ -3733,6 +3914,9 @@ exports.CreateCategoryAttributes = function () {
         var catAttrMgr   = require('*/cartridge/scripts/catalog/categoryAttributeMgr');
         var catPlatform  = String(session.custom.migrationPlatformId || 'commercetools');
         var result = catAttrMgr.createAttributes(attrs, catPlatform);
+        if (result && result.mappedAttrs && result.mappedAttrs.length) {
+            require('*/cartridge/scripts/migration/core/attrIdMapSession').saveFromAttrs('category', result.mappedAttrs);
+        }
         // Persist canonical→actual ID mapping in session so RunCategoryMigration
         // can remap customAttribute keys even when the user navigates across pages.
         // Always write the session key (even when no rename) so stale mappings are
@@ -3781,28 +3965,19 @@ exports.CheckAttributeStatus.public = true;
 // Fetch all available SFCC catalogs using native CatalogMgr (no credentials needed)
 exports.FetchSFCCCatalogs = function () {
     try {
-        var HTTPClient  = require('dw/net/HTTPClient');
         var sfccClient  = require('*/cartridge/scripts/migration/sfccClient');
         var cfg         = require('*/cartridge/scripts/migration/configAccessor');
         var base        = 'https://' + request.httpHost;
-        var version     = (cfg.sfcc && cfg.sfcc.version) ? cfg.sfcc.version : 'v20_10';
-        var clientId    = (cfg.sfcc && cfg.sfcc.bmClientId) ? cfg.sfcc.bmClientId : 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+        var version     = (cfg.sfcc && cfg.sfcc.metaVersion) ? cfg.sfcc.metaVersion : 'v25_6';
+        var clientId    = (cfg.sfcc && cfg.sfcc.bmClientId) ? cfg.sfcc.bmClientId : '';
 
         var token = sfccClient.getSFCCToken();
         var url   = base + '/s/-/dw/data/' + version + '/catalogs?client_id=' + encodeURIComponent(clientId) + '&count=200';
 
-        var client = new HTTPClient();
-        client.setTimeout(20000);
-        client.open('GET', url);
-        client.setRequestHeader('Authorization', 'Bearer ' + token);
-        client.setRequestHeader('Content-Type', 'application/json');
-        client.send('');
+        var res = sfccClient.doGet(url, token);
+        var data = res.data || {};
 
-        var text = client.text || '';
-        var data;
-        try { data = JSON.parse(text); } catch (pe) { data = {}; }
-
-        if (client.statusCode !== 200 || !data.data) {
+        if (res.status !== 200 || !data.data) {
             // Fallback to CatalogMgr if OCAPI fails
             var CatalogMgr = require('dw/catalog/CatalogMgr');
             var Site       = require('dw/system/Site');
@@ -3905,102 +4080,32 @@ exports.CreateCatalogOCAPI = function () {
 
     try {
         var cfg        = require('*/cartridge/scripts/migration/configAccessor');
-        var creds      = require('*/cartridge/scripts/migration/sfccCredentialsAccessor');
-        var HTTPClient = require('dw/net/HTTPClient');
-        var Encoding   = require('dw/crypto/Encoding');
-        var Bytes      = require('dw/util/Bytes');
-
-        var metaVersion = (cfg.sfcc && cfg.sfcc.metaVersion) ? cfg.sfcc.metaVersion : 'v20_10';
+        var sfccClient = require('*/cartridge/scripts/migration/sfccClient');
+        var metaVersion = (cfg.sfcc && cfg.sfcc.metaVersion) ? cfg.sfcc.metaVersion : 'v25_6';
         var bmClientId  = (cfg.sfcc && cfg.sfcc.bmClientId)  ? cfg.sfcc.bmClientId  : '';
         var baseUrl     = 'https://' + request.httpHost;
         var base        = baseUrl + '/s/-/dw/data/' + metaVersion;
         var qs          = '?client_id=' + encodeURIComponent(bmClientId);
+        var token       = sfccClient.getSFCCToken();
+        var payload     = { id: catalogId, name: { default: catalogName } };
+        var catalogUrl  = base + '/catalogs/' + encodeURIComponent(catalogId) + qs;
 
-        // Forward BM session cookies so the grant gets write scope
-        var dwsid         = session.sessionID || '';
-        var dwsecuretoken = '';
-        var stCookie      = request.httpCookies['dwsecuretoken'];
-        if (stCookie) { dwsecuretoken = stCookie.value; }
-
-        // Obtain BM User Grant token
-        var credentials = Encoding.toBase64(new Bytes(creds.bmUsername + ':' + creds.bmPassword + ':' + bmClientId, 'UTF-8'));
-        var tokenClient = new HTTPClient();
-        tokenClient.setTimeout(30000);
-        tokenClient.open('POST', baseUrl + '/dw/oauth2/access_token?client_id=' + encodeURIComponent(bmClientId));
-        tokenClient.setRequestHeader('Authorization', 'Basic ' + credentials);
-        tokenClient.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
-        if (dwsid) {
-            tokenClient.setRequestHeader('Cookie', 'dwsid=' + dwsid + (dwsecuretoken ? '; dwsecuretoken=' + dwsecuretoken : ''));
-        }
-        tokenClient.send('grant_type=urn%3Ademandware%3Aparams%3Aoauth%3Agrant-type%3Aclient-id%3Adwsid%3Adwsecuretoken');
-
-        var tokenText = tokenClient.text || '';
-        var tokenData;
-        try { tokenData = JSON.parse(tokenText); } catch (te) { tokenData = {}; }
-        if (tokenClient.statusCode !== 200 || !tokenData.access_token) {
-            jsonResponse({ ok: false, error: 'Token failed (' + tokenClient.statusCode + '): ' + tokenText.substring(0, 300) });
-            return;
-        }
-        var sessionToken  = tokenData.access_token;
-
-        // Also get the same token used by GetProductCatalogs (no session cookies) for comparison
-        var sfccClient   = require('*/cartridge/scripts/migration/sfccClient');
-        var readToken    = '';
-        try { readToken = sfccClient.getSFCCToken(); } catch (te) { readToken = ''; }
-
-        var payload    = JSON.stringify({ id: catalogId, name: { 'default': catalogName } });
-        var catalogUrl = base + '/catalogs/' + encodeURIComponent(catalogId) + qs;
-
-        function ocapiCall(method, url, body, tkn) {
-            var c = new HTTPClient();
-            c.setTimeout(20000);
-            c.open(method, url);
-            c.setRequestHeader('Authorization', 'Bearer ' + tkn);
-            c.setRequestHeader('Content-Type', 'application/json');
-            c.setRequestHeader('Accept', 'application/json');
-            c.send(body || '');
-            return { sc: c.statusCode, body: c.text || '' };
-        }
-
-        function faultMsg(body) {
-            try {
-                var d = JSON.parse(body);
-                return (d.fault && d.fault.message) ? d.fault.message : (body.substring(0, 300) || '(empty)');
-            } catch (fe) { return body.substring(0, 300) || '(empty)'; }
-        }
-
-        // Test GET /catalogs/{id} with read token (same as GetProductCatalogs) to confirm routing
-        var diagRead = readToken ? ocapiCall('GET', catalogUrl, '', readToken) : { sc: 0, body: 'no-read-token' };
-
-        // 1. POST /catalogs with session token
-        var r1 = ocapiCall('POST', base + '/catalogs' + qs, payload, sessionToken);
-        if (r1.sc === 200 || r1.sc === 201) {
-            jsonResponse({ ok: true, id: catalogId, name: catalogName, method: 'POST-session' });
+        var postRes = sfccClient.doPost(base + '/catalogs' + qs, token, payload);
+        if (postRes.status === 200 || postRes.status === 201) {
+            jsonResponse({ ok: true, id: catalogId, name: catalogName, method: 'POST' });
             return;
         }
 
-        // 2. PUT /catalogs/{id} with session token
-        var r2 = ocapiCall('PUT', catalogUrl, payload, sessionToken);
-        if (r2.sc === 200 || r2.sc === 201) {
-            jsonResponse({ ok: true, id: catalogId, name: catalogName, method: 'PUT-session' });
-            return;
-        }
-
-        // 3. PUT /catalogs/{id} with read token (same as GetProductCatalogs)
-        var r3 = readToken ? ocapiCall('PUT', catalogUrl, payload, readToken) : { sc: 0, body: 'no-read-token' };
-        if (r3.sc === 200 || r3.sc === 201) {
-            jsonResponse({ ok: true, id: catalogId, name: catalogName, method: 'PUT-readtoken' });
+        var putRes = sfccClient.doPut(catalogUrl, token, payload);
+        if (putRes.status === 200 || putRes.status === 201) {
+            jsonResponse({ ok: true, id: catalogId, name: catalogName, method: 'PUT' });
             return;
         }
 
         jsonResponse({
-            ok   : false,
-            error: 'GET-diag(readToken) ' + diagRead.sc + ': ' + faultMsg(diagRead.body) +
-                   ' | POST(sessionToken) ' + r1.sc + ': ' + faultMsg(r1.body) +
-                   ' | PUT(sessionToken) ' + r2.sc + ': ' + faultMsg(r2.body) +
-                   ' | PUT(readToken) ' + r3.sc + ': ' + faultMsg(r3.body)
+            ok: false,
+            error: 'Catalog create failed (POST ' + postRes.status + ', PUT ' + putRes.status + ')'
         });
-
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
     }
@@ -4179,88 +4284,32 @@ exports.CheckCategoryProducts.public = true;
 
 
 
-// ─── Shopify Configuration ─────────────────────────────────────────────────────
+// ─── Shopify Configuration (deprecated — use Site Preferences) ────────────────
 
 /**
- * Render the Shopify Configuration page.
- * Pre-fills form with credentials from saved config file or session.
+ * Credentials are managed in Site Preferences; this page shows status only.
  */
 exports.ShopifyConfig = function () {
-    var cfg    = require('*/cartridge/scripts/migration/configAccessor');
-    var saved  = cfg.shopify || {};
-
+    var summary = buildConnectionSummary('shopify');
     ISML.renderTemplate('accelerator/shopifyConfig', withBmFrame({
-        title          : 'Shopify Configuration',
-        subtitle       : 'Enter and save your Shopify store credentials',
-        cssUrl         : URLUtils.staticURL('/css/accelerator-migration.css').toString(),
-        dashboardUrl   : URLUtils.url('Accelerator-Start').toString(),
-        saveConfigUrl  : URLUtils.url('Accelerator-SaveShopifyConfig').toString(),
-        storeUrl       : saved.storeUrl   || '',
-        clientId       : saved.clientId   || '',
-        hasSecret      : !!(saved.clientSecret),
-        apiVersion     : saved.apiVersion || '2025-01'
-    }));
+        title:             'Shopify Configuration',
+        subtitle:          'Credentials are managed in Site Preferences',
+        cssUrl:            URLUtils.staticURL('/css/accelerator-migration.css').toString(),
+        dashboardUrl:      URLUtils.url('Accelerator-Start').toString(),
+        connectionSummary: summary,
+        prefsHint:         summary.prefsHint
+    }, 'rc_accelerator_shopify_config'));
 };
 exports.ShopifyConfig.public = true;
 
 /**
- * Save Shopify credentials to IMPEX file for persistence across sessions.
- * POST: storeUrl, clientId, clientSecret, apiVersion
+ * Legacy endpoint — credentials are no longer saved from this form.
  */
 exports.SaveShopifyConfig = function () {
-    var File       = require('dw/io/File');
-    var FileWriter = require('dw/io/FileWriter');
-    var registry   = require('*/cartridge/scripts/migration/connectors/registry');
-    var Logger     = require('dw/system/Logger');
-
-    response.setContentType('application/json');
-
-    try {
-        var params  = request.httpParameterMap;
-        var storeUrl     = (params.storeUrl.stringValue     || '').replace(/\/+$/, '');
-        var clientId     = params.clientId.stringValue      || '';
-        var clientSecret = params.clientSecret.stringValue  || '';
-        var apiVersion   = params.apiVersion.stringValue    || '2025-01';
-
-        if (!storeUrl || !clientId || !clientSecret) {
-            response.writer.print(JSON.stringify({ ok: false, error: 'Store URL, Client ID, and Access Token are required.' }));
-            return;
-        }
-
-        // Validate credentials against Shopify
-        var connector = registry.get('shopify');
-        var result    = connector.testConnectionWith({ storeUrl: storeUrl, clientId: clientId, clientSecret: clientSecret, apiVersion: apiVersion });
-
-        // Ensure directory exists
-        var dir = new File(File.IMPEX + '/src/migration');
-        if (!dir.exists()) { dir.mkdirs(); }
-
-        // Write config file
-        var configFile = new File(File.IMPEX + '/src/migration/shopify-config.json');
-        var fw = new FileWriter(configFile, 'UTF-8');
-        fw.writeLine(JSON.stringify({
-            storeUrl    : storeUrl,
-            clientId    : clientId,
-            clientSecret: clientSecret,
-            apiVersion  : apiVersion
-        }));
-        fw.flush();
-        fw.close();
-
-        // Persist to session for immediate use
-        session.custom.shopifyStoreUrl      = storeUrl;
-        session.custom.shopifyClientId      = clientId;
-        session.custom.shopifyClientSecret  = clientSecret;
-        session.custom.shopifyAccessToken   = clientSecret;
-        session.custom.shopifyApiVersion    = apiVersion;
-        session.custom.migrationPlatformId  = 'shopify';
-
-        Logger.info('SaveShopifyConfig: saved for store={0}', result.project ? result.project.key : storeUrl);
-        response.writer.print(JSON.stringify({ ok: true, project: result.project }));
-    } catch (e) {
-        Logger.error('SaveShopifyConfig error: {0}', e.message);
-        response.writer.print(JSON.stringify({ ok: false, error: e.message }));
-    }
+    jsonResponse({
+        ok: false,
+        error: 'Shopify credentials must be configured under Site Preferences → B2C Migration Console.'
+    });
 };
 exports.SaveShopifyConfig.public = true;
 
@@ -4304,18 +4353,14 @@ exports.CreateCTCategory = function () {
             body.parent = { id: parentId, typeId: 'category' };
         }
 
-        var HTTPClient = require('dw/net/HTTPClient');
-        var client = new HTTPClient();
-        client.setTimeout(15000);
-        client.open('POST', apiUrl);
-        client.setRequestHeader('Authorization', 'Bearer ' + token);
-        client.setRequestHeader('Content-Type', 'application/json');
-        client.send(JSON.stringify(body));
+        var serviceHttp = require('*/cartridge/scripts/migration/core/serviceHttp');
+        var res = serviceHttp.post('ctp', apiUrl, {
+            Authorization: 'Bearer ' + token,
+            'Content-Type': 'application/json'
+        }, JSON.stringify(body));
 
-        var sc   = client.statusCode;
-        var text = client.text || '';
-        var data;
-        try { data = JSON.parse(text); } catch (pe) { data = {}; }
+        var sc   = res.status;
+        var data = res.data || {};
 
         if (sc === 200 || sc === 201) {
             response.writer.print(JSON.stringify({
@@ -4622,6 +4667,12 @@ exports.ContentMigration = function () {
     var platformId = getParam('platform') || 'amplience';
     session.custom.migrationPlatformId = platformId;
 
+    // Drop invalid hub names saved from mistaken form input (e.g. email address).
+    var savedHub = String(session.custom.amplienceHubName || '');
+    if (savedHub && savedHub.indexOf('@') !== -1) {
+        session.custom.amplienceHubName = '';
+    }
+
     var platform = migrationData.getPlatform(platformId);
     if (!platform || platform.kind !== 'cms') {
         response.redirect(URLUtils.url('Accelerator-Start'));
@@ -4872,4 +4923,43 @@ exports.DownloadContentXml = function () {
     }
 };
 exports.DownloadContentXml.public = true;
+
+// ─── LINK security: wrap all public endpoints with BM auth + CSRF ────────────
+(function applyRequestGuards() {
+    var requestGuard = require('*/cartridge/scripts/accelerator/requestGuard');
+    var PAGE_ENDPOINTS = {
+        Start: true,
+        Wizard: true,
+        DataWizard: true,
+        DataWizardContinue: true,
+        DataWizardSelectType: true,
+        DataMigrationLogout: true,
+        DataMigrationDashboard: true,
+        DataMigrationFlow: true,
+        OrderMigration: true,
+        CustomerMigration: true,
+        ShippingMethodMigration: true,
+        InventoryMigration: true,
+        PricebookMigration: true,
+        TaxMigration: true,
+        StoreMigration: true,
+        ProductWizard: true,
+        ProductMigration: true,
+        ShopifyConfig: true,
+        CategoryMigration: true,
+        ContentMigration: true,
+        ContentSchemaMigration: true,
+        DownloadMigrationFile: true,
+        DownloadProductXml: true,
+        DownloadContentXml: true
+    };
+    var names = Object.keys(exports);
+    for (var i = 0; i < names.length; i++) {
+        var name = names[i];
+        var fn = exports[name];
+        if (typeof fn === 'function' && fn.public) {
+            exports[name] = requestGuard.wrap(fn, { page: !!PAGE_ENDPOINTS[name] });
+        }
+    }
+}());
 

@@ -64,7 +64,8 @@ function getCtpInventoryFields() {
 }
 
 function checkMissingAttributes() {
-    return runner.checkMissing(SFCC_OBJECT_TYPE, getCtpInventoryFields);
+    var attrIdMapSession = require('*/cartridge/scripts/migration/core/attrIdMapSession');
+    return runner.checkMissing(SFCC_OBJECT_TYPE, getCtpInventoryFields, null, attrIdMapSession.read('inventory'));
 }
 
 function createAttributes(attrs) {

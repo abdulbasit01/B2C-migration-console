@@ -18,10 +18,34 @@
     "shopify": {
         "Product": {
             "title":    { "sfccField": "name",            "action": "flag" },
-            "body_html": { "sfccField": "longDescription", "action": "flag" }
+            "body_html": { "sfccField": "longDescription", "action": "flag" },
+            "Color":    { "sfccField": "color",            "action": "custom_attr" },
+            "Size":     { "sfccField": "size",             "action": "custom_attr" }
         },
         "Category": {
             "title": { "sfccField": "displayName", "action": "flag" }
+        },
+        "Customer": {
+            "email":      { "sfccField": "email",     "action": "skip" },
+            "first_name": { "sfccField": "firstName", "action": "skip" },
+            "last_name":  { "sfccField": "lastName",  "action": "skip" },
+            "phone":      {
+                "sfccField": "phoneMobile",
+                "action": "skip",
+                "note": "SFCC Profile already has native phone fields (phoneHome, phoneBusiness, phoneMobile, fax) — this maps to phoneMobile instead of a new custom attribute."
+            }
+        }
+    },
+    "sap": {
+        "Product": {
+            "code":        { "sfccField": "ID",              "action": "skip" },
+            "name":        { "sfccField": "displayName",      "action": "skip" },
+            "summary":     { "sfccField": "shortDescription", "action": "skip" },
+            "description": { "sfccField": "longDescription",  "action": "skip" },
+            "manufacturer": { "sfccField": "manufacturer-name", "action": "skip" },
+            "ean":          { "sfccField": "ean",               "action": "skip" },
+            "Color":        { "sfccField": "color",             "action": "custom_attr" },
+            "Size":         { "sfccField": "size",               "action": "custom_attr" }
         }
     }
 }

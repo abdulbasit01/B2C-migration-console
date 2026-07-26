@@ -92,8 +92,9 @@ function testConnection() {
     return testConnectionWith(cfg.amplience);
 }
 
-function injectCredentials(fields) {
-    var a   = cfg.amplience || {};
+function injectCredentials(fields, migCfg) {
+    var config = migCfg || require('*/cartridge/scripts/migration/configAccessor');
+    var a = config.amplience || {};
     var out = [];
     for (var i = 0; i < fields.length; i++) {
         var field = fields[i];

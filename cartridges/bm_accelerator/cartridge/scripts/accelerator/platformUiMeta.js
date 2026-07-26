@@ -19,6 +19,11 @@ var PLATFORM_UI_META = {
         sourceName:    'BigCommerce',
         sourceShort:   'BigCommerce',
         sourceTypeCol: 'Source Type'
+    },
+    sap: {
+        sourceName:    'SAP Commerce',
+        sourceShort:   'SAP',
+        sourceTypeCol: 'Source Type'
     }
 };
 

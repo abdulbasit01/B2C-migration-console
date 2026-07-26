@@ -3,7 +3,7 @@ cartridges/*/cartridge/static/
 !cartridges/app_custom_amplience/cartridge/static/
 !cartridges/app_custom_amplience/cartridge/static/**
 
-# Migration — auto-generated, never commit
+# Legacy generated config (no longer produced; keep ignored if present locally)
 cartridges/bm_accelerator/cartridge/scripts/migration/config.js
 cartridges/bm_accelerator/cartridge/scripts/migration/sfcc-credentials.js
 cartridges/app_custom_amplience/cartridge/scripts/helpers/amplienceConfig.js

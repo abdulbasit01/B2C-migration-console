@@ -3,6 +3,7 @@
 /* global request */
 
 var paths = require('*/cartridge/scripts/migration/core/migrationPaths');
+var serviceHttp = require('*/cartridge/scripts/migration/core/serviceHttp');
 
 function getSettings() {
     var sfccClient = require('*/cartridge/scripts/migration/sfccClient');
@@ -48,13 +49,10 @@ function ensureDirectory(moduleRelativePath) {
  * @returns {boolean}
  */
 function fileExists(moduleRelativePath, fileName) {
-    var HTTPClient = require('dw/net/HTTPClient');
-    var client     = new HTTPClient();
-    client.setTimeout(15000);
-    client.open('HEAD', webdavBase(moduleRelativePath) + fileName);
-    client.setRequestHeader('Authorization', basicAuth());
-    client.send();
-    return client.getStatusCode() === 200;
+    var res = serviceHttp.head('webdav', webdavBase(moduleRelativePath) + fileName, {
+        Authorization: basicAuth()
+    });
+    return res.status === 200;
 }
 
 /**
@@ -65,23 +63,19 @@ function fileExists(moduleRelativePath, fileName) {
  * @returns {{ ok: boolean, error: string|null }}
  */
 function uploadFile(moduleRelativePath, fileName, content, contentType) {
-    var HTTPClient = require('dw/net/HTTPClient');
-    var client     = new HTTPClient();
-    client.setTimeout(60000);
-    client.open('PUT', webdavBase(moduleRelativePath) + fileName);
-    client.setRequestHeader('Authorization', basicAuth());
-    client.setRequestHeader('Content-Type', contentType || 'text/xml; charset=UTF-8');
-    client.send(content);
-    var status = client.getStatusCode();
+    var res = serviceHttp.put('webdav', webdavBase(moduleRelativePath) + fileName, {
+        Authorization:  basicAuth(),
+        'Content-Type': contentType || 'text/xml; charset=UTF-8'
+    }, content);
+    var status = res.status;
     if (status === 200 || status === 201 || status === 204) {
         return { ok: true, error: null };
     }
-    return { ok: false, error: 'WebDAV PUT failed (' + status + '): ' + client.getText() };
+    return { ok: false, error: 'WebDAV PUT failed (' + status + ')' };
 }
 
 /**
  * Confirm a file was written under IMPEX (no WebDAV round-trip).
- * Inventory streaming writes directly to File.IMPEX; BM import reads from there.
  * @param {string} moduleRelativePath
  * @param {string} fileName
  * @returns {{ ok: boolean, error: string|null }}

@@ -46,9 +46,10 @@ function formatRunDate(date) {
  * @param {string} moduleKey
  * @param {string} runDate - YYYYMMDD
  * @param {number} versionNumber - 1-based (v001 = 1)
- * @returns {string} e.g. customer-20250630-v001.xml
+ * @param {string} [prefix] - source-platform prefix, e.g. 'ctp' or 'shp'
+ * @returns {string} e.g. customer-20250630-v001.xml or ctp_product-20250630-v001.xml
  */
-function buildXmlFileName(moduleKey, runDate, versionNumber) {
+function buildXmlFileName(moduleKey, runDate, versionNumber, prefix) {
     var moduleId = MODULE_IDS[moduleKey];
     if (!moduleId) {
         throw new Error('Unknown migration module: ' + moduleKey);
@@ -57,7 +58,8 @@ function buildXmlFileName(moduleKey, runDate, versionNumber) {
     while (version.length < 3) {
         version = '0' + version;
     }
-    return moduleId + '-' + runDate + '-v' + version + '.xml';
+    var namePrefix = prefix ? (String(prefix) + '_') : '';
+    return namePrefix + moduleId + '-' + runDate + '-v' + version + '.xml';
 }
 
 module.exports = {

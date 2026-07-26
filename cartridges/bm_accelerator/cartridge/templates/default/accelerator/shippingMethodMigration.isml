@@ -28,7 +28,9 @@
         .sm-methods-table code { background: #eaf0fb; padding: 2px 6px; border-radius: 3px; font-size: 11px; }
         .sm-methods-table tr.sm-methods-row--skipped { opacity: 0.55; }
     </style>
-<div class="acc-page" id="acc-ship-root" data-migration-ui="<isprint value="${pdict.migrationUiJson}" encoding="htmldoublequote"/>">
+<div class="acc-page" id="acc-ship-root"
+     data-migration-ui="<isprint value="${pdict.migrationUiJson}" encoding="htmldoublequote"/>"
+     data-clear-attr-map-url="<isprint value="${pdict.clearAttrMapUrl}" encoding="htmldoublequote"/>">
 <div class="acc-shell">
     <isinclude template="accelerator/components/header"/>
     <isinclude template="accelerator/components/migrationBackLink"/>
@@ -146,6 +148,7 @@
     var LIST_METHODS_URL = '${pdict.listMethodsUrl}';
     var FULL_BATCH_URL   = '${pdict.fullBatchUrl}';
     var CHECK_ATTRS_URL  = '${pdict.checkAttrsUrl}';    var CREATE_ATTRS_URL = '${pdict.createAttrsUrl}';
+    var CLEAR_ATTR_MAP_URL = '${pdict.clearAttrMapUrl}';
     var DELETE_ATTR_URL  = '${pdict.deleteAttrUrl}';
     var DATA_WIZARD_ENTRY_URL = '${pdict.dataWizardEntryUrl}';
     var IMPEX_PATH = '${pdict.impexPath}';
@@ -340,9 +343,11 @@
                 var editedId = (idInput && idInput.value.trim()) ? idInput.value.trim() : orig.id;
                 selected.push({
                     id: editedId,
+                    canonicalId: orig.id,
                     label: orig.label,
                     ctpType: orig.ctpType,
-                    sfccType: window.AccAttrPreflight.readSfccType(idx, orig.sfccType)
+                    sfccType: window.AccAttrPreflight.readSfccType(idx, orig.sfccType),
+                    idx: idx
                 });
             }
         }
@@ -352,10 +357,44 @@
         btn.disabled = true;
         btn.textContent = 'Creating...';
         post(CREATE_ATTRS_URL, 'attrs=' + encodeURIComponent(JSON.stringify(selected)), function (data) {
+            var r = (data && data.result) ? data.result : {};
+            var failed = r.failed || 0;
+            var created = r.created || 0;
+            var exists = r.alreadyExists || 0;
+            var results = r.results || [];
+            var ri;
+
+            if (window.AccAttrPreflight && window.AccAttrPreflight.setRowAttrFeedback) {
+                for (ri = 0; ri < selected.length; ri++) {
+                    var rowResult = results[ri] || null;
+                    if (rowResult) {
+                        window.AccAttrPreflight.setRowAttrFeedback(
+                            selected[ri].idx,
+                            rowResult.status,
+                            rowResult.canonicalId || selected[ri].canonicalId,
+                            rowResult.id || selected[ri].id,
+                            rowResult.message
+                        );
+                    }
+                }
+            }
+
             btn.disabled = false;
-            btn.textContent = data.ok ? 'Done' : 'Retry';
-            msg.textContent = data.ok ? ((data.result.created || 0) + ' created') : (data.error || 'Failed');
-            msg.style.color = data.ok ? '#2e7d32' : '#c62828';
+            btn.textContent = (data.ok && !failed) ? 'Done' : 'Retry';
+            if (!data.ok && data.error && !results.length) {
+                msg.textContent = data.error;
+                msg.style.color = '#c62828';
+                return;
+            }
+            var parts = [];
+            if (created) parts.push(created + ' created');
+            if (exists) parts.push(exists + ' already exists');
+            if (failed) parts.push(failed + ' failed');
+            msg.textContent = parts.length ? parts.join(', ') : (data.ok ? 'Done' : 'Failed');
+            if (r.errors && r.errors.length && failed) {
+                msg.textContent += ' — ' + r.errors.join('; ');
+            }
+            msg.style.color = failed || !data.ok ? '#c62828' : (exists && !created ? '#1565c0' : '#2e7d32');
         });
     }
 
@@ -379,6 +418,10 @@
             renderAttrResults(pendingMissing);
         });
     });
+
+    if (window.AccAttrPreflight && window.AccAttrPreflight.bindClearOnLeave) {
+        window.AccAttrPreflight.bindClearOnLeave(CLEAR_ATTR_MAP_URL, 'Accelerator-ShippingMethodMigration');
+    }
 
     function setPhase(prefix, id, state, detail, pct) {
         var li = document.getElementById(prefix + '-phase-' + id);

@@ -11,7 +11,7 @@ alwaysApply: true
 - Order pipeline: `cartridges/bm_accelerator/cartridge/scripts/migration/orders/`
 - Templates: `cartridges/bm_accelerator/cartridge/templates/default/accelerator/`
 - Resources: `cartridges/bm_accelerator/cartridge/templates/resources/accelerator.properties`
-- Config: `config.js` + `sfcc-credentials.js` generated from `.env` + `dw.json` (never commit secrets)
+- Config: Site Preferences (`migrationPreferences.js` / `configAccessor.js`); `dw.json` for upload only (never commit secrets)
 
 ## Two wizards
 | Flow | Pipeline | Steps |

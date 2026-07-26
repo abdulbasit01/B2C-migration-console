@@ -76,7 +76,13 @@ function getStoreTraceAttrs(platformId) {
 }
 
 function checkMissingAttributes() {
-    return runner.checkMissing(SFCC_OBJECT_TYPE, getCtpStoreFields, getStoreTraceAttrs);
+    var attrIdMapSession = require('*/cartridge/scripts/migration/core/attrIdMapSession');
+    return runner.checkMissing(
+        SFCC_OBJECT_TYPE,
+        getCtpStoreFields,
+        getStoreTraceAttrs,
+        attrIdMapSession.read('store')
+    );
 }
 
 function createAttributes(attrs) {

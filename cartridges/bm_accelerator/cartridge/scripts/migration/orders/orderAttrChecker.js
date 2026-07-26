@@ -63,7 +63,8 @@ function getCtpOrderFields() {
 }
 
 function checkMissingAttributes() {
-    return runner.checkMissing(SFCC_OBJECT_TYPE, getCtpOrderFields);
+    var attrIdMapSession = require('*/cartridge/scripts/migration/core/attrIdMapSession');
+    return runner.checkMissing(SFCC_OBJECT_TYPE, getCtpOrderFields, null, attrIdMapSession.read('order'));
 }
 
 function createAttributes(attrs) {
