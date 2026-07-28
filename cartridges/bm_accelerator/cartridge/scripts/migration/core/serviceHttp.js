@@ -108,7 +108,7 @@ function createService(serviceId) {
 function legacyRequest(method, url, headers, body) {
     var HTTPClient = require('dw/net/HTTPClient');
     var client = new HTTPClient();
-    client.setTimeout(30000);
+    client.setTimeout(12000);
     client.open(method, url);
 
     var keys = Object.keys(headers || {});

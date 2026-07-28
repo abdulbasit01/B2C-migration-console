@@ -29,7 +29,8 @@
              data-list-migrated-refs-url="<isprint value="${pdict.listMigratedRefsUrl}" encoding="htmldoublequote"/>"
              data-download-xml-url="<isprint value="${pdict.downloadXmlUrl}" encoding="htmldoublequote"/>"
              data-impex-path="<isprint value="${pdict.impexPath}" encoding="htmldoublequote"/>"
-             data-impex-url="<isprint value="${pdict.impexUrl}" encoding="htmldoublequote"/>">
+             data-impex-url="<isprint value="${pdict.impexUrl}" encoding="htmldoublequote"/>"
+             data-default-delivery-key="<isprint value="${pdict.defaultDeliveryKey}" encoding="htmldoublequote"/>">
 
             <div class="cms-steps" role="tablist">
                 <button type="button" id="cms-tab-1" class="cms-steps__tab cms-steps__tab--active" data-step="1">
@@ -55,7 +56,7 @@
                         <form id="acc-cms-connect-form" class="acc-form acc-form--grid cms-connect-form">
                             <isloop items="${pdict.platform.connectFields}" var="field">
                                 <div class="acc-form__group<isif condition="${field.type == 'password'}"> cms-form__group--secret</isif>">
-                                    <label class="acc-form__label" for="cms-${field.name}">${field.label}<isif condition="${field.required}"> *</isif></label>
+                                    <label class="acc-form__label" for="cms-${field.name}">${field.label}<isif condition="${field.required && !field.secretConfigured}"> *</isif></label>
                                     <input class="acc-form__input<isif condition="${field.type == 'password'}"> cms-input--secret</isif>"
                                            id="cms-${field.name}"
                                            name="${field.name}"
@@ -63,7 +64,7 @@
                                            value="${field.value}"
                                            placeholder="${field.placeholder}"
                                            autocomplete="<isif condition="${field.type == 'password'}">off<iselse/>on</isif>"
-                                           <isif condition="${field.required}">required="required"</isif> />
+                                           <isif condition="${field.required && !field.secretConfigured}">required="required"</isif> />
                                 </div>
                             </isloop>
                         </form>
@@ -88,7 +89,9 @@
                         <p class="cms-panel__hint">${Resource.msg('accelerator.contentmigration.content.prompt', 'accelerator', null)}</p>
                         <div class="cms-fetch-row">
                             <label class="acc-form__label" for="acc-cms-delivery-key">${Resource.msg('accelerator.contentmigration.deliveryKey', 'accelerator', null)}</label>
-                            <input id="acc-cms-delivery-key" class="acc-form__input cms-fetch-row__input" type="text" placeholder="page/jackets" />
+                            <input id="acc-cms-delivery-key" class="acc-form__input cms-fetch-row__input" type="text"
+                                   value="${pdict.defaultDeliveryKey}"
+                                   placeholder="page/jackets" />
                             <button type="button" id="acc-cms-fetch-btn" class="acc-btn acc-btn--secondary">
                                 ${Resource.msg('accelerator.contentmigration.content.fetch', 'accelerator', null)}
                             </button>

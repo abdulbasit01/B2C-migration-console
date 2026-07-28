@@ -30,6 +30,21 @@ function testCdnDelivery(hubName, deliveryKey) {
     return res.data;
 }
 
+function validatePersonalAccessToken(pat) {
+    var token = String(pat || '').trim();
+    if (!token || token.indexOf('•') !== -1) {
+        return 'Personal Access Token is required. Paste your amp_pat_… token from Dynamic Content → Development → Personal Access Tokens.';
+    }
+    if (token.indexOf('amp_pat_') !== 0) {
+        return 'Personal Access Token must start with amp_pat_. Check you copied the full token from Dynamic Content.';
+    }
+    var secondPat = token.indexOf('amp_pat_', 8);
+    if (secondPat > 0) {
+        return 'Personal Access Token looks pasted twice. Copy and paste the token once only.';
+    }
+    return '';
+}
+
 function testConnectionWith(creds) {
     var c = auth.resolveCreds(creds);
 
@@ -54,6 +69,11 @@ function testConnectionWith(creds) {
         };
     }
 
+    var patError = validatePersonalAccessToken(c.personalAccessToken);
+    if (patError) {
+        throw new Error(patError);
+    }
+
     var authResult = auth.getAccessToken(c);
     var token      = authResult.token;
 
@@ -62,8 +82,12 @@ function testConnectionWith(creds) {
         { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }
     );
 
+    if (hubsRes.status === 401 || hubsRes.status === 403) {
+        throw new Error('Amplience rejected the Personal Access Token (' + hubsRes.status + '). Create a new PAT and try again.');
+    }
+
     if (hubsRes.status !== 200) {
-        throw new Error('Unable to list Amplience hubs (' + hubsRes.status + '). Check your PAT.');
+        throw new Error('Unable to list Amplience hubs (' + hubsRes.status + '). Check your PAT and that outbound HTTP services are imported (metadata/services.xml).');
     }
 
     var hubs = (hubsRes.data._embedded && hubsRes.data._embedded.hubs) || [];
@@ -111,12 +135,14 @@ function injectCredentials(fields, migCfg) {
             value = a.defaultDeliveryKey || value;
         }
         out.push({
-            name:        field.name,
-            label:       field.label,
-            type:        field.type,
-            required:    field.required,
-            value:       value,
-            placeholder: field.placeholder || ''
+            name:             field.name,
+            label:            field.label,
+            type:             field.type,
+            required:         field.required,
+            value:            value,
+            placeholder:      field.placeholder || '',
+            secretConfigured: (field.name === 'personalAccessToken' && !!a.personalAccessToken)
+                || (field.name === 'clientSecret' && !!a.clientSecret)
         });
     }
     return out;

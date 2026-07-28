@@ -244,8 +244,11 @@ function buildConnectionCreds(platformId) {
          * @returns {string}
          */
         function resolveSecret(name, configValue) {
-            var raw = paramVal(name);
-            return (raw && raw.indexOf('•') === -1) ? raw : (configValue || '');
+            var raw = String((params[name] && params[name].stringValue) || '').trim();
+            if (raw && raw.indexOf('•') === -1) {
+                return raw;
+            }
+            return configValue || '';
         }
 
         creds.hubName             = paramVal('hubName')             || cfgAmp.hubName             || '';
@@ -370,6 +373,8 @@ function buildViewContent(sessionResults) {
  * Test connection using Site Preference credentials (Amplience CMS also accepts the connect form).
  */
 exports.TestConnection = function () {
+    response.setContentType('application/json');
+
     var platformId = getParam('platformId') || 'commercetools';
     var connector  = registry.get(platformId);
 
@@ -4782,11 +4787,14 @@ exports.ContentMigration = function () {
 
     var pageCtx = migrationPageContext(platformId, 'content');
     var dataConnected = dataMigrationSession.isConnected(platformId);
+    var migCfg = require('*/cartridge/scripts/migration/configAccessor');
+    var defaultDeliveryKey = (migCfg.amplience && migCfg.amplience.defaultDeliveryKey) || '';
     ISML.renderTemplate('accelerator/contentMigration', withBmFrame({
         title:               Resource.msg('accelerator.contentmigration.heading', 'accelerator', null),
         subtitle:            Resource.msg('accelerator.subtitle', 'accelerator', null),
         platform:            platform,
         dataConnected:       dataConnected,
+        defaultDeliveryKey:  defaultDeliveryKey,
         initialStep:         dataConnected ? 2 : 1,
         dashboardUrl:        URLUtils.url('Accelerator-Start').toString(),
         testConnectionUrl:   URLUtils.url('Accelerator-TestConnection').toString(),
@@ -4799,7 +4807,7 @@ exports.ContentMigration = function () {
         impexPath:           pageCtx.impexPath,
         impexUrl:            pageCtx.impexUrl,
         cssUrl:              URLUtils.staticURL('/css/accelerator-migration.css').toString() + '?v=16',
-        contentMigrationJsUrl: URLUtils.staticURL('/js/content-migration.js').toString() + '?v=19'
+        contentMigrationJsUrl: URLUtils.staticURL('/js/content-migration.js').toString() + '?v=22'
     }));
 };
 exports.ContentMigration.public = true;

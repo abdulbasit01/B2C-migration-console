@@ -5,6 +5,9 @@
  */
 (function () {
     var connected = false;
+    var contentLoaded = false;
+    var contentLoading = false;
+    var loadContentListFn = null;
     var currentStep = 1;
     var currentDeliveryKey = '';
     var currentContentId = '';
@@ -30,7 +33,8 @@
             listMigratedRefsUrl: root.getAttribute('data-list-migrated-refs-url') || '',
             downloadXmlUrl: root.getAttribute('data-download-xml-url') || '',
             impexPath: root.getAttribute('data-impex-path') || 'src/migration/content',
-            impexUrl: root.getAttribute('data-impex-url') || ''
+            impexUrl: root.getAttribute('data-impex-url') || '',
+            defaultDeliveryKey: root.getAttribute('data-default-delivery-key') || ''
         };
     }
 
@@ -53,9 +57,10 @@
      * @param {string} raw - response text
      * @param {string} fallbackError - error when empty
      * @param {number} [status] - HTTP status
+     * @param {string} [context] - connect|export — tunes non-JSON error text
      * @returns {Object} parsed payload
      */
-    function parseJsonResponse(raw, fallbackError, status) {
+    function parseJsonResponse(raw, fallbackError, status, context) {
         if (!raw || !String(raw).trim()) {
             return {
                 ok: false,
@@ -66,17 +71,42 @@
         try {
             return JSON.parse(raw);
         } catch (e) {
-            var snippet = String(raw).replace(/\s+/g, ' ').slice(0, 80);
-            var looksLikeHtml = /<html|<body|Business Manager|timeout/i.test(raw);
+            var snippet = String(raw).replace(/\s+/g, ' ').slice(0, 120);
+            var looksLikeHtml = /<html|<body|Business Manager/i.test(raw);
+            var looksLikeTimeout = /timeout|timed out|time-out/i.test(raw);
+            var isConnect = context === 'connect';
+
+            if (isConnect) {
+                if (looksLikeHtml || looksLikeTimeout) {
+                    return {
+                        ok: false,
+                        error: 'Connection test failed — the server returned a Business Manager page instead of JSON'
+                            + (status ? ' (HTTP ' + status + ')' : '')
+                            + '. Clear the Personal Access Token field, paste your PAT once, and click Test Connection again.'
+                            + ' If this persists, run npm run upload:accelerator and import metadata/services.xml.'
+                    };
+                }
+                return {
+                    ok: false,
+                    error: 'Connection test failed — server returned non-JSON'
+                        + (status ? ' (HTTP ' + status + ')' : '')
+                        + (snippet ? ': ' + snippet : '')
+                };
+            }
+
+            if (looksLikeHtml || looksLikeTimeout) {
+                return {
+                    ok: false,
+                    error: 'Export timed out on the server (HTTP ' + (status || '?')
+                        + '). Retry — batches are smaller now, or filter to fewer items.'
+                };
+            }
             return {
                 ok: false,
-                error: looksLikeHtml
-                    ? 'Export timed out on the server (HTTP ' + (status || '?')
-                        + '). Retry — batches are smaller now, or filter to fewer items.'
-                    : 'Server returned HTTP ' + (status || 'error')
-                        + ' instead of JSON'
-                        + (snippet ? ' ("' + snippet + '...")' : '')
-                        + '. Retry the export.'
+                error: 'Server returned HTTP ' + (status || 'error')
+                    + ' instead of JSON'
+                    + (snippet ? ' ("' + snippet + '...")' : '')
+                    + '. Retry the export.'
             };
         }
     }
@@ -86,15 +116,18 @@
      * @param {string} url - endpoint
      * @param {string} params - body
      * @param {Function} onDone - callback
+     * @param {string} [context] - connect|export — tunes non-JSON error text
      * @returns {void}
      */
-    function post(url, params, onDone) {
+    function post(url, params, onDone, context) {
         var req = new XMLHttpRequest();
         req.open('POST', url, true);
         req.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+        req.setRequestHeader('Accept', 'application/json');
+        req.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
         req.onreadystatechange = function () {
             if (req.readyState !== 4) return;
-            onDone(parseJsonResponse(req.responseText, 'Parse error', req.status));
+            onDone(parseJsonResponse(req.responseText, 'Parse error', req.status, context));
         };
         req.onerror = function () { onDone({ ok: false, error: 'Network error' }); };
         req.send(params);
@@ -218,6 +251,38 @@
     }
 
     /**
+     * Copy the connect-step default delivery key into the step 2 fetch field.
+     * @returns {void}
+     */
+    function syncDeliveryKeyToStep2() {
+        var deliveryKeyInput = document.getElementById('acc-cms-delivery-key');
+        var defaultKeyInput = document.getElementById('cms-defaultDeliveryKey');
+        if (!deliveryKeyInput) return;
+        var fromConnect = defaultKeyInput ? String(defaultKeyInput.value || '').trim() : '';
+        if (fromConnect) {
+            deliveryKeyInput.value = fromConnect;
+        }
+    }
+
+    /**
+     * Use the first published delivery key from loaded content when the field is empty.
+     * @param {Object[]} items - loaded Amplience content rows
+     * @returns {void}
+     */
+    function suggestFirstDeliveryKey(items) {
+        var deliveryKeyInput = document.getElementById('acc-cms-delivery-key');
+        if (!deliveryKeyInput || String(deliveryKeyInput.value || '').trim()) return;
+        var i;
+        for (i = 0; i < (items || []).length; i++) {
+            var key = String(items[i].deliveryKey || '').trim();
+            if (key) {
+                deliveryKeyInput.value = key;
+                return;
+            }
+        }
+    }
+
+    /**
      * Show a wizard step panel.
      * @param {number} step - step number
      * @returns {void}
@@ -235,6 +300,12 @@
                 tab.disabled = panels[pi] > 1 && !connected;
             }
             pi += 1;
+        }
+        if (step === 2) {
+            syncDeliveryKeyToStep2();
+            if (connected && loadContentListFn) {
+                loadContentListFn(readCfg(), false);
+            }
         }
         updateFooter(step);
     }
@@ -1120,6 +1191,52 @@
     }
 
     /**
+     * Fetch content items from Amplience and render the step 2 table.
+     * @param {Object} cfg - page config
+     * @param {boolean} [forceReload] - reload even when already loaded
+     * @returns {void}
+     */
+    function loadContentList(cfg, forceReload) {
+        if (contentLoading) return;
+        if (contentLoaded && !forceReload) return;
+
+        var listStatus = document.getElementById('acc-cms-list-status');
+        var listError = document.getElementById('acc-cms-list-error');
+        var loadBtn = document.getElementById('acc-cms-load-btn');
+        var loading = document.getElementById('acc-cms-list-loading');
+
+        contentLoading = true;
+        if (loadBtn) loadBtn.disabled = true;
+        if (loading) loading.style.display = '';
+        setStatus(listStatus, 'Loading...', false);
+        if (listError) {
+            listError.style.display = 'none';
+            listError.textContent = '';
+        }
+
+        get(cfg.listContentUrl, function (data) {
+            contentLoading = false;
+            if (loadBtn) loadBtn.disabled = false;
+            if (!data.ok) {
+                setStatus(listStatus, '', false);
+                if (listError) {
+                    listError.style.display = '';
+                    listError.textContent = data.error || 'Unable to load content';
+                }
+                return;
+            }
+            var result = data.result || {};
+            allItems = result.items || [];
+            contentLoaded = true;
+            suggestFirstDeliveryKey(allItems);
+            fillFilterOptions(result.repositories || [], result.schemas || []);
+            applyFilters();
+        });
+    }
+
+    loadContentListFn = loadContentList;
+
+    /**
      * Bind a step tab click handler.
      * @param {number} stepNum - step number
      * @returns {void}
@@ -1149,16 +1266,18 @@
         var previewAllBtn = document.getElementById('acc-cms-preview-all-btn');
         var exportLibraryBtn = document.getElementById('acc-cms-export-library-btn');
         var connStatus = document.getElementById('acc-cms-conn-status');
-        var listStatus = document.getElementById('acc-cms-list-status');
-        var listError = document.getElementById('acc-cms-list-error');
         var defaultKeyInput = document.getElementById('cms-defaultDeliveryKey');
         var deliveryKeyInput = document.getElementById('acc-cms-delivery-key');
         var filterRepo = document.getElementById('acc-cms-filter-repo');
         var filterSchema = document.getElementById('acc-cms-filter-schema');
         var filterSearch = document.getElementById('acc-cms-filter-search');
 
-        if (defaultKeyInput && deliveryKeyInput && defaultKeyInput.value) {
-            deliveryKeyInput.value = defaultKeyInput.value;
+        if (deliveryKeyInput && !String(deliveryKeyInput.value || '').trim()) {
+            if (defaultKeyInput && defaultKeyInput.value) {
+                deliveryKeyInput.value = defaultKeyInput.value;
+            } else if (cfg.defaultDeliveryKey) {
+                deliveryKeyInput.value = cfg.defaultDeliveryKey;
+            }
         }
 
         connected = cfg.connected;
@@ -1196,30 +1315,16 @@
                     }
                     connected = true;
                     updateFooter(currentStep);
+                    syncDeliveryKeyToStep2();
                     var name = (data.project && (data.project.name || data.project.key)) || 'Connected';
                     setStatus(connStatus, 'Connected to ' + name, false);
-                });
+                }, 'connect');
             });
         }
 
         if (loadBtn) {
             loadBtn.addEventListener('click', function () {
-                setStatus(listStatus, 'Loading...', false);
-                if (listError) listError.style.display = 'none';
-                get(cfg.listContentUrl, function (data) {
-                    if (!data.ok) {
-                        setStatus(listStatus, '', false);
-                        if (listError) {
-                            listError.style.display = '';
-                            listError.textContent = data.error || 'Unable to load content';
-                        }
-                        return;
-                    }
-                    var result = data.result || {};
-                    allItems = result.items || [];
-                    fillFilterOptions(result.repositories || [], result.schemas || []);
-                    applyFilters();
-                });
+                if (loadContentListFn) loadContentListFn(cfg, true);
             });
         }
 
