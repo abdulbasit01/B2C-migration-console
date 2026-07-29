@@ -1,6 +1,6 @@
 'use strict';
 
-var http     = require('*/cartridge/scripts/migration/core/http');
+var http     = require('*/cartridge/scripts/migration/core/amplienceApi');
 var auth     = require('*/cartridge/scripts/migration/connectors/amplience/amplienceAuth');
 var hubHelper = require('*/cartridge/scripts/migration/contentMigration/amplienceHubHelper');
 var mapper   = require('*/cartridge/scripts/migration/contentMigration/amplienceSchemaMapper');

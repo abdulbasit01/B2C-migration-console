@@ -227,35 +227,9 @@ function buildConnectionCreds(platformId) {
         creds.accessToken  = cfg.shopify.accessToken || '';
         creds.apiVersion   = cfg.shopify.apiVersion || '2025-01';
     } else if (platformId === 'amplience') {
-        var cfgAmp = cfg.amplience || {};
-        var params = request.httpParameterMap;
-
-        /**
-         * @param {string} name
-         * @returns {string}
-         */
-        function paramVal(name) {
-            return String((params[name] && params[name].stringValue) || '');
-        }
-
-        /**
-         * @param {string} name
-         * @param {string} configValue
-         * @returns {string}
-         */
-        function resolveSecret(name, configValue) {
-            var raw = String((params[name] && params[name].stringValue) || '').trim();
-            if (raw && raw.indexOf('•') === -1) {
-                return raw;
-            }
-            return configValue || '';
-        }
-
-        creds.hubName             = paramVal('hubName')             || cfgAmp.hubName             || '';
-        creds.personalAccessToken = resolveSecret('personalAccessToken', cfgAmp.personalAccessToken);
-        creds.clientId            = paramVal('clientId')            || cfgAmp.clientId            || '';
-        creds.clientSecret        = resolveSecret('clientSecret', cfgAmp.clientSecret);
-        creds.defaultDeliveryKey  = paramVal('defaultDeliveryKey')  || cfgAmp.defaultDeliveryKey  || '';
+        creds.hubName             = (cfg.amplience && cfg.amplience.hubName) || '';
+        creds.personalAccessToken = (cfg.amplience && cfg.amplience.personalAccessToken) || '';
+        creds.defaultDeliveryKey  = (cfg.amplience && cfg.amplience.defaultDeliveryKey) || '';
     } else if (platformId === 'sap') {
         creds.baseUrl      = cfg.sap.baseUrl || '';
         creds.baseSite     = cfg.sap.baseSite || '';
@@ -272,10 +246,6 @@ function buildConnectionCreds(platformId) {
  * @returns {boolean}
  */
 function hasConnectionCreds(platformId, creds) {
-    if (platformId === 'amplience') {
-        var hasAmpSecret = !!(creds.personalAccessToken || creds.clientSecret);
-        return !!(creds.hubName && hasAmpSecret);
-    }
     return buildConnectionSummary(platformId).configured;
 }
 
@@ -309,12 +279,24 @@ function buildConnectionSummary(platformId) {
         lines.push({ label: 'Client ID', value: cfg.sap.clientId || '(not set)' });
         lines.push({ label: 'Client secret', value: cfg.sap.clientSecret ? 'Configured' : '(not set)' });
     } else if (platformId === 'amplience') {
-        var hasAmpSecret = !!(cfg.amplience && (cfg.amplience.personalAccessToken || cfg.amplience.clientSecret));
-        configured = !!(cfg.amplience && cfg.amplience.hubName && hasAmpSecret);
-        lines.push({ label: 'Hub name', value: (cfg.amplience && cfg.amplience.hubName) || '(not set)' });
-        lines.push({ label: 'Personal access token', value: (cfg.amplience && cfg.amplience.personalAccessToken) ? 'Configured' : '(not set)' });
-        lines.push({ label: 'Client ID', value: (cfg.amplience && cfg.amplience.clientId) || '(not set)' });
-        lines.push({ label: 'Default delivery key', value: (cfg.amplience && cfg.amplience.defaultDeliveryKey) || '(not set)' });
+        var amp = cfg.amplience || {};
+        var hub = amp.hubName || '';
+        var pat = amp.personalAccessToken || '';
+        var key = amp.defaultDeliveryKey || '';
+        configured = !!(hub && pat);
+        lines.push({ label: 'Hub name', value: hub, placeholder: 'my-brand' });
+        lines.push({
+            label:       'Personal access token',
+            value:       pat ? '••••••••' : '',
+            placeholder: 'amp_pat_...',
+            secret:      true
+        });
+        lines.push({
+            label:       'Default delivery key',
+            value:       key,
+            placeholder: 'home/banner',
+            optional:    true
+        });
     }
 
     return {
@@ -370,7 +352,7 @@ function buildViewContent(sessionResults) {
 // ─── AJAX endpoints ───────────────────────────────────────────────────────────
 
 /**
- * Test connection using Site Preference credentials (Amplience CMS also accepts the connect form).
+ * Test connection using Site Preference credentials.
  */
 exports.TestConnection = function () {
     response.setContentType('application/json');
@@ -388,23 +370,13 @@ exports.TestConnection = function () {
     if (!hasConnectionCreds(platformId, creds)) {
         jsonResponse({
             ok: false,
-            error: platformId === 'amplience'
-                ? 'Hub name and Personal Access Token are required.'
-                : ('Credentials are not configured. Set them under ' + summary.prefsHint + '.')
+            error: 'Credentials are not configured. Set them under ' + summary.prefsHint + '.'
         });
         return;
     }
 
     try {
         var result = connector.testConnectionWith(creds);
-        if (platformId === 'amplience') {
-            session.custom.amplienceHubName              = creds.hubName              || '';
-            session.custom.ampliencePersonalAccessToken  = creds.personalAccessToken  || '';
-            session.custom.amplienceClientId             = creds.clientId             || '';
-            session.custom.amplienceClientSecret         = creds.clientSecret         || '';
-            session.custom.amplienceDefaultDeliveryKey   = creds.defaultDeliveryKey   || '';
-            session.custom.migrationPlatformId           = 'amplience';
-        }
         if (getParam('mode') === 'data' || platformId === 'amplience') {
             dataMigrationSession.markConnected(platformId, result.expiresIn);
         }
@@ -4773,12 +4745,6 @@ exports.ContentMigration = function () {
     var platformId = getParam('platform') || 'amplience';
     session.custom.migrationPlatformId = platformId;
 
-    // Drop invalid hub names saved from mistaken form input (e.g. email address).
-    var savedHub = String(session.custom.amplienceHubName || '');
-    if (savedHub && savedHub.indexOf('@') !== -1) {
-        session.custom.amplienceHubName = '';
-    }
-
     var platform = migrationData.getPlatform(platformId);
     if (!platform || platform.kind !== 'cms') {
         response.redirect(URLUtils.url('Accelerator-Start'));
@@ -4794,6 +4760,7 @@ exports.ContentMigration = function () {
         subtitle:            Resource.msg('accelerator.subtitle', 'accelerator', null),
         platform:            platform,
         dataConnected:       dataConnected,
+        connectionSummary:   buildConnectionSummary(platformId),
         defaultDeliveryKey:  defaultDeliveryKey,
         initialStep:         dataConnected ? 2 : 1,
         dashboardUrl:        URLUtils.url('Accelerator-Start').toString(),
@@ -4806,8 +4773,8 @@ exports.ContentMigration = function () {
         downloadXmlUrl:      URLUtils.url('Accelerator-DownloadContentXml').toString(),
         impexPath:           pageCtx.impexPath,
         impexUrl:            pageCtx.impexUrl,
-        cssUrl:              URLUtils.staticURL('/css/accelerator-migration.css').toString() + '?v=16',
-        contentMigrationJsUrl: URLUtils.staticURL('/js/content-migration.js').toString() + '?v=22'
+        cssUrl:              URLUtils.staticURL('/css/accelerator-migration.css').toString() + '?v=17',
+        contentMigrationJsUrl: URLUtils.staticURL('/js/content-migration.js').toString() + '?v=23'
     }));
 };
 exports.ContentMigration.public = true;
@@ -4826,6 +4793,7 @@ exports.ContentSchemaMigration = function () {
         title:               Resource.msg('accelerator.contentschemamigration.heading', 'accelerator', null),
         subtitle:            Resource.msg('accelerator.subtitle', 'accelerator', null),
         platform:            platform,
+        connectionSummary:   buildConnectionSummary(platformId),
         dashboardUrl:        URLUtils.url('Accelerator-Start').toString(),
         testConnectionUrl:   URLUtils.url('Accelerator-TestConnection').toString(),
         listContentTypesUrl: URLUtils.url('Accelerator-ListAmplienceContentTypes').toString(),

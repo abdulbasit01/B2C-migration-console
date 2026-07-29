@@ -148,7 +148,7 @@ function fetchLive(hubName, deliveryKey, contentId, options) {
             deliveryKey: key,
             contentId: id,
             cdnUrl: '',
-            error: 'Set site preference amplienceHubName to enable live CDN refresh.',
+            error: 'Set rcMigAmplienceHubName under Site Preferences → B2C Migration Console to enable live CDN refresh.',
             cached: false
         };
     }

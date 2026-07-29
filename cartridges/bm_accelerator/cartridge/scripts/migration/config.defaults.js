@@ -36,8 +36,6 @@ module.exports = {
     amplience: {
         hubName:             '',
         personalAccessToken: '',
-        clientId:            '',
-        clientSecret:        '',
         defaultDeliveryKey:  ''
     }
 };

@@ -1025,7 +1025,9 @@ function isLiveContentEnabled() {
 function getHubName(custom, attributes) {
     try {
         var site = Site.getCurrent();
-        var pref = site && site.getCustomPreferenceValue('amplienceHubName');
+        var pref = site && site.getCustomPreferenceValue('rcMigAmplienceHubName');
+        if (pref) return String(pref).trim();
+        pref = site && site.getCustomPreferenceValue('amplienceHubName');
         if (pref) return String(pref).trim();
     } catch (e) {
         // Preference may not exist yet.
@@ -1038,12 +1040,7 @@ function getHubName(custom, attributes) {
     }
 
     try {
-        var cfg;
-        try {
-            cfg = require('*/cartridge/scripts/helpers/amplienceConfig');
-        } catch (eCfg) {
-            cfg = require('*/cartridge/scripts/helpers/amplienceConfig.defaults');
-        }
+        var cfg = require('*/cartridge/scripts/helpers/amplienceConfig.defaults');
         if (cfg && cfg.hubName) return String(cfg.hubName).trim();
     } catch (e2) {
         // optional
@@ -1064,7 +1061,7 @@ function resolveLiveContent(model, asset, options) {
 
     var hubName = getHubName(asset.custom, model.attributes);
     if (!hubName) {
-        model.liveError = 'Amplience hub is not configured (amplienceHubName / amplienceConfig.hubName).';
+        model.liveError = 'Amplience hub is not configured (Site Preferences → B2C Migration Console → Amplience Hub Name).';
         return model;
     }
 

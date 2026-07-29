@@ -1,12 +1,10 @@
 'use strict';
 
-var http = require('*/cartridge/scripts/migration/core/http');
-var cfg  = require('*/cartridge/scripts/migration/configAccessor');
-
-var AUTH_URL = 'https://auth.amplience.net/oauth/token';
+var amplienceApi = require('*/cartridge/scripts/migration/core/amplienceApi');
+var cfg          = require('*/cartridge/scripts/migration/configAccessor');
 
 /**
- * Resolve Amplience credentials from request overlay or config.
+ * Resolve Amplience credentials from Site Preferences.
  * @param {Object} [creds]
  * @returns {Object}
  */
@@ -15,64 +13,40 @@ function resolveCreds(creds) {
     return {
         hubName:             String(c.hubName || ''),
         personalAccessToken: String(c.personalAccessToken || ''),
-        clientId:            String(c.clientId || ''),
-        clientSecret:        String(c.clientSecret || ''),
         defaultDeliveryKey:  String(c.defaultDeliveryKey || '')
     };
 }
 
 /**
- * Obtain a bearer token — PAT (self-service) or OAuth client credentials.
+ * Whether Management API calls are possible (requires a PAT).
+ * @param {Object} [creds]
+ * @returns {boolean}
+ */
+function hasManagementCreds(creds) {
+    var pat = resolveCreds(creds).personalAccessToken;
+    return !!(pat && pat.indexOf('•') === -1);
+}
+
+/**
+ * Obtain a bearer token from the configured Personal Access Token.
  * @param {Object} [creds]
  * @returns {{ token: string, expiresIn: number, authMode: string }}
  */
-function hasManagementCreds(creds) {
-    var c   = resolveCreds(creds);
-    var pat = c.personalAccessToken;
-    if (pat && pat.indexOf('•') === -1) {
-        return true;
-    }
-    return !!(c.clientId && c.clientSecret && c.clientSecret.indexOf('•') === -1);
-}
-
 function getAccessToken(creds) {
     var c = resolveCreds(creds);
     var pat = c.personalAccessToken;
 
-    if (pat && pat.indexOf('•') === -1) {
-        return { token: pat, expiresIn: 0, authMode: 'pat' };
-    }
-
-    if (!c.clientId || !c.clientSecret || c.clientSecret.indexOf('•') !== -1) {
+    if (!pat || pat.indexOf('•') !== -1) {
         throw new Error(
-            'Amplience credentials required. Use a Personal Access Token (Development menu in Dynamic Content) '
-            + 'or an API client ID and secret from Amplience support.'
+            'Amplience Personal Access Token is required. Create one under Dynamic Content → Development → Personal Access Tokens.'
         );
     }
 
-    var body = 'grant_type=client_credentials'
-        + '&client_id=' + encodeURIComponent(c.clientId)
-        + '&client_secret=' + encodeURIComponent(c.clientSecret);
-
-    var res = http.post(
-        AUTH_URL,
-        { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body
-    );
-
-    if (res.status !== 200 || !res.data.access_token) {
-        throw new Error('Amplience auth failed (' + res.status + '). Check API client ID and secret.');
-    }
-
-    return {
-        token:     res.data.access_token,
-        expiresIn: res.data.expires_in || 300,
-        authMode:  'apikey'
-    };
+    return { token: pat, expiresIn: 0, authMode: 'pat' };
 }
 
 module.exports = {
-    resolveCreds:         resolveCreds,
-    hasManagementCreds:   hasManagementCreds,
-    getAccessToken:       getAccessToken
+    resolveCreds:       resolveCreds,
+    hasManagementCreds: hasManagementCreds,
+    getAccessToken:     getAccessToken
 };

@@ -82,7 +82,7 @@
                         ok: false,
                         error: 'Connection test failed — the server returned a Business Manager page instead of JSON'
                             + (status ? ' (HTTP ' + status + ')' : '')
-                            + '. Clear the Personal Access Token field, paste your PAT once, and click Test Connection again.'
+                            + '. Set Amplience credentials under Site Preferences → B2C Migration Console, then click Test Connection again.'
                             + ' If this persists, run npm run upload:accelerator and import metadata/services.xml.'
                     };
                 }
@@ -148,24 +148,6 @@
         };
         req.onerror = function () { onDone({ ok: false, error: 'Network error' }); };
         req.send(null);
-    }
-
-    /**
-     * Build form-urlencoded params from inputs.
-     * @param {HTMLElement} form - form element
-     * @param {string} extra - leading params
-     * @returns {string} encoded params
-     */
-    function buildFormParams(form, extra) {
-        var params = extra || '';
-        var inputs = form.querySelectorAll('input[name]');
-        var i = 0;
-        while (i < inputs.length) {
-            if (params) params += '&';
-            params += encodeURIComponent(inputs[i].name) + '=' + encodeURIComponent(inputs[i].value || '');
-            i += 1;
-        }
-        return params;
     }
 
     /**
@@ -1256,7 +1238,6 @@
      */
     function init() {
         var cfg = readCfg();
-        var form = document.getElementById('acc-cms-connect-form');
         var testBtn = document.getElementById('acc-cms-test-btn');
         var prevBtn = document.getElementById('acc-cms-prev');
         var nextBtn = document.getElementById('acc-cms-next');
@@ -1302,10 +1283,10 @@
             });
         }
 
-        if (testBtn && form) {
+        if (testBtn) {
             testBtn.addEventListener('click', function () {
-                var params = buildFormParams(form, 'platformId=' + encodeURIComponent(cfg.platformId));
-                setStatus(connStatus, 'Testing...', false);
+                var params = 'platformId=' + encodeURIComponent(cfg.platformId);
+                setStatus(connStatus, 'Testing credentials from Site Preferences...', false);
                 post(cfg.testConnectionUrl, params, function (data) {
                     if (!data.ok) {
                         connected = false;

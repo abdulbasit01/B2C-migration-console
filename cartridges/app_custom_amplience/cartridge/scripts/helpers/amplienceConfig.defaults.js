@@ -2,7 +2,7 @@
 
 /**
  * Default storefront Amplience config (committed).
- * `amplienceConfig.js` is auto-generated from .env on upload and preferred when present.
+ * Hub name is read from Site Preferences (rcMigAmplienceHubName).
  */
 module.exports = {
     hubName: '',

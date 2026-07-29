@@ -27,14 +27,6 @@ function clearShopifySessionCreds() {
     delete session.custom.shopifyApiVersion;
 }
 
-function clearAmplienceSessionCreds() {
-    delete session.custom.amplienceHubName;
-    delete session.custom.ampliencePersonalAccessToken;
-    delete session.custom.amplienceClientId;
-    delete session.custom.amplienceClientSecret;
-    delete session.custom.amplienceDefaultDeliveryKey;
-}
-
 function clearConnection() {
     session.custom.dataMigrationConnected = 'false';
     delete session.custom.dataMigrationConnectedPlatform;
@@ -42,7 +34,6 @@ function clearConnection() {
     delete session.custom.dataMigrationTokenExpiresAt;
     delete session.custom.selectedDataType;
     clearShopifySessionCreds();
-    clearAmplienceSessionCreds();
 }
 
 /**

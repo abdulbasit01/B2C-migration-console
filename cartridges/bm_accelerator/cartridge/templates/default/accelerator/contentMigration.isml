@@ -52,22 +52,23 @@
                     </div>
                     <div class="cms-panel__body">
                         <p class="cms-panel__hint">${pdict.platform.connectHint}</p>
-                        <p class="cms-panel__hint cms-panel__hint--note">${Resource.msg('accelerator.contentmigration.auth.hint', 'accelerator', null)}</p>
                         <form id="acc-cms-connect-form" class="acc-form acc-form--grid cms-connect-form">
-                            <isloop items="${pdict.platform.connectFields}" var="field">
-                                <div class="acc-form__group<isif condition="${field.type == 'password'}"> cms-form__group--secret</isif>">
-                                    <label class="acc-form__label" for="cms-${field.name}">${field.label}<isif condition="${field.required && !field.secretConfigured}"> *</isif></label>
-                                    <input class="acc-form__input<isif condition="${field.type == 'password'}"> cms-input--secret</isif>"
-                                           id="cms-${field.name}"
-                                           name="${field.name}"
-                                           type="${field.type}"
-                                           value="${field.value}"
-                                           placeholder="${field.placeholder}"
-                                           autocomplete="<isif condition="${field.type == 'password'}">off<iselse/>on</isif>"
-                                           <isif condition="${field.required && !field.secretConfigured}">required="required"</isif> />
-                                </div>
-                            </isloop>
+                            <input type="hidden" name="platformId" value="${pdict.platform.id}" />
+                            <isif condition="${pdict.connectionSummary}">
+                                <isinclude template="accelerator/components/connectionSummaryFields"/>
+                            </isif>
                         </form>
+                        <isif condition="${pdict.connectionSummary}">
+                            <p class="cms-prefs-hint">
+                                ${Resource.msg('accelerator.datawizard.connect.prefsHint', 'accelerator', null)}
+                                <strong>${pdict.connectionSummary.prefsHint}</strong>
+                            </p>
+                            <isif condition="${!pdict.connectionSummary.configured}">
+                                <div class="acc-status acc-status--error" role="status">
+                                    ${Resource.msg('accelerator.datawizard.connect.notConfigured', 'accelerator', null)}
+                                </div>
+                            </isif>
+                        </isif>
                         <div class="cms-panel__inline-actions">
                             <button type="button" id="acc-cms-test-btn" class="acc-btn acc-btn--solid">
                                 ${Resource.msg('accelerator.datawizard.testConnection', 'accelerator', null)}

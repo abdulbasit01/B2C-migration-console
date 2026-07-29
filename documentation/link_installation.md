@@ -29,6 +29,7 @@ Import the archive contents under `metadata/`:
 | `accelerator.ctp.api` | commercetools Auth + API |
 | `accelerator.sfcc.ocapi` | SFCC OCAPI / Account Manager |
 | `accelerator.sfcc.webdav` | IMPEX WebDAV |
+| `accelerator.amplience.api` | Amplience Management API, Auth, and CDN |
 
 Credential URLs are placeholders; runtime code sets the full URL per call.
 
@@ -50,6 +51,7 @@ Open **Site Preferences → B2C Migration Console** and set:
 
 - Shopify store URL, client ID, client secret/token, API version (if using Shopify)
 - commercetools project key, client ID/secret, auth/API URLs (if using CTP)
+- Amplience hub name, Personal Access Token, optional default delivery key (if using Amplience CMS)
 - OCAPI client ID, BM username/password, OCAPI version
 
 The migration wizard **does not** collect credentials on a form. Use **Test Connection** after preferences are set.

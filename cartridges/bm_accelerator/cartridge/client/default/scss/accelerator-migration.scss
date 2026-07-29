@@ -1835,6 +1835,31 @@ table.main > tbody > tr,
   box-shadow: none !important;
 }
 
+.acc-form__input--readonly {
+  background: #f3f2f2;
+  border: 1px solid #dddbda;
+  color: #080707;
+  cursor: default;
+}
+
+.acc-form__input--readonly::placeholder {
+  color: #939393;
+  font-style: italic;
+}
+
+.cms-prefs-hint {
+  margin: 10px 0 14px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #706e6b;
+  white-space: nowrap;
+}
+
+.cms-prefs-hint strong {
+  color: #3e3e3c;
+  font-weight: 600;
+}
+
 .cms-input--secret:focus {
   border-color: #0070d2 !important;
   background: #fff !important;

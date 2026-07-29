@@ -1,6 +1,6 @@
 'use strict';
 
-var http    = require('*/cartridge/scripts/migration/core/http');
+var http    = require('*/cartridge/scripts/migration/core/amplienceApi');
 var auth    = require('*/cartridge/scripts/migration/connectors/amplience/amplienceAuth');
 var cdnUtil = require('*/cartridge/scripts/migration/contentMigration/amplienceCdn');
 

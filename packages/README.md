@@ -106,11 +106,10 @@ npm run test:amplience-core
 
 ## SFCC Headless Page Designer setup
 
-1. Run `npm run generate:headless`
-2. Deploy headless metadata: `npm run upload:headless`
-3. Deploy BM components: `npm run upload:accelerator` (includes `amplienceWidget.json`)
-4. In BM Page Designer, add **Amplience Content Widget** to a headless page region
-5. Set `hubName` and `deliveryKey` — React fetches live content from Amplience CDN
+1. Deploy storefront + BM: `npm run upload:amplience`, `npm run upload:accelerator`
+2. `amplienceWidget.json` lives in `app_custom_amplience/cartridge/experience/`
+3. In BM Page Designer, add **Amplience Content Widget** to a headless page region
+4. Set `hubName` and `deliveryKey` — React fetches live content from Amplience CDN
 
 No SFCC library import is required for live content updates.
 

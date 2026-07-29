@@ -91,24 +91,6 @@
     }
 
     /**
-     * Build form-urlencoded params from inputs.
-     * @param {HTMLElement} form - form element
-     * @param {string} extra - leading params
-     * @returns {string} encoded params
-     */
-    function buildFormParams(form, extra) {
-        var params = extra || '';
-        var inputs = form.querySelectorAll('input[name]');
-        var i = 0;
-        while (i < inputs.length) {
-            if (params) params += '&';
-            params += encodeURIComponent(inputs[i].name) + '=' + encodeURIComponent(inputs[i].value || '');
-            i += 1;
-        }
-        return params;
-    }
-
-    /**
      * Set status text and style on an element.
      * @param {HTMLElement} el - status node
      * @param {string} msg - message
@@ -226,7 +208,6 @@
      */
     function init() {
         var cfg = readCfg();
-        var form = document.getElementById('acc-cms-schema-connect-form');
         var testBtn = document.getElementById('acc-cms-schema-test-btn');
         var prevBtn = document.getElementById('acc-cms-schema-prev');
         var nextBtn = document.getElementById('acc-cms-schema-next');
@@ -258,10 +239,10 @@
             });
         }
 
-        if (testBtn && form) {
+        if (testBtn) {
             testBtn.addEventListener('click', function () {
-                var params = buildFormParams(form, 'platformId=' + encodeURIComponent(cfg.platformId));
-                setStatus(connStatus, 'Testing...', false);
+                var params = 'platformId=' + encodeURIComponent(cfg.platformId);
+                setStatus(connStatus, 'Testing credentials from Site Preferences...', false);
                 post(cfg.testConnectionUrl, params, function (data) {
                     if (!data.ok) {
                         connected = false;

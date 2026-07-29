@@ -93,7 +93,7 @@ describe('Amplience content fetcher', function () {
             }
         };
         var fetcher = proxyquire(fetcherPath, {
-            '*/cartridge/scripts/migration/core/http': http,
+            '*/cartridge/scripts/migration/core/amplienceApi': http,
             '*/cartridge/scripts/migration/connectors/amplience/amplienceAuth': {
                 resolveCreds: function () {
                     return { hubName: 'demo', personalAccessToken: 'token' };

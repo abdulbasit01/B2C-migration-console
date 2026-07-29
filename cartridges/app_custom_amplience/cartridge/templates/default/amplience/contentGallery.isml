@@ -21,8 +21,8 @@
             </p>
             <isif condition="${!pdict.hubConfigured}">
                 <div class="alert alert-warning">
-                    Set site preference <code>amplienceHubName</code> (or
-                    <code>amplienceConfig.hubName</code>) so live CDN sync can run.
+                    Set <code>rcMigAmplienceHubName</code> under Site Preferences → B2C Migration Console
+                    so live CDN sync can run.
                 </div>
             </isif>
         </header>

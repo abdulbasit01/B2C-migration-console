@@ -1,6 +1,6 @@
 'use strict';
 
-var http    = require('*/cartridge/scripts/migration/core/http');
+var http    = require('*/cartridge/scripts/migration/core/amplienceApi');
 var auth    = require('*/cartridge/scripts/migration/connectors/amplience/amplienceAuth');
 var cfg     = require('*/cartridge/scripts/migration/configAccessor');
 var cdnUtil = require('*/cartridge/scripts/migration/contentMigration/amplienceCdn');
@@ -127,10 +127,6 @@ function injectCredentials(fields, migCfg) {
             value = a.hubName || value;
         } else if (field.name === 'personalAccessToken' && a.personalAccessToken) {
             value = '••••••••';
-        } else if (field.name === 'clientId') {
-            value = a.clientId || value;
-        } else if (field.name === 'clientSecret' && a.clientSecret) {
-            value = '••••••••';
         } else if (field.name === 'defaultDeliveryKey') {
             value = a.defaultDeliveryKey || value;
         }
@@ -141,8 +137,7 @@ function injectCredentials(fields, migCfg) {
             required:         field.required,
             value:            value,
             placeholder:      field.placeholder || '',
-            secretConfigured: (field.name === 'personalAccessToken' && !!a.personalAccessToken)
-                || (field.name === 'clientSecret' && !!a.clientSecret)
+            secretConfigured: field.name === 'personalAccessToken' && !!a.personalAccessToken
         });
     }
     return out;

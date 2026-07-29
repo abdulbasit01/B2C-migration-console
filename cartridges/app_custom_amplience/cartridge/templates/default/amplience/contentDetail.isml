@@ -15,7 +15,7 @@
             <isif condition="${pdict.amp.live}">
                 <span class="amp-detail__live">Live from Amplience CDN</span>
             <iselseif condition="${!pdict.hubConfigured}">
-                <span class="amp-detail__live">Set amplienceHubName for live sync</span>
+                <span class="amp-detail__live">Set rcMigAmplienceHubName in Site Preferences for live sync</span>
             <iselse/>
                 <span class="amp-detail__live">Showing SFCC snapshot (CDN unavailable)</span>
             </isif>
