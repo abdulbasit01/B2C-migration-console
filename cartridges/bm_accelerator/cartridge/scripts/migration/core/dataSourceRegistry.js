@@ -7,7 +7,8 @@ var MODULE_FETCHERS = {
     },
     store: {
         commercetools: '*/cartridge/scripts/migration/storeMigration/ctpStoreFetcher',
-        shopify:       '*/cartridge/scripts/migration/storeMigration/shopifyStoreFetcher'
+        shopify:       '*/cartridge/scripts/migration/storeMigration/shopifyStoreFetcher',
+        sap:           '*/cartridge/scripts/migration/storeMigration/sapStoreFetcher'
     },
     pricebook: {
         commercetools: '*/cartridge/scripts/migration/pricebookMigration/ctpPricebookFetcher',

@@ -79,6 +79,10 @@ function checkMissing(sfccObjectType, getCtpFieldsFn, getExtraFieldsFn, attrIdMa
 
     if (platformId === 'shopify') {
         fields = shopifyMetafields.fieldsForSfccObject(sfccObjectType);
+    } else if (platformId === 'sap') {
+        // No verified SAP OCC endpoint exposes a dynamic custom-field schema for this
+        // object type yet — only the trace attrs from getExtraFieldsFn apply for now.
+        fields = [];
     } else if (getCtpFieldsFn) {
         fields = getCtpFieldsFn();
     }

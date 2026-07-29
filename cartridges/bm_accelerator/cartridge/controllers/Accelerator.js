@@ -2314,6 +2314,9 @@ exports.StoreMigration = function () {
     var pageCtx        = migrationPageContext(platformId, 'store');
     var jobsUrl        = bmLinks.getImportExportUrl();
 
+    // Track the active platform so AJAX endpoints (e.g. CheckStoreAttributes) can read it from session.
+    session.custom.migrationPlatformId = platformId;
+
     // Attribute rename map is visit-scoped — reset on page load / re-entry.
     clearModuleAttrIdMap('store');
 

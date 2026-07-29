@@ -64,15 +64,43 @@ function getCtpStoreFields() {
 }
 
 function getStoreTraceAttrs(platformId) {
-    var shopify = platformId === 'shopify';
-    return [
+    var base = [
         { sfccId: 'countryCodeValue', label: 'Country Code Value', sourceType: 'String' },
-        { sfccId: 'inventoryListId',  label: 'Inventory List ID',  sourceType: 'String' },
-        sourceAttrIds.traceAttr('StoreId', shopify ? 'Shopify Location ID' : 'CTP Store ID', 'String', platformId),
-        sourceAttrIds.traceAttr('StoreKey', shopify ? 'Shopify Location Key' : 'CTP Store Key', 'String', platformId),
-        sourceAttrIds.traceAttr('ChannelId', shopify ? 'Shopify Location ID' : 'CTP Channel ID', 'String', platformId),
-        sourceAttrIds.traceAttr('ChannelKey', shopify ? 'Shopify Location Key' : 'CTP Channel Key', 'String', platformId)
+        { sfccId: 'inventoryListId',  label: 'Inventory List ID',  sourceType: 'String' }
     ];
+
+    if (platformId === 'sap') {
+        // SAP's PointOfService has only one natural identifier (name) — no separate
+        // UUID-vs-key or store-vs-channel distinction like CTP/Shopify, so a single
+        // trace attribute covers it instead of 4 redundant, identical-valued ones.
+        return base.concat([
+            sourceAttrIds.traceAttr('StoreCode', 'SAP Store Code', 'String', platformId)
+        ]);
+    }
+
+    var storeIdLabel;
+    var storeKeyLabel;
+    var channelIdLabel;
+    var channelKeyLabel;
+
+    if (platformId === 'shopify') {
+        storeIdLabel    = 'Shopify Location ID';
+        channelIdLabel  = 'Shopify Location ID';
+        storeKeyLabel   = 'Shopify Location Key';
+        channelKeyLabel = 'Shopify Location Key';
+    } else {
+        storeIdLabel    = 'CTP Store ID';
+        storeKeyLabel   = 'CTP Store Key';
+        channelIdLabel  = 'CTP Channel ID';
+        channelKeyLabel = 'CTP Channel Key';
+    }
+
+    return base.concat([
+        sourceAttrIds.traceAttr('StoreId', storeIdLabel, 'String', platformId),
+        sourceAttrIds.traceAttr('StoreKey', storeKeyLabel, 'String', platformId),
+        sourceAttrIds.traceAttr('ChannelId', channelIdLabel, 'String', platformId),
+        sourceAttrIds.traceAttr('ChannelKey', channelKeyLabel, 'String', platformId)
+    ]);
 }
 
 function checkMissingAttributes() {

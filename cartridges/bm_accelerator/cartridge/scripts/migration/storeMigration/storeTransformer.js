@@ -113,18 +113,27 @@ function resolveAttrId(sourceId, attrIdMap) {
 }
 
 function buildCustomAttributes(storeId, country, store, channel, attrIdMap) {
-    var prefix = sourceAttrIds.getPrefix(registry.getPlatformId());
+    var platformId = registry.getPlatformId();
+    var prefix = sourceAttrIds.getPrefix(platformId);
     var map    = attrIdMap || readAttrIdMap();
     var attrs  = {};
     var countryKey = resolveAttrId('countryCodeValue', map);
     var invKey     = resolveAttrId('inventoryListId', map);
     attrs[countryKey] = country || '';
     attrs[invKey]     = 'inventory_m_store_' + storeId;
-    attrs[resolveAttrId(prefix + 'StoreId', map)]  = (store && store.id) ? store.id : '';
-    attrs[resolveAttrId(prefix + 'StoreKey', map)] = (store && store.key) ? store.key : '';
-    if (channel) {
-        attrs[resolveAttrId(prefix + 'ChannelId', map)]  = channel.id || '';
-        attrs[resolveAttrId(prefix + 'ChannelKey', map)] = channel.key || '';
+
+    if (platformId === 'sap') {
+        // SAP's PointOfService has only one natural identifier (name) — no separate
+        // UUID-vs-key or store-vs-channel distinction like CTP/Shopify, so a single
+        // trace attribute covers it instead of 4 redundant, identical-valued ones.
+        attrs[resolveAttrId(prefix + 'StoreCode', map)] = (store && (store.id || store.key)) || '';
+    } else {
+        attrs[resolveAttrId(prefix + 'StoreId', map)]  = (store && store.id) ? store.id : '';
+        attrs[resolveAttrId(prefix + 'StoreKey', map)] = (store && store.key) ? store.key : '';
+        if (channel) {
+            attrs[resolveAttrId(prefix + 'ChannelId', map)]  = channel.id || '';
+            attrs[resolveAttrId(prefix + 'ChannelKey', map)] = channel.key || '';
+        }
     }
 
     if (store && store.custom && store.custom.fields) {
