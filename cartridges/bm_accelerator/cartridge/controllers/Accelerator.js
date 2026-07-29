@@ -511,8 +511,7 @@ exports.Start = function () {
         jsUrl: URLUtils.staticURL('/js/categoryMigration.js').toString(),
         fetchCatalogsUrl : URLUtils.url('Accelerator-FetchSFCCCatalogs').toString(),
         createCatalogUrl : URLUtils.url('Accelerator-CreateCatalog').toString(),
-        createCategoryUrl:  URLUtils.url('Accelerator-CreateCategory').toString(),
-        shopifyConfigUrl:   URLUtils.url('Accelerator-ShopifyConfig').toString()
+        createCategoryUrl:  URLUtils.url('Accelerator-CreateCategory').toString()
     }));
 };
 exports.Start.public = true;
@@ -4296,35 +4295,6 @@ exports.CheckCategoryProducts.public = true;
 
 
 
-// ─── Shopify Configuration (deprecated — use Site Preferences) ────────────────
-
-/**
- * Credentials are managed in Site Preferences; this page shows status only.
- */
-exports.ShopifyConfig = function () {
-    var summary = buildConnectionSummary('shopify');
-    ISML.renderTemplate('accelerator/shopifyConfig', withBmFrame({
-        title:             'Shopify Configuration',
-        subtitle:          'Credentials are managed in Site Preferences',
-        cssUrl:            URLUtils.staticURL('/css/accelerator-migration.css').toString(),
-        dashboardUrl:      URLUtils.url('Accelerator-Start').toString(),
-        connectionSummary: summary,
-        prefsHint:         summary.prefsHint
-    }, 'rc_accelerator_shopify_config'));
-};
-exports.ShopifyConfig.public = true;
-
-/**
- * Legacy endpoint — credentials are no longer saved from this form.
- */
-exports.SaveShopifyConfig = function () {
-    jsonResponse({
-        ok: false,
-        error: 'Shopify credentials must be configured under Site Preferences → B2C Migration Console.'
-    });
-};
-exports.SaveShopifyConfig.public = true;
-
 /**
  * Create a new category in CommerceTools.
  * POST — params: key, name, parentId (optional)
@@ -4729,7 +4699,6 @@ exports.RunCategoryMigration.public = true;
         StoreMigration: true,
         ProductWizard: true,
         ProductMigration: true,
-        ShopifyConfig: true,
         CategoryMigration: true,
         DataWizardOrderConfigure: true,
         DownloadMigrationFile: true,

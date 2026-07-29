@@ -107,11 +107,9 @@
             <pipeline name="Accelerator-SaveProdConfig"/>
             <pipeline name="Accelerator-SaveProdWizardResults"/>
             <pipeline name="Accelerator-SaveSchemaSelection"/>
-            <pipeline name="Accelerator-SaveShopifyConfig"/>
             <pipeline name="Accelerator-SaveVariantAttrSelection"/>
             <pipeline name="Accelerator-ShippingMethodMigration"/>
             <pipeline name="Accelerator-ShippingMethodMigrationCount"/>
-            <pipeline name="Accelerator-ShopifyConfig"/>
             <pipeline name="Accelerator-Start"/>
             <pipeline name="Accelerator-StoreMigration"/>
             <pipeline name="Accelerator-StoreMigrationCount"/>
@@ -147,18 +145,6 @@
             <pipeline name="Accelerator-FullMigrationBuildBatch"/>
             <pipeline name="Accelerator-FullMigrationJobStatus"/>
             <pipeline name="Accelerator-FullMigrationTriggerJob"/>
-        </sub-pipelines>
-        <icon>icons/accelerator.png</icon>
-    </menuaction>
-
-    <menuaction id="rc_accelerator_shopify_config" menupath="rc_accelerator_tools" site="true" position="30">
-        <name xml:lang="x-default">Shopify Configuration</name>
-        <short_description xml:lang="x-default">View Shopify credential status</short_description>
-        <description xml:lang="x-default">Shows whether Shopify credentials are configured in Site Preferences.</description>
-        <exec pipeline="Accelerator" node="ShopifyConfig"/>
-        <sub-pipelines>
-            <pipeline name="Accelerator-ShopifyConfig"/>
-            <pipeline name="Accelerator-SaveShopifyConfig"/>
         </sub-pipelines>
         <icon>icons/accelerator.png</icon>
     </menuaction>

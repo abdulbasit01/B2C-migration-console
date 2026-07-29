@@ -10,7 +10,6 @@ The console migrates schema (custom attributes) and data (orders, customers, pro
 |------|---------|
 | B2C Migration → Start Migration Wizard | Dashboard, schema wizard, data wizard |
 | B2C Migration → Product Catalog Wizard | Product-focused flow |
-| B2C Migration → Shopify Configuration | View Shopify credential status (edit in Site Preferences) |
 | Site Preferences → B2C Migration Console | Merchant configuration (credentials) |
 
 ## Schema wizard
