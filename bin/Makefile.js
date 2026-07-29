@@ -63,10 +63,7 @@ function getOptionsString(options) {
 }
 
 target.compileFonts = function () {
-    var fontsDir = 'cartridges/app_storefront_base/cartridge/static/default/fonts';
-    mkdir('-p', fontsDir);
-    cp('-r', 'node_modules/font-awesome/fonts/', 'cartridges/app_storefront_base/cartridge/static/default');
-    cp('-r', 'node_modules/flag-icons/flags', fontsDir + '/flags');
+    echo('compileFonts skipped — SFRA storefront cartridges removed from repo');
 };
 
 target.functional = function (args) {
@@ -113,21 +110,11 @@ target.release = function (args) {
     if (['patch', 'minor', 'major'].indexOf(type) >= 0) {
         console.log('Updating package.json version with ' + args[0] + ' release.');
         var version = spawn('npm version ' + args[0], { stdio: 'inherit', shell: true });
-        var propertiesFileName = path.resolve('./cartridges/app_storefront_base/cartridge/templates/resources/version.properties')
 
         version.on('exit', function (code) {
            if (code === 0) {
                var versionNumber = JSON.parse(fs.readFileSync('./package.json').toString()).version;
-               //modify version.properties file
-               var propertiesFile = fs.readFileSync(propertiesFileName).toString();
-               var propertiesLines = propertiesFile.split('\n');
-               var newLines = propertiesLines.map(function (line) {
-                   if (line.indexOf('global.version.number=') === 0) {
-                       line = 'global.version.number=' + versionNumber;
-                   }
-                   return line;
-               });
-               fs.writeFileSync(propertiesFileName, newLines.join('\n'));
+               echo('Release version: ' + versionNumber);
                shell.exec('git add -A');
                shell.exec('git commit -m "Release ' + versionNumber + '"');
                console.log('Version updated to ' + versionNumber);

@@ -242,7 +242,7 @@ You can override per URL with `?hub=your-hub`.
 
 | Run Content Migration wizard / re-import | `npm run sync:sfcc-catalog` |
 
-| Upload SFCC cartridges | `npm run upload:amplience` etc. in repo root |
+| Upload SFCC cartridges | `npm run upload:cms` etc. in repo root |
 
 
 
@@ -252,7 +252,7 @@ You can override per URL with `?hub=your-hub`.
 
 1. Run BM Content Migration wizard and import into SFCC.
 
-2. `npm run upload:amplience` — deploy storefront cartridge.
+2. `npm run upload:cms` — deploy storefront CMS cartridge.
 
 3. Verify `AmplienceContent-List?page=1&pageSize=5` returns `"ok": true`.
 

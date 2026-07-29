@@ -9,7 +9,7 @@ const ROOT = path.join(__dirname, '..');
 const SRC = path.join(ROOT, 'packages/amplience-core/src');
 const DEST = path.join(
     ROOT,
-    'cartridges/app_custom_amplience/cartridge/scripts/helpers/amplienceCore'
+    'cartridges/app_custom_cms/cartridge/scripts/helpers/amplienceCore'
 );
 
 const FILES = ['cdn.js', 'transform.js', 'fetch.js', 'index.js'];

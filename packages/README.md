@@ -80,10 +80,10 @@ Keep SFCC helpers aligned with the shared package:
 
 ```bash
 node scripts/sync-amplience-core-to-sfcc.js
-npm run upload:amplience
+npm run upload:cms
 ```
 
-This copies `packages/amplience-core/src` into `cartridges/app_custom_amplience/.../amplienceCore/`.
+This copies `packages/amplience-core/src` into `cartridges/app_custom_cms/.../amplienceCore/`.
 
 ## Architecture — data flow
 
@@ -106,8 +106,8 @@ npm run test:amplience-core
 
 ## SFCC Headless Page Designer setup
 
-1. Deploy storefront + BM: `npm run upload:amplience`, `npm run upload:accelerator`
-2. `amplienceWidget.json` lives in `app_custom_amplience/cartridge/experience/`
+1. Deploy storefront + BM: `npm run upload:cms`, `npm run upload:accelerator`
+2. `amplienceWidget.json` lives in `app_custom_cms/cartridge/experience/`
 3. In BM Page Designer, add **Amplience Content Widget** to a headless page region
 4. Set `hubName` and `deliveryKey` — React fetches live content from Amplience CDN
 

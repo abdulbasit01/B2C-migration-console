@@ -1,4 +1,0 @@
-<iscomment>
-    Extension point for PDP add-to-cart button overlays (Apple Pay, Afterpay, etc.).
-    Intentionally empty in base SFRA; plugins may override this template.
-</iscomment>

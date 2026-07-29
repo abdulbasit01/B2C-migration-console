@@ -38,7 +38,7 @@ This page documents how Amplience content moves through the **B2C Migration Cons
           │ ② IMPEX import → Content Library
           ▼
 ┌─────────────────────────────────────────────────────────┐
-│  SFCC (app_custom_amplience)                            │
+│  SFCC (app_custom_cms)                            │
 │  • amplience/ content folder                            │
 │  • Per-asset metadata (contentId, deliveryKey, JSON)    │
 │  • AmplienceContent-Show  (ISML gallery)                │
@@ -86,7 +86,7 @@ This page documents how Amplience content moves through the **B2C Migration Cons
 
 ## Layer 2 — SFCC storefront (catalog & live refresh)
 
-**Cartridge:** `app_custom_amplience`
+**Cartridge:** `app_custom_cms`
 
 | Endpoint | Type | Purpose |
 |----------|------|---------|
@@ -134,7 +134,7 @@ IDs in the demo URL should come from the **SFCC-migrated catalog** (BM wizard St
 
 ### Headless Page Designer flow
 
-**Cartridge:** `app_custom_headless`
+**Cartridge:** `app_custom_cms` (headless `amplienceWidget.json` in `cartridge/experience/`)
 
 1. Merchandiser builds a headless page in BM Page Designer.
 2. Adds **Amplience Content Widget** with `hubName`, `deliveryKey`, optional `targetWidget`.
@@ -165,7 +165,7 @@ Keep SFCC in sync after core changes:
 
 ```bash
 npm run sync:amplience-core
-npm run upload:amplience
+npm run upload:cms
 ```
 
 ---
@@ -173,7 +173,7 @@ npm run upload:amplience
 ## Recommended implementation checklist
 
 1. Run BM **Content Migration** wizard — import selected Amplience content into SFCC.
-2. Deploy cartridges: `npm run upload:amplience`, `npm run upload:headless`.
+2. Deploy cartridges: `npm run upload:accelerator`, `npm run upload:cms`.
 3. Verify `AmplienceContent-List?page=1&pageSize=5` returns `"ok": true`.
 4. Sync React catalog: `npm run sync:sfcc-catalog`.
 5. Start React: `npm run start:react` — gallery should show **Source: sfcc** or **sfcc-file**.

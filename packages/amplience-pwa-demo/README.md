@@ -59,7 +59,7 @@ http://localhost:3000/amplience-demo?hub=your-hub&keys=hero,header/promo
 
 ## Headless Page Designer
 
-After deploying `app_custom_amplience` and `bm_accelerator` to SFCC:
+After deploying `app_custom_cms` and `bm_accelerator` to SFCC:
 
 1. Create a headless page in BM (Home or Store Page)
 2. Add **Amplience Content Widget** with `hubName` + `deliveryKey`

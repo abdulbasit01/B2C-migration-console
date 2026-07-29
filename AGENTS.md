@@ -22,7 +22,23 @@ Royal Cyber SFCC BM cartridge for schema + data migration from commercetools/Sho
 - Rhino: use `encodeURIComponent`, not `StringUtils.encodeURIComponent`
 - `session.custom` flags are strings (`'true'`), not booleans
 
-## Amplience content architecture
-- **Catalog:** SFCC `amplience/` folder → `AmplienceContent-List` (React gallery reads this, not the full Amplience hub)
-- **Live bodies:** Amplience CDN via `contentId` / `deliveryKey` on migrated SFCC assets
-- **Full flow:** `docs/amplience-content-data-flow.md` (Confluence-ready)
+## CMS architecture (`app_custom_cms`)
+- **Generic storefront cartridge** for headless CMS integrations (Amplience today; Contentful etc. later)
+- **Amplience today:** `AmplienceContent-List` API, migrated content helpers under `scripts/helpers/amplience*`
+- **React gallery:** reads `AmplienceContent-List` (not SFRA ISML storefront)
+- **Catalog:** SFCC `amplience/` folder → `AmplienceContent-List`
+- **Deploy:** `npm run upload:cms` (alias: `upload:amplience`)
+
+## SFCC cartridge paths
+| Site | Path |
+|------|------|
+| **Business Manager** | `bm_accelerator` |
+| **Storefront** (CMS API for React) | `app_custom_cms:modules` |
+
+`modules` is the standard SFCC routing cartridge (not in this repo). Add it from your SFCC/SFRA distribution on the storefront site path.
+
+## Deploy all
+```bash
+npm run upload:accelerator
+npm run upload:cms
+```
