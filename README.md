@@ -25,12 +25,13 @@ Credentials are **not** entered in wizard forms. Configure Site Preferences, the
 
 ## Quick start
 
-1. Import `metadata/` (Site Import & Export): `services.xml` + `meta/system-objecttype-extensions.xml`
-2. Upload the cartridge: `npm run upload:accelerator` (requires `dw.json` for WebDAV)
-3. Add `bm_accelerator` to the **Business Manager** site cartridge path
-4. Enable **B2C Migration** for BM roles
-5. Set Site Preferences → **B2C Migration Console**
-6. Open **Merchant Tools → B2C Migration** and run **Test Connection**
+1. Import `metadata/` (Site Development > Import & Export): `meta/system-objecttype-extensions.xml`
+2. Import `services` (Operations > Import & Export): `services.xml`
+3. Upload the cartridge: `npm run upload:accelerator` (requires `dw.json` for WebDAV)
+4. Add `bm_accelerator` to the **Business Manager** site cartridge path
+5. Enable **B2C Migration** for BM roles
+6. Set Site Preferences → **B2C Migration Console**
+7. Open **Merchant Tools → B2C Migration** and run **Test Connection**
 
 ### Site preferences (group: B2C Migration Console)
 

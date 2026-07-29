@@ -227,6 +227,11 @@ function buildConnectionCreds(platformId) {
         creds.clientSecret = cfg.shopify.clientSecret || '';
         creds.accessToken  = cfg.shopify.accessToken || '';
         creds.apiVersion   = cfg.shopify.apiVersion || '2025-01';
+    } else if (platformId === 'sap') {
+        creds.baseUrl      = cfg.sap.baseUrl || '';
+        creds.baseSite     = cfg.sap.baseSite || '';
+        creds.clientId     = cfg.sap.clientId || '';
+        creds.clientSecret = cfg.sap.clientSecret || '';
     }
 
     return creds;
@@ -255,6 +260,12 @@ function buildConnectionSummary(platformId) {
         lines.push({ label: 'Client ID', value: cfg.shopify.clientId || '(not set)' });
         lines.push({ label: 'Secret / token', value: hasSecret ? 'Configured' : '(not set)' });
         lines.push({ label: 'API version', value: cfg.shopify.apiVersion || '(not set)' });
+    } else if (platformId === 'sap') {
+        configured = !!(cfg.sap.baseUrl && cfg.sap.baseSite && cfg.sap.clientId && cfg.sap.clientSecret);
+        lines.push({ label: 'Base URL', value: cfg.sap.baseUrl || '(not set)' });
+        lines.push({ label: 'Base Site', value: cfg.sap.baseSite || '(not set)' });
+        lines.push({ label: 'Client ID', value: cfg.sap.clientId || '(not set)' });
+        lines.push({ label: 'Client secret', value: cfg.sap.clientSecret ? 'Configured' : '(not set)' });
     }
 
     return {
@@ -1365,6 +1376,10 @@ exports.GetProductSetsInfo = function () {
         jsonResponse({ ok: true, sets: [], note: 'Shopify set/bundle detection uses the Product Type field at migration time.' });
         return;
     }
+    if (platform === 'sap') {
+        jsonResponse({ ok: true, sets: [], note: 'SAP Commerce product set detection is not yet implemented (planned for a later phase).' });
+        return;
+    }
     try {
         var scanner = require('*/cartridge/scripts/migration/productMigration/ctpProductTypeScanner');
         jsonResponse({ ok: true, sets: scanner.getProductSetsSummary() });
@@ -1383,6 +1398,10 @@ exports.GetBundleProductsInfo = function () {
     var platform = String(session.custom.migrationPlatformId || 'commercetools');
     if (platform === 'shopify') {
         jsonResponse({ ok: true, bundles: [], note: 'Shopify set/bundle detection uses the Product Type field at migration time.' });
+        return;
+    }
+    if (platform === 'sap') {
+        jsonResponse({ ok: true, bundles: [], note: 'SAP Commerce bundle detection is not yet implemented (planned for a later phase).' });
         return;
     }
     try {
@@ -1406,6 +1425,9 @@ exports.GetVariantAttrs = function () {
         if (isShopify) {
             var shopifyChecker = require('*/cartridge/scripts/migration/productMigration/shopifyProductAttrChecker');
             fields = shopifyChecker.getShopifyVariantOptionFields();
+        } else if (platform === 'sap') {
+            var sapChecker = require('*/cartridge/scripts/migration/productMigration/sapProductAttrChecker');
+            fields = sapChecker.getSapVariantOptionFields();
         } else {
             var checker = require('*/cartridge/scripts/migration/productMigration/productAttrChecker');
             fields = checker.getCtpProductTypeFields();
@@ -2292,6 +2314,9 @@ exports.StoreMigration = function () {
     var pageCtx        = migrationPageContext(platformId, 'store');
     var jobsUrl        = bmLinks.getImportExportUrl();
 
+    // Track the active platform so AJAX endpoints (e.g. CheckStoreAttributes) can read it from session.
+    session.custom.migrationPlatformId = platformId;
+
     // Attribute rename map is visit-scoped — reset on page load / re-entry.
     clearModuleAttrIdMap('store');
 
@@ -2601,6 +2626,9 @@ exports.ProductMigrationCount = function () {
         if (platform === 'shopify') {
             var shopifyFetcher = require('*/cartridge/scripts/migration/productMigration/shopifyProductFetcher');
             jsonResponse({ ok: true, total: shopifyFetcher.getCount() });
+        } else if (platform === 'sap') {
+            var sapFetcherCount = require('*/cartridge/scripts/migration/productMigration/sapProductFetcher');
+            jsonResponse({ ok: true, total: sapFetcherCount.getCount() });
         } else {
             var prodFetcher = require('*/cartridge/scripts/migration/productMigration/ctpProductFetcher');
             jsonResponse({ ok: true, total: prodFetcher.getCount() });
@@ -2691,6 +2719,9 @@ exports.CheckProductAttributes = function () {
         if (platform === 'shopify') {
             var shopifyChecker = require('*/cartridge/scripts/migration/productMigration/shopifyProductAttrChecker');
             jsonResponse({ ok: true, missing: shopifyChecker.checkMissingAttributes() });
+        } else if (platform === 'sap') {
+            var sapChecker = require('*/cartridge/scripts/migration/productMigration/sapProductAttrChecker');
+            jsonResponse({ ok: true, missing: sapChecker.checkMissingAttributes() });
         } else {
             var checker = require('*/cartridge/scripts/migration/productMigration/productAttrChecker');
             jsonResponse({ ok: true, missing: checker.checkMissingAttributes() });
@@ -2712,7 +2743,9 @@ exports.CreateProductAttributes = function () {
     try {
         var checker2 = (platform === 'shopify')
             ? require('*/cartridge/scripts/migration/productMigration/shopifyProductAttrChecker')
-            : require('*/cartridge/scripts/migration/productMigration/productAttrChecker');
+            : (platform === 'sap')
+                ? require('*/cartridge/scripts/migration/productMigration/sapProductAttrChecker')
+                : require('*/cartridge/scripts/migration/productMigration/productAttrChecker');
         respondCreateAttributes('product', function (a) { return checker2.createAttributes(a); }, attrs);
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
@@ -3325,18 +3358,76 @@ function getCategoryMigrationJS() {
     L.push('  });');
 
 
-    // Step 1 - Check Attributes (checkbox-based)
+    // Step 1 - Check Attributes
     L.push('  el=document.getElementById("btn-check-attrs");');
     L.push('  if(el)el.addEventListener("click",function(){');
-    L.push('    var btn=this;btn.disabled=true;btn.textContent="Checking...";');
+    L.push('    var btn=this;var ao=document.getElementById("attr-overall");');
+    L.push('    btn.disabled=true;btn.textContent="Checking...";');
     L.push('    _APP.post(_APP.ATTRS_URL,"",function(data){');
     L.push('      btn.disabled=false;btn.textContent="Check Attributes";');
-    L.push('      _APP.renderAttrTable(data.attrs||[]);');
+    L.push('      if(!data||!data.ok){if(ao){ao.textContent="Error: "+(data&&data.error?"Error checking: "+data.error:"Check failed — see BM logs");ao.style.color="#c62828";}return;}');
+    L.push('      var attrs=data.attrs||[];');
+    L.push('      _APP.renderAttrTable(attrs);');
     L.push('      var ar=document.getElementById("attr-result");if(ar)ar.style.display="block";');
-    L.push('      var ao=document.getElementById("attr-overall");if(ao){ao.textContent="Select attributes to create then click Create Selected.";ao.style.color="#54698d";}');
-    L.push('      var cb=document.getElementById("btn-create-selected-attrs");if(cb)cb.style.display="inline-block";');
+    L.push('      var missing=attrs.filter(function(a){return !a.exists;});');
+    L.push('      var cb=document.getElementById("btn-create-selected-attrs");');
+    L.push('      if(missing.length){');
+    L.push('        if(ao){ao.textContent=missing.length+" attribute(s) missing in SFCC.";ao.style.color="#e65100";}');
+    L.push('      } else {');
+    L.push('        if(ao){ao.textContent="All "+attrs.length+" attribute(s) already exist in SFCC.";ao.style.color="#2e7d32";}');
+    L.push('      }');
     L.push('    });');
     L.push('  });');
+
+    // Create Attributes — creates all missing attrs
+    L.push('  el=document.getElementById("btn-create-selected-attrs");');
+    L.push('  if(el)el.addEventListener("click",function(){');
+    L.push('    var Q=String.fromCharCode(34);');
+    L.push('    var btn=this;var ao=document.getElementById("attr-overall");');
+    L.push('    var boxes=document.querySelectorAll("#attr-tbody .cat-attr-cb:checked");');
+    L.push('    if(!boxes.length){if(ao){ao.textContent="No attributes selected — check at least one to create.";ao.style.color="#e65100";}return;}');
+    L.push('    var selected=[];');
+    L.push('    for(var i=0;i<boxes.length;i++){');
+    L.push('      var bidx=boxes[i].getAttribute("data-idx");');
+    L.push('      var origId=boxes[i].getAttribute("data-attrid");');
+    L.push('      var attrExists=boxes[i].getAttribute("data-attrexists")==="1";');
+    L.push('      var idInp=document.querySelector(".cm-attr-id-input[data-idx="+Q+bidx+Q+"]");');
+    L.push('      var editedId=idInp&&idInp.value.trim()?idInp.value.trim():origId;');
+    L.push('      var sfccT=window.AccAttrPreflight?window.AccAttrPreflight.readSfccType(bidx,boxes[i].getAttribute("data-attrtype")):boxes[i].getAttribute("data-attrtype");');
+    L.push('      if(attrExists&&editedId===origId){');
+    L.push('        var skipSp=document.querySelector(".cat-status-span[data-idx="+Q+bidx+Q+"]");');
+    L.push('        if(skipSp){skipSp.textContent="Skipped";skipSp.style.background="#e3f2fd";skipSp.style.color="#1565c0";}');
+    L.push('        boxes[i].checked=false;continue;');
+    L.push('      }');
+    L.push('      var canonicalId=idInp?idInp.getAttribute("data-canonical")||origId:origId;');
+    L.push('      selected.push({id:editedId,canonicalId:canonicalId,originalId:(attrExists&&editedId!==origId)?origId:null,sfccType:sfccT,label:boxes[i].getAttribute("data-attrlabel"),idx:bidx});');
+    L.push('    }');
+    L.push('    if(!selected.length){if(ao){ao.textContent="All selected attributes already exist — skipped.";ao.style.color="#1565c0";}return;}');
+    L.push('    btn.disabled=true;btn.textContent="Creating...";');
+    L.push('    if(ao){ao.textContent="Creating "+selected.length+" attribute(s)...";ao.style.color="#54698d";}');
+    L.push('    _APP.post(_APP.CREATE_ATTRS_URL,"attrs="+encodeURIComponent(JSON.stringify(selected)),function(data){');
+    L.push('      btn.disabled=false;btn.textContent="Create Attributes";');
+    L.push('      if(!data.ok){if(ao){ao.textContent="Error: "+(data.error||"failed");ao.style.color="#c62828";}return;}');
+    L.push('      var res=data.result||{};');
+    L.push('      if(ao){ao.textContent="Done — "+(res.created||0)+" created, "+(res.failed||0)+" failed.";ao.style.color=(res.failed||0)>0?"#e65100":"#2e7d32";}');
+    L.push('      if(res.errors&&res.errors.length){var eb=document.getElementById("attr-errors");if(eb){eb.style.display="block";eb.textContent="Errors: "+res.errors.join(", ");}}');
+    L.push('      var Q2=String.fromCharCode(34);');
+    L.push('      for(var si=0;si<selected.length;si++){');
+    L.push('        var sidx=selected[si].idx;');
+    L.push('        var scb=document.querySelector(".cat-attr-cb[data-idx="+Q2+sidx+Q2+"]");');
+    L.push('        var ssp=document.querySelector(".cat-status-span[data-idx="+Q2+sidx+Q2+"]");');
+    L.push('        var sinp=document.querySelector(".cm-attr-id-input[data-idx="+Q2+sidx+Q2+"]");');
+    L.push('        var rBtn=document.querySelector(".cat-attr-revert[data-idx="+Q2+sidx+Q2+"]");');
+    L.push('        if(ssp){ssp.textContent="Exists";ssp.style.background="#e8f5e9";ssp.style.color="#2e7d32";}');
+    L.push('        if(scb){scb.checked=false;scb.setAttribute("data-attrexists","1");scb.setAttribute("data-attrid",selected[si].id);}');
+    L.push('        if(sinp){sinp.setAttribute("data-orig",selected[si].id);sinp.value=selected[si].id;}');
+    L.push('        if(_APP.attrsData&&_APP.attrsData[sidx]){_APP.attrsData[sidx].exists=true;_APP.attrsData[sidx].id=selected[si].id;}');
+    L.push('        if(rBtn){rBtn.disabled=false;rBtn.title="";}');
+    L.push('      }');
+    L.push('      if((res.failed||0)===0){setTimeout(function(){_APP.goToStep(2);},2000);}');
+    L.push('    });');
+    L.push('  });');
+
 
     // Select All
     L.push('  el=document.getElementById("btn-select-all-attrs");');
@@ -3350,59 +3441,6 @@ function getCategoryMigrationJS() {
     L.push('  if(el)el.addEventListener("click",function(){');
     L.push('    var boxes=document.querySelectorAll("#attr-tbody .cat-attr-cb");');
     L.push('    for(var i=0;i<boxes.length;i++)boxes[i].checked=false;');
-    L.push('  });');
-
-    // Create Selected
-    L.push('  el=document.getElementById("btn-create-selected-attrs");');
-    L.push('  if(el)el.addEventListener("click",function(){');
-    L.push('    var Q=String.fromCharCode(34);');
-    L.push('    var btn=this;');
-    L.push('    var ao=document.getElementById("attr-overall");');
-    L.push('    var boxes=document.querySelectorAll("#attr-tbody .cat-attr-cb:checked");');
-    L.push('    if(!boxes.length){alert("No attributes selected. Check at least one attribute to create.");return;}');
-    L.push('    var selected=[];');
-    L.push('    for(var i=0;i<boxes.length;i++){');
-    L.push('      var bidx=boxes[i].getAttribute("data-idx");');
-    L.push('      var origId=boxes[i].getAttribute("data-attrid");');
-    L.push('      var attrExists=boxes[i].getAttribute("data-attrexists")==="1";');
-    L.push('      var idInp=document.querySelector(".cm-attr-id-input[data-idx="+Q+bidx+Q+"]");');
-    L.push('      var editedId=idInp&&idInp.value.trim()?idInp.value.trim():origId;');
-    L.push('      var sfccT=window.AccAttrPreflight?window.AccAttrPreflight.readSfccType(bidx,boxes[i].getAttribute("data-attrtype")):boxes[i].getAttribute("data-attrtype");');
-    L.push('      if(attrExists&&editedId===origId){');
-    L.push('        var skipSp=document.querySelector(".cat-status-span[data-idx="+Q+bidx+Q+"]");');
-    L.push('        if(skipSp){skipSp.textContent="Skipped";skipSp.style.background="#e3f2fd";skipSp.style.color="#1565c0";}');
-    L.push('        boxes[i].checked=false;');
-    L.push('        continue;');
-    L.push('      }');
-    L.push('      var canonicalId=idInp?idInp.getAttribute("data-canonical")||origId:origId;');
-    L.push('      selected.push({id:editedId,canonicalId:canonicalId,originalId:(attrExists&&editedId!==origId)?origId:null,sfccType:sfccT,label:boxes[i].getAttribute("data-attrlabel"),idx:bidx});');
-    L.push('    }');
-    L.push('    if(!selected.length){if(ao){ao.textContent="All selected attributes already exist — skipped.";ao.style.color="#1565c0";}return;}');
-    L.push('    btn.disabled=true;btn.textContent="Creating...";');
-    L.push('    if(ao){ao.textContent="Creating "+selected.length+" attribute(s)...";ao.style.color="#54698d";}');
-    L.push('    _APP.post(_APP.CREATE_ATTRS_URL,"attrs="+encodeURIComponent(JSON.stringify(selected)),function(data){');
-    L.push('      btn.disabled=false;btn.textContent="Create Selected";');
-    L.push('      if(!data.ok){if(ao){ao.textContent="Error: "+(data.error||"failed");ao.style.color="#c62828";}return;}');
-    L.push('      var res=data.result||{};');
-    L.push('      var msg="Done - "+(res.created||0)+" created, "+(res.failed||0)+" failed.";');
-    L.push('      if(ao){ao.textContent=msg;ao.style.color=(res.failed||0)>0?"#e65100":"#2e7d32";}');
-    L.push('      if(res.errors&&res.errors.length){var eb=document.getElementById("attr-errors");if(eb){eb.style.display="block";eb.textContent="Errors: "+res.errors.join(", ");}}');
-    L.push('      var Q2=String.fromCharCode(34);');
-    L.push('      for(var si=0;si<selected.length;si++){');
-    L.push('        var sidx=selected[si].idx;');
-    L.push('        var scb=document.querySelector(".cat-attr-cb[data-idx="+Q2+sidx+Q2+"]");');
-    L.push('        var ssp=document.querySelector(".cat-status-span[data-idx="+Q2+sidx+Q2+"]");');
-    L.push('        var sinp=document.querySelector(".cm-attr-id-input[data-idx="+Q2+sidx+Q2+"]");');
-    L.push('        if(ssp){ssp.textContent="Exists";ssp.style.background="#e8f5e9";ssp.style.color="#2e7d32";}');
-    L.push('        if(scb){scb.checked=false;scb.setAttribute("data-attrexists","1");scb.setAttribute("data-attrid",selected[si].id);}');
-    L.push('        if(sinp){sinp.setAttribute("data-orig",selected[si].id);sinp.value=selected[si].id;}');
-    L.push('        if(_APP.attrsData&&_APP.attrsData[sidx]){_APP.attrsData[sidx].exists=true;_APP.attrsData[sidx].id=selected[si].id;}');
-    L.push('        var Q3=String.fromCharCode(34);');
-    L.push('        var rBtn=document.querySelector(".cat-attr-revert[data-idx="+Q3+sidx+Q3+"]");');
-    L.push('        if(rBtn){rBtn.disabled=false;rBtn.title="";}');
-    L.push('      }');
-    L.push('      if((res.failed||0)===0){setTimeout(function(){_APP.goToStep(2);},2000);}');
-    L.push('    });');
     L.push('  });');
 
     L.push('  el=document.getElementById("btn-skip-attrs");if(el)el.addEventListener("click",function(){_APP.goToStep(2);});');
@@ -3455,10 +3493,11 @@ function getCategoryMigrationJS() {
     L.push('    function fetchPage(offset){');
     L.push('      if(status){status.textContent="Loading... "+_APP.allCategories.length+" fetched";status.style.color="#54698d";}');
     L.push('      _APP.post(_APP.FETCH_URL,"locale="+encodeURIComponent(locale||"en-US")+"&offset="+offset,function(data){');
-    L.push('        if(!data.ok){btn.disabled=false;btn.textContent="Load Categories from CT";if(status){status.textContent="Error: "+(data.error||"failed");status.style.color="#c62828";}return;}');
+    L.push('        var _lbl=_APP.PLATFORM==="sap"?"SAP":_APP.PLATFORM==="shopify"?"Shopify":"CT";');
+    L.push('        if(!data.ok){btn.disabled=false;btn.textContent="Load Categories from "+_lbl;if(status){status.textContent="Error: "+(data.error||"failed");status.style.color="#c62828";}return;}');
     L.push('        data.categories.forEach(function(c){_APP.allCategories.push(c);_APP.catMap[c.id]=c;});');
     L.push('        if(data.done){');
-    L.push('          btn.disabled=false;btn.textContent="Load Categories from CT";');
+    L.push('          btn.disabled=false;btn.textContent="Load Categories from "+_lbl;');
     L.push('          if(status){status.textContent=_APP.allCategories.length+" categories loaded";status.style.color="#2e7d32";}');
     L.push('          _APP.buildSharedParentSelect();');
     L.push('          _APP.populateParentDropdown();');
@@ -3509,6 +3548,38 @@ function getCategoryMigrationJS() {
     L.push('          });');
     L.push('        }');
     L.push('        fetchShopifyPage(0);');
+    L.push('      });');
+    L.push('    }');
+    L.push('  }');
+    // SAP override — clone button to remove CT handler, install SAP-labelled offset handler
+    L.push('  if(_APP.PLATFORM==="sap"){');
+    L.push('    el=document.getElementById("btn-load-categories");');
+    L.push('    if(el){');
+    L.push('      el.textContent="Load Categories from SAP";');
+    L.push('      var _sapClone=el.cloneNode(true);el.parentNode.replaceChild(_sapClone,el);el=_sapClone;');
+    L.push('      el.addEventListener("click",function(){');
+    L.push('        var btn=this;var status=document.getElementById("hierarchy-fetch-status");');
+    L.push('        btn.disabled=true;btn.textContent="Loading...";');
+    L.push('        _APP.allCategories=[];_APP.catMap={};');
+    L.push('        _APP.hierarchyOverrides={};_APP.orderOverrides={};_APP.pendingParent={};_APP.pendingOrder={};_APP.activeFilter="all";_APP.newCatCount=0;_APP.addedCats=[];');
+    L.push('        function fetchSAPPage(offset){');
+    L.push('          if(status){status.textContent="Loading... "+_APP.allCategories.length+" fetched";status.style.color="#54698d";}');
+    L.push('          _APP.post(_APP.FETCH_URL,"offset="+offset,function(data){');
+    L.push('            if(!data.ok){btn.disabled=false;btn.textContent="Load Categories from SAP";if(status){status.textContent="Error: "+(data.error||"failed");status.style.color="#c62828";}return;}');
+    L.push('            data.categories.forEach(function(c){_APP.allCategories.push(c);_APP.catMap[c.id]=c;});');
+    L.push('            if(data.done){');
+    L.push('              btn.disabled=false;btn.textContent="Load Categories from SAP";');
+    L.push('              if(status){status.textContent=_APP.allCategories.length+" categories loaded";status.style.color="#2e7d32";}');
+    L.push('              _APP.buildSharedParentSelect();');
+    L.push('              _APP.populateParentDropdown();');
+    L.push('              var applied=document.getElementById("hierarchy-applied-summary");if(applied)applied.style.display="none";');
+    L.push('              _APP.renderTable();');
+    L.push('            } else {');
+    L.push('              fetchSAPPage(offset+(data.limit||200));');
+    L.push('            }');
+    L.push('          });');
+    L.push('        }');
+    L.push('        fetchSAPPage(0);');
     L.push('      });');
     L.push('    }');
     L.push('  }');
@@ -3776,25 +3847,27 @@ exports.CheckCategoryAttributes = function () {
         var attrBuilder = require('*/cartridge/scripts/migration/core/attrBuilder');
         var existingIds = sfccClient.getExistingAttributeIds(token, 'Category');
         var created = 0; var skipped = 0; var failed = 0; var errors = [];
+        var selPlatform = String(session.custom.migrationPlatformId || 'commercetools');
+        var catAttrMgrSel = require('*/cartridge/scripts/catalog/categoryAttributeMgr');
+        var selGroup = catAttrMgrSel.getAttrGroup(selPlatform);
 
-        try { sfccClient.ensureAttributeGroup(token, 'Category', 'CTPMigration', 'CTP Migration'); } catch (ge) {}
+        try { sfccClient.ensureAttributeGroup(token, 'Category', selGroup.id, selGroup.name); } catch (ge) {}
 
         for (var i = 0; i < selected.length; i++) {
             var a = selected[i];
             if (existingIds[a.id]) {
                 skipped++;
-                try { sfccClient.addAttributeToGroup(token, 'Category', 'CTPMigration', a.id); } catch (age) {}
-                continue;
+            } else {
+                try {
+                    var def = attrBuilder.buildAttrDefinition(a.id, a.sfccType, a.label);
+                    sfccClient.createAttributeDefinition(token, 'Category', def);
+                    created++;
+                } catch (e) {
+                    failed++;
+                    if (errors.length < 5) errors.push(a.id + ': ' + (e.message || String(e)));
+                }
             }
-            try {
-                var def = attrBuilder.buildAttrDefinition(a.id, a.sfccType, a.label);
-                sfccClient.createAttributeDefinition(token, 'Category', def);
-                sfccClient.addAttributeToGroup(token, 'Category', 'CTPMigration', a.id);
-                created++;
-            } catch (e) {
-                failed++;
-                if (errors.length < 5) errors.push(a.id + ': ' + (e.message || String(e)));
-            }
+            try { sfccClient.addAttributeToGroup(token, 'Category', selGroup.id, a.id); } catch (age) {}
         }
 
         response.setContentType('application/json');
@@ -4075,6 +4148,28 @@ exports.CreateCategory = function () {
 exports.CreateCategory.public = true;
 
 exports.FetchCTCategories = function () {
+    var platform = String(session.custom.migrationPlatformId || 'commercetools');
+
+    // SAP Commerce — handled inside this endpoint so no new route is needed
+    if (platform === 'sap') {
+        try {
+            var fetchSAP = require('~/cartridge/scripts/catalog/fetchSAPCategories');
+            var sapOffset = parseInt(request.httpParameterMap.offset.stringValue || '0', 10) || 0;
+            var sapPage   = fetchSAP.fetchCategoriesPage(sapOffset);
+            jsonResponse({
+                ok        : true,
+                categories: sapPage.results,
+                offset    : sapOffset,
+                limit     : 200,
+                total     : sapPage.total,
+                done      : sapPage.done
+            });
+        } catch (e) {
+            jsonResponse({ ok: false, error: e.message || String(e) });
+        }
+        return;
+    }
+
     var fetchCT   = require('~/cartridge/scripts/catalog/fetchCTCategories');
     var transform = require('~/cartridge/scripts/catalog/transformCategories');
     var Logger    = require('dw/system/Logger');
@@ -4137,6 +4232,11 @@ exports.FetchShopifyCategories = function () {
     }
 };
 exports.FetchShopifyCategories.public = true;
+
+exports.FetchSAPCategories = function () {
+    jsonResponse({ ok: false, error: 'DIAGNOSTIC: endpoint reached, SAP not called yet' });
+};
+exports.FetchSAPCategories.public = true;
 
 /**
  * Check which categories have products assigned in Shopify.
@@ -4426,6 +4526,41 @@ exports.RunCategoryMigration = function () {
 
             Logger.info('RunCategoryMigration Shopify: {0} categories', sfccCategories.length);
 
+        } else if (platform === 'sap') {
+            // ── SAP Commerce Cloud path ───────────────────────────────────────
+            var fetchSAP2 = require('~/cartridge/scripts/catalog/fetchSAPCategories');
+
+            var sapCats = clientCategories.length > 0 ? clientCategories : fetchSAP2.fetchAllCategories();
+            if (!sapCats || sapCats.length === 0) {
+                response.writer.print(JSON.stringify({ ok: false, error: 'No categories returned from SAP.' }));
+                return;
+            }
+
+            if (selectedIds.length > 0) {
+                var selSetSAP = {};
+                for (var siSAP = 0; siSAP < selectedIds.length; siSAP++) { selSetSAP[selectedIds[siSAP]] = true; }
+                sapCats = sapCats.filter(function (c) { return selSetSAP[c.id]; });
+            }
+
+            for (var sapi = 0; sapi < sapCats.length; sapi++) {
+                var sc      = sapCats[sapi];
+                var scName  = {};
+                scName[locale] = sc.name || sc.id;
+                sfccCategories.push({
+                    id              : sc.id,
+                    parentId        : sc.parentId || 'root',
+                    name            : scName,
+                    description     : sc.description ? { 'x-default': sc.description } : {},
+                    pageTitle       : {},
+                    pageDescription : {},
+                    position        : sapi + 1,
+                    online          : true,
+                    customAttributes: { sapCode: sc.sapCode || sc.id }
+                });
+            }
+
+            Logger.info('RunCategoryMigration SAP: {0} categories', sfccCategories.length);
+
         } else {
             // ── CommerceTools path ────────────────────────────────────────────
             var token = fetchCT.getCTAuthToken();
@@ -4477,7 +4612,7 @@ exports.RunCategoryMigration = function () {
         // Merge session-stored mapping as fallback for keys not provided by client.
         // This handles the cross-session case where the user navigates away after Step 1
         // and returns directly to Step 3 — the attr table is empty so client sends no mapping.
-        var CANONICAL_ATTRS = ['ctId', 'ctSlug', 'ctPosition', 'level', 'isLeaf'];
+        var CANONICAL_ATTRS = ['ctId', 'ctSlug', 'ctPosition', 'level', 'isLeaf', 'sapCode'];
         for (var cai = 0; cai < CANONICAL_ATTRS.length; cai++) {
             var cKey = CANONICAL_ATTRS[cai];
             if (!attrIds[cKey]) {

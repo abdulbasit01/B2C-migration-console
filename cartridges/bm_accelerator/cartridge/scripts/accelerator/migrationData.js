@@ -145,11 +145,11 @@ var PLATFORMS = [
         id:          'sap',
         name:        'SAP Commerce',
         tagline:     'B2C, OCC, Integrations',
-        status:      'soon',
-        confidence:  0,
-        description: 'SAP Commerce Cloud to Salesforce B2C Commerce migration path (planned).',
+        status:      'ready',
+        confidence:  60,
+        description: 'Migrate SAP Commerce Cloud (Hybris) products into Salesforce B2C Commerce via the OCC v2 REST API. Phase 1: Product only — Customer, Order, and Catalog are planned for later phases.',
         iconClass:   'platform-icon--sap',
-        connectHint: '',
+        connectHint: 'Configure SAP Commerce OCC credentials (Base URL, Base Site, Client ID/Secret) under Site Preferences → B2C Migration Console, then test the connection.',
         connectFields: []
     }
 ];
@@ -450,20 +450,24 @@ function getMigrationUi(platformId) {
 
     ui.storeIntro = pick({
         shopify: 'Select Shopify <strong>locations</strong> to export into one SFCC store IMPEX XML file (physical stores / store locator).',
-        commercetools: 'Select CTP <strong>stores</strong> to export into one SFCC store IMPEX XML file (physical stores / store locator).'
+        commercetools: 'Select CTP <strong>stores</strong> to export into one SFCC store IMPEX XML file (physical stores / store locator).',
+        sap: 'Select SAP Commerce <strong>stores</strong> to export into one SFCC store IMPEX XML file (physical stores / store locator).'
     });
     ui.storeAttrScan = pick({
         shopify: 'Scans Shopify <strong>location</strong> metafield definitions and checks whether matching attributes exist on the SFCC <strong>Store</strong> system object. Standard fields (name, address, geo, flags) map to native store XML and are not listed here.',
-        commercetools: 'Scans CTP <strong>store</strong> custom-type field definitions and checks whether matching attributes exist on the SFCC <strong>Store</strong> system object. Standard fields (name, address, geo, flags) map to native store XML and are not listed here. Migration also requires traceability attributes such as <code>ctpStoreId</code> and <code>ctpStoreKey</code>.'
+        commercetools: 'Scans CTP <strong>store</strong> custom-type field definitions and checks whether matching attributes exist on the SFCC <strong>Store</strong> system object. Standard fields (name, address, geo, flags) map to native store XML and are not listed here. Migration also requires traceability attributes such as <code>ctpStoreId</code> and <code>ctpStoreKey</code>.',
+        sap: 'Checks traceability attributes for SAP Commerce store migration (e.g. <code>sapStoreId</code>). Standard fields (name, address, geo, opening hours) map to native store XML and are not listed here — SAP Commerce has no verified endpoint yet for discovering custom store field definitions.'
     });
     ui.loadStoresHint = pick({
         shopify: 'Click <strong>Load Stores</strong> to fetch locations from Shopify.',
-        commercetools: 'Click <strong>Load Stores</strong> to fetch stores from commercetools.'
+        commercetools: 'Click <strong>Load Stores</strong> to fetch stores from commercetools.',
+        sap: 'Click <strong>Load Stores</strong> to fetch stores from SAP Commerce.'
     });
-    ui.storeKeyCol = pick({ shopify: 'Location ID', commercetools: 'CTP Key' });
+    ui.storeKeyCol = pick({ shopify: 'Location ID', commercetools: 'CTP Key', sap: 'SAP Store Code' });
     ui.noStores = pick({
         shopify: 'No locations found in Shopify.',
-        commercetools: 'No stores found in commercetools. Create stores in CTP Merchant Center.'
+        commercetools: 'No stores found in commercetools. Create stores in CTP Merchant Center.',
+        sap: 'No stores found in SAP Commerce.'
     });
 
     ui.taxIntro = pick({
@@ -542,7 +546,8 @@ function getMigrationUi(platformId) {
     });
     ui.storeHowWorks = pick({
         shopify: 'Fetches selected locations from Shopify, maps them to SFCC <code>store</code> elements, and uploads a single XML file to WebDAV.',
-        commercetools: 'Fetches selected stores from commercetools, maps them to SFCC <code>store</code> elements, and uploads a single XML file to WebDAV.'
+        commercetools: 'Fetches selected stores from commercetools, maps them to SFCC <code>store</code> elements, and uploads a single XML file to WebDAV.',
+        sap: 'Fetches selected stores from SAP Commerce, maps them to SFCC <code>store</code> elements, and uploads a single XML file to WebDAV.'
     });
     ui.orderIntro = pick({
         shopify: 'Export orders from <strong>Shopify</strong> for the selected date range and generate an SFCC IMPEX package.',

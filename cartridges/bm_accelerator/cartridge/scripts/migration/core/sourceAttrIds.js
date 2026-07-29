@@ -3,13 +3,15 @@
 var registry = require('*/cartridge/scripts/migration/core/dataSourceRegistry');
 
 /**
- * Short prefix for SFCC custom attribute IDs (spy_* / ctp_*).
+ * Short prefix for SFCC custom attribute IDs (spy_* / sap_* / ctp_*).
  * @param {string} [platformId]
  * @returns {string}
  */
 function getPrefix(platformId) {
     var id = platformId || registry.getPlatformId();
-    return id === 'shopify' ? 'spy' : 'ctp';
+    if (id === 'shopify') return 'spy';
+    if (id === 'sap')     return 'sap';
+    return 'ctp';
 }
 
 /**
@@ -18,8 +20,12 @@ function getPrefix(platformId) {
  * @returns {{ id: string, name: string }}
  */
 function getAttrGroup(platformId) {
-    if ((platformId || registry.getPlatformId()) === 'shopify') {
+    var id = platformId || registry.getPlatformId();
+    if (id === 'shopify') {
         return { id: 'ShopifyMigration', name: 'Shopify Migration' };
+    }
+    if (id === 'sap') {
+        return { id: 'SAPMigration', name: 'SAP Migration' };
     }
     return { id: 'CTPMigration', name: 'CTP Migration' };
 }

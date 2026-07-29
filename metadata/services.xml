@@ -20,6 +20,12 @@
         <password/>
     </service-credential>
 
+    <service-credential service-credential-id="accelerator.sap.credential">
+        <url>https://localhost/</url>
+        <user-id/>
+        <password/>
+    </service-credential>
+
     <service-credential service-credential-id="accelerator.sfcc.credential">
         <url>https://localhost/</url>
         <user-id/>
@@ -44,6 +50,16 @@
 
     <service-profile service-profile-id="accelerator.shopify.profile">
         <timeout-millis>60000</timeout-millis>
+        <rate-limit-enabled>false</rate-limit-enabled>
+        <rate-limit-calls>0</rate-limit-calls>
+        <rate-limit-millis>0</rate-limit-millis>
+        <cb-enabled>true</cb-enabled>
+        <cb-calls>10</cb-calls>
+        <cb-millis>30000</cb-millis>
+    </service-profile>
+
+    <service-profile service-profile-id="accelerator.sap.profile">
+        <timeout-millis>30000</timeout-millis>
         <rate-limit-enabled>false</rate-limit-enabled>
         <rate-limit-calls>0</rate-limit-calls>
         <rate-limit-millis>0</rate-limit-millis>
@@ -103,6 +119,17 @@
         <mock-mode-enabled>false</mock-mode-enabled>
         <profile-id>accelerator.http.profile</profile-id>
         <credential-id>accelerator.ctp.credential</credential-id>
+    </service>
+
+    <service service-id="accelerator.sap.api">
+        <service-type>HTTP</service-type>
+        <enabled>true</enabled>
+        <log-prefix>accSap</log-prefix>
+        <comm-log-enabled>false</comm-log-enabled>
+        <force-prd-enabled>false</force-prd-enabled>
+        <mock-mode-enabled>false</mock-mode-enabled>
+        <profile-id>accelerator.sap.profile</profile-id>
+        <credential-id>accelerator.sap.credential</credential-id>
     </service>
 
     <service service-id="accelerator.sfcc.ocapi">
