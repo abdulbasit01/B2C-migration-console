@@ -7,7 +7,7 @@
 var serviceHttp = require('*/cartridge/scripts/migration/core/serviceHttp');
 
 function send(method, url, headers, body) {
-    return serviceHttp.request('ctp', method, url, headers, body);
+    return serviceHttp.request('generic', method, url, headers, body);
 }
 
 function get(url, headers) {

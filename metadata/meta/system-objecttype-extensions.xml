@@ -118,6 +118,28 @@
                 <externally-managed-flag>false</externally-managed-flag>
                 <default-value>v25_6</default-value>
             </attribute-definition>
+
+            <attribute-definition attribute-id="rcMigAmplienceHubName">
+                <display-name xml:lang="x-default">Amplience Hub Name</display-name>
+                <description xml:lang="x-default">Hub name from Dynamic Content → Settings → Properties</description>
+                <type>string</type>
+                <mandatory-flag>false</mandatory-flag>
+                <externally-managed-flag>false</externally-managed-flag>
+            </attribute-definition>
+            <attribute-definition attribute-id="rcMigAmpliencePersonalAccessToken">
+                <display-name xml:lang="x-default">Amplience Personal Access Token</display-name>
+                <description xml:lang="x-default">amp_pat_… token from Dynamic Content → Development → Personal Access Tokens</description>
+                <type>password</type>
+                <mandatory-flag>false</mandatory-flag>
+                <externally-managed-flag>false</externally-managed-flag>
+            </attribute-definition>
+            <attribute-definition attribute-id="rcMigAmplienceDefaultDeliveryKey">
+                <display-name xml:lang="x-default">Amplience Default Delivery Key</display-name>
+                <description xml:lang="x-default">Optional default for content preview (e.g. home-banner)</description>
+                <type>string</type>
+                <mandatory-flag>false</mandatory-flag>
+                <externally-managed-flag>false</externally-managed-flag>
+            </attribute-definition>
         </custom-attribute-definitions>
         <group-definitions>
             <attribute-group group-id="RCMigrationConsole">
@@ -139,6 +161,9 @@
                 <attribute attribute-id="rcMigBmUsername"/>
                 <attribute attribute-id="rcMigBmPassword"/>
                 <attribute attribute-id="rcMigOcapiVersion"/>
+                <attribute attribute-id="rcMigAmplienceHubName"/>
+                <attribute attribute-id="rcMigAmpliencePersonalAccessToken"/>
+                <attribute attribute-id="rcMigAmplienceDefaultDeliveryKey"/>
             </attribute-group>
         </group-definitions>
     </type-extension>

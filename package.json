@@ -1,31 +1,26 @@
 {
-  "name": "sfra",
-  "version": "7.0.1",
-  "description": "Storefront Reference Architecture",
+  "name": "b2c-migration-console",
+  "version": "1.0.0",
+  "description": "Royal Cyber B2C Migration Console (BM + CMS storefront API)",
   "main": "index.js",
   "engines": {
-    "node": ">=4.0"
+    "node": ">=18.0"
   },
   "scripts": {
     "watch:scss": "sass --watch cartridges/bm_accelerator/cartridge/client/default/scss/accelerator-migration.scss:cartridges/bm_accelerator/cartridge/static/default/css/accelerator-migration.css",
-    "watch:js": "sgmf-scripts --watch",
-    "dev": "npm run compile:scss && npm run compile:js",
-    "test": "sgmf-scripts --test test/unit/**/*.js",
+    "dev": "npm run compile:scss",
+    "test": "sgmf-scripts --test test/unit/bm_accelerator/**/*.js test/unit/app_custom_cms/**/*.js test/unit/packages/**/*.js",
+    "test:amplience-core": "mocha test/unit/packages/amplience-core/**/*.js",
+    "test:cms": "mocha test/unit/app_custom_cms/**/*.js",
+    "start:react": "node scripts/sync-amplience-core-to-sfcc.js && node scripts/free-dev-port.js 3001 && npm run sync:sfcc-catalog && npm install --prefix react-storefront && npm run dev --prefix react-storefront",
+    "sync:sfcc-catalog": "node scripts/sync-sfcc-catalog-to-react.js",
+    "sync:sfcc-catalog:cdn": "node scripts/sync-sfcc-catalog-to-react.js --force --probe-cdn",
+    "export:amplience-catalog": "node scripts/export-amplience-catalog.js",
+    "sync:amplience-core": "node scripts/sync-amplience-core-to-sfcc.js",
     "cover": "sgmf-scripts --cover 'test/unit'",
-    "test:integration": "sgmf-scripts --integration 'test/integration/**/*.js'",
-    "test:acceptance:custom": "npx codeceptjs run --plugins retryFailedStep --profile",
-    "test:acceptance:deep": "npx codeceptjs run --plugins retryFailedStep --grep '(?=.*)^(?!.*@mobile)^(?!.*@tablet)^(?!.*@pageDesigner)' --profile",
-    "test:acceptance:smoke": "npx codeceptjs run --plugins retryFailedStep --grep @happyPath --profile",
-    "test:acceptance:pagedesigner": "npx codeceptjs run --plugins retryFailedStep --grep @pageDesigner --profile",
-    "test:acceptance:desktop": "npx codeceptjs run --plugins retryFailedStep --grep '(?=.*)^(?!.*@mobile)^(?!.*@tablet)^(?!.*@pageDesigner)^(?!.*@deepTest)' --profile",
-    "test:acceptance:mobile": "windowSize=390x844 npx codeceptjs run --plugins retryFailedStep --grep @mobile --profile",
-    "test:acceptance:tablet": "windowSize=820x1180 npx codeceptjs run --plugins retryFailedStep --grep @tablet --profile",
-    "compile:scss": "node scripts/compile-accelerator-scss.js && sgmf-scripts --compile css",
-    "compile:js": "sgmf-scripts --compile js",
-    "compile:fonts": "node bin/Makefile compileFonts",
-    "build": "npm run compile:js && npm run compile:fonts && npm run compile:scss",
-    "lint": "npm run lint:css && npm run lint:js && npm run lint:isml",
-    "lint:css": "sgmf-scripts --lint css",
+    "compile:scss": "node scripts/compile-accelerator-scss.js",
+    "build": "npm run compile:scss",
+    "lint": "npm run lint:js && npm run lint:isml",
     "lint:js": "sgmf-scripts --lint js",
     "init:isml": "isml-linter --init",
     "lint:isml": "isml-linter",
@@ -33,24 +28,21 @@
     "fix:isml": "isml-linter --autofix",
     "upload": "sgmf-scripts --upload",
     "upload:accelerator": "npm run compile:scss && sgmf-scripts --uploadCartridge bm_accelerator",
-    "uploadCartridge": "npm run compile:scss && sgmf-scripts --uploadCartridge app_storefront_base && sgmf-scripts --uploadCartridge modules && sgmf-scripts --uploadCartridge bm_app_storefront_base && sgmf-scripts --uploadCartridge bm_accelerator",
-    "watch": "sgmf-scripts --watch",
-    "watch:static": "sgmf-scripts --watch static",
+    "upload:cms": "sgmf-scripts --uploadCartridge app_custom_cms",
+    "upload:amplience": "npm run upload:cms",
+    "uploadCartridge": "npm run compile:scss && sgmf-scripts --uploadCartridge bm_accelerator && sgmf-scripts --uploadCartridge app_custom_cms",
     "release": "node bin/Makefile release --"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/SalesforceCommerceCloud/storefront-reference-architecture.git"
+    "url": "git+https://github.com/muk10/B2C-migration-console.git"
   },
-  "author": "Ilya Volodin <ivolodin@demandware.com>",
   "license": "ISC",
-  "homepage": "https://github.com/SalesforceCommerceCloud/storefront-reference-architecture",
   "devDependencies": {
     "@babel/core": "^7.6.3",
     "@babel/plugin-proposal-object-rest-spread": "^7.6.2",
     "@babel/preset-env": "^7.6.3",
     "@tridnguyen/config": "^2.3.1",
-    "@wdio/selenium-standalone-service": "^7.31.1",
     "babel-core": "^6.26.3",
     "babel-loader": "^8.0.6",
     "babel-preset-env": "^1.7.0",
@@ -58,10 +50,6 @@
     "chai-subset": "^1.6.0",
     "chalk": "^1.1.3",
     "cheerio": "0.22.0",
-    "cldr-data": "^36.0.1",
-    "codeceptjs": "^3.5.11",
-    "css-loader": "^6.0.0",
-    "css-minimizer-webpack-plugin": "^5.0.1",
     "debug": "^4.1.1",
     "deepmerge": "^3.3.0",
     "eslint": "^8.56.0",
@@ -69,50 +57,27 @@
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-import": "^2.29.0",
     "eslint-plugin-sitegenesis": "~1.0.0",
-    "globalize": "^1.4.2",
     "husky": "^4.2.5",
     "isml-linter": "^5.26.4",
     "lodash": "^4.17.15",
-    "mini-css-extract-plugin": "^2.7.6",
     "minimist": "^1.2.6",
     "mocha": "^10.0.0",
     "mocha-junit-reporter": "^2.0.2",
     "moment-timezone": "^0.5.26",
     "nyc": "^15.1.0",
-    "postcss-loader": "^7.0.0",
     "pptxgenjs": "^4.0.1",
     "prettier": "3.0.0",
     "properties-parser": "^0.3.1",
     "proxyquire": "1.7.4",
     "request-promise": "^4.2.6",
     "sass": "^1.69.7",
-    "sass-loader": "^13.3.2",
-    "selenium-standalone": "^9.5.0",
     "sgmf-scripts": "^3.0.0",
     "shelljs": "^0.8.5",
     "should": "^13.2.3",
     "sinon": "^17.0.1",
-    "style-loader": "^0.21.0",
-    "stylelint": "^15.4.0",
-    "stylelint-config-standard-scss": "^11.0.0",
-    "url": "^0.11.0",
-    "webdriverio": "^7.30.0",
-    "webpack-remove-empty-scripts": "^1.0.4",
     "xml2js": "^0.4.22"
   },
-  "dependencies": {
-    "autoprefixer": "^10.4.14",
-    "bootstrap": "^4.6.2",
-    "cleave.js": "^1.5.3",
-    "flag-icons": "7.1.0",
-    "font-awesome": "^4.7.0",
-    "jquery": "^3.5.1"
-  },
-  "browserslist": [
-    "last 2 versions",
-    "ie >= 10"
-  ],
-  "packageName": "app_storefront_base",
+  "packageName": "app_custom_cms",
   "babel": {
     "presets": [
       "env"
@@ -120,7 +85,7 @@
   },
   "husky": {
     "hooks": {
-      "pre-commit": "npm run lint"
+      "pre-commit": "npx eslint cartridges/bm_accelerator/cartridge/client/default/js/content-migration.js cartridges/bm_accelerator/cartridge/client/default/js/content-schema-migration.js"
     }
   }
 }

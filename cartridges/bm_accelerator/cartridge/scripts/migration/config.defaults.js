@@ -32,5 +32,10 @@ module.exports = {
         catalogId:       '',
         inventoryListId: 'migrated-inventory',
         customerListId:  ''
+    },
+    amplience: {
+        hubName:             '',
+        personalAccessToken: '',
+        defaultDeliveryKey:  ''
     }
 };

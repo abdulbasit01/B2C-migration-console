@@ -206,8 +206,7 @@ function migrationPageContext(platformId, moduleKey) {
 }
 
 /**
- * Build connector credentials from Site Preferences only.
- * Credential forms are no longer used (LINK: single configuration source).
+ * Build connector credentials from Site Preferences, with optional request overlay for Amplience CMS forms.
  * @param {string} platformId - source platform identifier
  * @returns {Object} credentials object for the connector
  */
@@ -227,6 +226,10 @@ function buildConnectionCreds(platformId) {
         creds.clientSecret = cfg.shopify.clientSecret || '';
         creds.accessToken  = cfg.shopify.accessToken || '';
         creds.apiVersion   = cfg.shopify.apiVersion || '2025-01';
+    } else if (platformId === 'amplience') {
+        creds.hubName             = (cfg.amplience && cfg.amplience.hubName) || '';
+        creds.personalAccessToken = (cfg.amplience && cfg.amplience.personalAccessToken) || '';
+        creds.defaultDeliveryKey  = (cfg.amplience && cfg.amplience.defaultDeliveryKey) || '';
     } else if (platformId === 'sap') {
         creds.baseUrl      = cfg.sap.baseUrl || '';
         creds.baseSite     = cfg.sap.baseSite || '';
@@ -235,6 +238,15 @@ function buildConnectionCreds(platformId) {
     }
 
     return creds;
+}
+
+/**
+ * @param {string} platformId
+ * @param {Object} creds
+ * @returns {boolean}
+ */
+function hasConnectionCreds(platformId, creds) {
+    return buildConnectionSummary(platformId).configured;
 }
 
 /**
@@ -266,6 +278,25 @@ function buildConnectionSummary(platformId) {
         lines.push({ label: 'Base Site', value: cfg.sap.baseSite || '(not set)' });
         lines.push({ label: 'Client ID', value: cfg.sap.clientId || '(not set)' });
         lines.push({ label: 'Client secret', value: cfg.sap.clientSecret ? 'Configured' : '(not set)' });
+    } else if (platformId === 'amplience') {
+        var amp = cfg.amplience || {};
+        var hub = amp.hubName || '';
+        var pat = amp.personalAccessToken || '';
+        var key = amp.defaultDeliveryKey || '';
+        configured = !!(hub && pat);
+        lines.push({ label: 'Hub name', value: hub, placeholder: 'my-brand' });
+        lines.push({
+            label:       'Personal access token',
+            value:       pat ? '••••••••' : '',
+            placeholder: 'amp_pat_...',
+            secret:      true
+        });
+        lines.push({
+            label:       'Default delivery key',
+            value:       key,
+            placeholder: 'home/banner',
+            optional:    true
+        });
     }
 
     return {
@@ -324,6 +355,8 @@ function buildViewContent(sessionResults) {
  * Test connection using Site Preference credentials.
  */
 exports.TestConnection = function () {
+    response.setContentType('application/json');
+
     var platformId = getParam('platformId') || 'commercetools';
     var connector  = registry.get(platformId);
 
@@ -332,8 +365,9 @@ exports.TestConnection = function () {
         return;
     }
 
+    var creds = buildConnectionCreds(platformId);
     var summary = buildConnectionSummary(platformId);
-    if (!summary.configured) {
+    if (!hasConnectionCreds(platformId, creds)) {
         jsonResponse({
             ok: false,
             error: 'Credentials are not configured. Set them under ' + summary.prefsHint + '.'
@@ -342,8 +376,8 @@ exports.TestConnection = function () {
     }
 
     try {
-        var result = connector.testConnectionWith(buildConnectionCreds(platformId));
-        if (getParam('mode') === 'data') {
+        var result = connector.testConnectionWith(creds);
+        if (getParam('mode') === 'data' || platformId === 'amplience') {
             dataMigrationSession.markConnected(platformId, result.expiresIn);
         }
         jsonResponse({ ok: true, project: result.project });
@@ -507,6 +541,7 @@ exports.Start = function () {
         orderMigrationUrl:         URLUtils.url('Accelerator-OrderMigration').toString(),
         productWizardUrl:          URLUtils.url('Accelerator-ProductWizard').toString(),
         categoryMigrationUrl:      URLUtils.url('Accelerator-CategoryMigration').toString(),
+        contentMigrationUrl:       URLUtils.url('Accelerator-ContentMigration').toString(),
         cssUrl:                    URLUtils.staticURL('/css/accelerator-migration.css').toString(),
         jsUrl: URLUtils.staticURL('/js/categoryMigration.js').toString(),
         fetchCatalogsUrl : URLUtils.url('Accelerator-FetchSFCCCatalogs').toString(),
@@ -1853,7 +1888,7 @@ exports.DeleteShippingMethodAttribute.public = true;
 exports.ShippingMethodMigrationCount = function () {
     try {
         var fetcher = getMigrationFetcher('shippingMethod');
-        jsonResponse({ ok: true, total: ctpFetcher.getCount() });
+        jsonResponse({ ok: true, total: fetcher.getCount() });
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
     }
@@ -2553,7 +2588,6 @@ exports.ProductWizard = function () {
     ISML.renderTemplate('accelerator/productMigration', withBmFrame({
         title:          Resource.msg('accelerator.title', 'accelerator', null),
         subtitle:       Resource.msg('accelerator.subtitle', 'accelerator', null),
-        platformId:     platformId,
         impexPath:      pageCtx.impexPath,
         impexUrl:       pageCtx.impexUrl,
         dataWizardEntryUrl:  pageCtx.dataWizardEntryUrl,
@@ -4678,6 +4712,268 @@ exports.RunCategoryMigration = function () {
 };
 exports.RunCategoryMigration.public = true;
 
+// ─── Amplience CMS / content migration ────────────────────────────────────────
+
+exports.ContentMigration = function () {
+    var platformId = getParam('platform') || 'amplience';
+    session.custom.migrationPlatformId = platformId;
+
+    var platform = migrationData.getPlatform(platformId);
+    if (!platform || platform.kind !== 'cms') {
+        response.redirect(URLUtils.url('Accelerator-Start'));
+        return;
+    }
+
+    var pageCtx = migrationPageContext(platformId, 'content');
+    var dataConnected = dataMigrationSession.isConnected(platformId);
+    var migCfg = require('*/cartridge/scripts/migration/configAccessor');
+    var defaultDeliveryKey = (migCfg.amplience && migCfg.amplience.defaultDeliveryKey) || '';
+    ISML.renderTemplate('accelerator/contentMigration', withBmFrame({
+        title:               Resource.msg('accelerator.contentmigration.heading', 'accelerator', null),
+        subtitle:            Resource.msg('accelerator.subtitle', 'accelerator', null),
+        platform:            platform,
+        dataConnected:       dataConnected,
+        connectionSummary:   buildConnectionSummary(platformId),
+        defaultDeliveryKey:  defaultDeliveryKey,
+        initialStep:         dataConnected ? 2 : 1,
+        dashboardUrl:        URLUtils.url('Accelerator-Start').toString(),
+        testConnectionUrl:   URLUtils.url('Accelerator-TestConnection').toString(),
+        listContentUrl:      URLUtils.url('Accelerator-ListAmplienceContent').toString(),
+        fetchContentUrl:     URLUtils.url('Accelerator-FetchAmplienceContent').toString(),
+        previewLibraryUrl:   URLUtils.url('Accelerator-PreviewAmplienceLibrary').toString(),
+        exportContentUrl:    URLUtils.url('Accelerator-ExportAmplienceContent').toString(),
+        listMigratedRefsUrl: URLUtils.url('Accelerator-ListMigratedAmplienceRefs').toString(),
+        downloadXmlUrl:      URLUtils.url('Accelerator-DownloadContentXml').toString(),
+        impexPath:           pageCtx.impexPath,
+        impexUrl:            pageCtx.impexUrl,
+        cssUrl:              URLUtils.staticURL('/css/accelerator-migration.css').toString() + '?v=17',
+        contentMigrationJsUrl: URLUtils.staticURL('/js/content-migration.js').toString() + '?v=23'
+    }));
+};
+exports.ContentMigration.public = true;
+
+exports.ContentSchemaMigration = function () {
+    var platformId = getParam('platform') || 'amplience';
+    session.custom.migrationPlatformId = platformId;
+
+    var platform = migrationData.getPlatform(platformId);
+    if (!platform || platform.kind !== 'cms') {
+        response.redirect(URLUtils.url('Accelerator-Start'));
+        return;
+    }
+
+    ISML.renderTemplate('accelerator/contentSchemaMigration', withBmFrame({
+        title:               Resource.msg('accelerator.contentschemamigration.heading', 'accelerator', null),
+        subtitle:            Resource.msg('accelerator.subtitle', 'accelerator', null),
+        platform:            platform,
+        connectionSummary:   buildConnectionSummary(platformId),
+        dashboardUrl:        URLUtils.url('Accelerator-Start').toString(),
+        testConnectionUrl:   URLUtils.url('Accelerator-TestConnection').toString(),
+        listContentTypesUrl: URLUtils.url('Accelerator-ListAmplienceContentTypes').toString(),
+        cssUrl:              URLUtils.staticURL('/css/accelerator-migration.css').toString(),
+        contentSchemaMigrationJsUrl: URLUtils.staticURL('/js/content-schema-migration.js').toString() + '?v=1'
+    }));
+};
+exports.ContentSchemaMigration.public = true;
+
+exports.ListAmplienceContentTypes = function () {
+    response.setContentType('application/json');
+    try {
+        var fetcher = require('*/cartridge/scripts/migration/contentMigration/amplienceSchemaFetcher');
+        var pageSize = getParam('pageSize') || '100';
+        jsonResponse({ ok: true, result: fetcher.listContentTypes(pageSize) });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.ListAmplienceContentTypes.public = true;
+
+exports.ListAmplienceContent = function () {
+    response.setContentType('application/json');
+    try {
+        var fetcher = require('*/cartridge/scripts/migration/contentMigration/amplienceContentFetcher');
+        var pageSize = getParam('pageSize') || '100';
+        jsonResponse({ ok: true, result: fetcher.listContentItems(pageSize) });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.ListAmplienceContent.public = true;
+
+function parseAmplienceContentIds() {
+    var raw = getParam('contentIds') || '';
+    if (!raw) return [];
+    var ids = [];
+    var i;
+    if (raw.charAt(0) === '[') {
+        var parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) {
+            throw new Error('contentIds must be a JSON array or comma-separated list');
+        }
+        for (i = 0; i < parsed.length; i++) {
+            var jsonId = String(parsed[i] || '').trim();
+            if (jsonId) ids.push(jsonId);
+        }
+    } else {
+        var parts = raw.split(',');
+        for (i = 0; i < parts.length; i++) {
+            var id = String(parts[i] || '').trim();
+            if (id) ids.push(id);
+        }
+    }
+    if (ids.length > 5000) {
+        throw new Error('A maximum of 5000 content items can be processed per request');
+    }
+    return ids;
+}
+
+function getAmplienceAppendFile(extension) {
+    var fileName = getParam('appendFile') || '';
+    if (!fileName) return '';
+    var expected = extension === 'json'
+        ? /^[a-zA-Z0-9_\-]+\.json$/
+        : /^[a-zA-Z0-9_\-]+\.xml$/;
+    if (!expected.test(fileName)) {
+        throw new Error('Invalid append file name');
+    }
+    return fileName;
+}
+
+exports.PreviewAmplienceLibrary = function () {
+    response.setContentType('application/json');
+    try {
+        var contentIds = parseAmplienceContentIds();
+        if (!contentIds.length) {
+            jsonResponse({ ok: false, error: 'At least one content item is required' });
+            return;
+        }
+        var selection = {};
+        var selectionRaw = getParam('selection') || '';
+        if (selectionRaw) {
+            try { selection = JSON.parse(selectionRaw); } catch (pe) { selection = {}; }
+        }
+        var runner = require('*/cartridge/scripts/migration/contentMigration/contentMigrationRunner');
+        jsonResponse(runner.previewByContentIds(contentIds, selection, {
+            appendFile:     getAmplienceAppendFile('json'),
+            totalRequested: parseInt(getParam('totalRequested') || String(contentIds.length), 10)
+        }));
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.PreviewAmplienceLibrary.public = true;
+
+exports.FetchAmplienceContent = function () {
+    response.setContentType('application/json');
+    var deliveryKey = getParam('deliveryKey');
+    var contentId   = getParam('contentId');
+    if (!deliveryKey && !contentId) {
+        jsonResponse({ ok: false, error: 'deliveryKey or contentId is required' });
+        return;
+    }
+    try {
+        var fetcher     = require('*/cartridge/scripts/migration/contentMigration/amplienceContentFetcher');
+        var transformer = require('*/cartridge/scripts/migration/contentMigration/amplienceContentTransformer');
+        // Prefer Management API by content id (works without published delivery key).
+        var fetched     = contentId
+            ? fetcher.fetchByContentId(contentId)
+            : fetcher.fetchByDeliveryKey(deliveryKey);
+        var widget      = transformer.transformFetchedContent(fetched);
+        jsonResponse({
+            ok:      true,
+            fetched: {
+                deliveryKey:    fetched.deliveryKey || '',
+                contentId:      fetched.contentId || '',
+                hasDeliveryKey: !!fetched.hasDeliveryKey,
+                hubName:        fetched.hubName,
+                cdnUrl:         fetched.cdnUrl || '',
+                source:         fetched.source || ''
+            },
+            widget: widget
+        });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.FetchAmplienceContent.public = true;
+
+exports.ExportAmplienceContent = function () {
+    response.setContentType('application/json');
+    var deliveryKey = getParam('deliveryKey');
+    var contentId   = getParam('contentId');
+    try {
+        var contentIds = parseAmplienceContentIds();
+        var appendFile = getAmplienceAppendFile('xml');
+        var finalizeRaw = getParam('finalize');
+        // Batched export leaves the library open until the last chunk (finalize=1).
+        var finalize = (!finalizeRaw && finalizeRaw !== '0' && finalizeRaw !== 'false')
+            ? true
+            : (finalizeRaw === '1' || finalizeRaw === 'true');
+        if (!deliveryKey && !contentId && !contentIds.length && !(appendFile && finalize)) {
+            jsonResponse({ ok: false, error: 'deliveryKey, contentId, or contentIds is required' });
+            return;
+        }
+        var runner = require('*/cartridge/scripts/migration/contentMigration/contentMigrationRunner');
+        var exportOpts = { appendFile: appendFile, finalize: finalize };
+        // Prefer content id so unpublished / keyless items still export to library XML.
+        var result = contentIds.length
+            ? runner.exportByContentIds(contentIds, null, exportOpts)
+            : (contentId
+                ? runner.exportByContentIds(contentId, null, exportOpts)
+                : (appendFile && finalize
+                    ? runner.exportByContentIds([], null, exportOpts)
+                    : runner.exportByDeliveryKeys(deliveryKey)));
+        jsonResponse(result);
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.ExportAmplienceContent.public = true;
+
+exports.ListMigratedAmplienceRefs = function () {
+    response.setContentType('application/json');
+    try {
+        var syncRunner = require('*/cartridge/scripts/migration/contentMigration/contentSyncRunner');
+        jsonResponse(syncRunner.listMigratedRefs(getParam('folderId') || 'amplience'));
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.ListMigratedAmplienceRefs.public = true;
+
+/**
+ * GET: fileName=<name> — streams content library XML from IMPEX as a download.
+ */
+exports.DownloadContentXml = function () {
+    var fileName = getParam('fileName') || '';
+    if (!fileName || !/^[a-zA-Z0-9_\-]+\.(xml|json)$/.test(fileName)) {
+        response.setContentType('text/plain');
+        response.writer.print('Invalid or missing fileName parameter.');
+        return;
+    }
+    var File       = require('dw/io/File');
+    var FileReader = require('dw/io/FileReader');
+    var sep        = File.SEPARATOR;
+    var file       = new File(File.IMPEX + sep + 'src' + sep + 'migration' + sep + 'content' + sep + fileName);
+    if (!file.exists()) {
+        response.setContentType('text/plain');
+        response.writer.print('File not found: ' + fileName);
+        return;
+    }
+    response.setContentType(/\.json$/.test(fileName) ? 'application/json' : 'application/xml');
+    response.addHttpHeader('Content-Disposition', 'attachment; filename="' + fileName + '"');
+    var reader = new FileReader(file, 'UTF-8');
+    try {
+        var line;
+        while ((line = reader.readLine()) !== null) {
+            response.writer.println(line);
+        }
+    } finally {
+        reader.close();
+    }
+};
+exports.DownloadContentXml.public = true;
+
 // ─── LINK security: wrap all public endpoints with BM auth + CSRF ────────────
 (function applyRequestGuards() {
     var requestGuard = require('*/cartridge/scripts/accelerator/requestGuard');
@@ -4700,9 +4996,11 @@ exports.RunCategoryMigration.public = true;
         ProductWizard: true,
         ProductMigration: true,
         CategoryMigration: true,
-        DataWizardOrderConfigure: true,
+        ContentMigration: true,
+        ContentSchemaMigration: true,
         DownloadMigrationFile: true,
-        DownloadProductXml: true
+        DownloadProductXml: true,
+        DownloadContentXml: true
     };
     var names = Object.keys(exports);
     for (var i = 0; i < names.length; i++) {

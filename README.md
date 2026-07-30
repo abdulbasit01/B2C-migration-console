@@ -59,18 +59,32 @@ Do not commit `dw.json`.
 ```bash
 npm install
 npm run upload:accelerator   # compile SCSS + upload bm_accelerator
+npm run upload:cms           # upload app_custom_cms (Amplience API for React gallery)
 npm run lint:js
-npm test                     # unit tests (includes bm_accelerator order/bulk tests)
+npm test                     # unit tests
 ```
 
 ## Layout
 
 ```
-cartridges/bm_accelerator/     BM extension cartridge
+cartridges/bm_accelerator/     BM migration wizard
+cartridges/app_custom_cms/     Headless CMS storefront API (Amplience today)
 metadata/                      services.xml + SitePreferences metadata
 documentation/                 LINK install / user / change docs
-test/unit/bm_accelerator/      Unit tests
+react-storefront/              React demo (gallery + component preview)
+packages/amplience-*           Shared Amplience logic (synced into app_custom_cms)
+test/unit/                     Unit tests
 ```
+
+## Storefront site (React / AmplienceContent-List)
+
+Add to the **storefront** site cartridge path:
+
+```text
+app_custom_cms:modules
+```
+
+`modules` is the standard SFCC routing cartridge — deploy it from your SFCC/SFRA distribution (not vendored in this repo).
 
 ## Security
 
@@ -78,7 +92,3 @@ test/unit/bm_accelerator/      Unit tests
 - Outbound HTTP: Service Framework (`accelerator.*` services)
 - BM endpoints: auth + CSRF via `requestGuard.js`
 - Never commit live credentials
-
-## Note on SFRA leftovers
-
-This repo started from SFRA scaffolding. The product deliverable is **`bm_accelerator`**. Prefer `npm run upload:accelerator` over full SFRA `uploadCartridge` unless you intentionally maintain storefront cartridges.

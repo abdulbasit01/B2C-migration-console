@@ -1,0 +1,13 @@
+{
+  "name": "@royalcyber/amplience-core",
+  "version": "1.0.0",
+  "description": "Shared Amplience CDN fetch and widget transform logic for SFCC and React Retail App",
+  "main": "src/index.js",
+  "files": [
+    "src"
+  ],
+  "scripts": {
+    "test": "mocha ../../test/unit/packages/amplience-core/**/*.js"
+  },
+  "license": "ISC"
+}

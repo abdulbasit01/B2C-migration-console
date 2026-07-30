@@ -10,12 +10,13 @@ var LocalServiceRegistry = require('dw/svc/LocalServiceRegistry');
 var Logger = require('dw/system/Logger').getLogger('bm_accelerator', 'ServiceHttp');
 
 var SERVICE_IDS = {
-    generic: 'accelerator.http.generic',
-    shopify: 'accelerator.shopify.api',
-    ctp:     'accelerator.ctp.api',
-    sap:     'accelerator.sap.api',
-    sfcc:    'accelerator.sfcc.ocapi',
-    webdav:  'accelerator.sfcc.webdav'
+    generic:   'accelerator.http.generic',
+    shopify:   'accelerator.shopify.api',
+    ctp:       'accelerator.ctp.api',
+    sap:       'accelerator.sap.api',
+    sfcc:      'accelerator.sfcc.ocapi',
+    webdav:    'accelerator.sfcc.webdav',
+    amplience: 'accelerator.amplience.api'
 };
 
 /**
@@ -35,6 +36,7 @@ function filterLogMessage(msg) {
     out = out.replace(/(Bearer\s+)[A-Za-z0-9._\-]+/g, '$1***');
     out = out.replace(/(Basic\s+)[A-Za-z0-9+/=]+/g, '$1***');
     out = out.replace(/(shpat_|shpss_|shpua_)[A-Za-z0-9]+/g, '$1***');
+    out = out.replace(/(amp_pat_)[A-Za-z0-9._\-]+/g, '$1***');
     return out;
 }
 
@@ -98,6 +100,54 @@ function createService(serviceId) {
 }
 
 /**
+ * Direct HTTPClient fallback when Service Framework definitions are not imported yet.
+ * @param {string} method
+ * @param {string} url
+ * @param {Object} headers
+ * @param {string|null} body
+ * @returns {{ status: number, data: Object, text: string, link: string }}
+ */
+function legacyRequest(method, url, headers, body) {
+    var HTTPClient = require('dw/net/HTTPClient');
+    var client = new HTTPClient();
+    client.setTimeout(12000);
+    client.open(method, url);
+
+    var keys = Object.keys(headers || {});
+    var i;
+    for (i = 0; i < keys.length; i++) {
+        client.setRequestHeader(keys[i], headers[keys[i]]);
+    }
+
+    client.send(body !== undefined && body !== null ? String(body) : '');
+
+    var text = client.getText() || '';
+    var data = {};
+    try {
+        data = JSON.parse(text || '{}');
+    } catch (pe) {
+        data = {};
+    }
+
+    return {
+        status: client.statusCode,
+        data:   data,
+        text:   text,
+        link:   ''
+    };
+}
+
+/**
+ * @param {Error|Object} err
+ * @returns {boolean}
+ */
+function isMissingServiceError(err) {
+    var msg = String((err && err.message) || err || '');
+    return msg.indexOf('Service is not configured') !== -1
+        || msg.indexOf('IllegalArgumentException') !== -1;
+}
+
+/**
  * Execute an HTTP call via Service Framework.
  * @param {string} serviceKey - generic|shopify|ctp|sfcc|webdav
  * @param {string} method
@@ -108,16 +158,40 @@ function createService(serviceId) {
  */
 function request(serviceKey, method, url, headers, body) {
     var serviceId = SERVICE_IDS[serviceKey] || SERVICE_IDS.generic;
-    var svc = createService(serviceId);
-    var result = svc.call({
-        method:  method,
-        url:     url,
-        headers: headers || {},
-        body:    body
-    });
+    var svc;
+    try {
+        svc = createService(serviceId);
+    } catch (createErr) {
+        if (isMissingServiceError(createErr)) {
+            Logger.warn('Service {0} not configured; using HTTPClient fallback. Import metadata/services.xml.', serviceId);
+            return legacyRequest(method, url, headers, body);
+        }
+        throw createErr;
+    }
+
+    var result;
+    try {
+        result = svc.call({
+            method:  method,
+            url:     url,
+            headers: headers || {},
+            body:    body
+        });
+    } catch (callErr) {
+        if (isMissingServiceError(callErr)) {
+            Logger.warn('Service {0} not configured; using HTTPClient fallback. Import metadata/services.xml.', serviceId);
+            return legacyRequest(method, url, headers, body);
+        }
+        throw callErr;
+    }
 
     if (result.ok && result.object) {
         return result.object;
+    }
+
+    if (!result.ok && result.errorMessage && isMissingServiceError({ message: result.errorMessage })) {
+        Logger.warn('Service {0} not configured; using HTTPClient fallback. Import metadata/services.xml.', serviceId);
+        return legacyRequest(method, url, headers, body);
     }
 
     // Service unavailable / circuit open — surface a stable error shape

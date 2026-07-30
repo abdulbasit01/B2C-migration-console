@@ -1,0 +1,229 @@
+<isdecorate template="application/MenuFrame">
+<iscontent type="text/html" charset="UTF-8"/>
+<link rel="stylesheet" href="${pdict.cssUrl}"/>
+<script src="${pdict.contentMigrationJsUrl}"></script>
+<div class="acc-page acc-page--wizard">
+<div class="acc-shell">
+    <isinclude template="accelerator/components/header"/>
+
+    <div class="acc-back-nav">
+        <a class="acc-back" href="${pdict.dashboardUrl}">&larr; ${Resource.msg('accelerator.wizard.back', 'accelerator', null)}</a>
+    </div>
+
+    <section class="acc-section acc-section--wizard">
+        <header class="acc-section__head">
+            <h2>${Resource.msg('accelerator.contentmigration.heading', 'accelerator', null)}</h2>
+            <p class="cms-intro">${Resource.msg('accelerator.contentmigration.intro', 'accelerator', null)}</p>
+        </header>
+
+        <div id="acc-cms-root"
+             class="acc-cms-wizard"
+             data-platform-id="${pdict.platform.id}"
+             data-connected="${pdict.dataConnected ? 'true' : 'false'}"
+             data-initial-step="${pdict.initialStep}"
+             data-test-connection-url="<isprint value="${pdict.testConnectionUrl}" encoding="htmldoublequote"/>"
+             data-list-content-url="<isprint value="${pdict.listContentUrl}" encoding="htmldoublequote"/>"
+             data-fetch-content-url="<isprint value="${pdict.fetchContentUrl}" encoding="htmldoublequote"/>"
+             data-preview-library-url="<isprint value="${pdict.previewLibraryUrl}" encoding="htmldoublequote"/>"
+             data-export-content-url="<isprint value="${pdict.exportContentUrl}" encoding="htmldoublequote"/>"
+             data-list-migrated-refs-url="<isprint value="${pdict.listMigratedRefsUrl}" encoding="htmldoublequote"/>"
+             data-download-xml-url="<isprint value="${pdict.downloadXmlUrl}" encoding="htmldoublequote"/>"
+             data-impex-path="<isprint value="${pdict.impexPath}" encoding="htmldoublequote"/>"
+             data-impex-url="<isprint value="${pdict.impexUrl}" encoding="htmldoublequote"/>"
+             data-default-delivery-key="<isprint value="${pdict.defaultDeliveryKey}" encoding="htmldoublequote"/>">
+
+            <div class="cms-steps" role="tablist">
+                <button type="button" id="cms-tab-1" class="cms-steps__tab cms-steps__tab--active" data-step="1">
+                    ${Resource.msg('accelerator.contentmigration.step.connect', 'accelerator', null)}
+                </button>
+                <button type="button" id="cms-tab-2" class="cms-steps__tab" data-step="2">
+                    ${Resource.msg('accelerator.contentmigration.step.select', 'accelerator', null)}
+                </button>
+                <button type="button" id="cms-tab-3" class="cms-steps__tab" data-step="3">
+                    ${Resource.msg('accelerator.contentmigration.step.preview', 'accelerator', null)}
+                </button>
+            </div>
+
+            <main class="acc-wizard-card">
+
+                <div id="cms-panel-step1" class="cms-panel cms-step-panel">
+                    <div class="cms-panel__head">
+                        <span class="cms-panel__title">${Resource.msg('accelerator.contentmigration.connect.title', 'accelerator', null)}</span>
+                    </div>
+                    <div class="cms-panel__body">
+                        <p class="cms-panel__hint">${pdict.platform.connectHint}</p>
+                        <form id="acc-cms-connect-form" class="acc-form acc-form--grid cms-connect-form">
+                            <input type="hidden" name="platformId" value="${pdict.platform.id}" />
+                            <isif condition="${pdict.connectionSummary}">
+                                <isinclude template="accelerator/components/connectionSummaryFields"/>
+                            </isif>
+                        </form>
+                        <isif condition="${pdict.connectionSummary}">
+                            <p class="cms-prefs-hint">
+                                ${Resource.msg('accelerator.datawizard.connect.prefsHint', 'accelerator', null)}
+                                <strong>${pdict.connectionSummary.prefsHint}</strong>
+                            </p>
+                            <isif condition="${!pdict.connectionSummary.configured}">
+                                <div class="acc-status acc-status--error" role="status">
+                                    ${Resource.msg('accelerator.datawizard.connect.notConfigured', 'accelerator', null)}
+                                </div>
+                            </isif>
+                        </isif>
+                        <div class="cms-panel__inline-actions">
+                            <button type="button" id="acc-cms-test-btn" class="acc-btn acc-btn--solid">
+                                ${Resource.msg('accelerator.datawizard.testConnection', 'accelerator', null)}
+                            </button>
+                            <span id="acc-cms-conn-status" class="cms-panel__status cms-panel__status--inline"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="cms-panel-step2" class="cms-panel cms-step-panel" style="display:none;">
+                    <div class="cms-panel__head">
+                        <span class="cms-panel__title">${Resource.msg('accelerator.contentmigration.content.title', 'accelerator', null)}</span>
+                        <button type="button" id="acc-cms-load-btn" class="acc-btn acc-btn--ghost">
+                            ${Resource.msg('accelerator.contentmigration.content.load', 'accelerator', null)}
+                        </button>
+                        <span id="acc-cms-list-status" class="cms-panel__status"></span>
+                    </div>
+                    <div class="cms-panel__body">
+                        <p class="cms-panel__hint">${Resource.msg('accelerator.contentmigration.content.prompt', 'accelerator', null)}</p>
+                        <div class="cms-fetch-row">
+                            <label class="acc-form__label" for="acc-cms-delivery-key">${Resource.msg('accelerator.contentmigration.deliveryKey', 'accelerator', null)}</label>
+                            <input id="acc-cms-delivery-key" class="acc-form__input cms-fetch-row__input" type="text"
+                                   value="${pdict.defaultDeliveryKey}"
+                                   placeholder="page/jackets" />
+                            <button type="button" id="acc-cms-fetch-btn" class="acc-btn acc-btn--secondary">
+                                ${Resource.msg('accelerator.contentmigration.content.fetch', 'accelerator', null)}
+                            </button>
+                        </div>
+                        <div id="acc-cms-filters" class="cms-filters" style="display:none;">
+                            <div class="acc-form__group cms-filters__repo">
+                                <label class="acc-form__label" for="acc-cms-filter-repo">${Resource.msg('accelerator.contentmigration.filter.repo', 'accelerator', null)}</label>
+                                <select id="acc-cms-filter-repo" class="acc-form__input">
+                                    <option value="">${Resource.msg('accelerator.contentmigration.filter.allRepos', 'accelerator', null)}</option>
+                                </select>
+                            </div>
+                            <div class="acc-form__group cms-filters__type">
+                                <label class="acc-form__label" for="acc-cms-filter-schema">${Resource.msg('accelerator.contentmigration.filter.schema', 'accelerator', null)}</label>
+                                <select id="acc-cms-filter-schema" class="acc-form__input">
+                                    <option value="">${Resource.msg('accelerator.contentmigration.filter.allSchemas', 'accelerator', null)}</option>
+                                </select>
+                            </div>
+                            <div class="acc-form__group cms-filters__search">
+                                <label class="acc-form__label" for="acc-cms-filter-search">${Resource.msg('accelerator.contentmigration.filter.search', 'accelerator', null)}</label>
+                                <input id="acc-cms-filter-search" class="acc-form__input" type="search" placeholder="${Resource.msg('accelerator.contentmigration.filter.searchPlaceholder', 'accelerator', null)}" />
+                            </div>
+                        </div>
+                        <div id="acc-cms-bulk-actions" class="cms-bulk-actions" style="display:none;">
+                            <div class="cms-bulk-actions__summary">
+                                <strong id="acc-cms-selection-count">0</strong>
+                                ${Resource.msg('accelerator.contentmigration.bulk.selected', 'accelerator', null)}
+                            </div>
+                            <div class="cms-bulk-actions__buttons">
+                                <button type="button" id="acc-cms-preview-all-btn" class="acc-btn acc-btn--secondary">
+                                    ${Resource.msg('accelerator.contentmigration.bulk.previewAll', 'accelerator', null)}
+                                </button>
+                                <button type="button" id="acc-cms-export-library-btn" class="acc-btn acc-btn--solid">
+                                    ${Resource.msg('accelerator.contentmigration.bulk.exportLibrary', 'accelerator', null)}
+                                </button>
+                                <button type="button" id="acc-cms-resync-migrated-btn" class="acc-btn acc-btn--secondary">
+                                    ${Resource.msg('accelerator.contentmigration.bulk.resyncMigrated', 'accelerator', null)}
+                                </button>
+                            </div>
+                        </div>
+                        <p class="cms-panel__hint cms-panel__hint--note">${Resource.msg('accelerator.contentmigration.bulk.resyncHint', 'accelerator', null)}</p>
+                        <div id="acc-cms-bulk-status" class="cms-export-alert" style="display:none;" role="status"></div>
+                        <div id="acc-cms-bulk-downloads" class="acc-xml-downloads"></div>
+                        <div id="acc-cms-list-loading" class="cms-muted">${Resource.msg('accelerator.contentmigration.content.loadHint', 'accelerator', null)}</div>
+                        <div id="acc-cms-list-error" class="cms-error" style="display:none;"></div>
+                        <div id="acc-cms-table-wrap" class="cms-table-wrap" style="display:none;">
+                            <div class="cms-table-scroll">
+                            <table class="cms-content-table">
+                                <thead>
+                                    <tr>
+                                        <th class="cms-col-label">${Resource.msg('accelerator.contentmigration.table.label', 'accelerator', null)}</th>
+                                        <th class="cms-col-repo">${Resource.msg('accelerator.contentmigration.table.repo', 'accelerator', null)}</th>
+                                        <th class="cms-col-key">${Resource.msg('accelerator.contentmigration.table.deliveryKey', 'accelerator', null)}</th>
+                                        <th class="cms-col-schema">${Resource.msg('accelerator.contentmigration.table.schema', 'accelerator', null)}</th>
+                                        <th class="cms-col-status">${Resource.msg('accelerator.contentmigration.table.status', 'accelerator', null)}</th>
+                                        <th class="cms-col-action"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="acc-cms-tbody"></tbody>
+                            </table>
+                            </div>
+                        </div>
+                        <div id="acc-cms-library-preview" class="cms-library-preview" style="display:none;">
+                            <div class="cms-library-preview__head">
+                                <strong>${Resource.msg('accelerator.contentmigration.bulk.previewJson', 'accelerator', null)}</strong>
+                                <span id="acc-cms-library-preview-meta" class="cms-muted"></span>
+                            </div>
+                            <div id="acc-cms-library-preview-summary" class="cms-library-preview__summary"></div>
+                            <details class="cms-json-details cms-library-preview__details">
+                                <summary>${Resource.msg('accelerator.contentmigration.bulk.previewSample', 'accelerator', null)}</summary>
+                                <pre id="acc-cms-library-preview-json" class="cms-json-block"></pre>
+                            </details>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="cms-panel-step3" class="cms-panel cms-panel--preview cms-step-panel" style="display:none;">
+                    <div class="cms-panel__head">
+                        <span class="cms-panel__title">${Resource.msg('accelerator.contentmigration.widget.title', 'accelerator', null)}</span>
+                        <span id="acc-cms-widget-type" class="cms-widget-badge"></span>
+                    </div>
+                    <div class="cms-panel__body cms-panel__body--preview">
+                        <div id="acc-cms-widget-empty" class="cms-muted">
+                            ${Resource.msg('accelerator.contentmigration.widget.empty', 'accelerator', null)}
+                        </div>
+                        <div id="acc-cms-widget-preview" style="display:none;">
+                            <div class="cms-widget-meta">
+                                <div><strong>${Resource.msg('accelerator.contentmigration.widget.deliveryKey', 'accelerator', null)}:</strong> <code id="acc-cms-preview-key"></code></div>
+                                <div><strong>${Resource.msg('accelerator.contentmigration.widget.component', 'accelerator', null)}:</strong> <code id="acc-cms-preview-component"></code></div>
+                                <div><strong>${Resource.msg('accelerator.contentmigration.widget.schema', 'accelerator', null)}:</strong> <span id="acc-cms-preview-schema"></span></div>
+                            </div>
+                            <div id="acc-cms-preview-card" class="cms-preview-card"></div>
+                            <details class="cms-json-details">
+                                <summary>${Resource.msg('accelerator.contentmigration.widget.attributes', 'accelerator', null)}</summary>
+                                <pre id="acc-cms-preview-json" class="cms-json-block"></pre>
+                            </details>
+                            <details class="cms-json-details">
+                                <summary>${Resource.msg('accelerator.contentmigration.widget.sourceProperties', 'accelerator', null)}</summary>
+                                <pre id="acc-cms-source-json" class="cms-json-block"></pre>
+                            </details>
+
+                            <div class="cms-export-block">
+                                <div class="cms-export-row">
+                                    <button type="button" id="acc-cms-export-btn" class="acc-btn acc-btn--solid">
+                                        ${Resource.msg('accelerator.contentmigration.export.impex', 'accelerator', null)}
+                                    </button>
+                                    <a id="acc-cms-open-impex" href="${pdict.impexUrl}" target="_blank" class="acc-btn acc-btn--ghost cms-open-impex">
+                                        ${Resource.msg('accelerator.contentmigration.export.openImpex', 'accelerator', null)}
+                                    </a>
+                                </div>
+                                <div id="acc-cms-export-alert" class="cms-export-alert" style="display:none;" role="status"></div>
+                                <div id="acc-cms-export-downloads" class="acc-xml-downloads"></div>
+                                <p class="cms-panel__hint cms-panel__hint--note">${Resource.msg('accelerator.contentmigration.export.hint', 'accelerator', null)} <code>/Impex/${pdict.impexPath}/</code></p>
+                            </div>
+                        </div>
+                        <div id="acc-cms-widget-error" class="cms-error cms-error--spaced" style="display:none;"></div>
+                    </div>
+                </div>
+
+            </main>
+
+            <footer class="acc-wizard-footer">
+                <button type="button" id="acc-cms-prev" class="acc-btn acc-btn--ghost" style="visibility:hidden;">
+                    ${Resource.msg('accelerator.wizard.previous', 'accelerator', null)}
+                </button>
+                <button type="button" id="acc-cms-next" class="acc-btn acc-btn--primary" disabled="disabled">
+                    ${Resource.msg('accelerator.wizard.continue', 'accelerator', null)}
+                </button>
+            </footer>
+
+        </div>
+    </section>
+</div>
+</div>
+</isdecorate>

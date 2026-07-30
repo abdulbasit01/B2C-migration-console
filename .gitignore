@@ -1,9 +1,12 @@
 node_modules/
 cartridges/*/cartridge/static/
+!cartridges/app_custom_cms/cartridge/static/
+!cartridges/app_custom_cms/cartridge/static/**
 
 # Legacy generated config (no longer produced; keep ignored if present locally)
 cartridges/bm_accelerator/cartridge/scripts/migration/config.js
 cartridges/bm_accelerator/cartridge/scripts/migration/sfcc-credentials.js
+react-storefront/node_modules/
 .env
 
 coverage/

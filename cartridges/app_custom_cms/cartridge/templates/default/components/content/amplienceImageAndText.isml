@@ -1,0 +1,17 @@
+<section class="amp-image-text">
+    <isif condition="${!empty(pdict.amp.imageUrl)}">
+        <div class="amp-image-text__media">
+            <img src="${pdict.amp.imageUrl}" alt="${pdict.amp.name}" loading="lazy" />
+        </div>
+    </isif>
+    <div class="amp-image-text__copy">
+        <isif condition="${!empty(pdict.amp.heading)}">
+            <isprint value="${pdict.amp.heading}" encoding="off" />
+        <iselse/>
+            <h2>${pdict.amp.name}</h2>
+        </isif>
+        <isif condition="${pdict.amp.hasBody}">
+            <isprint value="${pdict.amp.bodyHtml}" encoding="off" />
+        </isif>
+    </div>
+</section>

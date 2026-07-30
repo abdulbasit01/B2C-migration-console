@@ -38,6 +38,7 @@ function applyToConfig(cfg) {
     out.ctp = out.ctp || {};
     out.sap = out.sap || {};
     out.sfcc = out.sfcc || {};
+    out.amplience = out.amplience || {};
 
     out.shopify.storeUrl     = getPref('rcMigShopifyStoreUrl', out.shopify.storeUrl || '');
     out.shopify.clientId     = getPref('rcMigShopifyClientId', out.shopify.clientId || '');
@@ -59,6 +60,10 @@ function applyToConfig(cfg) {
     out.sfcc.metaVersion = getPref('rcMigOcapiVersion', out.sfcc.metaVersion || 'v25_6');
     out.sfcc.version     = out.sfcc.metaVersion;
     // catalogId / inventoryListId / customerListId stay from defaults or wizard UI
+
+    out.amplience.hubName             = getPref('rcMigAmplienceHubName', out.amplience.hubName || '');
+    out.amplience.personalAccessToken = getPref('rcMigAmpliencePersonalAccessToken', out.amplience.personalAccessToken || '');
+    out.amplience.defaultDeliveryKey  = getPref('rcMigAmplienceDefaultDeliveryKey', out.amplience.defaultDeliveryKey || '');
 
     return out;
 }

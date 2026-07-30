@@ -1,0 +1,477 @@
+.amp-gallery-page {
+    padding: 1rem 0 3rem;
+}
+
+.amp-gallery-page__eyebrow {
+    color: #f58220;
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.amp-gallery-page__intro h1 {
+    color: #002b5c;
+    margin-bottom: 0.75rem;
+}
+
+.amp-gallery-page__search {
+    margin: 1.25rem 0 1rem;
+}
+
+.amp-gallery-page__search-label {
+    display: block;
+    margin-bottom: 0.35rem;
+    color: #54698d;
+    font-size: 0.85rem;
+}
+
+.amp-gallery-page__search-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.amp-gallery-page__search-input {
+    flex: 1 1 16rem;
+    min-width: 12rem;
+    padding: 0.55rem 0.75rem;
+    border: 1px solid #ccd7e3;
+    border-radius: 6px;
+    color: #002b5c;
+    font-family: inherit;
+}
+
+.amp-gallery-page__search-button {
+    padding: 0.55rem 1rem;
+    border: 0;
+    border-radius: 6px;
+    color: #fff;
+    background: #002b5c;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.amp-gallery-page__filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.amp-gallery-page__filter {
+    padding: 0.45rem 0.8rem;
+    border: 1px solid #ccd7e3;
+    border-radius: 999px;
+    color: #002b5c;
+    font-weight: 600;
+    background: #fff;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.amp-gallery-page__filter.active,
+.amp-gallery-page__filter:hover {
+    color: #fff;
+    border-color: #002b5c;
+    background: #002b5c;
+}
+
+.amp-gallery-page__info {
+    font-size: 0.85rem;
+    color: #54698d;
+    background: #f4f6f9;
+    border-left: 3px solid #d8dde6;
+    border-radius: 0 4px 4px 0;
+    padding: 0.6rem 0.75rem;
+    margin: 0 0 1rem;
+    line-height: 1.5;
+}
+
+.amp-gallery-page__meta,
+.amp-gallery-page__status {
+    color: #5f6b76;
+    font-size: 0.9rem;
+}
+
+.amp-gallery-page__meta code {
+    font-family: 'IBM Plex Mono', 'Consolas', monospace;
+    font-size: 0.82em;
+}
+
+.amp-gallery-page__error {
+    color: #842029;
+    background: #f8d7da;
+    border-radius: 0.5rem;
+    padding: 0.75rem 1rem;
+}
+
+.amp-gallery-page__grid {
+    display: grid;
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+    gap: 1.25rem;
+    margin-top: 1rem;
+}
+
+@media (min-width: 769px) {
+    .amp-gallery-page__grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+.amp-gallery-page__card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid #dce3ea;
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: 0 8px 24px rgba(0, 43, 92, 0.06);
+    overflow: hidden;
+}
+
+.amp-gallery-page__card-hero {
+    height: 6rem;
+    background: linear-gradient(135deg, #e8eef5 0%, #f4f7fa 100%);
+    overflow: hidden;
+}
+
+.amp-gallery-page__card-hero--banner {
+    height: auto;
+    aspect-ratio: 21 / 9;
+}
+
+.amp-gallery-page__card-hero img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.amp-gallery-page__card-hero--banner img {
+    object-position: center;
+}
+
+.amp-gallery-page__card-body {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+}
+
+.amp-gallery-page__card-accent {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 4px;
+    height: 100%;
+    background: #94a3b8;
+}
+
+.amp-gallery-page__card--mainBanner .amp-gallery-page__card-accent,
+.amp-gallery-page__card--campaignBanner .amp-gallery-page__card-accent {
+    background: #002b5c;
+}
+
+.amp-gallery-page__card--editorialRichText .amp-gallery-page__card-accent {
+    background: #f58220;
+}
+
+.amp-gallery-page__card--imageAndText .amp-gallery-page__card-accent {
+    background: #0d9488;
+}
+
+.amp-gallery-page__card--amplienceWidget .amp-gallery-page__card-accent {
+    background: #6366f1;
+}
+
+.amp-gallery-page__card-meta {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 0.5rem 0.65rem;
+    padding: 0.85rem 1rem 0.65rem 1.15rem;
+}
+
+.amp-gallery-page__card-heading {
+    min-width: 0;
+}
+
+.amp-gallery-page__card-heading h2 {
+    margin: 0;
+    font-size: 0.95rem;
+    line-height: 1.35;
+    color: #002b5c;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+}
+
+.amp-gallery-page__card-tags {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+    margin-top: 0.35rem;
+}
+
+.amp-gallery-page__card-type {
+    color: #f58220;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.amp-gallery-page__card-schema {
+    color: #64748b;
+    font-size: 0.68rem;
+    font-weight: 600;
+    text-transform: capitalize;
+}
+
+.amp-gallery-page__card-schema::before {
+    content: '·';
+    margin: 0 0.35rem;
+    color: #cbd5e1;
+}
+
+.amp-gallery-page__card-actions {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.3rem;
+    flex-shrink: 0;
+}
+
+.amp-gallery-page__preview-toggle,
+.amp-gallery-page__preview-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+    padding: 0.25rem 0.5rem;
+    border-radius: 5px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    line-height: 1.2;
+    text-decoration: none;
+    cursor: pointer;
+    font-family: inherit;
+    white-space: nowrap;
+}
+
+.amp-gallery-page__preview-toggle {
+    border: 1px solid #002b5c;
+    color: #002b5c;
+    background: #fff;
+}
+
+.amp-gallery-page__preview-toggle.is-active,
+.amp-gallery-page__preview-toggle:hover {
+    color: #fff;
+    background: #002b5c;
+}
+
+.amp-gallery-page__preview-link {
+    border: 1px solid #ccd7e3;
+    color: #004a82;
+    background: #f8fafc;
+}
+
+.amp-gallery-page__preview-link:hover {
+    background: #eef4fa;
+}
+
+.amp-gallery-page__card-ids {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    margin: 0;
+    padding: 0.75rem 1rem 1rem 1.15rem;
+    border-top: 1px solid #eef2f6;
+    background: #fafbfc;
+}
+
+.amp-gallery-page__card-id-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    min-width: 0;
+}
+
+.amp-gallery-page__card-id-label {
+    color: #64748b;
+    font-size: 0.68rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.amp-gallery-page__id-pill {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+}
+
+.amp-gallery-page__id-pill:hover code {
+    background: #dbeafe;
+    color: #1e3a5f;
+}
+
+.amp-gallery-page__card-ids code {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    padding: 0.3rem 0.5rem;
+    border-radius: 5px;
+    color: #0f3d66;
+    background: #e8f0f8;
+    font-family: 'IBM Plex Mono', 'Consolas', 'Courier New', monospace;
+    font-size: 0.74rem;
+    font-weight: 500;
+    letter-spacing: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.amp-gallery-page__card-preview {
+    border-top: 1px solid #e8edf2;
+    background: #fff;
+}
+
+.amp-gallery-page__card-preview-status,
+.amp-gallery-page__card-preview-error {
+    margin: 0;
+    padding: 0.75rem 1rem;
+    font-size: 0.82rem;
+}
+
+.amp-gallery-page__card-preview-error {
+    color: #842029;
+    background: #fff5f5;
+}
+
+.amp-gallery-page__card-preview-body {
+    overflow: hidden;
+    padding: 0;
+    background: #f8fafc;
+}
+
+.amp-gallery-page__card-preview-body .amp-main-banner {
+    min-height: 0;
+    aspect-ratio: 21 / 9;
+    max-height: 10rem;
+}
+
+.amp-gallery-page__card-preview-body .amp-main-banner__overlay {
+    min-height: 0;
+    height: 100%;
+    padding: 0.65rem 0.85rem;
+    box-sizing: border-box;
+}
+
+.amp-gallery-page__card-preview-body .amp-main-banner__overlay h1,
+.amp-gallery-page__card-preview-body .amp-main-banner__overlay h2,
+.amp-gallery-page__card-preview-body .amp-main-banner__overlay p,
+.amp-gallery-page__card-preview-body .amp-main-banner__overlay div {
+    max-width: 100%;
+    margin: 0;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.amp-gallery-page__card-preview-body .amp-main-banner__overlay h1,
+.amp-gallery-page__card-preview-body .amp-main-banner__overlay h2 {
+    font-size: 0.9rem;
+    line-height: 1.25;
+}
+
+.amp-gallery-page__card-preview-body .amp-main-banner img,
+.amp-gallery-page__card-preview-body .amp-image-text__media img {
+    object-fit: cover;
+}
+
+.amp-gallery-page__card-preview-body .amp-campaign-banner {
+    padding: 0.75rem 0.85rem;
+    text-align: left;
+}
+
+.amp-gallery-page__card-preview-body .amp-campaign-banner h1,
+.amp-gallery-page__card-preview-body .amp-campaign-banner h2 {
+    font-size: 0.9rem;
+    line-height: 1.25;
+    margin: 0;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.amp-gallery-page__card-preview-body .amp-image-text {
+    min-height: 0;
+    grid-template-columns: 1fr;
+}
+
+.amp-gallery-page__card-preview-body .amp-image-text__media img {
+    min-height: 0;
+    max-height: 8rem;
+}
+
+.amp-gallery-page__card-preview-body .amp-rich-text,
+.amp-gallery-page__card-preview-body .amp-widget-fallback,
+.amp-gallery-page__card-preview-body .amp-image-text__copy {
+    padding: 0.75rem;
+    font-size: 0.88rem;
+}
+
+.amp-gallery-page__card-preview-body .amp-locale-toolbar,
+.amp-demo-slot__content .amp-locale-toolbar {
+    margin-bottom: 0.25rem;
+}
+
+.amp-gallery-page__filter--published {
+    margin-left: auto;
+}
+
+.amp-gallery-page__badge {
+    display: inline-block;
+    padding: 0.12rem 0.45rem;
+    border-radius: 999px;
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.amp-gallery-page__badge--live {
+    color: #0f5132;
+    background: #d1e7dd;
+}
+
+.amp-gallery-page__badge--draft {
+    color: #664d03;
+    background: #fff3cd;
+}
+
+.amp-gallery-page__pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    margin-top: 2rem;
+}
+
+.amp-gallery-page__pagination button {
+    padding: 0.55rem 1rem;
+    border: 0;
+    border-radius: 6px;
+    color: #fff;
+    background: #002b5c;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+}

@@ -46,6 +46,8 @@
             <pipeline name="Accelerator-CreateShippingMethodAttributes"/>
             <pipeline name="Accelerator-CreateStoreAttributes"/>
             <pipeline name="Accelerator-CreateTaxAttributes"/>
+            <pipeline name="Accelerator-ContentMigration"/>
+            <pipeline name="Accelerator-ContentSchemaMigration"/>
             <pipeline name="Accelerator-CustomerMigration"/>
             <pipeline name="Accelerator-CustomerMigrationCount"/>
             <pipeline name="Accelerator-DataMigrationDashboard"/>
@@ -60,8 +62,11 @@
             <pipeline name="Accelerator-DeleteShippingMethodAttribute"/>
             <pipeline name="Accelerator-DeleteTaskAttrs"/>
             <pipeline name="Accelerator-DownloadMigrationFile"/>
+            <pipeline name="Accelerator-DownloadContentXml"/>
             <pipeline name="Accelerator-DownloadProductXml"/>
+            <pipeline name="Accelerator-ExportAmplienceContent"/>
             <pipeline name="Accelerator-ExportOrders"/>
+            <pipeline name="Accelerator-FetchAmplienceContent"/>
             <pipeline name="Accelerator-FetchCTCategories"/>
             <pipeline name="Accelerator-FetchCtpCustomerGroups"/>
             <pipeline name="Accelerator-FetchSFCCCatalogs"/>
@@ -89,6 +94,9 @@
             <pipeline name="Accelerator-GetVariantAttrs"/>
             <pipeline name="Accelerator-InventoryMigration"/>
             <pipeline name="Accelerator-InventoryMigrationCount"/>
+            <pipeline name="Accelerator-ListAmplienceContent"/>
+            <pipeline name="Accelerator-ListAmplienceContentTypes"/>
+            <pipeline name="Accelerator-ListMigratedAmplienceRefs"/>
             <pipeline name="Accelerator-ListShippingMethods"/>
             <pipeline name="Accelerator-ListStores"/>
             <pipeline name="Accelerator-MigrateCustomerAddresses"/>
@@ -99,6 +107,7 @@
             <pipeline name="Accelerator-OrderMigration"/>
             <pipeline name="Accelerator-PricebookMigration"/>
             <pipeline name="Accelerator-PricebookMigrationCount"/>
+            <pipeline name="Accelerator-PreviewAmplienceLibrary"/>
             <pipeline name="Accelerator-ProductMigrationCount"/>
             <pipeline name="Accelerator-ProductWizard"/>
             <pipeline name="Accelerator-RunCategoryMigration"/>

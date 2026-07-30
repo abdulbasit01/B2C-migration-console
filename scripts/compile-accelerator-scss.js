@@ -27,6 +27,9 @@ const TX_MIGRATION_SRC = path.join(CARTRIDGE, 'client/default/js/tax-migration.j
 const ST_MIGRATION_SRC = path.join(CARTRIDGE, 'client/default/js/store-migration.js');
 const ORD_MIGRATION_SRC = path.join(CARTRIDGE, 'client/default/js/order-migration.js');
 const CAT_MIGRATION_SRC = path.join(CARTRIDGE, 'client/default/js/categoryMigration.js');
+const CMS_MIGRATION_SRC = path.join(CARTRIDGE, 'client/default/js/content-migration.js');
+const CMS_SCHEMA_MIGRATION_SRC = path.join(CARTRIDGE, 'client/default/js/content-schema-migration.js');
+const AMPLIENCE_LOGO_SRC = path.join(CARTRIDGE, 'client/default/images/amplience-logo.png');
 const CSS_OUT_DIR = path.join(CARTRIDGE, 'static/default/css');
 const CSS_OUT_FILE = path.join(CSS_OUT_DIR, 'accelerator-migration.css');
 const JS_OUT_DIR = path.join(CARTRIDGE, 'static/default/js');
@@ -39,6 +42,10 @@ const TX_MIGRATION_OUT = path.join(JS_OUT_DIR, 'tax-migration.js');
 const ST_MIGRATION_OUT = path.join(JS_OUT_DIR, 'store-migration.js');
 const ORD_MIGRATION_OUT = path.join(JS_OUT_DIR, 'order-migration.js');
 const CAT_MIGRATION_OUT = path.join(JS_OUT_DIR, 'categoryMigration.js');
+const CMS_MIGRATION_OUT = path.join(JS_OUT_DIR, 'content-migration.js');
+const CMS_SCHEMA_MIGRATION_OUT = path.join(JS_OUT_DIR, 'content-schema-migration.js');
+const IMAGES_OUT_DIR = path.join(CARTRIDGE, 'static/default/images');
+const AMPLIENCE_LOGO_OUT = path.join(IMAGES_OUT_DIR, 'amplience-logo.png');
 
 if (!fs.existsSync(SCSS)) {
     console.error('ERROR: SCSS source not found:', SCSS);
@@ -90,4 +97,19 @@ if (fs.existsSync(CAT_MIGRATION_SRC)) {
     fs.mkdirSync(JS_OUT_DIR, { recursive: true });
     fs.copyFileSync(CAT_MIGRATION_SRC, CAT_MIGRATION_OUT);
     console.log('Copied categoryMigration.js →', CAT_MIGRATION_OUT);
+}
+if (fs.existsSync(CMS_MIGRATION_SRC)) {
+    fs.mkdirSync(JS_OUT_DIR, { recursive: true });
+    fs.copyFileSync(CMS_MIGRATION_SRC, CMS_MIGRATION_OUT);
+    console.log('Copied content-migration.js →', CMS_MIGRATION_OUT);
+}
+if (fs.existsSync(CMS_SCHEMA_MIGRATION_SRC)) {
+    fs.mkdirSync(JS_OUT_DIR, { recursive: true });
+    fs.copyFileSync(CMS_SCHEMA_MIGRATION_SRC, CMS_SCHEMA_MIGRATION_OUT);
+    console.log('Copied content-schema-migration.js →', CMS_SCHEMA_MIGRATION_OUT);
+}
+if (fs.existsSync(AMPLIENCE_LOGO_SRC)) {
+    fs.mkdirSync(IMAGES_OUT_DIR, { recursive: true });
+    fs.copyFileSync(AMPLIENCE_LOGO_SRC, AMPLIENCE_LOGO_OUT);
+    console.log('Copied amplience-logo.png →', AMPLIENCE_LOGO_OUT);
 }

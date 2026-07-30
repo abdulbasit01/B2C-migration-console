@@ -131,6 +131,19 @@ var PLATFORMS = [
         connectFields: []
     },
     {
+        id:          'amplience',
+        name:        'Amplience',
+        tagline:     'Headless CMS, Dynamic Content',
+        status:      'ready',
+        kind:        'cms',
+        confidence:  90,
+        featured:    false,
+        description: 'Retrieve Amplience static content and map it to Salesforce B2C Commerce Page Designer widgets for headless storefront display.',
+        iconClass:   'platform-icon--amplience',
+        connectHint: 'Configure Amplience credentials under Site Preferences → B2C Migration Console, then test the connection.',
+        connectFields: []
+    },
+    {
         id:          'bigcommerce',
         name:        'BigCommerce',
         tagline:     'B2C Edition, Multi-store',
@@ -189,6 +202,7 @@ function withCredentials(platform) {
         name:          platform.name,
         tagline:       platform.tagline,
         status:        platform.status,
+        kind:          platform.kind || 'commerce',
         confidence:    platform.confidence,
         featured:      platform.featured,
         description:   platform.description,
