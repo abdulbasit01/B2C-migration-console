@@ -6,7 +6,7 @@
     <menuitem id="rc_accelerator_tools" site="true" position="99999">
         <name xml:lang="x-default">B2C Migration</name>
         <short_description xml:lang="x-default">Migration to Salesforce B2C Commerce</short_description>
-        <description xml:lang="x-default">Royal Cyber B2C Migration Console for schema and data migration from commercetools and Shopify.</description>
+        <description xml:lang="x-default">Royal Cyber B2C Migration Console for schema and data migration from commercetools, Shopify, and BigCommerce.</description>
         <icon>icons/accelerator.png</icon>
     </menuitem>
 
@@ -71,6 +71,7 @@
             <pipeline name="Accelerator-FetchCtpCustomerGroups"/>
             <pipeline name="Accelerator-FetchSFCCCatalogs"/>
             <pipeline name="Accelerator-FetchShopifyCategories"/>
+            <pipeline name="Accelerator-FetchBigCommerceCategories"/>
             <pipeline name="Accelerator-FullInventoryBuildBatch"/>
             <pipeline name="Accelerator-FullMigrationBuildBatch"/>
             <pipeline name="Accelerator-FullMigrationJobStatus"/>

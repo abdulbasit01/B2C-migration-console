@@ -84,17 +84,20 @@ function buildPageAttributes(t) {
  * Build <variations> block with <attributes> (variation axes from variant attrs)
  * and <variants> list.
  * Reference: <attributes> first, then <variants>.
- * platform: 'shopify' | 'sap' | 'ctp' (default) — which transformer produced t.
+ * platform: 'shopify' | 'sap' | 'bigcommerce' | 'ctp' (default) — which transformer produced t.
  */
 function buildVariationsXml(t, selectedVarAttrs, platform) {
     var xml = '        <variations>\n';
     var isShopify = platform === 'shopify';
+    var isBc      = platform === 'bigcommerce';
     var hasVarSelection = selectedVarAttrs && selectedVarAttrs.length;
-    var attrPrefix = platform === 'shopify' ? 'shopify_' : (platform === 'sap' ? 'sap_' : 'ctp_');
+    var attrPrefix = platform === 'shopify' ? 'shopify_'
+        : (platform === 'sap' ? 'sap_'
+            : (platform === 'bigcommerce' ? 'bc_' : 'ctp_'));
 
     // Collect unique variation attribute names + values across all variants.
     // CTP: value can be string, number, or { key, label } enum.
-    // Shopify: value is always a string (selectedOptions).
+    // Shopify/BC: value is always a string (selectedOptions / option_values).
     // attrMap key = SFCC attr ID (prefixed) — must match both axis ID and variant custom attr ID.
     var attrMap = {}; // { sfccAttrId: { key: displayVal } }
     for (var vi = 0; vi < t.variants.length; vi++) {
@@ -104,11 +107,12 @@ function buildVariationsXml(t, selectedVarAttrs, platform) {
             var val = a.value;
             if (val === null || val === undefined) continue;
             // CTP: only include axes that are in the selected variant attrs list (or none if unset).
-            // Shopify: include all when unset; when set, include selected options (+ price/barcode extras).
-            if (isShopify) {
+            // Shopify/BC: include all when unset; when set, include selected options (+ price extras).
+            if (isShopify || isBc) {
                 if (hasVarSelection
                     && selectedVarAttrs.indexOf(a.name) === -1
-                    && a.name !== 'price' && a.name !== 'compareAtPrice' && a.name !== 'barcode') {
+                    && a.name !== 'price' && a.name !== 'compareAtPrice' && a.name !== 'barcode'
+                    && a.name !== 'sale_price' && a.name !== 'upc') {
                     continue;
                 }
             } else {
@@ -117,7 +121,9 @@ function buildVariationsXml(t, selectedVarAttrs, platform) {
             }
 
             var axisRule = nativeMap.getRule(
-                platform === 'shopify' ? 'shopify' : (platform === 'sap' ? 'sap' : 'commercetools'),
+                platform === 'shopify' ? 'shopify'
+                    : (platform === 'sap' ? 'sap'
+                        : (platform === 'bigcommerce' ? 'bigcommerce' : 'commercetools')),
                 'Product', a.name);
             if (axisRule && axisRule.action === 'skip') continue;
             // Use same SFCC ID as variant custom attr so axis ID and value ID match.
@@ -271,7 +277,9 @@ function buildProductXml(t, selectedVarAttrs) {
 
     productXml += buildPageAttributes(t);
 
-    var sourcePlatform = t.shopifyId ? 'shopify' : (t.sapId ? 'sap' : 'ctp');
+    var sourcePlatform = t.shopifyId ? 'shopify'
+        : (t.sapId ? 'sap'
+            : (t.bcId ? 'bigcommerce' : 'ctp'));
 
     // Custom attrs for source-platform tracking (respect visit-scoped renames)
     if (sourcePlatform === 'shopify') {
@@ -280,6 +288,16 @@ function buildProductXml(t, selectedVarAttrs) {
         productXml += '            <custom-attribute attribute-id="' + xmlEsc(resolveProductAttrId('shopify_handle')) + '">'     + xmlEsc(t.productId) + '</custom-attribute>\n';
         if (t.shopifyStatus) {
             productXml += '            <custom-attribute attribute-id="' + xmlEsc(resolveProductAttrId('shopify_status')) + '">' + xmlEsc(t.shopifyStatus) + '</custom-attribute>\n';
+        }
+        productXml += '        </custom-attributes>\n';
+    } else if (sourcePlatform === 'bigcommerce') {
+        productXml += '        <custom-attributes>\n';
+        productXml += '            <custom-attribute attribute-id="' + xmlEsc(resolveProductAttrId('bc_product_id')) + '">' + xmlEsc(t.bcId) + '</custom-attribute>\n';
+        if (t.bcSku) {
+            productXml += '            <custom-attribute attribute-id="' + xmlEsc(resolveProductAttrId('bc_sku')) + '">' + xmlEsc(t.bcSku) + '</custom-attribute>\n';
+        }
+        if (t.bcStatus) {
+            productXml += '            <custom-attribute attribute-id="' + xmlEsc(resolveProductAttrId('bc_status')) + '">' + xmlEsc(t.bcStatus) + '</custom-attribute>\n';
         }
         productXml += '        </custom-attributes>\n';
     } else if (sourcePlatform === 'sap' && t.sapApprovalStatus) {
@@ -321,6 +339,7 @@ function buildProductXml(t, selectedVarAttrs) {
     if (t.productKind === 'base' && t.hasVariants) {
         var isShopifyVar = sourcePlatform === 'shopify';
         var isSapVar     = sourcePlatform === 'sap';
+        var isBcVar      = sourcePlatform === 'bigcommerce';
         for (var vi = 0; vi < t.variants.length; vi++) {
             var v = t.variants[vi];
             productXml += '    <product product-id="' + xmlEsc(v.productId) + '">\n';
@@ -359,6 +378,29 @@ function buildProductXml(t, selectedVarAttrs) {
                     var sstr  = String(sval);
                     if (!sstr) continue;
                     varInner += '            <custom-attribute attribute-id="' + xmlEsc(saId) + '">' + xmlEsc(sstr) + '</custom-attribute>\n';
+                }
+            } else if (isBcVar) {
+                varInner = t.bcId
+                    ? '            <custom-attribute attribute-id="' + xmlEsc(resolveProductAttrId('bc_product_id')) + '">' + xmlEsc(t.bcId) + '</custom-attribute>\n'
+                    : '';
+                for (var bai = 0; bai < (v.attributes || []).length; bai++) {
+                    var ba    = v.attributes[bai];
+                    var bval  = ba.value;
+                    if (bval === null || bval === undefined) continue;
+                    if (Array.isArray(bval)) continue;
+                    if (hasVarSelection
+                        && selectedVarAttrs.indexOf(ba.name) === -1
+                        && ba.name !== 'price' && ba.name !== 'sale_price' && ba.name !== 'upc') {
+                        continue;
+                    }
+                    var baRule = nativeMap.getRule('bigcommerce', 'Product', ba.name);
+                    if (baRule && baRule.action === 'skip') continue;
+                    var baId  = (baRule && baRule.action === 'custom_attr') ? baRule.sfccField
+                        : ('bc_' + String(ba.name || '').replace(/[^a-zA-Z0-9_]/g, '_'));
+                    baId = resolveProductAttrId(baId);
+                    var bstr  = String(bval);
+                    if (!bstr) continue;
+                    varInner += '            <custom-attribute attribute-id="' + xmlEsc(baId) + '">' + xmlEsc(bstr) + '</custom-attribute>\n';
                 }
             } else if (isSapVar) {
                 // SAP: link back to parent via sap_product_id; write variant qualifiers unfiltered

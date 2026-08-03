@@ -226,6 +226,11 @@ function buildConnectionCreds(platformId) {
         creds.clientSecret = cfg.shopify.clientSecret || '';
         creds.accessToken  = cfg.shopify.accessToken || '';
         creds.apiVersion   = cfg.shopify.apiVersion || '2025-01';
+    } else if (platformId === 'bigcommerce') {
+        creds.storeHash   = (cfg.bigcommerce && cfg.bigcommerce.storeHash) || '';
+        creds.clientId    = (cfg.bigcommerce && cfg.bigcommerce.clientId) || '';
+        creds.accessToken = (cfg.bigcommerce && cfg.bigcommerce.accessToken) || '';
+        creds.apiVersion  = (cfg.bigcommerce && cfg.bigcommerce.apiVersion) || 'v3';
     } else if (platformId === 'amplience') {
         creds.hubName             = (cfg.amplience && cfg.amplience.hubName) || '';
         creds.personalAccessToken = (cfg.amplience && cfg.amplience.personalAccessToken) || '';
@@ -272,6 +277,13 @@ function buildConnectionSummary(platformId) {
         lines.push({ label: 'Client ID', value: cfg.shopify.clientId || '(not set)' });
         lines.push({ label: 'Secret / token', value: hasSecret ? 'Configured' : '(not set)' });
         lines.push({ label: 'API version', value: cfg.shopify.apiVersion || '(not set)' });
+    } else if (platformId === 'bigcommerce') {
+        var bc = cfg.bigcommerce || {};
+        configured = !!(bc.storeHash && bc.accessToken);
+        lines.push({ label: 'Store hash', value: bc.storeHash || '(not set)' });
+        lines.push({ label: 'Client ID', value: bc.clientId || '(not set)' });
+        lines.push({ label: 'Access token', value: bc.accessToken ? 'Configured' : '(not set)' });
+        lines.push({ label: 'API version', value: bc.apiVersion || 'v3' });
     } else if (platformId === 'sap') {
         configured = !!(cfg.sap.baseUrl && cfg.sap.baseSite && cfg.sap.clientId && cfg.sap.clientSecret);
         lines.push({ label: 'Base URL', value: cfg.sap.baseUrl || '(not set)' });
@@ -1234,22 +1246,39 @@ exports.CustomerMigration = function () {
     var cfg2           = require('*/cartridge/scripts/migration/configAccessor');
     var customerListId = (cfg2.sfcc && cfg2.sfcc.customerListId) ? cfg2.sfcc.customerListId : '';
     var platformId = resolvePlatform();
-    var isShopify  = platformId === 'shopify';
+    var isShopify      = platformId === 'shopify';
+    var isBigCommerce  = platformId === 'bigcommerce';
     var pageCtx    = migrationPageContext(platformId, 'customer');
     var listsUrl   = URLUtils.url('Accelerator-GetCustomerLists').toString();
 
     clearModuleAttrIdMap('customer');
 
+    var sourceIdLabel;
+    var sourceIdPlaceholder;
+    var sourceIdFormatNote;
+    if (isShopify) {
+        sourceIdLabel       = 'Shopify Customer ID(s)';
+        sourceIdPlaceholder = 'e.g. 8474509455577, 8474509619417, ...';
+        sourceIdFormatNote  = 'Enter the numeric Shopify customer ID(s) shown in the Shopify admin URL for each customer.';
+    } else if (isBigCommerce) {
+        sourceIdLabel       = 'BigCommerce Customer ID(s)';
+        sourceIdPlaceholder = 'e.g. 1, 2, 15, ...';
+        sourceIdFormatNote  = 'Enter the numeric BigCommerce customer ID(s) from the Customers admin for each customer.';
+    } else {
+        sourceIdLabel       = 'Commercetools Customer UUID(s)';
+        sourceIdPlaceholder = 'e.g. a1b2c3d4-e5f6-7890-abcd-ef1234567890, ...';
+        sourceIdFormatNote  = 'Enter the UUID(s) from the Commercetools platform (format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx).';
+    }
+
     ISML.renderTemplate('accelerator/customerMigration', withBmFrame({
         title:          Resource.msg('accelerator.title', 'accelerator', null),
         subtitle:       Resource.msg('accelerator.subtitle', 'accelerator', null),
         isShopify:      isShopify,
+        isBigCommerce:  isBigCommerce,
         platformLabel:  pageCtx.sourceLabel,
-        sourceIdLabel:  isShopify ? 'Shopify Customer ID(s)' : 'Commercetools Customer UUID(s)',
-        sourceIdPlaceholder: isShopify ? 'e.g. 8474509455577, 8474509619417, ...' : 'e.g. a1b2c3d4-e5f6-7890-abcd-ef1234567890, ...',
-        sourceIdFormatNote:  isShopify
-            ? 'Enter the numeric Shopify customer ID(s) shown in the Shopify admin URL for each customer.'
-            : 'Enter the UUID(s) from the Commercetools platform (format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx).',
+        sourceIdLabel:  sourceIdLabel,
+        sourceIdPlaceholder: sourceIdPlaceholder,
+        sourceIdFormatNote:  sourceIdFormatNote,
         customerListId: customerListId,
         dashboardUrl:   URLUtils.url('Accelerator-Start').toString(),
         impexPath:      pageCtx.impexPath,
@@ -1326,9 +1355,15 @@ exports.GetCustomerLists.public = true;
  */
 exports.FetchCtpCustomerGroups = function () {
     try {
-        var groupFetcher = (resolvePlatform() === 'shopify')
-            ? require('*/cartridge/scripts/migration/customerMigration/shopifyCustomerGroupFetcher')
-            : require('*/cartridge/scripts/migration/customerMigration/ctpCustomerGroupFetcher');
+        var platform = resolvePlatform();
+        var groupFetcher;
+        if (platform === 'shopify') {
+            groupFetcher = require('*/cartridge/scripts/migration/customerMigration/shopifyCustomerGroupFetcher');
+        } else if (platform === 'bigcommerce') {
+            groupFetcher = require('*/cartridge/scripts/migration/customerMigration/bcCustomerGroupFetcher');
+        } else {
+            groupFetcher = require('*/cartridge/scripts/migration/customerMigration/ctpCustomerGroupFetcher');
+        }
         jsonResponse({ ok: true, groups: groupFetcher.fetchGroups() });
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
@@ -1410,6 +1445,10 @@ exports.GetProductSetsInfo = function () {
         jsonResponse({ ok: true, sets: [], note: 'Shopify set/bundle detection uses the Product Type field at migration time.' });
         return;
     }
+    if (platform === 'bigcommerce') {
+        jsonResponse({ ok: true, sets: [], note: 'BigCommerce product set detection is not yet implemented.' });
+        return;
+    }
     if (platform === 'sap') {
         jsonResponse({ ok: true, sets: [], note: 'SAP Commerce product set detection is not yet implemented (planned for a later phase).' });
         return;
@@ -1434,6 +1473,10 @@ exports.GetBundleProductsInfo = function () {
         jsonResponse({ ok: true, bundles: [], note: 'Shopify set/bundle detection uses the Product Type field at migration time.' });
         return;
     }
+    if (platform === 'bigcommerce') {
+        jsonResponse({ ok: true, bundles: [], note: 'BigCommerce bundle detection is not yet implemented.' });
+        return;
+    }
     if (platform === 'sap') {
         jsonResponse({ ok: true, bundles: [], note: 'SAP Commerce bundle detection is not yet implemented (planned for a later phase).' });
         return;
@@ -1455,10 +1498,14 @@ exports.GetVariantAttrs = function () {
         var attrMap          = attrIdMapSession.read('product');
         var fields           = [];
         var isShopify        = platform === 'shopify';
+        var isBigCommerce    = platform === 'bigcommerce';
 
         if (isShopify) {
             var shopifyChecker = require('*/cartridge/scripts/migration/productMigration/shopifyProductAttrChecker');
             fields = shopifyChecker.getShopifyVariantOptionFields();
+        } else if (isBigCommerce) {
+            var bcChecker = require('*/cartridge/scripts/migration/productMigration/bcProductAttrChecker');
+            fields = bcChecker.getBcVariantOptionFields();
         } else if (platform === 'sap') {
             var sapChecker = require('*/cartridge/scripts/migration/productMigration/sapProductAttrChecker');
             fields = sapChecker.getSapVariantOptionFields();
@@ -1499,7 +1546,8 @@ exports.GetVariantAttrs = function () {
             ok:             true,
             attrs:          enriched,
             savedSelection: savedSelection,
-            shopify:        isShopify
+            shopify:        isShopify,
+            bigcommerce:    isBigCommerce
         });
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
@@ -1552,6 +1600,12 @@ exports.SaveVariantAttrSelection = function () {
             for (var sfi = 0; sfi < shopifyFields.length; sfi++) {
                 ctpNameToField[shopifyFields[sfi].name] = shopifyFields[sfi];
             }
+        } else if (platform === 'bigcommerce') {
+            var bcVarChecker = require('*/cartridge/scripts/migration/productMigration/bcProductAttrChecker');
+            var bcFields     = bcVarChecker.getBcVariantOptionFields();
+            for (var bfi = 0; bfi < bcFields.length; bfi++) {
+                ctpNameToField[bcFields[bfi].name] = bcFields[bfi];
+            }
         } else {
             var checker    = require('*/cartridge/scripts/migration/productMigration/productAttrChecker');
             var ctpFields  = checker.getCtpProductTypeFields();
@@ -1599,9 +1653,15 @@ exports.SaveVariantAttrSelection.public = true;
  */
 exports.CheckCustomerAttributes = function () {
     try {
-        var checker = (resolvePlatform() === 'shopify')
-            ? require('*/cartridge/scripts/migration/customerMigration/shopifyCustomerAttrChecker')
-            : require('*/cartridge/scripts/migration/customerMigration/customerAttrChecker');
+        var platform = resolvePlatform();
+        var checker;
+        if (platform === 'shopify') {
+            checker = require('*/cartridge/scripts/migration/customerMigration/shopifyCustomerAttrChecker');
+        } else if (platform === 'bigcommerce') {
+            checker = require('*/cartridge/scripts/migration/customerMigration/bcCustomerAttrChecker');
+        } else {
+            checker = require('*/cartridge/scripts/migration/customerMigration/customerAttrChecker');
+        }
         jsonResponse({ ok: true, missing: checker.checkMissingAttributes() });
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
@@ -1617,9 +1677,15 @@ exports.CreateCustomerAttributes = function () {
     var attrs = parseAttrsParam();
     if (!attrs) return;
     try {
-        var checker2 = (resolvePlatform() === 'shopify')
-            ? require('*/cartridge/scripts/migration/customerMigration/shopifyCustomerAttrChecker')
-            : require('*/cartridge/scripts/migration/customerMigration/customerAttrChecker');
+        var platform = resolvePlatform();
+        var checker2;
+        if (platform === 'shopify') {
+            checker2 = require('*/cartridge/scripts/migration/customerMigration/shopifyCustomerAttrChecker');
+        } else if (platform === 'bigcommerce') {
+            checker2 = require('*/cartridge/scripts/migration/customerMigration/bcCustomerAttrChecker');
+        } else {
+            checker2 = require('*/cartridge/scripts/migration/customerMigration/customerAttrChecker');
+        }
         respondCreateAttributes('customer', function (a) { return checker2.createAttributes(a); }, attrs);
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
@@ -1654,9 +1720,15 @@ exports.DeleteCustomerAttribute.public = true;
  */
 exports.CustomerMigrationCount = function () {
     try {
-        var countFetcher = (resolvePlatform() === 'shopify')
-            ? require('*/cartridge/scripts/migration/customerMigration/shopifyCustomerFetcher')
-            : require('*/cartridge/scripts/migration/customerMigration/ctpCustomerFetcher');
+        var platform = resolvePlatform();
+        var countFetcher;
+        if (platform === 'shopify') {
+            countFetcher = require('*/cartridge/scripts/migration/customerMigration/shopifyCustomerFetcher');
+        } else if (platform === 'bigcommerce') {
+            countFetcher = require('*/cartridge/scripts/migration/customerMigration/bcCustomerFetcher');
+        } else {
+            countFetcher = require('*/cartridge/scripts/migration/customerMigration/ctpCustomerFetcher');
+        }
         jsonResponse({ ok: true, total: countFetcher.getCount() });
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
@@ -1681,6 +1753,14 @@ exports.MigrateCustomerBatch = function () {
         jsonResponse({
             ok:    false,
             error: 'Sequential partial migration is not supported for Shopify yet — '
+                 + 'enter specific customer IDs above, or use Full Migration for the whole store.'
+        });
+        return;
+    }
+    if (resolvePlatform() === 'bigcommerce') {
+        jsonResponse({
+            ok:    false,
+            error: 'Sequential partial migration is not supported for BigCommerce yet — '
                  + 'enter specific customer IDs above, or use Full Migration for the whole store.'
         });
         return;
@@ -1739,9 +1819,15 @@ exports.FullMigrationBuildBatch = function () {
         return;
     }
     try {
-        var fullRunner = (resolvePlatform() === 'shopify')
-            ? require('*/cartridge/scripts/migration/customerMigration/shopifyFullMigrationRunner')
-            : require('*/cartridge/scripts/migration/customerMigration/fullMigrationRunner');
+        var platform = resolvePlatform();
+        var fullRunner;
+        if (platform === 'shopify') {
+            fullRunner = require('*/cartridge/scripts/migration/customerMigration/shopifyFullMigrationRunner');
+        } else if (platform === 'bigcommerce') {
+            fullRunner = require('*/cartridge/scripts/migration/customerMigration/bcFullMigrationRunner');
+        } else {
+            fullRunner = require('*/cartridge/scripts/migration/customerMigration/fullMigrationRunner');
+        }
         jsonResponse(fullRunner.runBatch(offset, listId));
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
@@ -1762,9 +1848,15 @@ exports.MigrateCustomerById = function () {
         return;
     }
     try {
-        var byIdRunner = (resolvePlatform() === 'shopify')
-            ? require('*/cartridge/scripts/migration/customerMigration/shopifyCustomerMigrationRunner')
-            : require('*/cartridge/scripts/migration/customerMigration/customerMigrationRunner');
+        var platform = resolvePlatform();
+        var byIdRunner;
+        if (platform === 'shopify') {
+            byIdRunner = require('*/cartridge/scripts/migration/customerMigration/shopifyCustomerMigrationRunner');
+        } else if (platform === 'bigcommerce') {
+            byIdRunner = require('*/cartridge/scripts/migration/customerMigration/bcCustomerMigrationRunner');
+        } else {
+            byIdRunner = require('*/cartridge/scripts/migration/customerMigration/customerMigrationRunner');
+        }
         jsonResponse(byIdRunner.runProfileBatchById(ctpId, listId));
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
@@ -2659,6 +2751,9 @@ exports.ProductMigrationCount = function () {
         if (platform === 'shopify') {
             var shopifyFetcher = require('*/cartridge/scripts/migration/productMigration/shopifyProductFetcher');
             jsonResponse({ ok: true, total: shopifyFetcher.getCount() });
+        } else if (platform === 'bigcommerce') {
+            var bcFetcherCount = require('*/cartridge/scripts/migration/productMigration/bcProductFetcher');
+            jsonResponse({ ok: true, total: bcFetcherCount.getCount() });
         } else if (platform === 'sap') {
             var sapFetcherCount = require('*/cartridge/scripts/migration/productMigration/sapProductFetcher');
             jsonResponse({ ok: true, total: sapFetcherCount.getCount() });
@@ -2681,7 +2776,7 @@ exports.FullProductMigrationBuildBatch = function () {
     var platform  = String(session.custom.migrationPlatformId || 'commercetools');
     var offsetRaw = getParam('offset') || '0';
 
-    // For Shopify, offset is a cursor string. For CTP, parse as integer.
+    // For Shopify, offset is a cursor string. For CTP/SAP/BC, parse as integer.
     var offsetOrCursor = (platform === 'shopify')
         ? ((offsetRaw === '0' || !offsetRaw) ? null : offsetRaw)
         : parseInt(offsetRaw, 10);
@@ -2752,6 +2847,9 @@ exports.CheckProductAttributes = function () {
         if (platform === 'shopify') {
             var shopifyChecker = require('*/cartridge/scripts/migration/productMigration/shopifyProductAttrChecker');
             jsonResponse({ ok: true, missing: shopifyChecker.checkMissingAttributes() });
+        } else if (platform === 'bigcommerce') {
+            var bcProdChecker = require('*/cartridge/scripts/migration/productMigration/bcProductAttrChecker');
+            jsonResponse({ ok: true, missing: bcProdChecker.checkMissingAttributes() });
         } else if (platform === 'sap') {
             var sapChecker = require('*/cartridge/scripts/migration/productMigration/sapProductAttrChecker');
             jsonResponse({ ok: true, missing: sapChecker.checkMissingAttributes() });
@@ -2776,9 +2874,11 @@ exports.CreateProductAttributes = function () {
     try {
         var checker2 = (platform === 'shopify')
             ? require('*/cartridge/scripts/migration/productMigration/shopifyProductAttrChecker')
-            : (platform === 'sap')
-                ? require('*/cartridge/scripts/migration/productMigration/sapProductAttrChecker')
-                : require('*/cartridge/scripts/migration/productMigration/productAttrChecker');
+            : (platform === 'bigcommerce')
+                ? require('*/cartridge/scripts/migration/productMigration/bcProductAttrChecker')
+                : (platform === 'sap')
+                    ? require('*/cartridge/scripts/migration/productMigration/sapProductAttrChecker')
+                    : require('*/cartridge/scripts/migration/productMigration/productAttrChecker');
         respondCreateAttributes('product', function (a) { return checker2.createAttributes(a); }, attrs);
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
@@ -3526,7 +3626,7 @@ function getCategoryMigrationJS() {
     L.push('    function fetchPage(offset){');
     L.push('      if(status){status.textContent="Loading... "+_APP.allCategories.length+" fetched";status.style.color="#54698d";}');
     L.push('      _APP.post(_APP.FETCH_URL,"locale="+encodeURIComponent(locale||"en-US")+"&offset="+offset,function(data){');
-    L.push('        var _lbl=_APP.PLATFORM==="sap"?"SAP":_APP.PLATFORM==="shopify"?"Shopify":"CT";');
+    L.push('        var _lbl=_APP.PLATFORM==="sap"?"SAP":_APP.PLATFORM==="shopify"?"Shopify":_APP.PLATFORM==="bigcommerce"?"BigCommerce":"CT";');
     L.push('        if(!data.ok){btn.disabled=false;btn.textContent="Load Categories from "+_lbl;if(status){status.textContent="Error: "+(data.error||"failed");status.style.color="#c62828";}return;}');
     L.push('        data.categories.forEach(function(c){_APP.allCategories.push(c);_APP.catMap[c.id]=c;});');
     L.push('        if(data.done){');
@@ -3581,6 +3681,39 @@ function getCategoryMigrationJS() {
     L.push('          });');
     L.push('        }');
     L.push('        fetchShopifyPage(0);');
+    L.push('      });');
+    L.push('    }');
+    L.push('  }');
+    // BigCommerce override — cursor-style paging via nextOffset (same contract as Shopify)
+    L.push('  if(_APP.PLATFORM==="bigcommerce"){');
+    L.push('    el=document.getElementById("btn-load-categories");');
+    L.push('    if(el){');
+    L.push('      el.textContent="Load Categories from BigCommerce";');
+    L.push('      var _bcClone=el.cloneNode(true);el.parentNode.replaceChild(_bcClone,el);el=_bcClone;');
+    L.push('      el.addEventListener("click",function(){');
+    L.push('        var btn=this;var status=document.getElementById("hierarchy-fetch-status");');
+    L.push('        btn.disabled=true;btn.textContent="Loading...";');
+    L.push('        _APP.allCategories=[];_APP.catMap={};');
+    L.push('        _APP.hierarchyOverrides={};_APP.orderOverrides={};_APP.pendingParent={};_APP.pendingOrder={};_APP.activeFilter="all";_APP.newCatCount=0;_APP.addedCats=[];');
+    L.push('        function fetchBCPage(cursor){');
+    L.push('          if(status){status.textContent="Loading categories... "+_APP.allCategories.length+" so far";status.style.color="#54698d";}');
+    L.push('          _APP.post(_APP.FETCH_URL,"offset="+encodeURIComponent(cursor),function(data){');
+    L.push('            if(!data.ok){btn.disabled=false;btn.textContent="Load Categories from BigCommerce";if(status){status.textContent="Error: "+(data.error||"failed");status.style.color="#c62828";}return;}');
+    L.push('            data.categories.forEach(function(c){_APP.allCategories.push(c);_APP.catMap[c.id]=c;});');
+    L.push('            _APP.renderTable();');
+    L.push('            if(data.done){');
+    L.push('              btn.disabled=false;btn.textContent="Load Categories from BigCommerce";');
+    L.push('              if(status){status.textContent=_APP.allCategories.length+" categories loaded";status.style.color="#2e7d32";}');
+    L.push('              _APP.buildSharedParentSelect();');
+    L.push('              _APP.populateParentDropdown();');
+    L.push('              var applied=document.getElementById("hierarchy-applied-summary");if(applied)applied.style.display="none";');
+    L.push('            } else {');
+    L.push('              if(!data.nextOffset&&data.nextOffset!==0){btn.disabled=false;btn.textContent="Load Categories from BigCommerce";if(status){status.textContent="Error: server returned no next cursor";status.style.color="#c62828";}return;}');
+    L.push('              setTimeout(function(){fetchBCPage(data.nextOffset);},0);');
+    L.push('            }');
+    L.push('          });');
+    L.push('        }');
+    L.push('        fetchBCPage(0);');
     L.push('      });');
     L.push('    }');
     L.push('  }');
@@ -3695,7 +3828,7 @@ function getCategoryMigrationJS() {
     L.push('      alert(mpMsg);_APP.running=false;this.disabled=false;this.textContent="Run Migration";return;');
     L.push('    }');
     L.push('    var selIdsParam=encodeURIComponent(JSON.stringify(selIds));');
-    L.push('    var catsParam=(_APP.PLATFORM==="shopify"&&_APP.allCategories&&_APP.allCategories.length)?encodeURIComponent(JSON.stringify(_APP.allCategories)):"";');
+    L.push('    var catsParam=((_APP.PLATFORM==="shopify"||_APP.PLATFORM==="bigcommerce")&&_APP.allCategories&&_APP.allCategories.length)?encodeURIComponent(JSON.stringify(_APP.allCategories)):"";');
     L.push('    var attrIdMap={};');
     L.push('    var aInps=document.querySelectorAll("#attr-tbody .cm-attr-id-input");');
     L.push('    for(var ai=0;ai<aInps.length;ai++){');
@@ -3785,9 +3918,14 @@ exports.CategoryMigration = function () {
     var importPageUrl  = 'https://' + instanceHost + '/on/demandware.store/Sites-Site/default%3bapp%3d__bm_merchant/ViewCatalogImpex_52-Status?SelectedMenuItem=prod-cat_impex&CurrentMenuItemId=prod-cat';
     var checkAttrsUrl  = URLUtils.url('Accelerator-CheckCategoryAttributes').toString() || '';
     var checkStatusUrl = URLUtils.url('Accelerator-CheckAttributeStatus').toString()    || '';
-    var fetchUrl       = platformId === 'shopify'
-        ? URLUtils.url('Accelerator-FetchShopifyCategories').toString()
-        : URLUtils.url('Accelerator-FetchCTCategories').toString();
+    var fetchUrl;
+    if (platformId === 'shopify') {
+        fetchUrl = URLUtils.url('Accelerator-FetchShopifyCategories').toString();
+    } else if (platformId === 'bigcommerce') {
+        fetchUrl = URLUtils.url('Accelerator-FetchBigCommerceCategories').toString();
+    } else {
+        fetchUrl = URLUtils.url('Accelerator-FetchCTCategories').toString();
+    }
     var migrateUrl     = URLUtils.url('Accelerator-RunCategoryMigration').toString()    || '';
 
     Logger.info('CategoryMigration URLs: migrate={0} impex={1} import={2}',
@@ -4266,6 +4404,29 @@ exports.FetchShopifyCategories = function () {
 };
 exports.FetchShopifyCategories.public = true;
 
+exports.FetchBigCommerceCategories = function () {
+    var fetchBC = require('~/cartridge/scripts/catalog/fetchBigCommerceCategories');
+    var Logger  = require('dw/system/Logger');
+
+    response.setContentType('application/json');
+
+    try {
+        var cursor = request.httpParameterMap.offset.stringValue || '0';
+        var page   = fetchBC.fetchCollectionsPage(cursor);
+
+        response.writer.print(JSON.stringify({
+            ok         : true,
+            categories : page.results,
+            nextOffset : page.nextCursor || '',
+            done       : page.done
+        }));
+    } catch (e) {
+        Logger.error('FetchBigCommerceCategories error: {0}', e.message);
+        response.writer.print(JSON.stringify({ ok: false, error: e.message }));
+    }
+};
+exports.FetchBigCommerceCategories.public = true;
+
 exports.FetchSAPCategories = function () {
     jsonResponse({ ok: false, error: 'DIAGNOSTIC: endpoint reached, SAP not called yet' });
 };
@@ -4529,6 +4690,78 @@ exports.RunCategoryMigration = function () {
             }
 
             Logger.info('RunCategoryMigration Shopify: {0} categories', sfccCategories.length);
+
+        } else if (platform === 'bigcommerce') {
+            // ── BigCommerce path ──────────────────────────────────────────────
+            var fetchBC = require('~/cartridge/scripts/catalog/fetchBigCommerceCategories');
+            var allBcCats = [];
+
+            if (clientCategories.length > 0) {
+                allBcCats = clientCategories;
+                Logger.info('RunCategoryMigration: using {0} client-sent BigCommerce categories', allBcCats.length);
+            } else {
+                var bcCursor = '0';
+                var bcDone   = false;
+                var bcGuard  = 0;
+                while (!bcDone && bcGuard < 200) {
+                    bcGuard++;
+                    var bcPage = fetchBC.fetchCollectionsPage(bcCursor);
+                    var bcBatch = bcPage.results || [];
+                    for (var bci = 0; bci < bcBatch.length; bci++) {
+                        allBcCats.push(bcBatch[bci]);
+                    }
+                    bcDone = !!bcPage.done;
+                    bcCursor = bcPage.nextCursor || '';
+                    if (!bcDone && !bcCursor) break;
+                }
+                Logger.info('RunCategoryMigration: fetched {0} BigCommerce categories', allBcCats.length);
+            }
+
+            if (selectedIds.length > 0) {
+                var selSetBC = {};
+                for (var siBC = 0; siBC < selectedIds.length; siBC++) { selSetBC[selectedIds[siBC]] = true; }
+                allBcCats = allBcCats.filter(function (tc) { return selSetBC[tc.id]; });
+            }
+
+            var bcTaxMap      = {};
+            var bcHasChildren = {};
+            for (var bti2 = 0; bti2 < allBcCats.length; bti2++) {
+                bcTaxMap[allBcCats[bti2].id] = allBcCats[bti2];
+            }
+            for (var bti3 = 0; bti3 < allBcCats.length; bti3++) {
+                var bpid = allBcCats[bti3].parentId;
+                if (bpid) { bcHasChildren[bpid] = true; }
+            }
+
+            function getBcTaxLevel(id, visited) {
+                if (!id || visited[id]) return 1;
+                visited[id] = true;
+                var node = bcTaxMap[id];
+                if (!node || !node.parentId) return 1;
+                return 1 + getBcTaxLevel(node.parentId, visited);
+            }
+
+            for (var bti = 0; bti < allBcCats.length; bti++) {
+                var btc = allBcCats[bti];
+                var bcNameObj = {};
+                bcNameObj[locale] = btc.name || btc.id;
+                sfccCategories.push({
+                    id              : btc.id,
+                    parentId        : btc.parentId || 'root',
+                    name            : bcNameObj,
+                    description     : {},
+                    pageTitle       : {},
+                    pageDescription : {},
+                    position        : bti + 1,
+                    online          : true,
+                    customAttributes: {
+                        level : getBcTaxLevel(btc.id, {}),
+                        isLeaf: !bcHasChildren[btc.id]
+                    }
+                });
+            }
+
+            Logger.info('RunCategoryMigration BigCommerce: {0} categories', sfccCategories.length);
 
         } else if (platform === 'sap') {
             // ── SAP Commerce Cloud path ───────────────────────────────────────

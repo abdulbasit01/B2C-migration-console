@@ -35,6 +35,7 @@ function applyToConfig(cfg) {
     var out = cfg || {};
 
     out.shopify = out.shopify || {};
+    out.bigcommerce = out.bigcommerce || {};
     out.ctp = out.ctp || {};
     out.sap = out.sap || {};
     out.sfcc = out.sfcc || {};
@@ -44,6 +45,11 @@ function applyToConfig(cfg) {
     out.shopify.clientId     = getPref('rcMigShopifyClientId', out.shopify.clientId || '');
     out.shopify.clientSecret = getPref('rcMigShopifyClientSecret', out.shopify.clientSecret || '');
     out.shopify.apiVersion   = getPref('rcMigShopifyApiVersion', out.shopify.apiVersion || '2025-01');
+
+    out.bigcommerce.storeHash   = getPref('rcMigBcStoreHash', out.bigcommerce.storeHash || '');
+    out.bigcommerce.clientId    = getPref('rcMigBcClientId', out.bigcommerce.clientId || '');
+    out.bigcommerce.accessToken = getPref('rcMigBcAccessToken', out.bigcommerce.accessToken || '');
+    out.bigcommerce.apiVersion  = getPref('rcMigBcApiVersion', out.bigcommerce.apiVersion || 'v3');
 
     out.ctp.projectKey   = getPref('rcMigCtpProjectKey', out.ctp.projectKey || '');
     out.ctp.clientId     = getPref('rcMigCtpClientId', out.ctp.clientId || '');

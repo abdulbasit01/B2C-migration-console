@@ -10,13 +10,14 @@ var LocalServiceRegistry = require('dw/svc/LocalServiceRegistry');
 var Logger = require('dw/system/Logger').getLogger('bm_accelerator', 'ServiceHttp');
 
 var SERVICE_IDS = {
-    generic:   'accelerator.http.generic',
-    shopify:   'accelerator.shopify.api',
-    ctp:       'accelerator.ctp.api',
-    sap:       'accelerator.sap.api',
-    sfcc:      'accelerator.sfcc.ocapi',
-    webdav:    'accelerator.sfcc.webdav',
-    amplience: 'accelerator.amplience.api'
+    generic:     'accelerator.http.generic',
+    shopify:     'accelerator.shopify.api',
+    bigcommerce: 'accelerator.bigcommerce.api',
+    ctp:         'accelerator.ctp.api',
+    sap:         'accelerator.sap.api',
+    sfcc:        'accelerator.sfcc.ocapi',
+    webdav:      'accelerator.sfcc.webdav',
+    amplience:   'accelerator.amplience.api'
 };
 
 /**
@@ -32,6 +33,8 @@ function filterLogMessage(msg) {
     out = out.replace(/("password"\s*:\s*")[^"]+"/gi, '$1***"');
     out = out.replace(/(Authorization:\s*)[^\r\n]+/gi, '$1***');
     out = out.replace(/(X-Shopify-Access-Token:\s*)[^\r\n]+/gi, '$1***');
+    out = out.replace(/(X-Auth-Token:\s*)[^\r\n]+/gi, '$1***');
+    out = out.replace(/(X-Auth-Client:\s*)[^\r\n]+/gi, '$1***');
     out = out.replace(/(client_secret=)[^&\s]+/gi, '$1***');
     out = out.replace(/(Bearer\s+)[A-Za-z0-9._\-]+/g, '$1***');
     out = out.replace(/(Basic\s+)[A-Za-z0-9+/=]+/g, '$1***');

@@ -11,6 +11,7 @@
 var connectors = {
     'commercetools': require('*/cartridge/scripts/migration/connectors/ctp/ctpConnector'),
     'shopify':       require('*/cartridge/scripts/migration/connectors/shopify/shopifyConnector'),
+    'bigcommerce':   require('*/cartridge/scripts/migration/connectors/bigcommerce/bigcommerceConnector'),
     'amplience':     require('*/cartridge/scripts/migration/connectors/amplience/amplienceConnector'),
     'sap':           require('*/cartridge/scripts/migration/connectors/sap/sapConnector')
 };

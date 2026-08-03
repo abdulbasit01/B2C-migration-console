@@ -13,10 +13,17 @@ var attrBuilder        = require('*/cartridge/scripts/migration/core/attrBuilder
  * @returns {Function}
  */
 function getEnricher(platformId) {
-    if (platformId === 'shopify') {
+    if (platformId === 'shopify' || platformId === 'bigcommerce') {
+        var typeMap = platformId === 'bigcommerce'
+            ? require('*/cartridge/scripts/migration/connectors/bigcommerce/bigcommerceTypeMap')
+            : shopifyTypeMap;
         return function (entry) {
             var sourceType = entry.sourceType || entry.ctpType || 'single_line_text_field';
-            var sfccType   = entry.sfccType || shopifyTypeMap.resolveMetafieldType(sourceType) || 'string';
+            var sfccType   = entry.sfccType
+                || (typeMap.resolveMetafieldType
+                    ? typeMap.resolveMetafieldType(sourceType)
+                    : typeMap.resolveFieldType(sourceType))
+                || 'string';
             return {
                 id:              entry.id,
                 label:           entry.label,
@@ -38,9 +45,9 @@ function getEnricher(platformId) {
 function normalizeField(field, platformId) {
     var sourceType = field.sourceType || field.ctpType || 'String';
     var sfccId     = field.sfccId || field.id || field.name;
-    if (!field.sfccId && field.name && platformId === 'shopify') {
+    if (!field.sfccId && field.name && (platformId === 'shopify' || platformId === 'bigcommerce')) {
         sfccId = sourceAttrIds.toAttrId(field.name, platformId);
-    } else if (!field.sfccId && field.name && platformId !== 'shopify') {
+    } else if (!field.sfccId && field.name && platformId !== 'shopify' && platformId !== 'bigcommerce') {
         sfccId = field.name;
     }
     sfccId = sourceAttrIds.remapCamelAttrId(sfccId, platformId);
@@ -79,9 +86,8 @@ function checkMissing(sfccObjectType, getCtpFieldsFn, getExtraFieldsFn, attrIdMa
 
     if (platformId === 'shopify') {
         fields = shopifyMetafields.fieldsForSfccObject(sfccObjectType);
-    } else if (platformId === 'sap') {
-        // No verified SAP OCC endpoint exposes a dynamic custom-field schema for this
-        // object type yet — only the trace attrs from getExtraFieldsFn apply for now.
+    } else if (platformId === 'bigcommerce' || platformId === 'sap') {
+        // BigCommerce / SAP: use trace attrs from getExtraFieldsFn; no metafield catalog API.
         fields = [];
     } else if (getCtpFieldsFn) {
         fields = getCtpFieldsFn();

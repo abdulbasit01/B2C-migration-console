@@ -208,8 +208,10 @@
             <div style="padding:14px 20px;">
                 <isif condition="${pdict.isShopify}">
                     <p style="margin:0 0 10px;font-size:13px;color:#54698d;">Shopify has no native customer-group concept &mdash; groups are derived from distinct customer tags. Load them, select which ones to create in SFCC, then click <strong>Create Selected Groups</strong>.</p>
+                <iselseif condition="${pdict.isBigCommerce}">
+                    <p style="margin:0 0 10px;font-size:13px;color:#54698d;">Load available customer groups from BigCommerce (V2 customer_groups), select which ones to create in SFCC, then click <strong>Create Selected Groups</strong>. Group IDs use a <code>bc_cg_</code> prefix to preserve the data bridge.</p>
                 <iselse/>
-                    <p style="margin:0 0 10px;font-size:13px;color:#54698d;">Load available customer groups from Commercetools, select which ones to create in SFCC, then click <strong>Create Selected Groups</strong>. Group IDs are kept exactly as-is to preserve the data bridge.</p>
+                    <p style="margin:0 0 10px;font-size:13px;color:#54698d;">Load available customer groups from ${pdict.platformLabel}, select which ones to create in SFCC, then click <strong>Create Selected Groups</strong>. Group IDs are kept exactly as-is to preserve the data bridge.</p>
                 </isif>
                 <div id="acc-cg-results" style="display:none;margin-top:10px;"></div>
                 <div id="acc-cg-actions" style="display:none;margin-top:12px;display:none;gap:10px;align-items:center;flex-wrap:wrap;">

@@ -31,6 +31,34 @@ var SHOPIFY_FULFILLMENT_STATUS_VALUES = [
     'unshipped', 'partial', 'shipped', 'fulfilled'
 ];
 
+/** BigCommerce order status_id values for export filters. */
+var BC_ORDER_STATUS_VALUES = [
+    '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14'
+];
+
+/** BigCommerce payment_status filter values. */
+var BC_PAYMENT_STATUS_VALUES = [
+    'authorized', 'captured', 'capture pending', 'declined', 'held for review',
+    'paid', 'partially refunded', 'pending', 'refunded', 'void', 'void pending'
+];
+
+var BC_ORDER_STATUS_LABELS = {
+    '1':  'Incomplete',
+    '2':  'Pending',
+    '3':  'Shipped',
+    '4':  'Partially Shipped',
+    '5':  'Refunded',
+    '6':  'Cancelled',
+    '7':  'Declined',
+    '8':  'Awaiting Payment',
+    '9':  'Awaiting Pickup',
+    '10': 'Awaiting Shipment',
+    '11': 'Completed',
+    '12': 'Awaiting Fulfillment',
+    '13': 'Manual Verification Required',
+    '14': 'Disputed'
+};
+
 var DATA_TYPES = [
     {
         id:          'order',
@@ -147,11 +175,11 @@ var PLATFORMS = [
         id:          'bigcommerce',
         name:        'BigCommerce',
         tagline:     'B2C Edition, Multi-store',
-        status:      'soon',
+        status:      'ready',
         confidence:  88,
         description: 'Migrate BigCommerce B2C customers, catalog, categories, orders, and contract pricing into Salesforce B2C Commerce.',
         iconClass:   'platform-icon--bigcommerce',
-        connectHint: 'Provide your BigCommerce store hash and API credentials in Site Preferences when this platform is enabled.',
+        connectHint: 'Configure BigCommerce store hash and API credentials under Site Preferences → B2C Migration Console, then test the connection.',
         connectFields: []
     },
     {
@@ -326,12 +354,23 @@ function getShopifyFulfillmentStatusFilters() {
     return buildStatusFilters(SHOPIFY_FULFILLMENT_STATUS_VALUES, formatShopifyLabel);
 }
 
+function getBcOrderStatusFilters() {
+    return buildStatusFilters(BC_ORDER_STATUS_VALUES, function (v) {
+        return BC_ORDER_STATUS_LABELS[v] || v;
+    });
+}
+
+function getBcPaymentStatusFilters() {
+    return buildStatusFilters(BC_PAYMENT_STATUS_VALUES, formatShopifyLabel);
+}
+
 /**
  * @param {string} [platformId]
  * @returns {Array}
  */
 function getOrderStateFilters(platformId) {
     if (platformId === 'shopify') return getShopifyFinancialStatusFilters();
+    if (platformId === 'bigcommerce') return getBcOrderStatusFilters();
     return getCtpOrderStateFilters();
 }
 
@@ -341,6 +380,7 @@ function getOrderStateFilters(platformId) {
  */
 function getPaymentStateFilters(platformId) {
     if (platformId === 'shopify') return getShopifyFulfillmentStatusFilters();
+    if (platformId === 'bigcommerce') return getBcPaymentStatusFilters();
     return getCtpPaymentStateFilters();
 }
 
@@ -367,6 +407,9 @@ function isValidShopifyFulfillmentStatus(value) {
  */
 function isValidOrderState(platformId, value) {
     if (platformId === 'shopify') return isValidShopifyFinancialStatus(value);
+    if (platformId === 'bigcommerce') {
+        return !value || BC_ORDER_STATUS_VALUES.indexOf(value) >= 0;
+    }
     return isValidCtpOrderState(value);
 }
 
@@ -377,6 +420,9 @@ function isValidOrderState(platformId, value) {
  */
 function isValidPaymentState(platformId, value) {
     if (platformId === 'shopify') return isValidShopifyFulfillmentStatus(value);
+    if (platformId === 'bigcommerce') {
+        return !value || BC_PAYMENT_STATUS_VALUES.indexOf(value) >= 0;
+    }
     return isValidCtpPaymentState(value);
 }
 
@@ -402,7 +448,14 @@ function getDataType(typeId) {
  */
 function getMigrationUi(platformId) {
     var id   = platformId || 'commercetools';
-    var pick = function (map) { return platformUiMeta.pickStr(id, map); };
+    var pick = function (map) {
+        if (id === 'bigcommerce' && map && !map.bigcommerce && map.shopify) {
+            return String(map.shopify)
+                .replace(/Shopify/g, 'BigCommerce')
+                .replace(/shopify/g, 'BigCommerce');
+        }
+        return platformUiMeta.pickStr(id, map);
+    };
     var ui   = platformUiMeta.getCommonUiLabels(id);
 
     ui.invIntro = pick({
@@ -565,10 +618,19 @@ function getMigrationUi(platformId) {
     });
     ui.orderIntro = pick({
         shopify: 'Export orders from <strong>Shopify</strong> for the selected date range and generate an SFCC IMPEX package.',
+        bigcommerce: 'Export orders from <strong>BigCommerce</strong> for the selected date range and generate an SFCC IMPEX package.',
         commercetools: 'Export orders from <strong>commercetools</strong> for the selected date range and generate an SFCC IMPEX package.'
     });
-    ui.orderStateLabel = pick({ shopify: 'Financial status', commercetools: 'Order state' });
-    ui.paymentStateLabel = pick({ shopify: 'Fulfillment status', commercetools: 'Payment state' });
+    ui.orderStateLabel = pick({
+        shopify: 'Financial status',
+        bigcommerce: 'Order status',
+        commercetools: 'Order state'
+    });
+    ui.paymentStateLabel = pick({
+        shopify: 'Fulfillment status',
+        bigcommerce: 'Payment status',
+        commercetools: 'Payment state'
+    });
 
     ui.reloadingTax = pick({
         shopify: 'Reloading tax data from Shopify...',

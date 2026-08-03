@@ -30,6 +30,36 @@
                 <default-value>2025-01</default-value>
             </attribute-definition>
 
+            <attribute-definition attribute-id="rcMigBcStoreHash">
+                <display-name xml:lang="x-default">BigCommerce Store Hash</display-name>
+                <description xml:lang="x-default">Store hash from BigCommerce API account (e.g. abc123xyz)</description>
+                <type>string</type>
+                <mandatory-flag>false</mandatory-flag>
+                <externally-managed-flag>false</externally-managed-flag>
+            </attribute-definition>
+            <attribute-definition attribute-id="rcMigBcClientId">
+                <display-name xml:lang="x-default">BigCommerce Client ID</display-name>
+                <description xml:lang="x-default">Optional X-Auth-Client from API account</description>
+                <type>string</type>
+                <mandatory-flag>false</mandatory-flag>
+                <externally-managed-flag>false</externally-managed-flag>
+            </attribute-definition>
+            <attribute-definition attribute-id="rcMigBcAccessToken">
+                <display-name xml:lang="x-default">BigCommerce Access Token</display-name>
+                <description xml:lang="x-default">API account access token (X-Auth-Token)</description>
+                <type>password</type>
+                <mandatory-flag>false</mandatory-flag>
+                <externally-managed-flag>false</externally-managed-flag>
+            </attribute-definition>
+            <attribute-definition attribute-id="rcMigBcApiVersion">
+                <display-name xml:lang="x-default">BigCommerce API Version</display-name>
+                <description xml:lang="x-default">Default API path version for V3 calls (v3)</description>
+                <type>string</type>
+                <mandatory-flag>false</mandatory-flag>
+                <externally-managed-flag>false</externally-managed-flag>
+                <default-value>v3</default-value>
+            </attribute-definition>
+
             <attribute-definition attribute-id="rcMigCtpProjectKey">
                 <display-name xml:lang="x-default">commercetools Project Key</display-name>
                 <type>string</type>
@@ -148,6 +178,10 @@
                 <attribute attribute-id="rcMigShopifyClientId"/>
                 <attribute attribute-id="rcMigShopifyClientSecret"/>
                 <attribute attribute-id="rcMigShopifyApiVersion"/>
+                <attribute attribute-id="rcMigBcStoreHash"/>
+                <attribute attribute-id="rcMigBcClientId"/>
+                <attribute attribute-id="rcMigBcAccessToken"/>
+                <attribute attribute-id="rcMigBcApiVersion"/>
                 <attribute attribute-id="rcMigCtpProjectKey"/>
                 <attribute attribute-id="rcMigCtpClientId"/>
                 <attribute attribute-id="rcMigCtpClientSecret"/>
