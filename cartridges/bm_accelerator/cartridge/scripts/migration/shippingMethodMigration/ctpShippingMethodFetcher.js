@@ -23,13 +23,13 @@ function getToken() {
         body
     );
     if (res.status !== 200 || !res.data.access_token) {
-        throw new Error('CTP auth failed (' + res.status + ')');
+        throw new Error('CT auth failed (' + res.status + ')');
     }
     return res.data.access_token;
 }
 
 /**
- * Return total number of shipping methods in the CTP project.
+ * Return total number of shipping methods in the CT project.
  * @returns {number}
  */
 function getCount() {
@@ -40,13 +40,13 @@ function getCount() {
         { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }
     );
     if (res.status !== 200) {
-        throw new Error('CTP shipping method count failed (' + res.status + ')');
+        throw new Error('CT shipping method count failed (' + res.status + ')');
     }
     return res.data.total || 0;
 }
 
 /**
- * Fetch one page of shipping methods from CTP.
+ * Fetch one page of shipping methods from CT.
  * @param {number} offset
  * @param {number} limit
  * @returns {{ results: Array, total: number }}
@@ -61,7 +61,7 @@ function fetchBatch(offset, limit) {
         { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' }
     );
     if (res.status !== 200) {
-        throw new Error('CTP shipping methods fetch failed (' + res.status + ')');
+        throw new Error('CT shipping methods fetch failed (' + res.status + ')');
     }
     return {
         results: res.data.results || [],
@@ -70,7 +70,7 @@ function fetchBatch(offset, limit) {
 }
 
 /**
- * Fetch a single shipping method by CTP key or UUID.
+ * Fetch a single shipping method by CT key or UUID.
  * @param {string} ctpKeyOrId
  * @returns {Object|null}
  */
@@ -92,13 +92,13 @@ function fetchByKeyOrId(ctpKeyOrId) {
     );
     if (byId.status === 404) return null;
     if (byId.status !== 200) {
-        throw new Error('CTP shipping method fetch failed (' + byId.status + ') for id: ' + id);
+        throw new Error('CT shipping method fetch failed (' + byId.status + ') for id: ' + id);
     }
     return byId.data;
 }
 
 /**
- * Fetch all shipping methods from CTP (paginated).
+ * Fetch all shipping methods from CT (paginated).
  * @returns {{ methods: Array, total: number }}
  */
 function fetchAll() {

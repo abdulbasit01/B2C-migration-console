@@ -88,7 +88,7 @@ function buildShippingMethodXml(ctpMethod) {
 }
 
 /**
- * Build SFCC shipping import XML for a batch of CTP shipping methods.
+ * Build SFCC shipping import XML for a batch of CT shipping methods.
  * @param {Array} ctpMethods
  * @returns {{ xml: string, built: number, failed: number, errors: Array }}
  */

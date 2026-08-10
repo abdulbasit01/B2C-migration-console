@@ -1,9 +1,9 @@
 'use strict';
 
 /**
- * Transform a CTP address into an SFCC address payload.
- * CTP: streetNumber + streetName → SFCC address1
- * @param {Object}  addr        - CTP address object
+ * Transform a CT address into an SFCC address payload.
+ * CT: streetNumber + streetName → SFCC address1
+ * @param {Object}  addr        - CT address object
  * @param {boolean} isPreferred - whether to mark as preferred shipping address
  * @returns {Object|null} SFCC address payload, or null if addr is falsy
  */
@@ -20,7 +20,7 @@ function transformAddress(addr, isPreferred) {
     if (addr.salutation)  sfccAddr.salutation    = addr.salutation;
     if (addr.company)     sfccAddr.company_name  = addr.company;
 
-    // CTP stores street as streetNumber + streetName (number-first in some locales)
+    // CT stores street as streetNumber + streetName (number-first in some locales)
     var street = '';
     if (addr.streetNumber) street = addr.streetNumber + ' ';
     if (addr.streetName)   street += addr.streetName;
@@ -31,7 +31,7 @@ function transformAddress(addr, isPreferred) {
     if (addr.postalCode) sfccAddr.postal_code = addr.postalCode;
     if (addr.country)    sfccAddr.country_code = addr.country;
 
-    // CTP uses region or state for the state/province field
+    // CT uses region or state for the state/province field
     if (addr.state)  sfccAddr.state_code = addr.state;
     if (addr.region && !sfccAddr.state_code) sfccAddr.state_code = addr.region;
 
@@ -42,15 +42,15 @@ function transformAddress(addr, isPreferred) {
 }
 
 /**
- * Transform a CTP customer record into SFCC customer creation payloads.
- * @param {Object} ctpCustomer - CTP customer object
+ * Transform a CT customer record into SFCC customer creation payloads.
+ * @param {Object} ctpCustomer - CT customer object
  * @returns {{ profile: Object, addresses: Array }}
  *   profile   - customer fields for SFCC POST /customer_lists/{id}/customers
  *   addresses - array of SFCC address payloads for address migration phase
  */
 function transformCustomer(ctpCustomer) {
     if (!ctpCustomer || !ctpCustomer.email) {
-        throw new Error('CTP customer missing required email field (id: ' + (ctpCustomer && ctpCustomer.id) + ')');
+        throw new Error('CT customer missing required email field (id: ' + (ctpCustomer && ctpCustomer.id) + ')');
     }
 
     var profile = {
@@ -63,16 +63,16 @@ function transformCustomer(ctpCustomer) {
     if (ctpCustomer.companyName) profile.company_name  = ctpCustomer.companyName;
     if (ctpCustomer.dateOfBirth) profile.birthday      = ctpCustomer.dateOfBirth;
 
-    // CTP salutation and title both map to SFCC salutation (title takes precedence if salutation absent)
+    // CT salutation and title both map to SFCC salutation (title takes precedence if salutation absent)
     if (ctpCustomer.salutation)                       profile.salutation = ctpCustomer.salutation;
     else if (ctpCustomer.title)                       profile.salutation = ctpCustomer.title;
 
-    // Store CTP customer group — keep exact CTP UUID as the bridge between systems
+    // Store CT customer group — keep exact CT UUID as the bridge between systems
     if (ctpCustomer.customerGroup && ctpCustomer.customerGroup.id) {
         profile.c_ctp_customer_group_id = ctpCustomer.customerGroup.id;
     }
 
-    // Store CTP identifiers as custom attributes for traceability after migration
+    // Store CT identifiers as custom attributes for traceability after migration
     profile.c_ctp_customer_id = ctpCustomer.id;
     if (ctpCustomer.customerNumber) {
         profile.c_ctp_customer_number = ctpCustomer.customerNumber;
@@ -80,12 +80,12 @@ function transformCustomer(ctpCustomer) {
     }
     if (ctpCustomer.externalId)  profile.c_ctp_external_id  = ctpCustomer.externalId;
 
-    // CTP built-in fields with no standard SFCC equivalent — stored as custom attributes
+    // CT built-in fields with no standard SFCC equivalent — stored as custom attributes
     if (ctpCustomer.vatId)      profile.c_ctp_vat_id      = ctpCustomer.vatId;
     if (ctpCustomer.locale)     profile.c_ctp_locale      = ctpCustomer.locale;
     if (ctpCustomer.middleName) profile.c_ctp_middle_name = ctpCustomer.middleName;
 
-    // Map CTP custom fields → SFCC custom attributes (requires matching attr definitions in SFCC)
+    // Map CT custom fields → SFCC custom attributes (requires matching attr definitions in SFCC)
     if (ctpCustomer.custom && ctpCustomer.custom.fields) {
         var attrIdMapSession = require('*/cartridge/scripts/migration/core/attrIdMapSession');
         var attrMap = attrIdMapSession.read('customer');

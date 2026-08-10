@@ -22,17 +22,17 @@ function getToken() {
         body
     );
     if (res.status !== 200 || !res.data.access_token) {
-        throw new Error('CTP auth failed (' + res.status + ')');
+        throw new Error('CT auth failed (' + res.status + ')');
     }
     return res.data.access_token;
 }
 
 /**
- * Fetch CTP inventory entries for a list of SKUs.
+ * Fetch CT inventory entries for a list of SKUs.
  * Chunked into groups of 50 to stay within URL-length limits.
  *
  * @param {string[]} skus
- * @returns {Array} CTP inventory entry objects
+ * @returns {Array} CT inventory entry objects
  */
 function fetchForSkus(skus) {
     if (!skus || !skus.length) return [];

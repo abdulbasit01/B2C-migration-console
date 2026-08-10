@@ -12,7 +12,7 @@ function getQuantity(entry) {
 }
 
 /**
- * @param {Object} entry - CTP inventory entry
+ * @param {Object} entry - CT inventory entry
  * @returns {string} none | preorder | backorder
  */
 function getPreorderHandling(entry) {
@@ -33,7 +33,7 @@ function getTimestamp(entry) {
 }
 
 /**
- * Transform a single CTP inventory entry into a canonical record.
+ * Transform a single CT inventory entry into a canonical record.
  * @param {Object} entry
  * @returns {Object|null}
  */
@@ -59,7 +59,7 @@ function transformEntry(entry) {
 
 /**
  * Merge duplicate SKUs in a batch (e.g. multiple supply channels) by summing quantity.
- * @param {Array} entries - raw CTP inventory entries
+ * @param {Array} entries - raw CT inventory entries
  * @returns {Array}
  */
 function aggregateBySku(entries) {

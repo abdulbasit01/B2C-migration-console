@@ -7,7 +7,7 @@ var pipeline = require('../helpers/bulkPipelineRunner');
 describe('Bulk data migration — Stores', function () {
     this.timeout(0);
 
-    it('generates synthetic CTP stores (sanity)', function () {
+    it('generates synthetic CT stores (sanity)', function () {
         var data = fixtures.stores(25, 10);
         expect(data.stores).to.have.length(25);
         expect(data.channels).to.have.length(10);

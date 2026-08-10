@@ -86,7 +86,7 @@ function uploadXml(records, listId, exportKey, supplyChannelId, fileName, offset
 }
 
 /**
- * Stream CTP inventory into one IMPEX file without holding all entries in memory.
+ * Stream CT inventory into one IMPEX file without holding all entries in memory.
  * Aggregated mode sorts by SKU and merges consecutive rows (one pending record at a time).
  */
 function runSingleFile(listId, supplyChannelId, exportKey, fileName, aggregate) {

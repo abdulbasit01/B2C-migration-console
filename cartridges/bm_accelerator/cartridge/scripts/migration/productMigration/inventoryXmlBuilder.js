@@ -11,9 +11,9 @@ function xmlEsc(val) {
 }
 
 /**
- * Build SFCC inventory XML from CTP inventory entries.
+ * Build SFCC inventory XML from CT inventory entries.
  *
- * @param {Array}  inventoryEntries - raw CTP inventory entry objects from ctpInventoryFetcher
+ * @param {Array}  inventoryEntries - raw CT inventory entry objects from ctpInventoryFetcher
  * @param {string} listId           - target SFCC inventory list ID (e.g. "default-inventory")
  * @returns {{ xml: string, built: number }}
  */

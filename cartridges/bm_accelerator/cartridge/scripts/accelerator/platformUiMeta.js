@@ -7,8 +7,8 @@
 var PLATFORM_UI_META = {
     commercetools: {
         sourceName:    'Commercetools',
-        sourceShort:   'CTP',
-        sourceTypeCol: 'CTP Type'
+        sourceShort:   'CT',
+        sourceTypeCol: 'CT Type'
     },
     shopify: {
         sourceName:    'Shopify',

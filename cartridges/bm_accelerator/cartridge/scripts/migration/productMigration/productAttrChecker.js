@@ -4,20 +4,12 @@ var http        = require('*/cartridge/scripts/migration/core/http');
 var cfg         = require('*/cartridge/scripts/migration/configAccessor');
 var Encoding    = require('dw/crypto/Encoding');
 var Bytes       = require('dw/util/Bytes');
-var typeMap     = require('*/cartridge/scripts/migration/connectors/ctp/ctpTypeMap');
-var sfccClient  = require('*/cartridge/scripts/migration/sfccClient');
 var attrBuilder = require('*/cartridge/scripts/migration/core/attrBuilder');
 var nativeMap   = require('*/cartridge/scripts/migration/config/nativeFieldMap');
+var runner      = require('*/cartridge/scripts/migration/core/attrPreflightRunner');
 
 var CTP_ATTR_GROUP_ID   = 'CTPMigration';
-var CTP_ATTR_GROUP_NAME = 'CTP Migration';
-
-// Fixed tracking attributes always required for product migration.
-// These capture CTP identifiers on the SFCC Product system object.
-var CTP_BUILTIN_FIELDS = [
-    { name: 'ctp_product_id',  sfccId: 'ctp_product_id',  label: 'CTP Product ID',  ctpType: 'String' },
-    { name: 'ctp_product_key', sfccId: 'ctp_product_key', label: 'CTP Product Key', ctpType: 'String' }
-];
+var CTP_ATTR_GROUP_NAME = 'CT Migration';
 
 function toBase64(str) {
     return Encoding.toBase64(new Bytes(str, 'UTF-8'));
@@ -36,15 +28,25 @@ function getCtpToken() {
         body
     );
     if (res.status !== 200 || !res.data.access_token) {
-        throw new Error('CTP auth failed (' + res.status + ')');
+        throw new Error('CT auth failed (' + res.status + ')');
     }
     return res.data.access_token;
 }
 
 /**
- * Fetch all attribute definitions from all CTP product types.
- * CTP product attributes live under /product-types, not /types.
- * @returns {Array} [{ name, label, ctpType }]
+ * SFCC attribute id for a CT product-type field — keep the source name as-is
+ * (including hyphens). Check Attributes UX, AI maps, and create-metadata all use this.
+ * @param {string} name
+ * @returns {string}
+ */
+function toCustomSfccId(name) {
+    return String(name || '').trim();
+}
+
+/**
+ * Fetch all attribute definitions from all CT product types.
+ * Rules: not aliased / not identity / not skipped → create candidate with source name as id.
+ * @returns {Array} [{ name, label, ctpType, sfccId, sourceKey }]
  */
 function getCtpProductTypeFields() {
     var c   = cfg.ctp;
@@ -55,7 +57,7 @@ function getCtpProductTypeFields() {
         { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' }
     );
     if (res.status !== 200) {
-        throw new Error('CTP Product Types API failed (' + res.status + ')');
+        throw new Error('CT Product Types API failed (' + res.status + ')');
     }
 
     var fields = [];
@@ -66,24 +68,17 @@ function getCtpProductTypeFields() {
         var attrDefs = types[t].attributes || [];
         for (var a = 0; a < attrDefs.length; a++) {
             var ad = attrDefs[a];
-            if (seen[ad.name]) continue;
+            if (!ad || !ad.name || seen[ad.name]) continue;
             seen[ad.name] = true;
 
-            // Check if this attr is handled by a native SFCC field (skip rule)
-            var rule = nativeMap.getRule('commercetools', 'Product', ad.name);
-            if (rule && rule.action === 'skip') continue;
-
-            // For custom_attr mapped fields, use the mapped sfccField as the SFCC attr ID
-            var sfccId = (rule && rule.action === 'custom_attr') ? rule.sfccField
-                : ('ctp_' + String(ad.name).replace(/[^a-zA-Z0-9_]/g, '_'));
-
-            var ctpTypeName = (ad.type && ad.type.name) ? ad.type.name : 'text';
-
+            // Aliased / identity / explicit-skip handled in classifyFields; still pass
+            // the field so mapped/skipped sections stay accurate when names collide.
             fields.push({
-                name:    ad.name,
-                sfccId:  sfccId,
-                label:   attrBuilder.toLabel(ad.label) || ad.name,
-                ctpType: ctpTypeName
+                name:      ad.name,
+                sourceKey: ad.name,
+                sfccId:    toCustomSfccId(ad.name),
+                label:     attrBuilder.toLabel(ad.label) || ad.name,
+                ctpType:   (ad.type && ad.type.name) ? ad.type.name : 'text'
             });
         }
     }
@@ -91,74 +86,33 @@ function getCtpProductTypeFields() {
 }
 
 /**
- * Compare CTP product type attributes against SFCC Product attribute definitions.
- * Includes static built-in tracking attrs (ctp_product_id, ctp_product_key)
- * plus all dynamic CTP product type attributes, mapped to their SFCC attr IDs.
- * Returns attrs present in CTP but missing in SFCC.
- * @returns {Array} [{ id, label, ctpType, sfccType }]
+ * Build check table:
+ *   1. curated CT Product aliases (mapped)
+ *   2. CT Product Type attributes (create if not alias/identity/exists)
+ * Skipped catalog + coverage pending come from classifyFields.
+ * @returns {{ mapped: Array, missing: Array, coveragePending: Array, skipped: Array }}
  */
 function checkMissingAttributes() {
-    var attrIdMapSession = require('*/cartridge/scripts/migration/core/attrIdMapSession');
-    var attrMap     = attrIdMapSession.read('product');
-    var sfccToken   = sfccClient.getSFCCToken();
-    var existingIds = sfccClient.getExistingAttributeIds(sfccToken, 'Product');
-
-    try { sfccClient.ensureAttributeGroup(sfccToken, 'Product', CTP_ATTR_GROUP_ID, CTP_ATTR_GROUP_NAME); } catch (ge) {}
-
-    var missing = [];
-    var seen    = {};
-
-    function resolvedExists(sourceId) {
-        return !!existingIds[attrIdMapSession.resolve(sourceId, attrMap)];
-    }
-
-    // 1. Static built-in tracking attrs always needed for product migration
-    for (var j = 0; j < CTP_BUILTIN_FIELDS.length; j++) {
-        var bf = CTP_BUILTIN_FIELDS[j];
-        if (seen[bf.sfccId]) continue;
-        seen[bf.sfccId] = true;
-        if (!resolvedExists(bf.sfccId)) {
-            missing.push(typeMap.enrichMissingAttribute({
-                id: bf.sfccId, label: bf.label, ctpType: bf.ctpType, sfccType: 'string'
-            }));
-        } else {
-            try {
-                sfccClient.addAttributeToGroup(sfccToken, 'Product', CTP_ATTR_GROUP_ID, attrIdMapSession.resolve(bf.sfccId, attrMap));
-            } catch (age) {}
+    var fields = nativeMap.getMappedSourceFields('commercetools', 'Product');
+    var i;
+    try {
+        var ctpFields = getCtpProductTypeFields();
+        for (i = 0; i < ctpFields.length; i++) {
+            fields.push(ctpFields[i]);
         }
+    } catch (e) {
+        // Types API failure still allows curated maps
     }
 
-    // 2. Dynamic CTP product type attributes (mapped to ctp_* SFCC attrs via nativeFieldMap)
-    var ctpFields = getCtpProductTypeFields();
-    for (var i = 0; i < ctpFields.length; i++) {
-        var field = ctpFields[i];
-        var id    = field.sfccId;
-        if (seen[id]) continue;
-        seen[id] = true;
-        if (!resolvedExists(id)) {
-            missing.push(typeMap.enrichMissingAttribute({
-                id:       id,
-                label:    field.label,
-                ctpType:  field.ctpType
-            }, typeMap.resolveProductType));
-        } else {
-            try {
-                sfccClient.addAttributeToGroup(sfccToken, 'Product', CTP_ATTR_GROUP_ID, attrIdMapSession.resolve(id, attrMap));
-            } catch (age) {}
-        }
-    }
-
-    return missing;
+    return runner.classifyFields({
+        sfccObjectType: 'Product',
+        taskName:       'Product',
+        moduleKey:      'product',
+        fields:         fields
+    });
 }
 
-/**
- * Create the given attribute definitions on the SFCC Product system object
- * and assign each to the "CTP Migration" attribute group.
- * @param {Array} attrs - [{ id, label, sfccType }]
- * @returns {{ created: number, failed: number, alreadyExists: number, errors: Array, mappedAttrs: Array, results: Array }}
- */
 function createAttributes(attrs) {
-    var runner = require('*/cartridge/scripts/migration/core/attrPreflightRunner');
     return runner.createDefinitions('Product', CTP_ATTR_GROUP_ID, CTP_ATTR_GROUP_NAME, attrs);
 }
 

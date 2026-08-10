@@ -8,13 +8,15 @@ var uploader     = require('*/cartridge/scripts/migration/productMigration/produ
 var fileResolver = require('*/cartridge/scripts/migration/core/migrationFileResolver');
 
 var MODULE_KEY         = 'product';
-var BATCH_SIZE         = 500; // CTP batch size
+var BATCH_SIZE         = 500; // CT batch size
 var SHOPIFY_BATCH_SIZE = 10;  // Shopify GraphQL cost limit: 10 × (50+5+5+10) = 700 pts < 1000
 
 var CTP_PREFIX     = 'ctp';
 var SHOPIFY_PREFIX = 'shp';
 var SAP_PREFIX     = 'sap';
+var BC_PREFIX      = 'bc';
 var SAP_BATCH_SIZE = 100; // OCC /products/search default page size
+var BC_BATCH_SIZE  = 50;  // BigCommerce V3 catalog page size
 
 // ─── Session keys ─────────────────────────────────────────────────────────────
 
@@ -77,10 +79,10 @@ function getNum(key) { return parseInt(String(session.custom[key] || 0), 10); }
 function addNum(key, n) { session.custom[key] = String(getNum(key) + (n || 0)); }
 function setNum(key, n) { session.custom[key] = String(n || 0); }
 
-// ─── CTP single-file batch accumulator ───────────────────────────────────────
+// ─── CT single-file batch accumulator ───────────────────────────────────────
 
 /**
- * Run one CTP batch — accumulates products/categories in local IMPEX temp files
+ * Run one CT batch — accumulates products/categories in local IMPEX temp files
  * and uploads a SINGLE XML file only on the final batch.
  *
  * @param {number} offset
@@ -339,7 +341,7 @@ function finalizeShopify(catalogId, total, impexPath, fileName) {
 }
 
 // ─── SAP Commerce (OCC) single-file batch accumulator ────────────────────────
-// Offset-paged like CTP (no cursor), so this mirrors runCtpBatch/finalizeCtp,
+// Offset-paged like CT (no cursor), so this mirrors runCtpBatch/finalizeCtp,
 // but passes sapProductTransformer.transformProduct into buildXmlParts like Shopify.
 
 var SK_SAP_TOTAL   = 'sapProdTotal';
@@ -477,15 +479,152 @@ function finalizeSap(catalogId, total, nextOffset, impexPath, fileName) {
     };
 }
 
+// ─── BigCommerce V3 single-file batch accumulator (offset-paged like SAP) ─────
+
+var SK_BC_TOTAL   = 'bcProdTotal';
+var SK_BC_BUILT   = 'bcProdBuilt';
+var SK_BC_FAILED  = 'bcProdFailed';
+var SK_BC_SETS    = 'bcProdSets';
+var SK_BC_BUNDLES = 'bcProdBundles';
+var SK_BC_FILE    = 'bcProdFileName';
+
+var TEMP_BC_PRODS = 'bc-run-body.xml';
+var TEMP_BC_CATS  = 'bc-run-cats.xml';
+
+/**
+ * @param {number} offset
+ * @param {string} catalogId
+ * @param {Array} selectedVarAttrs
+ * @returns {{ ok, total, nextOffset, done, built, failed, errors, setCount, bundleCount }}
+ */
+function runBcBatch(offset, catalogId, selectedVarAttrs) {
+    var bcFetcher     = require('*/cartridge/scripts/migration/productMigration/bcProductFetcher');
+    var bcTransformer = require('*/cartridge/scripts/migration/productMigration/bcProductTransformer');
+
+    var isFirst = (offset === 0);
+
+    if (isFirst) {
+        removeLocal(TEMP_BC_PRODS);
+        removeLocal(TEMP_BC_CATS);
+        setNum(SK_BC_BUILT,   0);
+        setNum(SK_BC_FAILED,  0);
+        setNum(SK_BC_SETS,    0);
+        setNum(SK_BC_BUNDLES, 0);
+        session.custom[SK_BC_FILE] = '';
+    }
+
+    var batch    = bcFetcher.fetchBatch(offset, BC_BATCH_SIZE);
+    var rawProds = batch.results;
+    var total    = batch.total;
+
+    if (isFirst) {
+        setNum(SK_BC_TOTAL, total);
+        var fileName = fileResolver.resolveXmlFileName(MODULE_KEY, 0, BC_BATCH_SIZE, 'webdav', BC_PREFIX);
+        session.custom[SK_BC_FILE] = fileName;
+    } else {
+        total = getNum(SK_BC_TOTAL);
+    }
+
+    var impexPath      = fileResolver.getRelativePath(MODULE_KEY);
+    var targetFileName = String(session.custom[SK_BC_FILE] || 'bc-product-run.xml');
+
+    if (!rawProds || rawProds.length === 0) {
+        return finalizeBc(catalogId, total, 0, impexPath, targetFileName);
+    }
+
+    var dirResult = uploader.ensureDirectory();
+    if (!dirResult.ok) {
+        return { ok: false, error: 'WebDAV directory creation failed: ' + dirResult.error };
+    }
+
+    var parts = xmlBuilder.buildXmlParts(rawProds, catalogId, selectedVarAttrs, bcTransformer.transformProduct);
+    appendLocal(TEMP_BC_PRODS, parts.productsXml);
+    appendLocal(TEMP_BC_CATS,  parts.categoriesXml);
+
+    addNum(SK_BC_BUILT,   parts.built);
+    addNum(SK_BC_FAILED,  parts.failed);
+    addNum(SK_BC_SETS,    parts.setCount);
+    addNum(SK_BC_BUNDLES, parts.bundleCount);
+
+    var nextOffset = offset + rawProds.length;
+    var done       = nextOffset >= total || rawProds.length === 0;
+
+    if (done) {
+        return finalizeBc(catalogId, total, nextOffset, impexPath, targetFileName);
+    }
+
+    return {
+        ok:          true,
+        total:       total,
+        nextOffset:  nextOffset,
+        done:        false,
+        built:       parts.built,
+        failed:      parts.failed,
+        errors:      parts.errors || [],
+        setCount:    parts.setCount,
+        bundleCount: parts.bundleCount
+    };
+}
+
+function finalizeBc(catalogId, total, nextOffset, impexPath, fileName) {
+    var File       = require('dw/io/File');
+    var FileWriter = require('dw/io/FileWriter');
+    var paths      = require('*/cartridge/scripts/migration/core/migrationPaths');
+
+    var relDir = paths.getRelativePath(MODULE_KEY).replace(/\//g, File.SEPARATOR);
+    var dir    = new File(File.IMPEX + File.SEPARATOR + relDir);
+    if (!dir.exists()) { dir.mkdirs(); }
+
+    var finalFile = new File(File.IMPEX + File.SEPARATOR + relDir + File.SEPARATOR + fileName);
+    var writer    = new FileWriter(finalFile, 'UTF-8', false);
+    var writeErr  = null;
+    try {
+        writer.write(xmlBuilder.xmlHeader(catalogId));
+        copyFileTo(getLocalPath(TEMP_BC_PRODS), writer);
+        copyFileTo(getLocalPath(TEMP_BC_CATS),  writer);
+        writer.write(xmlBuilder.XML_FOOTER);
+    } catch (we) {
+        writeErr = we;
+    } finally {
+        writer.close();
+    }
+
+    removeLocal(TEMP_BC_PRODS);
+    removeLocal(TEMP_BC_CATS);
+
+    if (writeErr) {
+        return { ok: false, error: 'Local IMPEX write failed: ' + (writeErr.message || String(writeErr)) };
+    }
+
+    var built   = getNum(SK_BC_BUILT);
+    var failed  = getNum(SK_BC_FAILED);
+    var sets    = getNum(SK_BC_SETS);
+    var bundles = getNum(SK_BC_BUNDLES);
+
+    return {
+        ok:          true,
+        total:       total,
+        nextOffset:  nextOffset,
+        done:        true,
+        built:       built,
+        failed:      failed,
+        errors:      [],
+        setCount:    sets,
+        bundleCount: bundles,
+        fileName:    fileName,
+        impexPath:   impexPath
+    };
+}
+
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 /**
  * Run one migration batch (platform-aware).
  *
- * @param {number|string|null} offsetOrCursor - numeric offset (CTP/SAP) or cursor string (Shopify)
+ * @param {number|string|null} offsetOrCursor - numeric offset (CT/SAP/BC) or cursor string (Shopify)
  * @param {string} catalogId
  * @param {Array}  selectedVarAttrs           - selected variant option/attr names (all platforms)
- * @param {string} platform                   - 'shopify' | 'sap' | 'commercetools'
+ * @param {string} platform                   - 'shopify' | 'sap' | 'bigcommerce' | 'commercetools'
  * @returns {{ ok, total, nextOffset, done, built, failed, errors, setCount, bundleCount }}
  */
 function runBatch(offsetOrCursor, catalogId, selectedVarAttrs, platform) {
@@ -506,6 +645,10 @@ function runBatch(offsetOrCursor, catalogId, selectedVarAttrs, platform) {
         return runSapBatch(offset, catalogId);
     }
 
+    if (platform === 'bigcommerce') {
+        return runBcBatch(offset, catalogId, selectedVarAttrs);
+    }
+
     return runCtpBatch(offset, catalogId, selectedVarAttrs);
 }
 
@@ -515,7 +658,7 @@ function runBatch(offsetOrCursor, catalogId, selectedVarAttrs, platform) {
  * @param {string} prodId
  * @param {string} catalogId
  * @param {Array}  selectedVarAttrs
- * @param {string} platform - 'shopify' | 'sap' | 'commercetools'
+ * @param {string} platform - 'shopify' | 'sap' | 'bigcommerce' | 'commercetools'
  * @returns {{ ok, built, failed, errors, setCount, bundleCount }}
  */
 function runById(prodId, catalogId, selectedVarAttrs, platform) {
@@ -523,7 +666,9 @@ function runById(prodId, catalogId, selectedVarAttrs, platform) {
     if (!catalogId) return { ok: false, error: 'catalogId is required' };
 
     var product, transformerFn;
-    var prefix = platform === 'shopify' ? SHOPIFY_PREFIX : (platform === 'sap' ? SAP_PREFIX : CTP_PREFIX);
+    var prefix = platform === 'shopify' ? SHOPIFY_PREFIX
+        : (platform === 'sap' ? SAP_PREFIX
+            : (platform === 'bigcommerce' ? BC_PREFIX : CTP_PREFIX));
 
     if (platform === 'shopify') {
         var shopifyFetcher     = require('*/cartridge/scripts/migration/productMigration/shopifyProductFetcher');
@@ -535,6 +680,11 @@ function runById(prodId, catalogId, selectedVarAttrs, platform) {
         var sapTransformerOne = require('*/cartridge/scripts/migration/productMigration/sapProductTransformer');
         product       = sapFetcherOne.fetchById(prodId);
         transformerFn = sapTransformerOne.transformProduct;
+    } else if (platform === 'bigcommerce') {
+        var bcFetcherOne     = require('*/cartridge/scripts/migration/productMigration/bcProductFetcher');
+        var bcTransformerOne = require('*/cartridge/scripts/migration/productMigration/bcProductTransformer');
+        product       = bcFetcherOne.fetchById(prodId);
+        transformerFn = bcTransformerOne.transformProduct;
     } else {
         product       = ctpFetcher.fetchById(prodId);
         transformerFn = null;

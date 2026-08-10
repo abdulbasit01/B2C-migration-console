@@ -16,12 +16,12 @@
             <div style="font-size:36px;font-weight:700;color:#16325c;" id="prod-count-val">
                 <isprint value="${pdict.stepContent.total}" formatter="#,###"/>
             </div>
-            <div style="font-size:13px;color:#54698d;margin-top:4px;">Total products in CTP</div>
+            <div style="font-size:13px;color:#54698d;margin-top:4px;">Total products in CT</div>
         </div>
     </isif>
 
     <p style="font-size:13px;color:#54698d;margin:0 0 20px;">
-        All product records will be fetched from CTP in batches of 500, converted to SFCC catalog XML format,
+        All product records will be fetched from CT in batches of 500, converted to SFCC catalog XML format,
         and uploaded via WebDAV. In the next step you will specify the target SFCC catalog.
     </p>
 

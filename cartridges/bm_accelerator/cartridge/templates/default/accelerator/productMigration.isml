@@ -167,6 +167,13 @@
                     (suitable for testing / selective imports). <strong>Full</strong> migrates all products in batches
                     via XML/WebDAV (suitable for production).
                 </p>
+            <iselseif condition="${pdict.platformId === 'bigcommerce'}">
+                <h2>Product Data Migration &mdash; <span class="acc-highlight">BigCommerce &rarr; SFCC</span></h2>
+                <p style="font-size:14px;color:#54698d;margin-top:6px;max-width:640px;">
+                    Choose a migration mode below. <strong>Partial</strong> migrates a specific product by BigCommerce product ID or SKU
+                    (suitable for testing / selective imports). <strong>Full</strong> migrates all products in batches
+                    via XML/WebDAV (suitable for production).
+                </p>
             <iselseif condition="${pdict.platformId === 'sap'}">
                 <h2>Product Data Migration &mdash; <span class="acc-highlight">SAP Commerce &rarr; SFCC</span></h2>
                 <p style="font-size:14px;color:#54698d;margin-top:6px;max-width:640px;">
@@ -177,7 +184,7 @@
             <iselse/>
                 <h2>Product Data Migration &mdash; <span class="acc-highlight">Commercetools &rarr; SFCC</span></h2>
                 <p style="font-size:14px;color:#54698d;margin-top:6px;max-width:640px;">
-                    Choose a migration mode below. <strong>Partial</strong> migrates specific products by CTP Product ID
+                    Choose a migration mode below. <strong>Partial</strong> migrates specific products by CT Product ID
                     (suitable for testing / selective imports). <strong>Full</strong> migrates all products in batches
                     via XML/WebDAV (suitable for production).
                 </p>
@@ -205,31 +212,37 @@
                 <span style="font-weight:700;font-size:14px;color:#16325c;">Attribute Pre-flight Check</span>
                 <isif condition="${pdict.platformId === 'shopify'}">
                     <button id="prod-check-attrs-btn" type="button" class="acc-btn acc-btn--ghost">Check Shopify Attributes</button>
+                <iselseif condition="${pdict.platformId === 'bigcommerce'}">
+                    <button id="prod-check-attrs-btn" type="button" class="acc-btn acc-btn--ghost">Check BigCommerce Attributes</button>
                 <iselseif condition="${pdict.platformId === 'sap'}">
                     <button id="prod-check-attrs-btn" type="button" class="acc-btn acc-btn--ghost">Check SAP Attributes</button>
                 <iselse/>
-                    <button id="prod-check-attrs-btn" type="button" class="acc-btn acc-btn--ghost">Check CTP Attributes</button>
+                    <button id="prod-check-attrs-btn" type="button" class="acc-btn acc-btn--ghost">Check CT Attributes</button>
                 </isif>
                 <span id="prod-attr-check-msg" style="font-size:13px;color:#54698d;font-weight:600;"></span>
             </div>
             <div style="padding:14px 20px;">
                 <isif condition="${pdict.platformId === 'shopify'}">
                     <p style="font-size:13px;color:#54698d;margin:0;">
-                        Checks whether required Shopify tracking attributes
-                        (<code>shopify_product_id</code>, <code>shopify_handle</code>, <code>shopify_status</code>)
-                        and discovered variant option attributes exist on the SFCC <strong>Product</strong> system object.
+                        Checks curated Shopify field maps and discovered variant option attributes
+                        against the SFCC <strong>Product</strong> system object.
+                        Missing attributes can be created (or renamed) here before the migration runs.
+                    </p>
+                <iselseif condition="${pdict.platformId === 'bigcommerce'}">
+                    <p style="font-size:13px;color:#54698d;margin:0;">
+                        Checks curated BigCommerce field maps and discovered variant option attributes
+                        against the SFCC <strong>Product</strong> system object.
                         Missing attributes can be created (or renamed) here before the migration runs.
                     </p>
                 <iselseif condition="${pdict.platformId === 'sap'}">
                     <p style="font-size:13px;color:#54698d;margin:0;">
-                        Checks whether required SAP Commerce tracking attributes
-                        (<code>sap_product_id</code>) and discovered variant option attributes exist on the
-                        SFCC <strong>Product</strong> system object.
+                        Checks curated SAP Commerce field maps and discovered variant option attributes
+                        against the SFCC <strong>Product</strong> system object.
                         Missing attributes can be created (or renamed) here before the migration runs.
                     </p>
                 <iselse/>
                     <p style="font-size:13px;color:#54698d;margin:0;">
-                        Scans CTP product type definitions and checks whether matching
+                        Scans CT product type definitions and checks whether matching
                         attributes exist on the SFCC <strong>Product</strong> system object.
                         Missing attributes can be created here before the migration runs.
                     </p>
@@ -252,6 +265,11 @@
                         Unselected options will be excluded. By default all discovered options are included.
                         After creating/renaming attributes in Check Shopify Attributes, click Reload to refresh SFCC IDs.
                     </p>
+                <iselseif condition="${pdict.platformId === 'bigcommerce'}">
+                    <p style="font-size:13px;color:#54698d;margin:0;">
+                        Select which BigCommerce variant option attributes to include in the SFCC XML during migration.
+                        Unselected options will be excluded. By default all discovered options are included.
+                    </p>
                 <iselseif condition="${pdict.platformId === 'sap'}">
                     <p style="font-size:13px;color:#54698d;margin:0;">
                         Select which SAP Commerce variant option attributes to include in the SFCC XML during migration.
@@ -259,7 +277,7 @@
                     </p>
                 <iselse/>
                     <p style="font-size:13px;color:#54698d;margin:0;">
-                        Select which CTP variant product attributes to include in the SFCC XML during migration.
+                        Select which CT variant product attributes to include in the SFCC XML during migration.
                         Unselected attributes will be excluded. By default all attributes are included.
                     </p>
                 </isif>
@@ -296,6 +314,22 @@
                               style="width:100%;max-width:680px;resize:vertical;font-family:monospace;font-size:12px;"></textarea>
                     <span id="prod-ctp-ids-error" class="acc-field-error"></span>
                 </div>
+            <iselseif condition="${pdict.platformId === 'bigcommerce'}">
+                <p style="font-size:13px;color:#54698d;margin:0 0 16px;">
+                    Fetches specific products from BigCommerce by product ID or SKU and imports them into SFCC.
+                    Useful for testing individual products before running a full migration.
+                </p>
+                <div style="margin-bottom:20px;">
+                    <label for="prod-ctp-ids" style="font-weight:600;font-size:14px;display:block;margin-bottom:6px;">
+                        BigCommerce Product IDs or SKUs <span style="color:#c62828;">*</span>
+                        <span style="font-weight:400;color:#54698d;font-size:13px;">(comma-separated)</span>
+                    </label>
+                    <textarea id="prod-ctp-ids" class="acc-form__input"
+                              rows="3"
+                              placeholder="e.g. 77, 112, ABC-SKU-001"
+                              style="width:100%;max-width:680px;resize:vertical;font-family:monospace;font-size:12px;"></textarea>
+                    <span id="prod-ctp-ids-error" class="acc-field-error"></span>
+                </div>
             <iselseif condition="${pdict.platformId === 'sap'}">
                 <p style="font-size:13px;color:#54698d;margin:0 0 16px;">
                     Fetches a specific product from SAP Commerce by product code and imports it into SFCC.
@@ -319,7 +353,7 @@
                 </p>
                 <div style="margin-bottom:20px;">
                     <label for="prod-ctp-ids" style="font-weight:600;font-size:14px;display:block;margin-bottom:6px;">
-                        CTP Product IDs <span style="color:#c62828;">*</span>
+                        CT Product IDs <span style="color:#c62828;">*</span>
                         <span style="font-weight:400;color:#54698d;font-size:13px;">(comma-separated)</span>
                     </label>
                     <textarea id="prod-ctp-ids" class="acc-form__input"
@@ -363,6 +397,11 @@
                 <p style="font-size:13px;color:#54698d;margin:0 0 16px;">
                     Fetches all products from Shopify in batches of 50 (via GraphQL cursor pagination), builds SFCC catalog XML,
                     and uploads to WebDAV. After upload, import the XML files in Business Manager.
+                </p>
+            <iselseif condition="${pdict.platformId === 'bigcommerce'}">
+                <p style="font-size:13px;color:#54698d;margin:0 0 16px;">
+                    Fetches all products from BigCommerce (V3 <code>/catalog/products</code>) in batches of 50,
+                    builds SFCC catalog XML, and uploads to WebDAV. After upload, import the XML files in Business Manager.
                 </p>
             <iselseif condition="${pdict.platformId === 'sap'}">
                 <p style="font-size:13px;color:#54698d;margin:0 0 16px;">
@@ -548,117 +587,49 @@
 
     var pendingMissing = [];
 
-    function handleAttrCheckResult(missing) {
-        pendingMissing        = missing;
-        attrResults.innerHTML = '';
-
-        var srcLabel = PLATFORM_ID === 'shopify' ? 'Shopify' : (PLATFORM_ID === 'sap' ? 'SAP' : 'CTP');
-
-        if (!missing.length) {
-            attrResults.innerHTML = '<p style="color:#2e7d32;font-size:13px;margin:0;">'
-                + '&#10003; All ' + srcLabel + ' product attributes already exist in SFCC &#8212; no pre-flight authorization needed.</p>';
-            attrResults.style.display = 'block';
-            attrCheckMsg.textContent  = 'All attributes in sync.';
-            attrCheckMsg.style.color  = '#2e7d32';
-            return;
-        }
-
-        attrCheckMsg.textContent = missing.length + ' missing.';
-        attrCheckMsg.style.color = '#c62828';
-
-        var html = '<p style="font-size:13px;color:#54698d;margin:0 0 10px;">'
-            + missing.length + ' attribute(s) found in ' + srcLabel + ' but missing in SFCC. '
-            + 'Select the ones you <strong>authorize</strong> to be created — they will be created automatically when you save the Variant Attribute Selection below.</p>';
-
-        html += '<div style="border:1px solid #e0e5ee;border-radius:4px;overflow:hidden;">'
-            + '<table class="cm-attr-table">'
-            + '<thead><tr>'
-            + '<th style="width:36px;"><input type="checkbox" id="prod-attr-select-all" checked/></th>'
-            + '<th>Attribute ID</th>'
-            + '<th>Label</th>'
-            + '<th>' + srcLabel + ' Type</th>'
-            + '<th>SFCC Type</th>'
-            + '</tr></thead><tbody>';
-
-        for (var i = 0; i < missing.length; i++) {
-            var m = missing[i];
-            html += '<tr id="prod-attr-row-' + i + '">'
-                + '<td style="text-align:center;"><input type="checkbox" class="prod-attr-cb" data-idx="' + i + '" checked/></td>'
-                + '<td><input type="text" class="cm-attr-id-input" data-idx="' + i + '" value="' + m.id + '" title="Edit attribute ID"/></td>'
-                + '<td>' + (m.label || m.id) + '</td>'
-                + '<td style="color:#8a9ab8;">' + m.ctpType + '</td>'
-                + '<td>' + window.AccAttrPreflight.sfccTypeSelectHtml(m, i) + '</td>'
-                + '</tr>';
-        }
-        html += '</tbody></table></div>';
-
-        html += '<div style="margin-top:14px;display:flex;align-items:center;gap:12px;">'
-            + '<button type="button" id="prod-create-attrs-btn" class="cm-btn cm-btn--primary">&#10003; Create Selected Attributes</button>'
-            + '<span id="prod-create-attrs-msg" style="font-size:13px;color:#54698d;"></span>'
-            + '</div>';
-
-        attrResults.innerHTML     = html;
-        attrResults.style.display = 'block';
-
-        document.getElementById('prod-attr-select-all').addEventListener('change', function () {
-            var cbs = document.querySelectorAll('.prod-attr-cb');
-            for (var c = 0; c < cbs.length; c++) { cbs[c].checked = this.checked; }
-        });
-
-        document.getElementById('prod-create-attrs-btn').addEventListener('click', function () {
-            var selected        = [];
-            var selectedIndices = [];
-            var cbs = document.querySelectorAll('.prod-attr-cb');
-            for (var c = 0; c < cbs.length; c++) {
-                if (cbs[c].checked) {
-                    var idx      = parseInt(cbs[c].getAttribute('data-idx'), 10);
-                    var orig     = pendingMissing[idx];
-                    var idInput  = document.querySelector('.cm-attr-id-input[data-idx="' + idx + '"]');
-                    var editedId = (idInput && idInput.value.trim()) ? idInput.value.trim() : orig.id;
-                    selected.push({
-                        id:       editedId,
-                        canonicalId: orig.id,
-                        label:    orig.label,
-                        ctpType:  orig.ctpType,
-                        sfccType: window.AccAttrPreflight.readSfccType(idx, orig.sfccType)
-                    });
-                    selectedIndices.push(idx);
-                }
-            }
-            if (!selected.length) {
-                document.getElementById('prod-create-attrs-msg').textContent = 'Select at least one attribute.';
-                return;
-            }
-            var btn = document.getElementById('prod-create-attrs-btn');
-            var msg = document.getElementById('prod-create-attrs-msg');
-            if (btn) { btn.disabled = true; btn.textContent = 'Creating...'; }
-            if (msg) { msg.textContent = ''; }
-            post(CREATE_ATTRS_URL, 'attrs=' + encodeURIComponent(JSON.stringify(selected)), function (data) {
-                if (!data.ok) {
-                    if (btn) { btn.disabled = false; btn.textContent = 'Retry'; }
-                    if (msg) { msg.textContent = 'Error: ' + (data.error || 'Failed'); msg.style.color = '#c62828'; }
-                    return;
-                }
-                var r       = data.result || {};
-                var created = r.created || 0;
-                var exists  = r.alreadyExists || 0;
-                var failed  = r.failed || 0;
-                var parts   = [];
-                if (created) parts.push(created + ' created');
-                if (exists) parts.push(exists + ' already exists');
-                if (failed) parts.push(failed + ' failed');
-                var text = parts.length ? parts.join(', ') + '.' : 'Done.';
-                if (r.errors && r.errors.length && failed) text += ' ' + r.errors[0];
-                if (btn) { btn.disabled = true; btn.innerHTML = failed ? 'Retry' : '&#10003; Done'; if (failed) btn.disabled = false; }
-                if (msg) {
-                    msg.textContent = text;
-                    msg.style.color = failed ? '#c62828' : (exists && !created ? '#1565c0' : '#2e7d32');
-                }
-                if (loadVarAttrsBtn && varAttrsResults.style.display !== 'none' && allVarAttrs.length) {
-                    loadVarAttrsBtn.click();
+    function handleAttrCheckResult(missing, mapped, coveragePending, skipped, suggested, aiMeta) {
+        pendingMissing = missing || [];
+        mapped = mapped || [];
+        coveragePending = coveragePending || [];
+        skipped = skipped || [];
+        suggested = suggested || [];
+        if (window.AccAttrPreflight && window.AccAttrPreflight.renderMissingResults) {
+            var parts = [];
+            if (mapped.length) parts.push(mapped.length + ' mapped');
+            if (suggested.length) parts.push(suggested.length + ' AI suggestions');
+            if (pendingMissing.length) parts.push(pendingMissing.length + ' to create');
+            if (coveragePending.length) parts.push(coveragePending.length + ' SFCC pending');
+            if (skipped.length) parts.push(skipped.length + ' skipped');
+            attrCheckMsg.textContent = parts.length ? parts.join(', ') : 'All attributes in sync.';
+            attrCheckMsg.style.color = pendingMissing.length ? '#c62828' : '#2e7d32';
+            window.AccAttrPreflight.renderMissingResults({
+                container:       attrResults,
+                mapped:          mapped,
+                coveragePending: coveragePending,
+                skipped:         skipped,
+                suggested:       suggested,
+                aiStatus:        (aiMeta && aiMeta.aiStatus) || 'skipped',
+                aiMessage:       (aiMeta && aiMeta.aiMessage) || '',
+                suggestAttrMapsUrl: (aiMeta && aiMeta.suggestAttrMapsUrl) || '',
+                taskName:           (aiMeta && aiMeta.taskName) || '',
+                sfccObjectType:     (aiMeta && aiMeta.sfccObjectType) || '',
+                sessionSystemMaps: (aiMeta && aiMeta.sessionSystemMaps) || [],
+                missing:         pendingMissing,
+                ui:              {},
+                createAttrsUrl:  CREATE_ATTRS_URL,
+                clearAttrMapUrl: CLEAR_ATTR_MAP_URL || '',
+                post:            post,
+                getPending:      function () { return pendingMissing; },
+                onDone: function () {
+                    if (loadVarAttrsBtn && varAttrsResults.style.display !== 'none' && allVarAttrs.length) {
+                        loadVarAttrsBtn.click();
+                    }
                 }
             });
-        });
+            return;
+        }
+        attrResults.innerHTML = '<p style="color:#c62828;font-size:13px;margin:0;">Attribute helper script failed to load.</p>';
+        attrResults.style.display = 'block';
     }
 
     checkAttrsBtn.addEventListener('click', function () {
@@ -675,7 +646,7 @@
                 attrCheckMsg.style.color = '#c62828';
                 return;
             }
-            handleAttrCheckResult(data.missing || []);
+            handleAttrCheckResult(data.missing || [], data.mapped || [], data.coveragePending || [], data.skipped || [], data.suggested || [], data);
         });
     });
 
@@ -717,16 +688,22 @@
         if (!attrs || !attrs.length) {
             var emptyMsg = PLATFORM_ID === 'shopify'
                 ? 'No variant option attributes found in sampled Shopify products.'
-                : (PLATFORM_ID === 'sap'
-                    ? 'No variant option attributes found in sampled SAP Commerce products.'
-                    : 'No variant attributes found in CTP product types.');
+                : (PLATFORM_ID === 'bigcommerce'
+                    ? 'No variant option attributes found in sampled BigCommerce products.'
+                    : (PLATFORM_ID === 'sap'
+                        ? 'No variant option attributes found in sampled SAP Commerce products.'
+                        : 'No variant attributes found in CT product types.'));
             varAttrsResults.innerHTML = '<p style="color:#54698d;font-size:13px;margin:0;">' + emptyMsg + '</p>';
             varAttrsResults.style.display = 'block';
             return;
         }
 
-        var nameCol = PLATFORM_ID === 'shopify' ? 'Option Name' : (PLATFORM_ID === 'sap' ? 'Option Qualifier' : 'CTP Attribute Name');
-        var typeCol = PLATFORM_ID === 'shopify' ? 'Type' : (PLATFORM_ID === 'sap' ? 'Type' : 'CTP Type');
+        var nameCol = PLATFORM_ID === 'shopify' || PLATFORM_ID === 'bigcommerce'
+            ? 'Option Name'
+            : (PLATFORM_ID === 'sap' ? 'Option Qualifier' : 'CT Attribute Name');
+        var typeCol = (PLATFORM_ID === 'shopify' || PLATFORM_ID === 'bigcommerce' || PLATFORM_ID === 'sap')
+            ? 'Type'
+            : 'CT Type';
         var html = '<div style="border:1px solid #e0e5ee;border-radius:4px;overflow:hidden;">'
             + '<table class="cm-attr-table">'
             + '<thead><tr>'
@@ -957,7 +934,9 @@
         }
         document.getElementById('prod-catalog-id-error').style.display = 'none';
         var rawIds = document.getElementById('prod-ctp-ids').value.trim();
-        var idFieldLabel = PLATFORM_ID === 'shopify' ? 'Shopify Product Handles/IDs' : (PLATFORM_ID === 'sap' ? 'SAP Product Codes' : 'CTP Product IDs');
+        var idFieldLabel = PLATFORM_ID === 'shopify' ? 'Shopify Product Handles/IDs'
+            : (PLATFORM_ID === 'bigcommerce' ? 'BigCommerce Product IDs/SKUs'
+                : (PLATFORM_ID === 'sap' ? 'SAP Product Codes' : 'CT Product IDs'));
         if (!rawIds) {
             showError('prod-ctp-ids', 'prod-ctp-ids-error', idFieldLabel + ' are required.');
             return;

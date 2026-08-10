@@ -5,7 +5,6 @@ var cfg         = require('*/cartridge/scripts/migration/configAccessor');
 var Encoding    = require('dw/crypto/Encoding');
 var Bytes       = require('dw/util/Bytes');
 var attrBuilder = require('*/cartridge/scripts/migration/core/attrBuilder');
-var sourceAttrIds = require('*/cartridge/scripts/migration/core/sourceAttrIds');
 var runner      = require('*/cartridge/scripts/migration/core/attrPreflightRunner');
 
 var SFCC_OBJECT_TYPE = 'Store';
@@ -26,7 +25,7 @@ function getCtpToken() {
         body
     );
     if (res.status !== 200 || !res.data.access_token) {
-        throw new Error('CTP auth failed (' + res.status + ')');
+        throw new Error('CT auth failed (' + res.status + ')');
     }
     return res.data.access_token;
 }
@@ -41,7 +40,7 @@ function getCtpStoreFields() {
         { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' }
     );
     if (res.status !== 200) {
-        throw new Error('CTP Types API failed (' + res.status + ')');
+        throw new Error('CT Types API failed (' + res.status + ')');
     }
 
     var fields = [];
@@ -63,53 +62,15 @@ function getCtpStoreFields() {
     return fields;
 }
 
-function getStoreTraceAttrs(platformId) {
-    var base = [
-        { sfccId: 'countryCodeValue', label: 'Country Code Value', sourceType: 'String' },
-        { sfccId: 'inventoryListId',  label: 'Inventory List ID',  sourceType: 'String' }
-    ];
-
-    if (platformId === 'sap') {
-        // SAP's PointOfService has only one natural identifier (name) — no separate
-        // UUID-vs-key or store-vs-channel distinction like CTP/Shopify, so a single
-        // trace attribute covers it instead of 4 redundant, identical-valued ones.
-        return base.concat([
-            sourceAttrIds.traceAttr('StoreCode', 'SAP Store Code', 'String', platformId)
-        ]);
-    }
-
-    var storeIdLabel;
-    var storeKeyLabel;
-    var channelIdLabel;
-    var channelKeyLabel;
-
-    if (platformId === 'shopify') {
-        storeIdLabel    = 'Shopify Location ID';
-        channelIdLabel  = 'Shopify Location ID';
-        storeKeyLabel   = 'Shopify Location Key';
-        channelKeyLabel = 'Shopify Location Key';
-    } else {
-        storeIdLabel    = 'CTP Store ID';
-        storeKeyLabel   = 'CTP Store Key';
-        channelIdLabel  = 'CTP Channel ID';
-        channelKeyLabel = 'CTP Channel Key';
-    }
-
-    return base.concat([
-        sourceAttrIds.traceAttr('StoreId', storeIdLabel, 'String', platformId),
-        sourceAttrIds.traceAttr('StoreKey', storeKeyLabel, 'String', platformId),
-        sourceAttrIds.traceAttr('ChannelId', channelIdLabel, 'String', platformId),
-        sourceAttrIds.traceAttr('ChannelKey', channelKeyLabel, 'String', platformId)
-    ]);
-}
-
 function checkMissingAttributes() {
     var attrIdMapSession = require('*/cartridge/scripts/migration/core/attrIdMapSession');
     return runner.checkMissing(
         SFCC_OBJECT_TYPE,
         getCtpStoreFields,
-        getStoreTraceAttrs,
-        attrIdMapSession.read('store')
+        null,
+        attrIdMapSession.read('store'),
+        'store',
+        'Store'
     );
 }
 

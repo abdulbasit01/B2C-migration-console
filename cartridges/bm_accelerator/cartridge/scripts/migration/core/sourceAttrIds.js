@@ -11,6 +11,7 @@ function getPrefix(platformId) {
     var id = platformId || registry.getPlatformId();
     if (id === 'shopify') return 'spy';
     if (id === 'sap')     return 'sap';
+    if (id === 'bigcommerce') return 'bc';
     return 'ctp';
 }
 
@@ -27,11 +28,14 @@ function getAttrGroup(platformId) {
     if (id === 'sap') {
         return { id: 'SAPMigration', name: 'SAP Migration' };
     }
-    return { id: 'CTPMigration', name: 'CTP Migration' };
+    if (id === 'bigcommerce') {
+        return { id: 'BigCommerceMigration', name: 'BigCommerce Migration' };
+    }
+    return { id: 'CTPMigration', name: 'CT Migration' };
 }
 
 /**
- * Build underscore-style SFCC attr id: spy_my_field / ctp_my_field.
+ * Build underscore-style SFCC attr id: spy_my_field / ctp_my_field / bc_my_field.
  * @param {string} fieldName
  * @param {string} [platformId]
  * @returns {string}
@@ -39,14 +43,14 @@ function getAttrGroup(platformId) {
 function toAttrId(fieldName, platformId) {
     var prefix = getPrefix(platformId);
     var safe   = String(fieldName || '').replace(/[^a-zA-Z0-9_]/g, '_');
-    if (/^(ctp|spy)_/i.test(safe)) {
-        safe = safe.replace(/^(ctp|spy)_/i, '');
+    if (/^(ctp|spy|bc|sap)_/i.test(safe)) {
+        safe = safe.replace(/^(ctp|spy|bc|sap)_/i, '');
     }
     return prefix + '_' + safe;
 }
 
 /**
- * Remap camelCase trace attrs: ctpStoreId → spyStoreId for Shopify.
+ * Remap camelCase trace attrs: ctpStoreId → spyStoreId / bcStoreId.
  * @param {string} id
  * @param {string} [platformId]
  * @returns {string}
@@ -56,6 +60,12 @@ function remapCamelAttrId(id, platformId) {
     var platform = platformId || registry.getPlatformId();
     if (platform === 'shopify' && str.indexOf('ctp') === 0) {
         return 'spy' + str.substring(3);
+    }
+    if (platform === 'bigcommerce' && str.indexOf('ctp') === 0) {
+        return 'bc' + str.substring(3);
+    }
+    if (platform === 'bigcommerce' && str.indexOf('spy') === 0) {
+        return 'bc' + str.substring(3);
     }
     if (platform === 'commercetools' && str.indexOf('spy') === 0) {
         return 'ctp' + str.substring(3);

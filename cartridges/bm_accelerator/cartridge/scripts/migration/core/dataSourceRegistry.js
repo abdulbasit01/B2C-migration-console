@@ -3,39 +3,47 @@
 var MODULE_FETCHERS = {
     inventory: {
         commercetools: '*/cartridge/scripts/migration/inventoryMigration/ctpInventoryFetcher',
-        shopify:       '*/cartridge/scripts/migration/inventoryMigration/shopifyInventoryFetcher'
+        shopify:       '*/cartridge/scripts/migration/inventoryMigration/shopifyInventoryFetcher',
+        bigcommerce:   '*/cartridge/scripts/migration/inventoryMigration/bcInventoryFetcher'
     },
     store: {
         commercetools: '*/cartridge/scripts/migration/storeMigration/ctpStoreFetcher',
         shopify:       '*/cartridge/scripts/migration/storeMigration/shopifyStoreFetcher',
-        sap:           '*/cartridge/scripts/migration/storeMigration/sapStoreFetcher'
+        sap:           '*/cartridge/scripts/migration/storeMigration/sapStoreFetcher',
+        bigcommerce:   '*/cartridge/scripts/migration/storeMigration/bcStoreFetcher'
     },
     pricebook: {
         commercetools: '*/cartridge/scripts/migration/pricebookMigration/ctpPricebookFetcher',
-        shopify:       '*/cartridge/scripts/migration/pricebookMigration/shopifyPricebookFetcher'
+        shopify:       '*/cartridge/scripts/migration/pricebookMigration/shopifyPricebookFetcher',
+        bigcommerce:   '*/cartridge/scripts/migration/pricebookMigration/bcPricebookFetcher'
     },
     pricebookEmbedded: {
         commercetools: '*/cartridge/scripts/migration/pricebookMigration/ctpEmbeddedPriceFetcher',
-        shopify:       '*/cartridge/scripts/migration/pricebookMigration/shopifyPricebookFetcher'
+        shopify:       '*/cartridge/scripts/migration/pricebookMigration/shopifyPricebookFetcher',
+        bigcommerce:   '*/cartridge/scripts/migration/pricebookMigration/bcPricebookFetcher'
     },
     tax: {
         commercetools: '*/cartridge/scripts/migration/taxMigration/ctpTaxFetcher',
-        shopify:       '*/cartridge/scripts/migration/taxMigration/shopifyTaxFetcher'
+        shopify:       '*/cartridge/scripts/migration/taxMigration/shopifyTaxFetcher',
+        bigcommerce:   '*/cartridge/scripts/migration/taxMigration/bcTaxFetcher'
     },
     shippingMethod: {
         commercetools: '*/cartridge/scripts/migration/shippingMethodMigration/ctpShippingMethodFetcher',
-        shopify:       '*/cartridge/scripts/migration/shippingMethodMigration/shopifyShippingMethodFetcher'
+        shopify:       '*/cartridge/scripts/migration/shippingMethodMigration/shopifyShippingMethodFetcher',
+        bigcommerce:   '*/cartridge/scripts/migration/shippingMethodMigration/bcShippingMethodFetcher'
     },
     order: {
         commercetools: '*/cartridge/scripts/migration/orders/connectors/ctpOrderConnector',
-        shopify:       '*/cartridge/scripts/migration/orders/connectors/shopifyOrderConnector'
+        shopify:       '*/cartridge/scripts/migration/orders/connectors/shopifyOrderConnector',
+        bigcommerce:   '*/cartridge/scripts/migration/orders/connectors/bigcommerceOrderConnector'
     }
 };
 
 var MODULE_MAPPERS = {
     order: {
         commercetools: '*/cartridge/scripts/migration/orders/mappers/ctpOrderMapper',
-        shopify:       '*/cartridge/scripts/migration/orders/mappers/shopifyOrderMapper'
+        shopify:       '*/cartridge/scripts/migration/orders/mappers/shopifyOrderMapper',
+        bigcommerce:   '*/cartridge/scripts/migration/orders/mappers/bigcommerceOrderMapper'
     }
 };
 

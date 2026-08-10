@@ -34,7 +34,7 @@ Migrated customers receive a **random temporary password**. Merchants should req
 
 ## Logging
 
-Server logs use category prefix `bm_accelerator` (e.g. `Shopify`, `CTP`, `SFCC`, `Security`). Service Framework communication logs redact tokens and secrets.
+Server logs use category prefix `bm_accelerator` (e.g. `Shopify`, `CT`, `SFCC`, `Security`). Service Framework communication logs redact tokens and secrets.
 
 ## Support
 

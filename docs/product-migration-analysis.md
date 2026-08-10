@@ -5,21 +5,21 @@
 
 ## 1. Executive Summary
 
-This document covers the complete analysis for migrating **product catalog data** from Commercetools (CTP) to Salesforce Commerce Cloud (SFCC). The migration scope is strictly limited to product data — specifically products, product variants, product types (attribute definitions), categories, and localised content. Pricing, inventory, promotions, and orders are out of scope for this migration phase.
+This document covers the complete analysis for migrating **product catalog data** from Commercetools (CT) to Salesforce Commerce Cloud (SFCC). The migration scope is strictly limited to product data — specifically products, product variants, product types (attribute definitions), categories, and localised content. Pricing, inventory, promotions, and orders are out of scope for this migration phase.
 
-The migration uses a **Product ID–based mapping** strategy: the CTP product `key` (or slug) is used as the SFCC product ID, providing a simple, deterministic, one-to-one identity link between systems.
+The migration uses a **Product ID–based mapping** strategy: the CT product `key` (or slug) is used as the SFCC product ID, providing a simple, deterministic, one-to-one identity link between systems.
 
 ---
 
 ## 2. Scope
 
 ### In Scope
-| CTP Entity | SFCC Target | Notes |
+| CT Entity | SFCC Target | Notes |
 |---|---|---|
 | Products (`/products`) | Products in catalog XML | Master products with variants |
 | Product Variants | Product variations (SKUs) | Mapped via variant attributes |
 | Product Types | Custom attribute definitions | Via Schema Migration wizard (prerequisite) |
-| Product Localizations | Localized product names/descriptions | All CTP locales → SFCC locales |
+| Product Localizations | Localized product names/descriptions | All CT locales → SFCC locales |
 | Categories (`/categories`) | Categories in catalog XML | Tree structure preserved |
 | Category Assignments | Product → category assignments | |
 | Product Images | Image references in catalog XML | URLs referenced, not binary-transferred |
@@ -39,11 +39,11 @@ The migration uses a **Product ID–based mapping** strategy: the CTP product `k
 
 ## 3. Source System — Commercetools Product Model
 
-### 3.1 Product Structure in CTP
+### 3.1 Product Structure in CT
 
 ```
 Product
-├── id (UUID)                     — Internal CTP ID
+├── id (UUID)                     — Internal CT ID
 ├── key (string)                  — Human-readable, unique identifier
 ├── productType (reference)       — Defines custom attributes
 ├── masterData
@@ -65,8 +65,8 @@ Product
 └── taxCategory, state, reviewRatingStatistics (not in scope)
 ```
 
-### 3.2 CTP Attribute Types
-| CTP Type | Description |
+### 3.2 CT Attribute Types
+| CT Type | Description |
 |---|---|
 | `text` | Single locale string |
 | `ltext` | Localized text (multiple locales) |
@@ -76,7 +76,7 @@ Product
 | `boolean` | True/False |
 | `date`, `time`, `datetime` | Date/time values |
 | `enum` / `lenum` | Enumeration (key + label) |
-| `reference` | Reference to another CTP resource |
+| `reference` | Reference to another CT resource |
 | `nested` | Nested object (product type ref) |
 | `set` | Collection of any of the above |
 
@@ -145,9 +145,9 @@ SFCC uses a **catalog import XML** format (`catalog.xml`) structured as:
 
 ## 5. Product ID Mapping Strategy
 
-### 5.1 Approach — CTP Key → SFCC Product ID
+### 5.1 Approach — CT Key → SFCC Product ID
 
-| CTP Field | SFCC Field | Notes |
+| CT Field | SFCC Field | Notes |
 |---|---|---|
 | `product.key` | `product-id` | Preferred — human-readable, stable |
 | `product.masterData.current.slug['en']` | `product-id` fallback | If key is null |
@@ -156,18 +156,18 @@ SFCC uses a **catalog import XML** format (`catalog.xml`) structured as:
 **Decision rule (priority order):**
 1. Use `product.key` if present and non-empty
 2. Use English slug (`slug.en`) if key is absent
-3. Use CTP `product.id` (UUID) as last resort
+3. Use CT `product.id` (UUID) as last resort
 
 ### 5.2 Variant ID Mapping
 
-| CTP Field | SFCC Field | Notes |
+| CT Field | SFCC Field | Notes |
 |---|---|---|
 | `variant.sku` | `product-id` (variant) | Preferred — SKU is the commerce identifier |
 | `{product-key}-{variant.id}` | `product-id` fallback | If SKU is absent |
 
 ### 5.3 Category ID Mapping
 
-| CTP Field | SFCC Field | Notes |
+| CT Field | SFCC Field | Notes |
 |---|---|---|
 | `category.key` | `category-id` | Preferred |
 | `category.id` (UUID) | `category-id` fallback | If key absent |
@@ -178,7 +178,7 @@ SFCC uses a **catalog import XML** format (`catalog.xml`) structured as:
 
 ### 6.1 Core Product Fields
 
-| CTP Field | SFCC XML Element | Type | Notes |
+| CT Field | SFCC XML Element | Type | Notes |
 |---|---|---|---|
 | `product.key` | `product-id` | string | See ID mapping above |
 | `masterData.current.name` | `display-name` | LocalizedString | All locales |
@@ -189,7 +189,7 @@ SFCC uses a **catalog import XML** format (`catalog.xml`) structured as:
 
 ### 6.2 Variant Fields
 
-| CTP Field | SFCC XML Element | Notes |
+| CT Field | SFCC XML Element | Notes |
 |---|---|---|
 | `variant.sku` | `product-id` | Variant identifier |
 | `variant.attributes` | `custom-attributes` | Per attribute type mapping |
@@ -198,7 +198,7 @@ SFCC uses a **catalog import XML** format (`catalog.xml`) structured as:
 
 ### 6.3 Attribute Type Mapping
 
-| CTP Attribute Type | SFCC Custom Attribute Type | Notes |
+| CT Attribute Type | SFCC Custom Attribute Type | Notes |
 |---|---|---|
 | `text` | `string` | Direct |
 | `ltext` | `string` (per locale) | One element per locale |
@@ -219,41 +219,41 @@ SFCC uses a **catalog import XML** format (`catalog.xml`) structured as:
 ## 7. Migration Considerations
 
 ### 7.1 Published vs Staged Data
-- CTP products have `masterData.current` (published) and `masterData.staged` (draft)
+- CT products have `masterData.current` (published) and `masterData.staged` (draft)
 - **Recommendation:** Migrate from `masterData.current` only (published data)
 - Staged/draft products are not migrated in this phase
 
 ### 7.2 Product Type Prerequisites
-- CTP product types define custom attributes. These custom attributes must exist in SFCC before product import
-- **Prerequisite:** Run the **Schema Migration wizard** first to create SFCC custom attribute definitions from CTP product types
-- If a CTP attribute has no corresponding SFCC definition, its value is silently skipped during import
+- CT product types define custom attributes. These custom attributes must exist in SFCC before product import
+- **Prerequisite:** Run the **Schema Migration wizard** first to create SFCC custom attribute definitions from CT product types
+- If a CT attribute has no corresponding SFCC definition, its value is silently skipped during import
 
 ### 7.3 Localization
-- CTP uses a `LocalizedString` map: `{"en": "...", "de": "...", "fr": "..."}`
+- CT uses a `LocalizedString` map: `{"en": "...", "de": "...", "fr": "..."}`
 - SFCC catalog XML uses `xml:lang` attributes: `<display-name xml:lang="en">...</display-name>`
-- **All locales present in CTP are included** in the output XML
-- Locale code format: CTP uses `en`, `en-US`, `de-DE` — map directly to SFCC `xml:lang` attribute
+- **All locales present in CT are included** in the output XML
+- Locale code format: CT uses `en`, `en-US`, `de-DE` — map directly to SFCC `xml:lang` attribute
 
 ### 7.4 Categories
-- CTP categories have a parent-child tree structure
+- CT categories have a parent-child tree structure
 - SFCC catalog XML defines categories with `parent-category-id`
 - **Category tree must be exported before products** so parent categories exist when children reference them
 - Category assignments (product → category) are included in the catalog XML
 
 ### 7.5 Image Handling
-- CTP stores images as external URLs (CDN-hosted)
+- CT stores images as external URLs (CDN-hosted)
 - SFCC can reference the same URLs — **no binary image transfer required** in this phase
 - Image URLs are written into the catalog XML as `<image path="https://..."/>`
 - Post-migration: images can optionally be re-hosted on SFCC's Content Delivery Network
 
 ### 7.6 Variation Axes (Color, Size, etc.)
-- CTP variants are distinguished by attribute values (e.g., `color=red`, `size=M`)
+- CT variants are distinguished by attribute values (e.g., `color=red`, `size=M`)
 - SFCC requires explicit **variation attribute** declarations on the master product
 - The migration must detect which product type attributes serve as variation dimensions
 - **Current approach:** Scan all variants of a product, collect attributes that differ between variants — these are the variation axes
 
 ### 7.7 Batch Size
-- CTP API returns up to 500 products per request (`limit=500`)
+- CT API returns up to 500 products per request (`limit=500`)
 - Each batch is written to one XML file and uploaded to WebDAV
 - Large catalogs (10,000+ products) will produce 20+ XML files
 - Each WebDAV upload and BM import is independent — partial failures don't affect other batches
@@ -265,9 +265,9 @@ SFCC uses a **catalog import XML** format (`catalog.xml`) structured as:
 ### 8.1 Product ID Uniqueness
 | Risk | Impact | Likelihood |
 |---|---|---|
-| CTP `product.key` is not set (null) | Medium — fallback to slug/UUID creates non-human-readable IDs | Medium |
-| Two CTP products produce the same SFCC product ID | High — import will overwrite or fail | Low (keys are unique in CTP) |
-| CTP product key contains characters invalid in SFCC IDs | Medium — import fails for affected products | Low |
+| CT `product.key` is not set (null) | Medium — fallback to slug/UUID creates non-human-readable IDs | Medium |
+| Two CT products produce the same SFCC product ID | High — import will overwrite or fail | Low (keys are unique in CT) |
+| CT product key contains characters invalid in SFCC IDs | Medium — import fails for affected products | Low |
 
 **Mitigation:** Sanitize product IDs before writing XML — strip/replace characters outside `[A-Za-z0-9_-]`. Log all sanitizations.
 
@@ -275,14 +275,14 @@ SFCC uses a **catalog import XML** format (`catalog.xml`) structured as:
 | Risk | Impact | Likelihood |
 |---|---|---|
 | Custom attributes not yet in SFCC | Attribute values silently dropped during BM import | High (if Schema Migration not run first) |
-| Attribute type mismatch (e.g., CTP number vs SFCC string) | BM import error for affected products | Medium |
+| Attribute type mismatch (e.g., CT number vs SFCC string) | BM import error for affected products | Medium |
 
 **Mitigation:** Always run Schema Migration wizard before Product Migration. Document the prerequisite clearly.
 
 ### 8.3 Large Catalogs and Timeouts
 | Risk | Impact | Likelihood |
 |---|---|---|
-| CTP API call times out when fetching 500 products | Batch fails, migration stalls | Low-Medium |
+| CT API call times out when fetching 500 products | Batch fails, migration stalls | Low-Medium |
 | WebDAV upload times out for large XML files | File not uploaded, batch lost | Low |
 | BM import job takes hours for large catalogs | Long wait time, unclear progress | Medium |
 
@@ -291,7 +291,7 @@ SFCC uses a **catalog import XML** format (`catalog.xml`) structured as:
 ### 8.4 Variation Structure Differences
 | Risk | Impact | Likelihood |
 |---|---|---|
-| CTP variant attributes not cleanly mapping to SFCC variation axes | Variants imported as standalone products instead of variations | Medium |
+| CT variant attributes not cleanly mapping to SFCC variation axes | Variants imported as standalone products instead of variations | Medium |
 | Variant with no distinguishing attribute (same as master) | Invalid SFCC variation structure | Low |
 | Product has 50+ variation attributes | SFCC catalog import may reject complex variation structures | Low |
 
@@ -307,7 +307,7 @@ SFCC uses a **catalog import XML** format (`catalog.xml`) structured as:
 ### 8.6 Image URLs
 | Risk | Impact | Likelihood |
 |---|---|---|
-| CTP CDN URLs become invalid post-go-live | Product images broken in SFCC | Medium (depends on CTP contract) |
+| CT CDN URLs become invalid post-go-live | Product images broken in SFCC | Medium (depends on CT contract) |
 | SFCC content security policy blocks external CDN | Images not displayed | Low |
 
 **Mitigation:** Document that images must be re-hosted on SFCC CDN after initial migration. For go-live, plan a separate image re-hosting step.
@@ -324,16 +324,16 @@ SFCC uses a **catalog import XML** format (`catalog.xml`) structured as:
 
 ## 9. Assumptions
 
-1. **CTP credentials are already saved** from the Schema Migration wizard — no re-authentication step needed
-2. **Schema Migration has been completed** — all CTP product type attributes exist as SFCC custom attribute definitions before Product Migration runs
+1. **CT credentials are already saved** from the Schema Migration wizard — no re-authentication step needed
+2. **Schema Migration has been completed** — all CT product type attributes exist as SFCC custom attribute definitions before Product Migration runs
 3. **Products are migrated from `masterData.current`** (published/live data only) — staged drafts are not in scope
 4. **SFCC catalog ID is known** by the operator — provided as input in the migration UI
-5. **CTP image CDN URLs remain accessible** during and after migration — no binary image transfer is performed
-6. **Product IDs are stable** — CTP product keys will not change during the migration window
+5. **CT image CDN URLs remain accessible** during and after migration — no binary image transfer is performed
+6. **Product IDs are stable** — CT product keys will not change during the migration window
 7. **The migration is a one-time operation** per catalog — re-running will overwrite existing products with the same ID (SFCC catalog XML import is upsert-based)
 8. **The target SFCC catalog exists** before migration — the catalog ID must be pre-created in BM
 9. **WebDAV access is enabled** on the SFCC sandbox/production instance
-10. **BM import job (`CTP-Product-Import`) is pre-configured** in the SFCC instance before Phase 2 is triggered
+10. **BM import job (`CT-Product-Import`) is pre-configured** in the SFCC instance before Phase 2 is triggered
 
 ---
 
@@ -358,7 +358,7 @@ SFCC uses a **catalog import XML** format (`catalog.xml`) structured as:
     └─ Report: N products built, M batches uploaded
 
 [4] Phase 2 — BM Catalog Import Job
-    ├─ Trigger job "CTP-Product-Import" via SFCC Job Execution API
+    ├─ Trigger job "CT-Product-Import" via SFCC Job Execution API
     ├─ Poll status every 5 seconds
     └─ Report: imported / failed
 ```
@@ -370,7 +370,7 @@ SFCC uses a **catalog import XML** format (`catalog.xml`) structured as:
 | Product ID | `product.key` → `slug.en` → `product.id` (sanitized) |
 | Variant ID | `variant.sku` → `{product-key}-{variant.id}` |
 | Category ID | `category.key` → `category.id` |
-| Locales | All locales from CTP `LocalizedString` maps |
+| Locales | All locales from CT `LocalizedString` maps |
 | Images | All image URLs from `variant.images` |
 | Online flag | `true` if product is published, `false` if draft |
 | Variation axes | Attributes that differ between variants of the same product |
@@ -392,7 +392,7 @@ SFCC uses a **catalog import XML** format (`catalog.xml`) structured as:
 
 ## 11. Post-Migration Checklist
 
-- [ ] Verify product count in SFCC BM matches CTP count
+- [ ] Verify product count in SFCC BM matches CT count
 - [ ] Spot-check 10–20 products across categories for correct name, description, attributes
 - [ ] Check variation structure on at least 5 products with multiple variants
 - [ ] Verify product images display correctly (CDN URL still accessible)
@@ -407,10 +407,10 @@ SFCC uses a **catalog import XML** format (`catalog.xml`) structured as:
 
 | Phase | What | When |
 |---|---|---|
-| Pricing Migration | Pricebooks, price lists, sale prices from CTP | After product migration |
+| Pricing Migration | Pricebooks, price lists, sale prices from CT | After product migration |
 | Inventory Migration | Stock levels, inventory lists | After product migration |
 | Promotions Migration | Cart/product/order discounts | After pricing migration |
 | Order Migration | Historical orders | Typically not migrated; new orders start in SFCC |
 | Customer Migration | Already complete | Done |
-| Image Re-hosting | Move images from CTP CDN to SFCC CDN | Post go-live |
-| SEO / URL Redirects | Map CTP slugs to SFCC URLs | Post go-live |
+| Image Re-hosting | Move images from CT CDN to SFCC CDN | Post go-live |
+| SEO / URL Redirects | Map CT slugs to SFCC URLs | Post go-live |

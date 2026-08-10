@@ -22,13 +22,13 @@ function getToken() {
         body
     );
     if (res.status !== 200 || !res.data.access_token) {
-        throw new Error('CTP auth failed (' + res.status + ')');
+        throw new Error('CT auth failed (' + res.status + ')');
     }
     return res.data.access_token;
 }
 
 /**
- * Fetch all customer groups from CTP (up to 500).
+ * Fetch all customer groups from CT (up to 500).
  * @returns {Array<{ id: string, key: string, name: string }>}
  */
 function fetchGroups() {
@@ -39,7 +39,7 @@ function fetchGroups() {
         { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' }
     );
     if (res.status !== 200) {
-        throw new Error('CTP customer-groups fetch failed (' + res.status + ')');
+        throw new Error('CT customer-groups fetch failed (' + res.status + ')');
     }
     var results = res.data.results || [];
     var groups  = [];

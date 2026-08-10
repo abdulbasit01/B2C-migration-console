@@ -2,14 +2,6 @@
 
 var platformUiMeta = require('*/cartridge/scripts/accelerator/platformUiMeta');
 
-var WIZARD_STEPS = [
-    { id: 1, key: 'connect', label: 'Connect' },
-    { id: 2, key: 'fetch',   label: 'Fetch' },
-    { id: 3, key: 'aimap',  label: 'AI Map' },
-    { id: 4, key: 'move',   label: 'Move' },
-    { id: 5, key: 'view',   label: 'View' }
-];
-
 var DATA_WIZARD_STEPS = [
     { id: 1, key: 'connect',    label: 'Connect' },
     { id: 2, key: 'selectType', label: 'Select Data' }
@@ -30,6 +22,34 @@ var SHOPIFY_FINANCIAL_STATUS_VALUES = [
 var SHOPIFY_FULFILLMENT_STATUS_VALUES = [
     'unshipped', 'partial', 'shipped', 'fulfilled'
 ];
+
+/** BigCommerce order status_id values for export filters. */
+var BC_ORDER_STATUS_VALUES = [
+    '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14'
+];
+
+/** BigCommerce payment_status filter values. */
+var BC_PAYMENT_STATUS_VALUES = [
+    'authorized', 'captured', 'capture pending', 'declined', 'held for review',
+    'paid', 'partially refunded', 'pending', 'refunded', 'void', 'void pending'
+];
+
+var BC_ORDER_STATUS_LABELS = {
+    '1':  'Incomplete',
+    '2':  'Pending',
+    '3':  'Shipped',
+    '4':  'Partially Shipped',
+    '5':  'Refunded',
+    '6':  'Cancelled',
+    '7':  'Declined',
+    '8':  'Awaiting Payment',
+    '9':  'Awaiting Pickup',
+    '10': 'Awaiting Shipment',
+    '11': 'Completed',
+    '12': 'Awaiting Fulfillment',
+    '13': 'Manual Verification Required',
+    '14': 'Disputed'
+};
 
 var DATA_TYPES = [
     {
@@ -147,11 +167,11 @@ var PLATFORMS = [
         id:          'bigcommerce',
         name:        'BigCommerce',
         tagline:     'B2C Edition, Multi-store',
-        status:      'soon',
+        status:      'ready',
         confidence:  88,
         description: 'Migrate BigCommerce B2C customers, catalog, categories, orders, and contract pricing into Salesforce B2C Commerce.',
         iconClass:   'platform-icon--bigcommerce',
-        connectHint: 'Provide your BigCommerce store hash and API credentials in Site Preferences when this platform is enabled.',
+        connectHint: 'Configure BigCommerce store hash and API credentials under Site Preferences → B2C Migration Console, then test the connection.',
         connectFields: []
     },
     {
@@ -235,24 +255,6 @@ function getPlatforms() {
     return list;
 }
 
-function getWizardSteps() {
-    var steps = [];
-    for (var i = 0; i < WIZARD_STEPS.length; i++) {
-        var s = WIZARD_STEPS[i];
-        steps.push({ id: parseInt(String(s.id), 10), key: s.key, label: s.label });
-    }
-    return steps;
-}
-
-function getWizardStep(step) {
-    var stepNum = Math.min(Math.max(parseInt(String(step), 10) || 1, 1), WIZARD_STEPS.length);
-    return WIZARD_STEPS[stepNum - 1];
-}
-
-function getNextStepLabel() {
-    return 'Continue';
-}
-
 function getDataWizardSteps(dataTypeId) {
     if (dataTypeId === 'product' || dataTypeId === 'catalog') {
         return cloneSteps(DATA_WIZARD_STEPS).concat([
@@ -326,12 +328,23 @@ function getShopifyFulfillmentStatusFilters() {
     return buildStatusFilters(SHOPIFY_FULFILLMENT_STATUS_VALUES, formatShopifyLabel);
 }
 
+function getBcOrderStatusFilters() {
+    return buildStatusFilters(BC_ORDER_STATUS_VALUES, function (v) {
+        return BC_ORDER_STATUS_LABELS[v] || v;
+    });
+}
+
+function getBcPaymentStatusFilters() {
+    return buildStatusFilters(BC_PAYMENT_STATUS_VALUES, formatShopifyLabel);
+}
+
 /**
  * @param {string} [platformId]
  * @returns {Array}
  */
 function getOrderStateFilters(platformId) {
     if (platformId === 'shopify') return getShopifyFinancialStatusFilters();
+    if (platformId === 'bigcommerce') return getBcOrderStatusFilters();
     return getCtpOrderStateFilters();
 }
 
@@ -341,6 +354,7 @@ function getOrderStateFilters(platformId) {
  */
 function getPaymentStateFilters(platformId) {
     if (platformId === 'shopify') return getShopifyFulfillmentStatusFilters();
+    if (platformId === 'bigcommerce') return getBcPaymentStatusFilters();
     return getCtpPaymentStateFilters();
 }
 
@@ -367,6 +381,9 @@ function isValidShopifyFulfillmentStatus(value) {
  */
 function isValidOrderState(platformId, value) {
     if (platformId === 'shopify') return isValidShopifyFinancialStatus(value);
+    if (platformId === 'bigcommerce') {
+        return !value || BC_ORDER_STATUS_VALUES.indexOf(value) >= 0;
+    }
     return isValidCtpOrderState(value);
 }
 
@@ -377,6 +394,9 @@ function isValidOrderState(platformId, value) {
  */
 function isValidPaymentState(platformId, value) {
     if (platformId === 'shopify') return isValidShopifyFulfillmentStatus(value);
+    if (platformId === 'bigcommerce') {
+        return !value || BC_PAYMENT_STATUS_VALUES.indexOf(value) >= 0;
+    }
     return isValidCtpPaymentState(value);
 }
 
@@ -402,7 +422,14 @@ function getDataType(typeId) {
  */
 function getMigrationUi(platformId) {
     var id   = platformId || 'commercetools';
-    var pick = function (map) { return platformUiMeta.pickStr(id, map); };
+    var pick = function (map) {
+        if (id === 'bigcommerce' && map && !map.bigcommerce && map.shopify) {
+            return String(map.shopify)
+                .replace(/Shopify/g, 'BigCommerce')
+                .replace(/shopify/g, 'BigCommerce');
+        }
+        return platformUiMeta.pickStr(id, map);
+    };
     var ui   = platformUiMeta.getCommonUiLabels(id);
 
     ui.invIntro = pick({
@@ -411,15 +438,15 @@ function getMigrationUi(platformId) {
     });
     ui.invAttrScan = pick({
         shopify: 'Shopify inventory migration uses native fields only (SKU and quantity per location). No custom ProductInventoryRecord attributes are required from Shopify metafields.',
-        commercetools: 'Scans CTP <strong>inventory-entry</strong> custom-type field definitions and checks whether matching attributes exist on the SFCC <strong>ProductInventoryRecord</strong> system object. Standard fields (SKU, quantity, supply channel) map to native inventory XML and are not listed here.'
+        commercetools: 'Scans CT <strong>inventory-entry</strong> custom-type field definitions and checks whether matching attributes exist on the SFCC <strong>ProductInventoryRecord</strong> system object. Standard fields (SKU, quantity, supply channel) map to native inventory XML and are not listed here.'
     });
     ui.loadChannelsBtn = pick({ shopify: 'Load Inventory Lists', commercetools: 'Load Channels' });
     ui.reloadChannelsBtn = pick({ shopify: 'Reload Inventory Lists', commercetools: 'Reload Channels' });
     ui.loadChannelsHint = pick({
         shopify: 'Click <strong>Load Inventory Lists</strong> to discover Shopify inventory sources and level counts for each SFCC list.',
-        commercetools: 'Click <strong>Load Channels</strong> to fetch supply channels and CTP entry counts.'
+        commercetools: 'Click <strong>Load Channels</strong> to fetch supply channels and CT entry counts.'
     });
-    ui.entryCountCol = pick({ shopify: 'Inventory Levels', commercetools: 'CTP Entries' });
+    ui.entryCountCol = pick({ shopify: 'Inventory Levels', commercetools: 'CT Entries' });
     ui.channelSelectHelp = pick({
         shopify: 'Use <strong>Aggregated</strong> for one SFCC inventory list summed across all Shopify locations, or pick individual location-based lists.',
         commercetools: 'Use <strong>Aggregated</strong> to sum stock across all channels per SKU, or pick individual supply channels.'
@@ -431,15 +458,15 @@ function getMigrationUi(platformId) {
 
     ui.pbIntro = pick({
         shopify: 'Migrate <strong>Shopify variant prices</strong> into SFCC pricebooks. Use <strong>Standalone Prices</strong> for catalog variant prices, or <strong>Product Embedded Prices</strong> for the same data grouped from products.',
-        commercetools: 'Migrate commercetools prices into SFCC pricebooks. Use <strong>Standalone Prices</strong> for CTP <code>/standalone-prices</code>, or <strong>Product Embedded Prices</strong> to scan each product for variant prices.'
+        commercetools: 'Migrate commercetools prices into SFCC pricebooks. Use <strong>Standalone Prices</strong> for CT <code>/standalone-prices</code>, or <strong>Product Embedded Prices</strong> to scan each product for variant prices.'
     });
     ui.pbAttrScan = pick({
         shopify: 'Scans Shopify price-related metafield definitions and checks whether matching attributes exist on the SFCC <strong>PriceBook</strong> system object.',
-        commercetools: 'Scans CTP <strong>standalone-price</strong> custom-type field definitions and checks whether matching attributes exist on the SFCC <strong>PriceBook</strong> system object.'
+        commercetools: 'Scans CT <strong>standalone-price</strong> custom-type field definitions and checks whether matching attributes exist on the SFCC <strong>PriceBook</strong> system object.'
     });
     ui.pbStandaloneHelp = pick({
         shopify: 'Pricebooks discovered from <strong>Shopify variant prices</strong>, grouped by shop currency.',
-        commercetools: 'Pricebooks discovered from CTP <strong>/standalone-prices</strong>, grouped by currency and distribution channel.'
+        commercetools: 'Pricebooks discovered from CT <strong>/standalone-prices</strong>, grouped by currency and distribution channel.'
     });
     ui.pbStandaloneLoading = pick({
         shopify: 'Click <strong>Load Standalone</strong> to scan variant prices from Shopify.',
@@ -447,7 +474,7 @@ function getMigrationUi(platformId) {
     });
     ui.pbEmbeddedHelp = pick({
         shopify: 'Scans every Shopify product and extracts variant <strong>prices</strong> grouped by currency.',
-        commercetools: 'Scans every CTP product and extracts variant <strong>embedded prices</strong> grouped by currency and channel.'
+        commercetools: 'Scans every CT product and extracts variant <strong>embedded prices</strong> grouped by currency and channel.'
     });
     ui.pbEmbeddedLoading = pick({
         shopify: 'Click <strong>Load Embedded</strong> to scan products for variant prices.',
@@ -459,17 +486,17 @@ function getMigrationUi(platformId) {
     });
     ui.pbNoEmbedded = pick({
         shopify: 'No embedded prices found on Shopify products.',
-        commercetools: 'No embedded prices found on CTP products.'
+        commercetools: 'No embedded prices found on CT products.'
     });
 
     ui.storeIntro = pick({
         shopify: 'Select Shopify <strong>locations</strong> to export into one SFCC store IMPEX XML file (physical stores / store locator).',
-        commercetools: 'Select CTP <strong>stores</strong> to export into one SFCC store IMPEX XML file (physical stores / store locator).',
+        commercetools: 'Select CT <strong>stores</strong> to export into one SFCC store IMPEX XML file (physical stores / store locator).',
         sap: 'Select SAP Commerce <strong>stores</strong> to export into one SFCC store IMPEX XML file (physical stores / store locator).'
     });
     ui.storeAttrScan = pick({
         shopify: 'Scans Shopify <strong>location</strong> metafield definitions and checks whether matching attributes exist on the SFCC <strong>Store</strong> system object. Standard fields (name, address, geo, flags) map to native store XML and are not listed here.',
-        commercetools: 'Scans CTP <strong>store</strong> custom-type field definitions and checks whether matching attributes exist on the SFCC <strong>Store</strong> system object. Standard fields (name, address, geo, flags) map to native store XML and are not listed here. Migration also requires traceability attributes such as <code>ctpStoreId</code> and <code>ctpStoreKey</code>.',
+        commercetools: 'Scans CT <strong>store</strong> custom-type field definitions and checks whether matching attributes exist on the SFCC <strong>Store</strong> system object. Standard fields (name, address, geo, flags) map to native store XML and are not listed here. Migration also requires traceability attributes such as <code>ctpStoreId</code> and <code>ctpStoreKey</code>.',
         sap: 'Checks traceability attributes for SAP Commerce store migration (e.g. <code>sapStoreId</code>). Standard fields (name, address, geo, opening hours) map to native store XML and are not listed here — SAP Commerce has no verified endpoint yet for discovering custom store field definitions.'
     });
     ui.loadStoresHint = pick({
@@ -477,25 +504,25 @@ function getMigrationUi(platformId) {
         commercetools: 'Click <strong>Load Stores</strong> to fetch stores from commercetools.',
         sap: 'Click <strong>Load Stores</strong> to fetch stores from SAP Commerce.'
     });
-    ui.storeKeyCol = pick({ shopify: 'Location ID', commercetools: 'CTP Key', sap: 'SAP Store Code' });
+    ui.storeKeyCol = pick({ shopify: 'Location ID', commercetools: 'CT Key', sap: 'SAP Store Code' });
     ui.noStores = pick({
         shopify: 'No locations found in Shopify.',
-        commercetools: 'No stores found in commercetools. Create stores in CTP Merchant Center.',
+        commercetools: 'No stores found in commercetools. Create stores in CT Merchant Center.',
         sap: 'No stores found in SAP Commerce.'
     });
 
     ui.taxIntro = pick({
         shopify: 'Export Shopify <strong>country and province tax rates</strong> into one SFCC tax IMPEX XML file (tax classes, jurisdictions, and rates).',
-        commercetools: 'Export CTP <strong>tax categories</strong> and rates into one SFCC tax IMPEX XML file (tax classes, jurisdictions, and rates).'
+        commercetools: 'Export CT <strong>tax categories</strong> and rates into one SFCC tax IMPEX XML file (tax classes, jurisdictions, and rates).'
     });
     ui.taxAttrScan = pick({
         shopify: 'Verifies SFCC <strong>TaxClass</strong> attributes for any Shopify metafields that apply to tax migration. Shopify tax settings use native country/province rates and map to SFCC tax tables.',
-        commercetools: 'Verifies SFCC <strong>TaxClass</strong> attributes for any CTP custom fields that apply to tax migration. CTP tax categories use native fields only (name, rates, country) and map to SFCC tax tables.'
+        commercetools: 'Verifies SFCC <strong>TaxClass</strong> attributes for any CT custom fields that apply to tax migration. CT tax categories use native fields only (name, rates, country) and map to SFCC tax tables.'
     });
-    ui.loadTaxBtn = pick({ shopify: 'Load from Shopify', commercetools: 'Load from CTP' });
+    ui.loadTaxBtn = pick({ shopify: 'Load from Shopify', commercetools: 'Load from CT' });
     ui.loadTaxHint = pick({
         shopify: 'Click <strong>Load from Shopify</strong> to fetch tax classes and rates.',
-        commercetools: 'Click <strong>Load from CTP</strong> to fetch tax classes and rates.'
+        commercetools: 'Click <strong>Load from CT</strong> to fetch tax classes and rates.'
     });
     ui.taxOverviewHelp = pick({
         shopify: 'Review Shopify tax jurisdictions before export. Regions with a <strong>0%</strong> rate are included so SFCC matches your Shopify tax setup; you can adjust rates in Business Manager after import.',
@@ -503,11 +530,11 @@ function getMigrationUi(platformId) {
     });
     ui.taxHowWorks = pick({
         shopify: 'Fetches tax settings from Shopify, maps rates to SFCC tax classes and jurisdictions, and builds one IMPEX XML file.',
-        commercetools: 'Fetches all tax categories from commercetools, maps CTP rates to SFCC tax classes and jurisdictions, and builds one IMPEX XML file.'
+        commercetools: 'Fetches all tax categories from commercetools, maps CT rates to SFCC tax classes and jurisdictions, and builds one IMPEX XML file.'
     });
     ui.noTaxRates = pick({
         shopify: 'No tax jurisdictions found in Shopify. Add countries to your shipping zones and configure tax settings in Shopify admin.',
-        commercetools: 'No tax rates found in commercetools. Add tax categories and rates in CTP Merchant Center.'
+        commercetools: 'No tax rates found in commercetools. Add tax categories and rates in CT Merchant Center.'
     });
     ui.taxAllRatesZero = pick({
         shopify: 'All jurisdictions will export at 0%. Update tax rates in Business Manager after import.',
@@ -521,13 +548,13 @@ function getMigrationUi(platformId) {
     });
     ui.shipAttrScan = pick({
         shopify: 'Scans Shopify shipping-related metafield definitions and checks whether matching attributes exist on the SFCC <strong>ShippingMethod</strong> system object. Standard shipping fields map to native SFCC shipping-method XML and are not listed here.',
-        commercetools: 'Scans CTP shipping-method <strong>custom-type</strong> field definitions and checks whether matching attributes exist on the SFCC <strong>ShippingMethod</strong> system object. Standard CTP fields (key, name, rates, etc.) map to native SFCC shipping-method XML fields and are not listed here.'
+        commercetools: 'Scans CT shipping-method <strong>custom-type</strong> field definitions and checks whether matching attributes exist on the SFCC <strong>ShippingMethod</strong> system object. Standard CT fields (key, name, rates, etc.) map to native SFCC shipping-method XML fields and are not listed here.'
     });
     ui.loadMethodsHint = pick({
         shopify: 'Click <strong>Load Methods</strong> to fetch shipping zones and rates from Shopify.',
         commercetools: 'Click <strong>Load Methods</strong> to fetch shipping methods from commercetools.'
     });
-    ui.shipKeyCol = pick({ shopify: 'Rate ID', commercetools: 'CTP Key' });
+    ui.shipKeyCol = pick({ shopify: 'Rate ID', commercetools: 'CT Key' });
     ui.shipHowWorks = pick({
         shopify: 'Fetches shipping methods from Shopify, builds SFCC shipping import XML,',
         commercetools: 'Fetches shipping methods from commercetools, builds SFCC shipping import XML,'
@@ -548,7 +575,7 @@ function getMigrationUi(platformId) {
 
     ui.orderAttrScan = pick({
         shopify: 'Scans Shopify <strong>order</strong> metafield definitions and checks whether matching attributes exist on the SFCC <strong>Order</strong> system object.',
-        commercetools: 'Scans CTP <strong>order</strong> custom-type field definitions and checks whether matching attributes exist on the SFCC <strong>Order</strong> system object.'
+        commercetools: 'Scans CT <strong>order</strong> custom-type field definitions and checks whether matching attributes exist on the SFCC <strong>Order</strong> system object.'
     });
     ui.orderHowWorks = pick({
         shopify: 'Fetches orders from Shopify in pages, maps and validates each order, and streams one SFCC order XML to',
@@ -565,10 +592,19 @@ function getMigrationUi(platformId) {
     });
     ui.orderIntro = pick({
         shopify: 'Export orders from <strong>Shopify</strong> for the selected date range and generate an SFCC IMPEX package.',
+        bigcommerce: 'Export orders from <strong>BigCommerce</strong> for the selected date range and generate an SFCC IMPEX package.',
         commercetools: 'Export orders from <strong>commercetools</strong> for the selected date range and generate an SFCC IMPEX package.'
     });
-    ui.orderStateLabel = pick({ shopify: 'Financial status', commercetools: 'Order state' });
-    ui.paymentStateLabel = pick({ shopify: 'Fulfillment status', commercetools: 'Payment state' });
+    ui.orderStateLabel = pick({
+        shopify: 'Financial status',
+        bigcommerce: 'Order status',
+        commercetools: 'Order state'
+    });
+    ui.paymentStateLabel = pick({
+        shopify: 'Fulfillment status',
+        bigcommerce: 'Payment status',
+        commercetools: 'Payment state'
+    });
 
     ui.reloadingTax = pick({
         shopify: 'Reloading tax data from Shopify...',
@@ -578,7 +614,7 @@ function getMigrationUi(platformId) {
         shopify: 'Loading tax data from Shopify...',
         commercetools: 'Loading tax data from commercetools...'
     });
-    ui.reloadTaxBtn = pick({ shopify: 'Reload from Shopify', commercetools: 'Reload from CTP' });
+    ui.reloadTaxBtn = pick({ shopify: 'Reload from Shopify', commercetools: 'Reload from CT' });
 
     ui.reloadingShipMethods = pick({
         shopify: 'Reloading shipping methods from Shopify...',
@@ -595,11 +631,11 @@ function getMigrationUi(platformId) {
     });
     ui.invTotalEntriesSuffix = pick({
         shopify: ' total inventory levels',
-        commercetools: ' total CTP entries'
+        commercetools: ' total CT entries'
     });
     ui.invNoChannels = pick({
         shopify: 'No inventory list sources found — aggregated export only',
-        commercetools: 'No CTP supply channels found — aggregated export only'
+        commercetools: 'No CT supply channels found — aggregated export only'
     });
     ui.invAggregatedLabel = pick({
         shopify: 'Aggregated (all inventory lists)',
@@ -672,10 +708,6 @@ function buildDataSelectContent() {
 module.exports = {
     getPlatform:         getPlatform,
     getPlatforms:        getPlatforms,
-    getWizardSteps:      getWizardSteps,
-    getWizardStep:       getWizardStep,
-    getNextStepLabel:    getNextStepLabel,
-    maxStep:             WIZARD_STEPS.length,
     getDataWizardSteps:     getDataWizardSteps,
     getDataWizardStep:      getDataWizardStep,
     getMaxDataStep:         getMaxDataStep,

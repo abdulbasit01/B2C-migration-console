@@ -10,22 +10,8 @@ var Resource       = require('dw/web/Resource');
 var migrationData  = require('*/cartridge/scripts/accelerator/migrationData');
 var dataMigrationSession = require('*/cartridge/scripts/accelerator/dataMigrationSession');
 var registry       = require('*/cartridge/scripts/migration/connectors/registry');
-var runner         = require('*/cartridge/scripts/migration/core/runner');
-var nativeFieldMap = require('*/cartridge/scripts/migration/config/nativeFieldMap');
-
-// SFCC system object names, used to look up existing attributes in step 3.
-// Shared with core/runner.js#TASK_SFCC_OBJECT (imported here to avoid a second definition).
-var SFCC_TASK_OBJECTS = runner.TASK_SFCC_OBJECT;
 
 // ─── Controller helpers ───────────────────────────────────────────────────────
-
-/**
- * @param {number} n - number to format
- * @returns {string} comma-formatted number string
- */
-function fmt(n) {
-    return String(n || 0).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-}
 
 /**
  * @param {number} n - step number
@@ -73,6 +59,45 @@ function respondCreateAttributes(moduleKey, createFn, attrs) {
     jsonResponse({
         ok:     !(result && result.failed > 0),
         result: result
+    });
+}
+
+/**
+ * Normalize check-attrs result. AI suggestions load async when aiStatus is "pending".
+ * @param {{ mapped?: Array, missing?: Array, suggested?: Array, coveragePending?: Array, skipped?: Array, aiStatus?: string, aiMessage?: string, taskName?: string, sfccObjectType?: string }|Array} result
+ */
+function respondCheckAttributes(result) {
+    var suggestUrl = URLUtils.url('Accelerator-SuggestAttrMaps').toString();
+    if (Array.isArray(result)) {
+        jsonResponse({
+            ok: true,
+            mapped: [],
+            missing: result,
+            suggested: [],
+            coveragePending: [],
+            skipped: [],
+            aiStatus: 'skipped',
+            aiMessage: '',
+            taskName: '',
+            sfccObjectType: '',
+            suggestAttrMapsUrl: suggestUrl,
+            sessionSystemMaps: []
+        });
+        return;
+    }
+    jsonResponse({
+        ok:                 true,
+        mapped:             (result && result.mapped) || [],
+        missing:            (result && result.missing) || [],
+        suggested:          (result && result.suggested) || [],
+        coveragePending:    (result && result.coveragePending) || [],
+        skipped:            (result && result.skipped) || [],
+        aiStatus:           (result && result.aiStatus) || 'skipped',
+        aiMessage:          (result && result.aiMessage) || '',
+        taskName:           (result && result.taskName) || '',
+        sfccObjectType:     (result && result.sfccObjectType) || '',
+        suggestAttrMapsUrl: suggestUrl,
+        sessionSystemMaps:  (result && result.sessionSystemMaps) || []
     });
 }
 
@@ -226,6 +251,11 @@ function buildConnectionCreds(platformId) {
         creds.clientSecret = cfg.shopify.clientSecret || '';
         creds.accessToken  = cfg.shopify.accessToken || '';
         creds.apiVersion   = cfg.shopify.apiVersion || '2025-01';
+    } else if (platformId === 'bigcommerce') {
+        creds.storeHash   = (cfg.bigcommerce && cfg.bigcommerce.storeHash) || '';
+        creds.clientId    = (cfg.bigcommerce && cfg.bigcommerce.clientId) || '';
+        creds.accessToken = (cfg.bigcommerce && cfg.bigcommerce.accessToken) || '';
+        creds.apiVersion  = (cfg.bigcommerce && cfg.bigcommerce.apiVersion) || 'v3';
     } else if (platformId === 'amplience') {
         creds.hubName             = (cfg.amplience && cfg.amplience.hubName) || '';
         creds.personalAccessToken = (cfg.amplience && cfg.amplience.personalAccessToken) || '';
@@ -272,6 +302,13 @@ function buildConnectionSummary(platformId) {
         lines.push({ label: 'Client ID', value: cfg.shopify.clientId || '(not set)' });
         lines.push({ label: 'Secret / token', value: hasSecret ? 'Configured' : '(not set)' });
         lines.push({ label: 'API version', value: cfg.shopify.apiVersion || '(not set)' });
+    } else if (platformId === 'bigcommerce') {
+        var bc = cfg.bigcommerce || {};
+        configured = !!(bc.storeHash && bc.accessToken);
+        lines.push({ label: 'Store hash', value: bc.storeHash || '(not set)' });
+        lines.push({ label: 'Client ID', value: bc.clientId || '(not set)' });
+        lines.push({ label: 'Access token', value: bc.accessToken ? 'Configured' : '(not set)' });
+        lines.push({ label: 'API version', value: bc.apiVersion || 'v3' });
     } else if (platformId === 'sap') {
         configured = !!(cfg.sap.baseUrl && cfg.sap.baseSite && cfg.sap.clientId && cfg.sap.clientSecret);
         lines.push({ label: 'Base URL', value: cfg.sap.baseUrl || '(not set)' });
@@ -306,48 +343,6 @@ function buildConnectionSummary(platformId) {
     };
 }
 
-
-/**
- * Build the View step content from session results.
- * @param {Object} sessionResults - migration results keyed by task name
- * @returns {Object} view step content
- */
-function buildViewContent(sessionResults) {
-    var results = sessionResults || {};
-    var keys    = Object.keys(results);
-    var stats   = [];
-    var totalCreated = 0;
-    var totalSkipped = 0;
-
-    for (var i = 0; i < keys.length; i++) {
-        var key = keys[i];
-        var r   = results[key];
-        if (r.error) {
-            stats.push({ label: key, value: 'Error', sub: r.error });
-        } else {
-            var created = r.created || r.success || 0;
-            var skipped = r.skipped || 0;
-            var failed  = r.failed  || 0;
-            totalCreated += created;
-            totalSkipped += skipped;
-            stats.push({
-                label: key,
-                value: fmt(created) + ' created',
-                sub:   skipped + ' already existed' + (failed ? ', ' + failed + ' failed' : '')
-            });
-        }
-    }
-
-    if (!stats.length) {
-        stats = [{ label: 'Status', value: 'No migration results found', sub: 'Complete Step 4 first.' }];
-    }
-
-    return {
-        titleSuffix: 'Schema migration summary',
-        intro:       fmt(totalCreated) + ' new attribute(s) created across ' + keys.length + ' object type(s). ' + fmt(totalSkipped) + ' already existed and were skipped.',
-        stats:       stats
-    };
-}
 
 // ─── AJAX endpoints ───────────────────────────────────────────────────────────
 
@@ -387,141 +382,6 @@ exports.TestConnection = function () {
 };
 exports.TestConnection.public = true;
 
-/**
- * Migrate one batch of attributes for a single task.
- * POST: task=Product&offset=0&platform=shopify
- */
-exports.MigrateTask = function () {
-    var task     = getParam('task');
-    var offset   = parseInt(getParam('offset') || '0', 10);
-    var platform = resolvePlatform();
-
-    if (!task || !SFCC_TASK_OBJECTS[task]) {
-        jsonResponse({ ok: false, error: 'Invalid or missing task param' });
-        return;
-    }
-
-    var connector = registry.get(platform);
-    if (!connector) {
-        jsonResponse({ ok: false, error: 'Unsupported platform: ' + platform });
-        return;
-    }
-
-    try {
-        jsonResponse(runner.runBatch(connector, task, offset, 10));
-    } catch (e) {
-        jsonResponse({ ok: false, error: e.message || String(e) });
-    }
-};
-exports.MigrateTask.public = true;
-
-/**
- * Fetch existing SFCC attribute IDs for a task. Platform-agnostic.
- * POST: task=Product
- */
-exports.GetExistingAttrs = function () {
-    var task    = getParam('task');
-    var sfccObj = SFCC_TASK_OBJECTS[task];
-    if (!sfccObj) {
-        jsonResponse({ ok: false, error: 'Invalid task' });
-        return;
-    }
-    try {
-        var sfccClient = require('*/cartridge/scripts/migration/sfccClient');
-        var token      = sfccClient.getSFCCToken();
-        var existing   = sfccClient.getExistingAttributeIds(token, sfccObj);
-        var ids        = Object.keys(existing);
-        jsonResponse({ ok: true, task: task, count: ids.length, ids: ids });
-    } catch (e) {
-        jsonResponse({ ok: false, error: e.message || String(e) });
-    }
-};
-exports.GetExistingAttrs.public = true;
-
-/**
- * Return source-schema attribute definitions for a task (id + SFCC type).
- * Used by the View step to display exactly what was (or can be) migrated.
- * POST: task=Product&platform=shopify
- */
-exports.GetMigratedAttrs = function () {
-    var task      = getParam('task');
-    var platform  = resolvePlatform();
-    var connector = registry.get(platform);
-
-    if (!SFCC_TASK_OBJECTS[task]) {
-        jsonResponse({ ok: false, error: 'Invalid task' });
-        return;
-    }
-    if (!connector) {
-        jsonResponse({ ok: false, error: 'Unsupported platform: ' + platform });
-        return;
-    }
-
-    try {
-        var defs  = connector.getAttrDefsForTask(task);
-        var attrs = [];
-        for (var i = 0; i < defs.length; i++) {
-            if (!nativeFieldMap.isSkipped(connector.id, task, defs[i].id)) {
-                attrs.push({ id: defs[i].id, sfccType: defs[i].value_type });
-            }
-        }
-        jsonResponse({ ok: true, task: task, attrs: attrs });
-    } catch (e) {
-        jsonResponse({ ok: false, error: e.message || String(e) });
-    }
-};
-exports.GetMigratedAttrs.public = true;
-
-/**
- * Delete a batch of source-schema attributes from SFCC.
- * POST: task=Product&offset=0&platform=shopify
- */
-exports.DeleteTaskAttrs = function () {
-    var task      = getParam('task');
-    var offset    = parseInt(getParam('offset') || '0', 10);
-    var platform  = resolvePlatform();
-    var connector = registry.get(platform);
-
-    if (!SFCC_TASK_OBJECTS[task]) {
-        jsonResponse({ ok: false, error: 'Invalid task' });
-        return;
-    }
-    if (!connector) {
-        jsonResponse({ ok: false, error: 'Unsupported platform: ' + platform });
-        return;
-    }
-
-    try {
-        jsonResponse(runner.deleteBatch(connector, task, offset, 10));
-    } catch (e) {
-        jsonResponse({ ok: false, error: e.message || String(e) });
-    }
-};
-exports.DeleteTaskAttrs.public = true;
-
-/**
- * Persist schema task selection from the Fetch step.
- * POST: schemas=Product,Customer,Order
- */
-exports.SaveSchemaSelection = function () {
-    response.setContentType('application/json');
-    session.custom.selectedSchemas = getParam('schemas');
-    response.writer.print(JSON.stringify({ ok: true }));
-};
-exports.SaveSchemaSelection.public = true;
-
-/**
- * Persist final migration results from the Move step AJAX flow.
- * POST: results={"Product":{"created":3,"skipped":1,"failed":0}, …}
- */
-exports.SaveMigrationResults = function () {
-    response.setContentType('application/json');
-    var raw = getParam('results');
-    if (raw) session.custom.schemaMigrationResults = raw;
-    response.writer.print(JSON.stringify({ ok: true }));
-};
-exports.SaveMigrationResults.public = true;
-
 // ─── Page endpoints ───────────────────────────────────────────────────────────
 
 exports.Start = function () {
@@ -529,7 +389,6 @@ exports.Start = function () {
         title:                     Resource.msg('accelerator.title', 'accelerator', null),
         subtitle:                  Resource.msg('accelerator.subtitle', 'accelerator', null),
         platforms:                 platformsForDashboard(),
-        wizardUrl:                 URLUtils.url('Accelerator-Wizard').toString(),
         dataWizardUrl:             URLUtils.url('Accelerator-DataWizard').toString(),
         dataMigrationDashboardUrl: URLUtils.url('Accelerator-DataMigrationDashboard').toString(),
         customerMigrationUrl:      URLUtils.url('Accelerator-CustomerMigration').toString(),
@@ -622,8 +481,8 @@ exports.OrderMigration = function () {
         orderStateFilters:   migrationData.getOrderStateFilters(platformId),
         paymentStateFilters: migrationData.getPaymentStateFilters(platformId),
         cssUrl:              URLUtils.staticURL('/css/accelerator-migration.css').toString(),
-        attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString(),
-        orderMigrationJsUrl: URLUtils.staticURL('/js/order-migration.js').toString() + '?v=1'
+        attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString() + '?v=6',
+        orderMigrationJsUrl: URLUtils.staticURL('/js/order-migration.js').toString() + '?v=4'
     }));
 };
 exports.OrderMigration.public = true;
@@ -767,7 +626,7 @@ exports.CheckOrderAttributes = function () {
     try {
         var checker = require('*/cartridge/scripts/migration/orders/orderAttrChecker');
         // runner.checkMissing uses Shopify metafields when platform is shopify
-        jsonResponse({ ok: true, missing: checker.checkMissingAttributes() });
+        respondCheckAttributes(checker.checkMissingAttributes());
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
     }
@@ -1110,146 +969,48 @@ exports.DataMigrationFlow = function () {
 };
 exports.DataMigrationFlow.public = true;
 
-exports.Wizard = function () {
-    var params     = request.httpParameterMap;
-    var platformId = String((params.platform && params.platform.stringValue) || 'commercetools');
-    var stepParam  = 1;
-
-    if (params.step && params.step.submitted) {
-        var parsed = parseInt(String(params.step.stringValue || '1'), 10);
-        if (!Number.isNaN(parsed) && parsed > 0) stepParam = parsed;
-    }
-
-    var platform = migrationData.getPlatform(platformId);
-    if (!platform || platform.status !== 'ready') {
-        response.redirect(URLUtils.url('Accelerator-Start'));
-        return;
-    }
-
-    var currentStep = parseInt(String(Math.min(Math.max(stepParam, 1), migrationData.maxStep)), 10);
-    var wizardStep  = migrationData.getWizardStep(currentStep);
-    var stepContent = null;  // resolved per step below
-    var prevStep    = currentStep > 1 ? currentStep - 1 : null;
-    var nextStep    = currentStep < migrationData.maxStep ? currentStep + 1 : null;
-
-    // Track the active platform so AJAX endpoints can read it from session
-    session.custom.migrationPlatformId = platformId;
-
-    // Persist schema selection from the Fetch step Continue button
-    var schemasParam = (params.schemas && params.schemas.submitted) ? String(params.schemas.stringValue || '') : '';
-    if (schemasParam) session.custom.selectedSchemas = schemasParam;
-
-    var connector    = registry.get(platformId);
-    var selectedRaw  = String(session.custom.selectedSchemas || '');
-    var selectedTasks = selectedRaw ? selectedRaw.split(',') : null;
-
-    // ── Step 2: Fetch schema counts ───────────────────────────────────────────
-    if (currentStep === 2) {
-        if (connector) {
-            try {
-                stepContent = connector.buildFetchContent(connector.getSchemaCounts());
-            } catch (e) {
-                stepContent = {
-                    titleSuffix: 'Fetch source schema',
-                    intro:       'Could not connect to ' + platform.name + '. Please verify credentials in Step 1.',
-                    sections:    [{ title: 'Connection Error', items: [e.message || 'Unknown error'], selectable: false }],
-                    summary:     'Go back to Step 1 and verify your credentials.'
-                };
-            }
-        }
-    }
-
-    // ── Step 3: AI Map ────────────────────────────────────────────────────────
-    if (currentStep === 3 && connector) {
-        try {
-            var sfccClient3  = require('*/cartridge/scripts/migration/sfccClient');
-            var sfccToken3   = sfccClient3.getSFCCToken();
-            var tasks3       = selectedTasks || connector.getDefaultTasks();
-            var existing3    = {};
-            for (var ti = 0; ti < tasks3.length; ti++) {
-                var tname = tasks3[ti];
-                if (SFCC_TASK_OBJECTS[tname]) {
-                    existing3[tname] = sfccClient3.getExistingAttributeIds(sfccToken3, SFCC_TASK_OBJECTS[tname]);
-                }
-            }
-            stepContent = connector.buildAiMapContent(selectedTasks, existing3);
-        } catch (e) {
-            stepContent = {
-                titleSuffix: 'Schema field mapping',
-                intro:       'Could not load schema mapping: ' + (e.message || 'Unknown error') + '. Please verify credentials in Step 1.',
-                groups:      []
-            };
-        }
-    }
-
-    // ── Step 4: Move ──────────────────────────────────────────────────────────
-    if (currentStep === 4 && connector) {
-        var defaultTasks4  = connector.getDefaultTasks();
-        var selectedTasks4 = selectedTasks || defaultTasks4;
-        stepContent = {
-            titleSuffix:   'Run schema migration',
-            intro:         'Click "Start Migration" to create SFCC attribute definitions from ' + platform.name + ' schema.',
-            selectedTasks: selectedTasks4,
-            migrateUrl:    URLUtils.url('Accelerator-MigrateTask', 'platform', platformId).toString()
-        };
-    }
-
-    // ── Step 5: View ──────────────────────────────────────────────────────────
-    if (currentStep === 5) {
-        var sessionResults = null;
-        try { sessionResults = JSON.parse(String(session.custom.schemaMigrationResults || 'null')); } catch (e) { /* no results yet */ }
-        stepContent = buildViewContent(sessionResults);
-    }
-
-    ISML.renderTemplate('accelerator/wizard', withBmFrame({
-        title:         Resource.msg('accelerator.title', 'accelerator', null),
-        subtitle:      Resource.msg('accelerator.subtitle', 'accelerator', null),
-        platform:      platform,
-        wizardSteps:   migrationData.getWizardSteps(),
-        currentStep:   currentStep,
-        wizardStep:    wizardStep,
-        stepContent:   stepContent,
-        prevStep:      prevStep,
-        nextStep:      nextStep,
-        prevStepQuery: toStepQuery(prevStep),
-        nextStepQuery: toStepQuery(nextStep),
-        nextStepLabel: migrationData.getNextStepLabel(currentStep),
-        isLastStep:    currentStep >= migrationData.maxStep,
-        dashboardUrl:  URLUtils.url('Accelerator-Start').toString(),
-        dataWizardSelectUrl: dataMigrationSession.dataWizardSelectUrl(platformId),
-        wizardBaseUrl: URLUtils.url('Accelerator-Wizard', 'platform', platform.id).toString(),
-        connectionSummary: buildConnectionSummary(platformId),
-        testConnectionUrl: URLUtils.url('Accelerator-TestConnection').toString(),
-        cssUrl:        URLUtils.staticURL('/css/accelerator-migration.css').toString()
-    }));
-};
-exports.Wizard.public = true;
-
 // ─── Customer data migration ──────────────────────────────────────────────────
 
 /**
- * Customer migration page — standalone, separate from the schema wizard.
+ * Customer migration page — standalone data migration module.
  */
 exports.CustomerMigration = function () {
     var cfg2           = require('*/cartridge/scripts/migration/configAccessor');
     var customerListId = (cfg2.sfcc && cfg2.sfcc.customerListId) ? cfg2.sfcc.customerListId : '';
     var platformId = resolvePlatform();
-    var isShopify  = platformId === 'shopify';
+    var isShopify      = platformId === 'shopify';
+    var isBigCommerce  = platformId === 'bigcommerce';
     var pageCtx    = migrationPageContext(platformId, 'customer');
     var listsUrl   = URLUtils.url('Accelerator-GetCustomerLists').toString();
 
     clearModuleAttrIdMap('customer');
 
+    var sourceIdLabel;
+    var sourceIdPlaceholder;
+    var sourceIdFormatNote;
+    if (isShopify) {
+        sourceIdLabel       = 'Shopify Customer ID(s)';
+        sourceIdPlaceholder = 'e.g. 8474509455577, 8474509619417, ...';
+        sourceIdFormatNote  = 'Enter the numeric Shopify customer ID(s) shown in the Shopify admin URL for each customer.';
+    } else if (isBigCommerce) {
+        sourceIdLabel       = 'BigCommerce Customer ID(s)';
+        sourceIdPlaceholder = 'e.g. 1, 2, 15, ...';
+        sourceIdFormatNote  = 'Enter the numeric BigCommerce customer ID(s) from the Customers admin for each customer.';
+    } else {
+        sourceIdLabel       = 'Commercetools Customer UUID(s)';
+        sourceIdPlaceholder = 'e.g. a1b2c3d4-e5f6-7890-abcd-ef1234567890, ...';
+        sourceIdFormatNote  = 'Enter the UUID(s) from the Commercetools platform (format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx).';
+    }
+
     ISML.renderTemplate('accelerator/customerMigration', withBmFrame({
         title:          Resource.msg('accelerator.title', 'accelerator', null),
         subtitle:       Resource.msg('accelerator.subtitle', 'accelerator', null),
         isShopify:      isShopify,
+        isBigCommerce:  isBigCommerce,
         platformLabel:  pageCtx.sourceLabel,
-        sourceIdLabel:  isShopify ? 'Shopify Customer ID(s)' : 'Commercetools Customer UUID(s)',
-        sourceIdPlaceholder: isShopify ? 'e.g. 8474509455577, 8474509619417, ...' : 'e.g. a1b2c3d4-e5f6-7890-abcd-ef1234567890, ...',
-        sourceIdFormatNote:  isShopify
-            ? 'Enter the numeric Shopify customer ID(s) shown in the Shopify admin URL for each customer.'
-            : 'Enter the UUID(s) from the Commercetools platform (format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx).',
+        sourceIdLabel:  sourceIdLabel,
+        sourceIdPlaceholder: sourceIdPlaceholder,
+        sourceIdFormatNote:  sourceIdFormatNote,
         customerListId: customerListId,
         dashboardUrl:   URLUtils.url('Accelerator-Start').toString(),
         impexPath:      pageCtx.impexPath,
@@ -1322,13 +1083,19 @@ exports.GetCustomerLists.public = true;
 
 /**
  * Fetch all customer groups from the source platform and return as JSON.
- * CTP: actual customer groups. Shopify: derived from distinct customer tags.
+ * CT: actual customer groups. Shopify: derived from distinct customer tags.
  */
 exports.FetchCtpCustomerGroups = function () {
     try {
-        var groupFetcher = (resolvePlatform() === 'shopify')
-            ? require('*/cartridge/scripts/migration/customerMigration/shopifyCustomerGroupFetcher')
-            : require('*/cartridge/scripts/migration/customerMigration/ctpCustomerGroupFetcher');
+        var platform = resolvePlatform();
+        var groupFetcher;
+        if (platform === 'shopify') {
+            groupFetcher = require('*/cartridge/scripts/migration/customerMigration/shopifyCustomerGroupFetcher');
+        } else if (platform === 'bigcommerce') {
+            groupFetcher = require('*/cartridge/scripts/migration/customerMigration/bcCustomerGroupFetcher');
+        } else {
+            groupFetcher = require('*/cartridge/scripts/migration/customerMigration/ctpCustomerGroupFetcher');
+        }
         jsonResponse({ ok: true, groups: groupFetcher.fetchGroups() });
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
@@ -1337,7 +1104,7 @@ exports.FetchCtpCustomerGroups = function () {
 exports.FetchCtpCustomerGroups.public = true;
 
 /**
- * Create selected CTP customer groups in SFCC (keeps exact CTP UUID as group ID).
+ * Create selected CT customer groups in SFCC (keeps exact CT UUID as group ID).
  * POST body: groups=[{"id":"...","name":"..."},...]
  */
 exports.CreateSfccCustomerGroups = function () {
@@ -1396,7 +1163,7 @@ exports.DownloadProductXml = function () {
 exports.DownloadProductXml.public = true;
 
 /**
- * GET — Returns all CTP variant product attributes plus the saved selection from session.
+ * GET — Returns all CT variant product attributes plus the saved selection from session.
  * Response: { ok, attrs: [{ name, sfccId, label, ctpType }], savedSelection: [string]|null }
  */
 /**
@@ -1408,6 +1175,10 @@ exports.GetProductSetsInfo = function () {
     var platform = String(session.custom.migrationPlatformId || 'commercetools');
     if (platform === 'shopify') {
         jsonResponse({ ok: true, sets: [], note: 'Shopify set/bundle detection uses the Product Type field at migration time.' });
+        return;
+    }
+    if (platform === 'bigcommerce') {
+        jsonResponse({ ok: true, sets: [], note: 'BigCommerce product set detection is not yet implemented.' });
         return;
     }
     if (platform === 'sap') {
@@ -1434,6 +1205,10 @@ exports.GetBundleProductsInfo = function () {
         jsonResponse({ ok: true, bundles: [], note: 'Shopify set/bundle detection uses the Product Type field at migration time.' });
         return;
     }
+    if (platform === 'bigcommerce') {
+        jsonResponse({ ok: true, bundles: [], note: 'BigCommerce bundle detection is not yet implemented.' });
+        return;
+    }
     if (platform === 'sap') {
         jsonResponse({ ok: true, bundles: [], note: 'SAP Commerce bundle detection is not yet implemented (planned for a later phase).' });
         return;
@@ -1455,10 +1230,14 @@ exports.GetVariantAttrs = function () {
         var attrMap          = attrIdMapSession.read('product');
         var fields           = [];
         var isShopify        = platform === 'shopify';
+        var isBigCommerce    = platform === 'bigcommerce';
 
         if (isShopify) {
             var shopifyChecker = require('*/cartridge/scripts/migration/productMigration/shopifyProductAttrChecker');
             fields = shopifyChecker.getShopifyVariantOptionFields();
+        } else if (isBigCommerce) {
+            var bcChecker = require('*/cartridge/scripts/migration/productMigration/bcProductAttrChecker');
+            fields = bcChecker.getBcVariantOptionFields();
         } else if (platform === 'sap') {
             var sapChecker = require('*/cartridge/scripts/migration/productMigration/sapProductAttrChecker');
             fields = sapChecker.getSapVariantOptionFields();
@@ -1499,7 +1278,8 @@ exports.GetVariantAttrs = function () {
             ok:             true,
             attrs:          enriched,
             savedSelection: savedSelection,
-            shopify:        isShopify
+            shopify:        isShopify,
+            bigcommerce:    isBigCommerce
         });
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
@@ -1525,7 +1305,7 @@ exports.SavePreflightSelection = function () {
 exports.SavePreflightSelection.public = true;
 
 /**
- * POST: attrs=<JSON array of CTP attr names to include in variant XML>
+ * POST: attrs=<JSON array of CT attr names to include in variant XML>
  * Validates, auto-creates missing SFCC attrs (if pre-flight authorized), then saves selection.
  *
  * Rules:
@@ -1551,6 +1331,12 @@ exports.SaveVariantAttrSelection = function () {
             var shopifyFields  = shopifyChecker.getShopifyVariantOptionFields();
             for (var sfi = 0; sfi < shopifyFields.length; sfi++) {
                 ctpNameToField[shopifyFields[sfi].name] = shopifyFields[sfi];
+            }
+        } else if (platform === 'bigcommerce') {
+            var bcVarChecker = require('*/cartridge/scripts/migration/productMigration/bcProductAttrChecker');
+            var bcFields     = bcVarChecker.getBcVariantOptionFields();
+            for (var bfi = 0; bfi < bcFields.length; bfi++) {
+                ctpNameToField[bcFields[bfi].name] = bcFields[bfi];
             }
         } else {
             var checker    = require('*/cartridge/scripts/migration/productMigration/productAttrChecker');
@@ -1593,16 +1379,22 @@ exports.SaveVariantAttrSelection = function () {
 exports.SaveVariantAttrSelection.public = true;
 
 /**
- * Compare CTP customer custom fields against SFCC Customer attribute definitions.
- * Returns attributes present in CTP but missing in SFCC.
+ * Compare CT customer custom fields against SFCC Customer attribute definitions.
+ * Returns attributes present in CT but missing in SFCC.
  * GET — no params required.
  */
 exports.CheckCustomerAttributes = function () {
     try {
-        var checker = (resolvePlatform() === 'shopify')
-            ? require('*/cartridge/scripts/migration/customerMigration/shopifyCustomerAttrChecker')
-            : require('*/cartridge/scripts/migration/customerMigration/customerAttrChecker');
-        jsonResponse({ ok: true, missing: checker.checkMissingAttributes() });
+        var platform = resolvePlatform();
+        var checker;
+        if (platform === 'shopify') {
+            checker = require('*/cartridge/scripts/migration/customerMigration/shopifyCustomerAttrChecker');
+        } else if (platform === 'bigcommerce') {
+            checker = require('*/cartridge/scripts/migration/customerMigration/bcCustomerAttrChecker');
+        } else {
+            checker = require('*/cartridge/scripts/migration/customerMigration/customerAttrChecker');
+        }
+        respondCheckAttributes(checker.checkMissingAttributes());
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
     }
@@ -1617,9 +1409,15 @@ exports.CreateCustomerAttributes = function () {
     var attrs = parseAttrsParam();
     if (!attrs) return;
     try {
-        var checker2 = (resolvePlatform() === 'shopify')
-            ? require('*/cartridge/scripts/migration/customerMigration/shopifyCustomerAttrChecker')
-            : require('*/cartridge/scripts/migration/customerMigration/customerAttrChecker');
+        var platform = resolvePlatform();
+        var checker2;
+        if (platform === 'shopify') {
+            checker2 = require('*/cartridge/scripts/migration/customerMigration/shopifyCustomerAttrChecker');
+        } else if (platform === 'bigcommerce') {
+            checker2 = require('*/cartridge/scripts/migration/customerMigration/bcCustomerAttrChecker');
+        } else {
+            checker2 = require('*/cartridge/scripts/migration/customerMigration/customerAttrChecker');
+        }
         respondCreateAttributes('customer', function (a) { return checker2.createAttributes(a); }, attrs);
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
@@ -1649,14 +1447,20 @@ exports.DeleteCustomerAttribute = function () {
 exports.DeleteCustomerAttribute.public = true;
 
 /**
- * Return the total number of customers in the CTP project.
+ * Return the total number of customers in the CT project.
  * GET/POST — no params required.
  */
 exports.CustomerMigrationCount = function () {
     try {
-        var countFetcher = (resolvePlatform() === 'shopify')
-            ? require('*/cartridge/scripts/migration/customerMigration/shopifyCustomerFetcher')
-            : require('*/cartridge/scripts/migration/customerMigration/ctpCustomerFetcher');
+        var platform = resolvePlatform();
+        var countFetcher;
+        if (platform === 'shopify') {
+            countFetcher = require('*/cartridge/scripts/migration/customerMigration/shopifyCustomerFetcher');
+        } else if (platform === 'bigcommerce') {
+            countFetcher = require('*/cartridge/scripts/migration/customerMigration/bcCustomerFetcher');
+        } else {
+            countFetcher = require('*/cartridge/scripts/migration/customerMigration/ctpCustomerFetcher');
+        }
         jsonResponse({ ok: true, total: countFetcher.getCount() });
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
@@ -1665,7 +1469,7 @@ exports.CustomerMigrationCount = function () {
 exports.CustomerMigrationCount.public = true;
 
 /**
- * Migrate one batch of customer profiles from CTP to SFCC.
+ * Migrate one batch of customer profiles from CT to SFCC.
  * POST: offset=<n>&listId=<sfcc-customer-list-id>
  * Response includes mappings[] for the caller to drive phase 2 (address migration).
  */
@@ -1681,6 +1485,14 @@ exports.MigrateCustomerBatch = function () {
         jsonResponse({
             ok:    false,
             error: 'Sequential partial migration is not supported for Shopify yet — '
+                 + 'enter specific customer IDs above, or use Full Migration for the whole store.'
+        });
+        return;
+    }
+    if (resolvePlatform() === 'bigcommerce') {
+        jsonResponse({
+            ok:    false,
+            error: 'Sequential partial migration is not supported for BigCommerce yet — '
                  + 'enter specific customer IDs above, or use Full Migration for the whole store.'
         });
         return;
@@ -1727,7 +1539,7 @@ exports.MigrateCustomerAddresses = function () {
 exports.MigrateCustomerAddresses.public = true;
 
 /**
- * Full Migration — fetch one batch of 500 CTP customers, build SFCC import XML, upload via WebDAV.
+ * Full Migration — fetch one batch of 500 CT customers, build SFCC import XML, upload via WebDAV.
  * POST: offset=<n>&listId=<sfcc-customer-list-id>
  */
 exports.FullMigrationBuildBatch = function () {
@@ -1739,9 +1551,15 @@ exports.FullMigrationBuildBatch = function () {
         return;
     }
     try {
-        var fullRunner = (resolvePlatform() === 'shopify')
-            ? require('*/cartridge/scripts/migration/customerMigration/shopifyFullMigrationRunner')
-            : require('*/cartridge/scripts/migration/customerMigration/fullMigrationRunner');
+        var platform = resolvePlatform();
+        var fullRunner;
+        if (platform === 'shopify') {
+            fullRunner = require('*/cartridge/scripts/migration/customerMigration/shopifyFullMigrationRunner');
+        } else if (platform === 'bigcommerce') {
+            fullRunner = require('*/cartridge/scripts/migration/customerMigration/bcFullMigrationRunner');
+        } else {
+            fullRunner = require('*/cartridge/scripts/migration/customerMigration/fullMigrationRunner');
+        }
         jsonResponse(fullRunner.runBatch(offset, listId));
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
@@ -1750,7 +1568,7 @@ exports.FullMigrationBuildBatch = function () {
 exports.FullMigrationBuildBatch.public = true;
 
 /**
- * Partial Migration (ID mode) — migrate one specific customer by CTP customer ID.
+ * Partial Migration (ID mode) — migrate one specific customer by CT customer ID.
  * POST: ctpId=<ctp-uuid>&listId=<sfcc-customer-list-id>
  */
 exports.MigrateCustomerById = function () {
@@ -1762,9 +1580,15 @@ exports.MigrateCustomerById = function () {
         return;
     }
     try {
-        var byIdRunner = (resolvePlatform() === 'shopify')
-            ? require('*/cartridge/scripts/migration/customerMigration/shopifyCustomerMigrationRunner')
-            : require('*/cartridge/scripts/migration/customerMigration/customerMigrationRunner');
+        var platform = resolvePlatform();
+        var byIdRunner;
+        if (platform === 'shopify') {
+            byIdRunner = require('*/cartridge/scripts/migration/customerMigration/shopifyCustomerMigrationRunner');
+        } else if (platform === 'bigcommerce') {
+            byIdRunner = require('*/cartridge/scripts/migration/customerMigration/bcCustomerMigrationRunner');
+        } else {
+            byIdRunner = require('*/cartridge/scripts/migration/customerMigration/customerMigrationRunner');
+        }
         jsonResponse(byIdRunner.runProfileBatchById(ctpId, listId));
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
@@ -1849,7 +1673,7 @@ exports.GetSites.public = true;
 exports.CheckShippingMethodAttributes = function () {
     try {
         var checker = require('*/cartridge/scripts/migration/shippingMethodMigration/shippingMethodAttrChecker');
-        jsonResponse({ ok: true, missing: checker.checkMissingAttributes() });
+        respondCheckAttributes(checker.checkMissingAttributes());
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
     }
@@ -1896,7 +1720,7 @@ exports.ShippingMethodMigrationCount = function () {
 exports.ShippingMethodMigrationCount.public = true;
 
 /**
- * List all CTP shipping methods for the migration checklist UI.
+ * List all CT shipping methods for the migration checklist UI.
  * GET — no params required.
  */
 exports.ListShippingMethods = function () {
@@ -1986,7 +1810,7 @@ exports.InventoryMigration = function () {
 exports.InventoryMigration.public = true;
 
 /**
- * Return CTP inventory supply channels for optional filtering.
+ * Return CT inventory supply channels for optional filtering.
  * GET — no params required.
  */
 exports.GetSupplyChannels = function () {
@@ -2002,7 +1826,7 @@ exports.GetSupplyChannels.public = true;
 exports.CheckInventoryAttributes = function () {
     try {
         var checker = require('*/cartridge/scripts/migration/inventoryMigration/inventoryAttrChecker');
-        jsonResponse({ ok: true, missing: checker.checkMissingAttributes() });
+        respondCheckAttributes(checker.checkMissingAttributes());
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
     }
@@ -2153,7 +1977,7 @@ exports.GetPricebooks.public = true;
 exports.CheckPricebookAttributes = function () {
     try {
         var checker = require('*/cartridge/scripts/migration/pricebookMigration/pricebookAttrChecker');
-        jsonResponse({ ok: true, missing: checker.checkMissingAttributes() });
+        respondCheckAttributes(checker.checkMissingAttributes());
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
     }
@@ -2274,7 +2098,7 @@ exports.CheckTaxAttributes = function () {
     response.setContentType('application/json');
     try {
         var checker = require('*/cartridge/scripts/migration/taxMigration/taxAttrChecker');
-        jsonResponse({ ok: true, missing: checker.checkMissingAttributes() });
+        respondCheckAttributes(checker.checkMissingAttributes());
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
     }
@@ -2395,6 +2219,104 @@ exports.ClearAttrIdMap = function () {
 };
 exports.ClearAttrIdMap.public = true;
 
+/**
+ * Persist visit-scoped source→SFCC attr remaps (e.g. accept AI suggestion).
+ * Body/params: module, attrs=[{ canonicalId|sourceId, id }]
+ */
+exports.SaveAttrIdMap = function () {
+    response.setContentType('application/json');
+    try {
+        var moduleKey = getParam('module') || '';
+        if (!moduleKey) {
+            jsonResponse({ ok: false, error: 'module is required' });
+            return;
+        }
+        var attrs = parseAttrsParam();
+        if (!attrs) return;
+        var attrIdMapSession = require('*/cartridge/scripts/migration/core/attrIdMapSession');
+        attrIdMapSession.saveFromAttrs(moduleKey, attrs);
+        jsonResponse({ ok: true, mapped: attrs.length });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.SaveAttrIdMap.public = true;
+
+/**
+ * OpenAI mapping suggestions for Check Attributes create candidates (async follow-up).
+ * Params: task (or sfccObjectType), attrs=[{id,label,sourceType,...}]
+ */
+exports.SuggestAttrMaps = function () {
+    response.setContentType('application/json');
+    try {
+        var taskName = getParam('task') || getParam('taskName') || '';
+        var sfccObjectType = getParam('sfccObjectType') || '';
+        if (!taskName && sfccObjectType) {
+            taskName = sfccObjectType === 'Profile' ? 'Customer' : sfccObjectType;
+        }
+        if (!taskName) {
+            jsonResponse({ ok: false, error: 'task is required', suggested: [], aiStatus: 'error' });
+            return;
+        }
+        var attrs = parseAttrsParam();
+        if (!attrs) return;
+
+        var excludeSfccFields = [];
+        try {
+            var rawExclude = getParam('excludeSfccFields') || '[]';
+            var parsedExclude = JSON.parse(rawExclude);
+            if (parsedExclude && parsedExclude.length) {
+                excludeSfccFields = parsedExclude;
+            }
+        } catch (exErr) {
+            excludeSfccFields = [];
+        }
+
+        var liveSystemAttrs = [];
+        if (sfccObjectType) {
+            try {
+                var sfccClient = require('*/cartridge/scripts/migration/sfccClient');
+                var token = sfccClient.getSFCCToken();
+                var allAttrs = sfccClient.getAttributeDefinitions(token, sfccObjectType) || [];
+                var i;
+                for (i = 0; i < allAttrs.length; i++) {
+                    if (allAttrs[i] && allAttrs[i].system) {
+                        liveSystemAttrs.push({ id: allAttrs[i].id });
+                    }
+                }
+            } catch (liveErr) {
+                liveSystemAttrs = [];
+            }
+        }
+
+        var registry = require('*/cartridge/scripts/migration/core/dataSourceRegistry');
+        var attrMapSuggestor = require('*/cartridge/scripts/migration/core/attrMapSuggestor');
+        var result = attrMapSuggestor.suggestSystemMaps({
+            missing:            attrs,
+            taskName:           taskName,
+            platformId:         registry.getPlatformId(),
+            liveSystemAttrs:    liveSystemAttrs,
+            excludeSfccFields:  excludeSfccFields
+        });
+        jsonResponse({
+            ok:        result.aiStatus !== 'error',
+            suggested: result.suggested || [],
+            aiStatus:  result.aiStatus || 'skipped',
+            aiMessage: result.aiMessage || '',
+            taskName:  taskName
+        });
+    } catch (e) {
+        jsonResponse({
+            ok: false,
+            error: e.message || String(e),
+            suggested: [],
+            aiStatus: 'error',
+            aiMessage: e.message || String(e)
+        });
+    }
+};
+exports.SuggestAttrMaps.public = true;
+
 /** @deprecated use ClearAttrIdMap?module=store */
 exports.ClearStoreAttrMap = function () {
     clearModuleAttrIdMap('store');
@@ -2406,7 +2328,7 @@ exports.CheckStoreAttributes = function () {
     response.setContentType('application/json');
     try {
         var checker = require('*/cartridge/scripts/migration/storeMigration/storeAttrChecker');
-        jsonResponse({ ok: true, missing: checker.checkMissingAttributes() });
+        respondCheckAttributes(checker.checkMissingAttributes());
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
     }
@@ -2437,7 +2359,7 @@ exports.GetStoreSummary = function () {
 exports.GetStoreSummary.public = true;
 
 /**
- * List all CTP stores for the migration checklist UI.
+ * List all CT stores for the migration checklist UI.
  * GET — no params required.
  */
 exports.ListStores = function () {
@@ -2651,7 +2573,7 @@ exports.SaveProdWizardResults = function () {
 exports.SaveProdWizardResults.public = true;
 
 /**
- * Return total number of products in the source platform (CTP or Shopify).
+ * Return total number of products in the source platform (CT or Shopify).
  */
 exports.ProductMigrationCount = function () {
     var platform = String(session.custom.migrationPlatformId || 'commercetools');
@@ -2659,6 +2581,9 @@ exports.ProductMigrationCount = function () {
         if (platform === 'shopify') {
             var shopifyFetcher = require('*/cartridge/scripts/migration/productMigration/shopifyProductFetcher');
             jsonResponse({ ok: true, total: shopifyFetcher.getCount() });
+        } else if (platform === 'bigcommerce') {
+            var bcFetcherCount = require('*/cartridge/scripts/migration/productMigration/bcProductFetcher');
+            jsonResponse({ ok: true, total: bcFetcherCount.getCount() });
         } else if (platform === 'sap') {
             var sapFetcherCount = require('*/cartridge/scripts/migration/productMigration/sapProductFetcher');
             jsonResponse({ ok: true, total: sapFetcherCount.getCount() });
@@ -2674,14 +2599,14 @@ exports.ProductMigrationCount.public = true;
 
 /**
  * Full Product Migration — fetch one batch of products, build catalog XML, upload via WebDAV.
- * POST: offset=<number> (CTP) or offset=<cursor-string> (Shopify, empty/0 = first page)
+ * POST: offset=<number> (CT) or offset=<cursor-string> (Shopify, empty/0 = first page)
  * catalogId is read from request param or Site Preferences / defaults (sfcc.catalogId).
  */
 exports.FullProductMigrationBuildBatch = function () {
     var platform  = String(session.custom.migrationPlatformId || 'commercetools');
     var offsetRaw = getParam('offset') || '0';
 
-    // For Shopify, offset is a cursor string. For CTP, parse as integer.
+    // For Shopify, offset is a cursor string. For CT/SAP/BC, parse as integer.
     var offsetOrCursor = (platform === 'shopify')
         ? ((offsetRaw === '0' || !offsetRaw) ? null : offsetRaw)
         : parseInt(offsetRaw, 10);
@@ -2711,7 +2636,7 @@ exports.FullProductMigrationBuildBatch.public = true;
 /**
  * Partial Product Migration — fetch one product by ID, build XML, upload via WebDAV.
  * POST: prodId=<id> (accepts ctpId or shopifyId as aliases)
- *       For CTP: UUID. For Shopify: handle, numeric ID, or GID.
+ *       For CT: UUID. For Shopify: handle, numeric ID, or GID.
  */
 exports.MigrateProductById = function () {
     var prodId = getParam('prodId') || getParam('ctpId') || getParam('shopifyId');
@@ -2751,13 +2676,16 @@ exports.CheckProductAttributes = function () {
     try {
         if (platform === 'shopify') {
             var shopifyChecker = require('*/cartridge/scripts/migration/productMigration/shopifyProductAttrChecker');
-            jsonResponse({ ok: true, missing: shopifyChecker.checkMissingAttributes() });
+            respondCheckAttributes(shopifyChecker.checkMissingAttributes());
+        } else if (platform === 'bigcommerce') {
+            var bcProdChecker = require('*/cartridge/scripts/migration/productMigration/bcProductAttrChecker');
+            respondCheckAttributes(bcProdChecker.checkMissingAttributes());
         } else if (platform === 'sap') {
             var sapChecker = require('*/cartridge/scripts/migration/productMigration/sapProductAttrChecker');
-            jsonResponse({ ok: true, missing: sapChecker.checkMissingAttributes() });
+            respondCheckAttributes(sapChecker.checkMissingAttributes());
         } else {
             var checker = require('*/cartridge/scripts/migration/productMigration/productAttrChecker');
-            jsonResponse({ ok: true, missing: checker.checkMissingAttributes() });
+            respondCheckAttributes(checker.checkMissingAttributes());
         }
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
@@ -2776,9 +2704,11 @@ exports.CreateProductAttributes = function () {
     try {
         var checker2 = (platform === 'shopify')
             ? require('*/cartridge/scripts/migration/productMigration/shopifyProductAttrChecker')
-            : (platform === 'sap')
-                ? require('*/cartridge/scripts/migration/productMigration/sapProductAttrChecker')
-                : require('*/cartridge/scripts/migration/productMigration/productAttrChecker');
+            : (platform === 'bigcommerce')
+                ? require('*/cartridge/scripts/migration/productMigration/bcProductAttrChecker')
+                : (platform === 'sap')
+                    ? require('*/cartridge/scripts/migration/productMigration/sapProductAttrChecker')
+                    : require('*/cartridge/scripts/migration/productMigration/productAttrChecker');
         respondCreateAttributes('product', function (a) { return checker2.createAttributes(a); }, attrs);
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
@@ -3526,7 +3456,7 @@ function getCategoryMigrationJS() {
     L.push('    function fetchPage(offset){');
     L.push('      if(status){status.textContent="Loading... "+_APP.allCategories.length+" fetched";status.style.color="#54698d";}');
     L.push('      _APP.post(_APP.FETCH_URL,"locale="+encodeURIComponent(locale||"en-US")+"&offset="+offset,function(data){');
-    L.push('        var _lbl=_APP.PLATFORM==="sap"?"SAP":_APP.PLATFORM==="shopify"?"Shopify":"CT";');
+    L.push('        var _lbl=_APP.PLATFORM==="sap"?"SAP":_APP.PLATFORM==="shopify"?"Shopify":_APP.PLATFORM==="bigcommerce"?"BigCommerce":"CT";');
     L.push('        if(!data.ok){btn.disabled=false;btn.textContent="Load Categories from "+_lbl;if(status){status.textContent="Error: "+(data.error||"failed");status.style.color="#c62828";}return;}');
     L.push('        data.categories.forEach(function(c){_APP.allCategories.push(c);_APP.catMap[c.id]=c;});');
     L.push('        if(data.done){');
@@ -3581,6 +3511,39 @@ function getCategoryMigrationJS() {
     L.push('          });');
     L.push('        }');
     L.push('        fetchShopifyPage(0);');
+    L.push('      });');
+    L.push('    }');
+    L.push('  }');
+    // BigCommerce override — cursor-style paging via nextOffset (same contract as Shopify)
+    L.push('  if(_APP.PLATFORM==="bigcommerce"){');
+    L.push('    el=document.getElementById("btn-load-categories");');
+    L.push('    if(el){');
+    L.push('      el.textContent="Load Categories from BigCommerce";');
+    L.push('      var _bcClone=el.cloneNode(true);el.parentNode.replaceChild(_bcClone,el);el=_bcClone;');
+    L.push('      el.addEventListener("click",function(){');
+    L.push('        var btn=this;var status=document.getElementById("hierarchy-fetch-status");');
+    L.push('        btn.disabled=true;btn.textContent="Loading...";');
+    L.push('        _APP.allCategories=[];_APP.catMap={};');
+    L.push('        _APP.hierarchyOverrides={};_APP.orderOverrides={};_APP.pendingParent={};_APP.pendingOrder={};_APP.activeFilter="all";_APP.newCatCount=0;_APP.addedCats=[];');
+    L.push('        function fetchBCPage(cursor){');
+    L.push('          if(status){status.textContent="Loading categories... "+_APP.allCategories.length+" so far";status.style.color="#54698d";}');
+    L.push('          _APP.post(_APP.FETCH_URL,"offset="+encodeURIComponent(cursor),function(data){');
+    L.push('            if(!data.ok){btn.disabled=false;btn.textContent="Load Categories from BigCommerce";if(status){status.textContent="Error: "+(data.error||"failed");status.style.color="#c62828";}return;}');
+    L.push('            data.categories.forEach(function(c){_APP.allCategories.push(c);_APP.catMap[c.id]=c;});');
+    L.push('            _APP.renderTable();');
+    L.push('            if(data.done){');
+    L.push('              btn.disabled=false;btn.textContent="Load Categories from BigCommerce";');
+    L.push('              if(status){status.textContent=_APP.allCategories.length+" categories loaded";status.style.color="#2e7d32";}');
+    L.push('              _APP.buildSharedParentSelect();');
+    L.push('              _APP.populateParentDropdown();');
+    L.push('              var applied=document.getElementById("hierarchy-applied-summary");if(applied)applied.style.display="none";');
+    L.push('            } else {');
+    L.push('              if(!data.nextOffset&&data.nextOffset!==0){btn.disabled=false;btn.textContent="Load Categories from BigCommerce";if(status){status.textContent="Error: server returned no next cursor";status.style.color="#c62828";}return;}');
+    L.push('              setTimeout(function(){fetchBCPage(data.nextOffset);},0);');
+    L.push('            }');
+    L.push('          });');
+    L.push('        }');
+    L.push('        fetchBCPage(0);');
     L.push('      });');
     L.push('    }');
     L.push('  }');
@@ -3695,7 +3658,7 @@ function getCategoryMigrationJS() {
     L.push('      alert(mpMsg);_APP.running=false;this.disabled=false;this.textContent="Run Migration";return;');
     L.push('    }');
     L.push('    var selIdsParam=encodeURIComponent(JSON.stringify(selIds));');
-    L.push('    var catsParam=(_APP.PLATFORM==="shopify"&&_APP.allCategories&&_APP.allCategories.length)?encodeURIComponent(JSON.stringify(_APP.allCategories)):"";');
+    L.push('    var catsParam=((_APP.PLATFORM==="shopify"||_APP.PLATFORM==="bigcommerce")&&_APP.allCategories&&_APP.allCategories.length)?encodeURIComponent(JSON.stringify(_APP.allCategories)):"";');
     L.push('    var attrIdMap={};');
     L.push('    var aInps=document.querySelectorAll("#attr-tbody .cm-attr-id-input");');
     L.push('    for(var ai=0;ai<aInps.length;ai++){');
@@ -3785,9 +3748,14 @@ exports.CategoryMigration = function () {
     var importPageUrl  = 'https://' + instanceHost + '/on/demandware.store/Sites-Site/default%3bapp%3d__bm_merchant/ViewCatalogImpex_52-Status?SelectedMenuItem=prod-cat_impex&CurrentMenuItemId=prod-cat';
     var checkAttrsUrl  = URLUtils.url('Accelerator-CheckCategoryAttributes').toString() || '';
     var checkStatusUrl = URLUtils.url('Accelerator-CheckAttributeStatus').toString()    || '';
-    var fetchUrl       = platformId === 'shopify'
-        ? URLUtils.url('Accelerator-FetchShopifyCategories').toString()
-        : URLUtils.url('Accelerator-FetchCTCategories').toString();
+    var fetchUrl;
+    if (platformId === 'shopify') {
+        fetchUrl = URLUtils.url('Accelerator-FetchShopifyCategories').toString();
+    } else if (platformId === 'bigcommerce') {
+        fetchUrl = URLUtils.url('Accelerator-FetchBigCommerceCategories').toString();
+    } else {
+        fetchUrl = URLUtils.url('Accelerator-FetchCTCategories').toString();
+    }
     var migrateUrl     = URLUtils.url('Accelerator-RunCategoryMigration').toString()    || '';
 
     Logger.info('CategoryMigration URLs: migrate={0} impex={1} import={2}',
@@ -3848,7 +3816,12 @@ exports.CheckCategoryAttributes = function () {
             var catPlatform = String(session.custom.migrationPlatformId || 'commercetools');
             var attrs = categoryAttributeMgr.checkAttributes(catPlatform);
             response.setContentType('application/json');
-            response.writer.print(JSON.stringify({ ok: true, attrs: attrs }));
+            response.writer.print(JSON.stringify({
+                ok: true,
+                attrs: attrs.attrs || attrs,
+                mapped: attrs.mapped || [],
+                missing: attrs.missing || []
+            }));
             return;
         }
 
@@ -3964,7 +3937,8 @@ exports.CheckAttributeStatus = function () {
     var categoryAttributeMgr = require('*/cartridge/scripts/catalog/categoryAttributeMgr');
     try {
         var statusPlatform = String(session.custom.migrationPlatformId || 'commercetools');
-        var attrs  = categoryAttributeMgr.checkAttributes(statusPlatform);
+        var result = categoryAttributeMgr.checkAttributes(statusPlatform);
+        var attrs  = result.attrs || result;
         var status = {};
         for (var i = 0; i < attrs.length; i++) {
             status[attrs[i].id] = attrs[i].exists ? 'exists' : 'missing';
@@ -4266,6 +4240,29 @@ exports.FetchShopifyCategories = function () {
 };
 exports.FetchShopifyCategories.public = true;
 
+exports.FetchBigCommerceCategories = function () {
+    var fetchBC = require('~/cartridge/scripts/catalog/fetchBigCommerceCategories');
+    var Logger  = require('dw/system/Logger');
+
+    response.setContentType('application/json');
+
+    try {
+        var cursor = request.httpParameterMap.offset.stringValue || '0';
+        var page   = fetchBC.fetchCollectionsPage(cursor);
+
+        response.writer.print(JSON.stringify({
+            ok         : true,
+            categories : page.results,
+            nextOffset : page.nextCursor || '',
+            done       : page.done
+        }));
+    } catch (e) {
+        Logger.error('FetchBigCommerceCategories error: {0}', e.message);
+        response.writer.print(JSON.stringify({ ok: false, error: e.message }));
+    }
+};
+exports.FetchBigCommerceCategories.public = true;
+
 exports.FetchSAPCategories = function () {
     jsonResponse({ ok: false, error: 'DIAGNOSTIC: endpoint reached, SAP not called yet' });
 };
@@ -4529,6 +4526,78 @@ exports.RunCategoryMigration = function () {
             }
 
             Logger.info('RunCategoryMigration Shopify: {0} categories', sfccCategories.length);
+
+        } else if (platform === 'bigcommerce') {
+            // ── BigCommerce path ──────────────────────────────────────────────
+            var fetchBC = require('~/cartridge/scripts/catalog/fetchBigCommerceCategories');
+            var allBcCats = [];
+
+            if (clientCategories.length > 0) {
+                allBcCats = clientCategories;
+                Logger.info('RunCategoryMigration: using {0} client-sent BigCommerce categories', allBcCats.length);
+            } else {
+                var bcCursor = '0';
+                var bcDone   = false;
+                var bcGuard  = 0;
+                while (!bcDone && bcGuard < 200) {
+                    bcGuard++;
+                    var bcPage = fetchBC.fetchCollectionsPage(bcCursor);
+                    var bcBatch = bcPage.results || [];
+                    for (var bci = 0; bci < bcBatch.length; bci++) {
+                        allBcCats.push(bcBatch[bci]);
+                    }
+                    bcDone = !!bcPage.done;
+                    bcCursor = bcPage.nextCursor || '';
+                    if (!bcDone && !bcCursor) break;
+                }
+                Logger.info('RunCategoryMigration: fetched {0} BigCommerce categories', allBcCats.length);
+            }
+
+            if (selectedIds.length > 0) {
+                var selSetBC = {};
+                for (var siBC = 0; siBC < selectedIds.length; siBC++) { selSetBC[selectedIds[siBC]] = true; }
+                allBcCats = allBcCats.filter(function (tc) { return selSetBC[tc.id]; });
+            }
+
+            var bcTaxMap      = {};
+            var bcHasChildren = {};
+            for (var bti2 = 0; bti2 < allBcCats.length; bti2++) {
+                bcTaxMap[allBcCats[bti2].id] = allBcCats[bti2];
+            }
+            for (var bti3 = 0; bti3 < allBcCats.length; bti3++) {
+                var bpid = allBcCats[bti3].parentId;
+                if (bpid) { bcHasChildren[bpid] = true; }
+            }
+
+            function getBcTaxLevel(id, visited) {
+                if (!id || visited[id]) return 1;
+                visited[id] = true;
+                var node = bcTaxMap[id];
+                if (!node || !node.parentId) return 1;
+                return 1 + getBcTaxLevel(node.parentId, visited);
+            }
+
+            for (var bti = 0; bti < allBcCats.length; bti++) {
+                var btc = allBcCats[bti];
+                var bcNameObj = {};
+                bcNameObj[locale] = btc.name || btc.id;
+                sfccCategories.push({
+                    id              : btc.id,
+                    parentId        : btc.parentId || 'root',
+                    name            : bcNameObj,
+                    description     : {},
+                    pageTitle       : {},
+                    pageDescription : {},
+                    position        : bti + 1,
+                    online          : true,
+                    customAttributes: {
+                        level : getBcTaxLevel(btc.id, {}),
+                        isLeaf: !bcHasChildren[btc.id]
+                    }
+                });
+            }
+
+            Logger.info('RunCategoryMigration BigCommerce: {0} categories', sfccCategories.length);
 
         } else if (platform === 'sap') {
             // ── SAP Commerce Cloud path ───────────────────────────────────────
@@ -4979,7 +5048,6 @@ exports.DownloadContentXml.public = true;
     var requestGuard = require('*/cartridge/scripts/accelerator/requestGuard');
     var PAGE_ENDPOINTS = {
         Start: true,
-        Wizard: true,
         DataWizard: true,
         DataWizardContinue: true,
         DataWizardSelectType: true,

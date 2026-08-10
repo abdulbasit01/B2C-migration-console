@@ -22,7 +22,7 @@ function getToken() {
         body
     );
     if (res.status !== 200 || !res.data.access_token) {
-        throw new Error('CTP auth failed (' + res.status + ')');
+        throw new Error('CT auth failed (' + res.status + ')');
     }
     return res.data.access_token;
 }
@@ -206,7 +206,7 @@ function getFullTaxSummary() {
 }
 
 /**
- * Fetch all CTP tax categories (with embedded rates).
+ * Fetch all CT tax categories (with embedded rates).
  * @returns {Array}
  */
 function fetchAllTaxCategories() {
@@ -224,7 +224,7 @@ function fetchAllTaxCategories() {
             { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }
         );
         if (res.status !== 200) {
-            failCtp('CTP tax-categories fetch failed', res);
+            failCtp('CT tax-categories fetch failed', res);
         }
         batch = {
             results: res.data.results || [],

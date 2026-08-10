@@ -10,7 +10,14 @@ function getCtpTaxCategoryFields() {
 
 function checkMissingAttributes() {
     var attrIdMapSession = require('*/cartridge/scripts/migration/core/attrIdMapSession');
-    return runner.checkMissing(SFCC_OBJECT_TYPE, getCtpTaxCategoryFields, null, attrIdMapSession.read('tax'));
+    return runner.checkMissing(
+        SFCC_OBJECT_TYPE,
+        getCtpTaxCategoryFields,
+        null,
+        attrIdMapSession.read('tax'),
+        'tax',
+        'TaxClass'
+    );
 }
 
 function createAttributes(attrs) {

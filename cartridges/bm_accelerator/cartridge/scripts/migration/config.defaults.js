@@ -12,6 +12,12 @@ module.exports = {
         clientSecret: '',
         apiVersion:   '2025-01'
     },
+    bigcommerce: {
+        storeHash:   '',
+        clientId:    '',
+        accessToken: '',
+        apiVersion:  'v3'
+    },
     ctp: {
         projectKey:   '',
         clientId:     '',
@@ -37,5 +43,10 @@ module.exports = {
         hubName:             '',
         personalAccessToken: '',
         defaultDeliveryKey:  ''
+    },
+    openai: {
+        enabled: false,
+        apiKey:  '',
+        model:   'gpt-4o-mini'
     }
 };

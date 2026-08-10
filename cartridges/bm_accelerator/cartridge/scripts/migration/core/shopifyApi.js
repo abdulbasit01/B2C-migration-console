@@ -346,7 +346,7 @@ function getShop(creds) {
 }
 
 /**
- * Convert decimal price string to CTP money shape.
+ * Convert decimal price string to CT money shape.
  * @param {string|number} price
  * @param {string} currency
  * @returns {Object}

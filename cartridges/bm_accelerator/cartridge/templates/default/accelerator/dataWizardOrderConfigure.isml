@@ -217,7 +217,7 @@
             var attrCheckMsg  = document.getElementById('acc-attr-check-msg');
             var attrResults   = document.getElementById('acc-attr-results');
 
-            function renderAttrResults(missing) {
+            function renderAttrResults(missing, mapped, coveragePending, skipped) {
                 if (!attrResults) return;
                 if (!window.AccAttrPreflight || !window.AccAttrPreflight.renderMissingResults) {
                     attrResults.innerHTML = '<p style="color:#c62828;font-size:13px;margin:0;">Attribute helper script failed to load.</p>';
@@ -228,6 +228,9 @@
                     ? window.AccAttrPreflight.readMigrationUi() : {};
                 window.AccAttrPreflight.renderMissingResults({
                     container:      attrResults,
+                    mapped:         mapped || [],
+                    coveragePending: coveragePending || [],
+                    skipped:         skipped || [],
                     missing:        missing,
                     ui:             ui,
                     createAttrsUrl: CREATE_ATTRS_URL,
@@ -252,11 +255,19 @@
                             return;
                         }
                         pendingMissing = data.missing || [];
+                        var mapped = data.mapped || [];
+                        var coveragePending = data.coveragePending || [];
+                        var skipped = data.skipped || [];
                         if (attrCheckMsg) {
-                            attrCheckMsg.textContent = pendingMissing.length ? (pendingMissing.length + ' missing.') : 'All in sync.';
+                            var parts = [];
+                            if (mapped.length) parts.push(mapped.length + ' mapped');
+                            if (pendingMissing.length) parts.push(pendingMissing.length + ' to create');
+                            if (coveragePending.length) parts.push(coveragePending.length + ' SFCC pending');
+                            if (skipped.length) parts.push(skipped.length + ' skipped');
+                            attrCheckMsg.textContent = parts.length ? parts.join(', ') : 'All in sync.';
                             attrCheckMsg.style.color = pendingMissing.length ? '#e65100' : '#2e7d32';
                         }
-                        renderAttrResults(pendingMissing);
+                        renderAttrResults(pendingMissing, mapped, coveragePending, skipped);
                     });
                 });
             }

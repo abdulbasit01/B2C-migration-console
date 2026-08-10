@@ -14,6 +14,12 @@
         <password/>
     </service-credential>
 
+    <service-credential service-credential-id="accelerator.bigcommerce.credential">
+        <url>https://localhost/</url>
+        <user-id/>
+        <password/>
+    </service-credential>
+
     <service-credential service-credential-id="accelerator.ctp.credential">
         <url>https://localhost/</url>
         <user-id/>
@@ -44,6 +50,12 @@
         <password/>
     </service-credential>
 
+    <service-credential service-credential-id="accelerator.openai.credential">
+        <url>https://api.openai.com/</url>
+        <user-id/>
+        <password/>
+    </service-credential>
+
     <service-profile service-profile-id="accelerator.http.profile">
         <timeout-millis>30000</timeout-millis>
         <rate-limit-enabled>false</rate-limit-enabled>
@@ -55,6 +67,16 @@
     </service-profile>
 
     <service-profile service-profile-id="accelerator.shopify.profile">
+        <timeout-millis>60000</timeout-millis>
+        <rate-limit-enabled>false</rate-limit-enabled>
+        <rate-limit-calls>0</rate-limit-calls>
+        <rate-limit-millis>0</rate-limit-millis>
+        <cb-enabled>true</cb-enabled>
+        <cb-calls>10</cb-calls>
+        <cb-millis>30000</cb-millis>
+    </service-profile>
+
+    <service-profile service-profile-id="accelerator.bigcommerce.profile">
         <timeout-millis>60000</timeout-millis>
         <rate-limit-enabled>false</rate-limit-enabled>
         <rate-limit-calls>0</rate-limit-calls>
@@ -104,6 +126,16 @@
         <cb-millis>30000</cb-millis>
     </service-profile>
 
+    <service-profile service-profile-id="accelerator.openai.profile">
+        <timeout-millis>60000</timeout-millis>
+        <rate-limit-enabled>false</rate-limit-enabled>
+        <rate-limit-calls>0</rate-limit-calls>
+        <rate-limit-millis>0</rate-limit-millis>
+        <cb-enabled>true</cb-enabled>
+        <cb-calls>5</cb-calls>
+        <cb-millis>30000</cb-millis>
+    </service-profile>
+
     <service service-id="accelerator.http.generic">
         <service-type>HTTP</service-type>
         <enabled>true</enabled>
@@ -124,6 +156,17 @@
         <mock-mode-enabled>false</mock-mode-enabled>
         <profile-id>accelerator.shopify.profile</profile-id>
         <credential-id>accelerator.shopify.credential</credential-id>
+    </service>
+
+    <service service-id="accelerator.bigcommerce.api">
+        <service-type>HTTP</service-type>
+        <enabled>true</enabled>
+        <log-prefix>accBigCommerce</log-prefix>
+        <comm-log-enabled>false</comm-log-enabled>
+        <force-prd-enabled>false</force-prd-enabled>
+        <mock-mode-enabled>false</mock-mode-enabled>
+        <profile-id>accelerator.bigcommerce.profile</profile-id>
+        <credential-id>accelerator.bigcommerce.credential</credential-id>
     </service>
 
     <service service-id="accelerator.ctp.api">
@@ -179,6 +222,17 @@
         <mock-mode-enabled>false</mock-mode-enabled>
         <profile-id>accelerator.amplience.profile</profile-id>
         <credential-id>accelerator.amplience.credential</credential-id>
+    </service>
+
+    <service service-id="accelerator.openai.api">
+        <service-type>HTTP</service-type>
+        <enabled>true</enabled>
+        <log-prefix>accOpenAi</log-prefix>
+        <comm-log-enabled>false</comm-log-enabled>
+        <force-prd-enabled>false</force-prd-enabled>
+        <mock-mode-enabled>false</mock-mode-enabled>
+        <profile-id>accelerator.openai.profile</profile-id>
+        <credential-id>accelerator.openai.credential</credential-id>
     </service>
 
 </services>

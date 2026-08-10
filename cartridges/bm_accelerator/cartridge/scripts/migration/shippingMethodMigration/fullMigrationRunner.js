@@ -85,7 +85,7 @@ function runSingleFile(keys) {
                     } else {
                         stats.failed++;
                         if (stats.errors.length < 5) {
-                            stats.errors.push(keys[i] + ': not found in CTP');
+                            stats.errors.push(keys[i] + ': not found in CT');
                         }
                     }
                 } catch (fe) {
@@ -258,7 +258,7 @@ function runBatchForKeys(keys, offset, singleFile) {
             if (m) {
                 methods.push(m);
             } else if (errors.length < 5) {
-                errors.push(slice[i] + ': not found in CTP');
+                errors.push(slice[i] + ': not found in CT');
             }
         } catch (fe) {
             if (errors.length < 5) {

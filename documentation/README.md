@@ -27,7 +27,7 @@ Root [README.md](../README.md) is the project entry point.
 1. Import `metadata/` as a site archive (services + SitePreferences).
 2. Add `bm_accelerator` to the **Business Manager** site cartridge path.
 3. Grant the **B2C Migration** module to BM roles.
-4. Configure Site Preferences → **B2C Migration Console** (Shopify and/or CTP + OCAPI/BM credentials).
+4. Configure Site Preferences → **B2C Migration Console** (Shopify and/or CT + OCAPI/BM credentials).
 5. Open Merchant Tools → **B2C Migration**, then **Test Connection**.
 
 Credentials are **not** collected on wizard forms.
@@ -36,7 +36,7 @@ Credentials are **not** collected on wizard forms.
 
 | Setting | Where |
 |---------|--------|
-| Shopify / CTP / OCAPI / BM credentials | Site Preferences → B2C Migration Console |
+| Shopify / CT / OCAPI / BM credentials | Site Preferences → B2C Migration Console |
 | HTTP / Shopify / OCAPI / WebDAV timeouts | Administration → Operations → Services (`accelerator.*` profiles) |
 | Cartridge upload hostname / WebDAV | Local `dw.json` only (not runtime) |
 

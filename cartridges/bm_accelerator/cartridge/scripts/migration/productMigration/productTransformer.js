@@ -1,8 +1,10 @@
 'use strict';
 
+var systemFieldResolver = require('*/cartridge/scripts/migration/core/systemFieldResolver');
+
 /**
- * Detect whether a CTP product is a base/variant product, a product set, or a bundle.
- * CTP doesn't have a native set/bundle type — detection is by:
+ * Detect whether a CT product is a base/variant product, a product set, or a bundle.
+ * CT doesn't have a native set/bundle type — detection is by:
  *   1. productType.obj.name containing "bundle" or "set" (when expanded)
  *   2. master-variant attribute whose value is an array of product references
  *      - [{typeId:"product", id:"..."}]              → set (no quantity)
@@ -51,7 +53,7 @@ function detectProductKind(ctpProduct, data) {
 }
 
 /**
- * Extract member product IDs for a product set from CTP master-variant attributes.
+ * Extract member product IDs for a product set from CT master-variant attributes.
  * Returns [{productId: string}]
  */
 var UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -118,7 +120,7 @@ function extractSetProducts(data) {
 }
 
 /**
- * Extract bundled component product IDs + quantities from CTP master-variant attributes.
+ * Extract bundled component product IDs + quantities from CT master-variant attributes.
  * Returns [{productId: string, quantity: number}]
  */
 function extractBundleProducts(data) {
@@ -174,13 +176,51 @@ function extractBundleProducts(data) {
 }
 
 function getLocalized(obj) {
-    if (!obj || typeof obj !== 'object') return '';
-    return obj['en'] || obj['en-US'] || obj['en-GB']
+    if (!obj || typeof obj === 'string') return obj ? String(obj) : '';
+    if (typeof obj !== 'object') return '';
+    return obj['en'] || obj['en-US'] || obj['en-GB'] || obj['en-AU']
         || (Object.keys(obj).length > 0 ? obj[Object.keys(obj)[0]] : '') || '';
 }
 
-function hasLocalized(obj) {
-    return obj && typeof obj === 'object' && Object.keys(obj).length > 0;
+/**
+ * True when value looks like a CT LocalizedString map (locale → string),
+ * not an enum/reference object.
+ * @param {*} val
+ * @returns {boolean}
+ */
+function isPlainLocaleMap(val) {
+    if (!val || typeof val !== 'object' || Array.isArray(val)) return false;
+    if (val.key !== undefined || val.typeId !== undefined || val.id !== undefined) return false;
+    var keys = Object.keys(val);
+    if (!keys.length) return false;
+    var i;
+    for (i = 0; i < keys.length; i++) {
+        var v = val[keys[i]];
+        if (v !== null && typeof v === 'object') return false;
+    }
+    return true;
+}
+
+/**
+ * Normalize a CT localized value to { locale: string }.
+ * @param {*} val
+ * @returns {Object.<string, string>}
+ */
+function toLocaleMap(val) {
+    if (val == null || val === '') return {};
+    if (typeof val === 'string' || typeof val === 'number') {
+        return { 'x-default': String(val) };
+    }
+    if (!isPlainLocaleMap(val)) return {};
+    var out = {};
+    var keys = Object.keys(val);
+    var i;
+    for (i = 0; i < keys.length; i++) {
+        var k = keys[i];
+        if (val[k] == null || val[k] === '') continue;
+        out[k] = String(val[k]);
+    }
+    return out;
 }
 
 function sanitizeId(str) {
@@ -193,106 +233,324 @@ function sanitizeId(str) {
 }
 
 /**
- * Extract a named attribute value from a CTP attributes array.
+ * Normalize attr names for matching: product_description ≡ product-description.
+ * Check Attributes may use underscores; CT API often keeps hyphens.
+ * @param {string} name
+ * @returns {string}
+ */
+function normalizeAttrNameKey(name) {
+    return String(name || '').toLowerCase().replace(/[-_]+/g, '_');
+}
+
+/**
+ * Raw attribute value from a CT attributes array (no locale collapse).
+ * @param {Array} attributes
+ * @param {string} attrName
+ * @returns {*}
+ */
+function getAttrRawValue(attributes, attrName) {
+    if (!attributes || !attributes.length || !attrName) return null;
+    var want = normalizeAttrNameKey(attrName);
+    var i;
+    for (i = 0; i < attributes.length; i++) {
+        var an = attributes[i] && attributes[i].name != null
+            ? String(attributes[i].name) : '';
+        if (normalizeAttrNameKey(an) !== want) continue;
+        return attributes[i].value;
+    }
+    return null;
+}
+
+/**
+ * Extract a named attribute value from a CT attributes array.
  * Handles plain values and localized values { "en": "..." }.
+ * Name match is case-insensitive and hyphen/underscore-insensitive.
  */
 function getAttrValue(attributes, attrName) {
-    if (!attributes || !attributes.length) return '';
-    for (var i = 0; i < attributes.length; i++) {
-        if (attributes[i].name === attrName) {
-            var val = attributes[i].value;
-            if (val === null || val === undefined) return '';
-            if (typeof val === 'object' && !Array.isArray(val)) {
-                return getLocalized(val) || '';
-            }
-            return String(val);
+    var val = getAttrRawValue(attributes, attrName);
+    if (val === null || val === undefined) return '';
+    if (typeof val === 'object' && !Array.isArray(val)) {
+        if (val.key !== undefined && val.label !== undefined && !isPlainLocaleMap(val)) {
+            if (typeof val.label === 'object') return getLocalized(val.label) || String(val.key);
+            return String(val.label || val.key);
         }
+        return getLocalized(val) || '';
+    }
+    return String(val);
+}
+
+/**
+ * Locale map for a named attribute (ltext → all locales).
+ * @param {Array} attributes
+ * @param {string} attrName
+ * @returns {Object.<string, string>}
+ */
+function getAttrLocaleMap(attributes, attrName) {
+    var val = getAttrRawValue(attributes, attrName);
+    if (val === null || val === undefined) return {};
+    if (typeof val === 'object' && !Array.isArray(val) && val.key !== undefined && !isPlainLocaleMap(val)) {
+        if (typeof val.label === 'object') return toLocaleMap(val.label);
+        return toLocaleMap(val.key != null ? String(val.key) : '');
+    }
+    return toLocaleMap(val);
+}
+
+/**
+ * Find attribute across product-level + masterVariant + all variants (current only).
+ * @param {Object} ctpProduct
+ * @param {Object} data
+ * @param {Object} mv
+ * @param {string} attrName
+ * @returns {string}
+ */
+function findProductAttrValue(ctpProduct, data, mv, attrName) {
+    var map = findProductAttrLocaleMap(ctpProduct, data, mv, attrName);
+    return getLocalized(map) || '';
+}
+
+/**
+ * Full locale map for an attribute on masterData.current only (never staged).
+ * @returns {Object.<string, string>}
+ */
+function findProductAttrLocaleMap(ctpProduct, data, mv, attrName) {
+    var map = getAttrLocaleMap((mv && mv.attributes) || [], attrName);
+    if (Object.keys(map).length) return map;
+    map = getAttrLocaleMap((data && data.attributes) || [], attrName);
+    if (Object.keys(map).length) return map;
+    var vars = (data && data.variants) || [];
+    var i;
+    for (i = 0; i < vars.length; i++) {
+        map = getAttrLocaleMap((vars[i] && vars[i].attributes) || [], attrName);
+        if (Object.keys(map).length) return map;
+    }
+    return {};
+}
+
+/**
+ * Build a source-key → value function for curated CT Product aliases + attrs.
+ * @param {Object} ctpProduct
+ * @param {Object} data - masterData.current
+ * @param {Object} mv - masterVariant
+ * @returns {function(string): string}
+ */
+function makeCtpSourceGetter(ctpProduct, data, mv) {
+    return function getSourceValue(sourceKey) {
+        if (!sourceKey) return '';
+        switch (sourceKey) {
+            case 'id':
+                return ctpProduct.id ? String(ctpProduct.id) : '';
+            case 'key':
+                return ctpProduct.key ? String(ctpProduct.key) : '';
+            case 'name':
+                return getLocalized(data.name) || '';
+            case 'description':
+                return getLocalized(data.description) || '';
+            case 'slug':
+                return getLocalized(data.slug) || '';
+            case 'metaTitle':
+                return getLocalized(data.metaTitle) || '';
+            case 'metaDescription':
+                return getLocalized(data.metaDescription) || '';
+            case 'metaKeywords':
+                return getLocalized(data.metaKeywords) || '';
+            case 'sku':
+                return (mv && mv.sku) ? String(mv.sku) : '';
+            case 'taxCategory':
+                return (ctpProduct.taxCategory && ctpProduct.taxCategory.id)
+                    ? String(ctpProduct.taxCategory.id) : '';
+            case 'masterData.published':
+                if (ctpProduct.masterData && ctpProduct.masterData.published != null) {
+                    return String(ctpProduct.masterData.published);
+                }
+                return '';
+            case 'createdAt':
+                return ctpProduct.createdAt ? String(ctpProduct.createdAt) : '';
+            case 'lastModifiedAt':
+                return ctpProduct.lastModifiedAt ? String(ctpProduct.lastModifiedAt) : '';
+            case 'images':
+                return '';
+            default:
+                return findProductAttrValue(ctpProduct, data, mv, sourceKey);
+        }
+    };
+}
+
+/**
+ * Build a source-key → locale-map function for localized CT fields / attrs.
+ * @returns {function(string): Object.<string, string>}
+ */
+function makeCtpLocaleGetter(ctpProduct, data, mv) {
+    return function getSourceLocales(sourceKey) {
+        if (!sourceKey) return {};
+        switch (sourceKey) {
+            case 'name':
+                return toLocaleMap(data.name);
+            case 'description':
+                return toLocaleMap(data.description);
+            case 'slug':
+                return toLocaleMap(data.slug);
+            case 'metaTitle':
+                return toLocaleMap(data.metaTitle);
+            case 'metaDescription':
+                return toLocaleMap(data.metaDescription);
+            case 'metaKeywords':
+                return toLocaleMap(data.metaKeywords);
+            case 'id':
+            case 'key':
+            case 'sku':
+            case 'taxCategory':
+            case 'masterData.published':
+            case 'createdAt':
+            case 'lastModifiedAt':
+            case 'images':
+                return {};
+            default:
+                return findProductAttrLocaleMap(ctpProduct, data, mv, sourceKey);
+        }
+    };
+}
+
+/**
+ * Resolve one SFCC Product system field via schema mapping + session maps.
+ * @param {string} sfccField
+ * @param {function(string): string} getSourceValue
+ * @returns {string}
+ */
+function resolveProductSystemField(sfccField, getSourceValue) {
+    return systemFieldResolver.resolve({
+        platformId:     'ct',
+        task:           'Product',
+        sfccField:      sfccField,
+        moduleKey:      'product',
+        getSourceValue: getSourceValue
+    });
+}
+
+/**
+ * Resolve all locales for a localizable SFCC Product system field.
+ * @param {string} sfccField
+ * @param {function(string): Object.<string, string>} getSourceLocales
+ * @returns {Object.<string, string>}
+ */
+function resolveProductSystemFieldLocales(sfccField, getSourceLocales) {
+    var keys = systemFieldResolver.getSourceKeys('ct', 'Product', sfccField, 'product');
+    var i;
+    for (i = 0; i < keys.length; i++) {
+        var map = getSourceLocales(keys[i]) || {};
+        if (Object.keys(map).length) return map;
+    }
+    return {};
+}
+
+/**
+ * SFCC catalog product-id from schema map id → ID (never prefers key).
+ * Empty mapped id falls back to CT + uuid-without-dashes only.
+ * @param {Object} ctpProduct
+ * @returns {string}
+ */
+function resolveMasterProductId(ctpProduct) {
+    ctpProduct = ctpProduct || {};
+    var getSourceValue = makeCtpSourceGetter(ctpProduct, {}, {});
+    var mapped = resolveProductSystemField('ID', getSourceValue);
+    if (mapped) {
+        var sanitized = sanitizeId(mapped);
+        return sanitized || String(mapped);
+    }
+    if (ctpProduct.id) {
+        return 'CT' + String(ctpProduct.id).replace(/-/g, '');
     }
     return '';
 }
 
 function transformProduct(ctpProduct) {
-    var md     = ctpProduct.masterData || {};
-    var cur    = md.current || {};
-    var staged = md.staged  || {};
-
-    // Use staged when current has no name (unpublished products have empty current)
-    var data = hasLocalized(cur.name) ? cur : staged;
+    var md  = ctpProduct.masterData || {};
+    // Always use published current projection — never staged drafts
+    var data = md.current || {};
 
     var productKind    = detectProductKind(ctpProduct, data);
     var setProducts    = [];
     var bundleProducts = [];
     if (productKind === 'set') {
         setProducts = extractSetProducts(data);
-        if (!setProducts.length) setProducts = extractSetProducts(staged);
     } else if (productKind === 'bundle') {
         bundleProducts = extractBundleProducts(data);
-        if (!bundleProducts.length) bundleProducts = extractBundleProducts(staged);
     }
 
     var mv      = data.masterVariant || {};
     var ctpVars = data.variants || [];
-    var mvAttrs = mv.attributes || [];
+    var getSourceValue = makeCtpSourceGetter(ctpProduct, data, mv);
+    var getSourceLocales = makeCtpLocaleGetter(ctpProduct, data, mv);
 
-    var ctpKey   = ctpProduct.key || '';
-    var masterId = ctpKey
-        ? sanitizeId(ctpKey)
-        : ('CTP' + String(ctpProduct.id).replace(/-/g, ''));
+    var ctpKey = ctpProduct.key || '';
+    // Schema map id → ID → catalog product-id attribute (do not prefer key)
+    var masterId = resolveMasterProductId(ctpProduct);
 
-    // Standard localized fields
-    var name = getLocalized(data.name);
+    // Localizable system fields: keep full locale maps for XML (all CT locales)
+    var nameLocales = resolveProductSystemFieldLocales('name', getSourceLocales);
+    var shortDescriptionLocales = resolveProductSystemFieldLocales('shortDescription', getSourceLocales);
+    var longDescriptionLocales = resolveProductSystemFieldLocales('longDescription', getSourceLocales);
+    var slugLocales = resolveProductSystemFieldLocales('pageURL', getSourceLocales);
+    var metaTitleLocales = resolveProductSystemFieldLocales('pageTitle', getSourceLocales);
+    var metaDescriptionLocales = resolveProductSystemFieldLocales('pageDescription', getSourceLocales);
+    var metaKeywordsLocales = resolveProductSystemFieldLocales('pageKeywords', getSourceLocales);
 
-    // SFCC <short-description> = BM "Description" ← CTP shortDescription attribute
-    var shortDescription = getAttrValue(mvAttrs, 'shortDescription')
-        || getAttrValue(mvAttrs, 'short_description')
-        || getLocalized(data.description)
-        || '';
+    var name = getLocalized(nameLocales) || resolveProductSystemField('name', getSourceValue);
+    var shortDescription = getLocalized(shortDescriptionLocales)
+        || resolveProductSystemField('shortDescription', getSourceValue);
+    var longDescription = getLocalized(longDescriptionLocales)
+        || resolveProductSystemField('longDescription', getSourceValue);
+    var slug = getLocalized(slugLocales) || resolveProductSystemField('pageURL', getSourceValue);
+    var metaTitle = getLocalized(metaTitleLocales) || resolveProductSystemField('pageTitle', getSourceValue);
+    var metaDescription = getLocalized(metaDescriptionLocales)
+        || resolveProductSystemField('pageDescription', getSourceValue);
+    var metaKeywords = getLocalized(metaKeywordsLocales)
+        || resolveProductSystemField('pageKeywords', getSourceValue);
+    var brand = resolveProductSystemField('brand', getSourceValue);
+    var manufacturerName = resolveProductSystemField('manufacturerName', getSourceValue);
+    var manufacturerSku = resolveProductSystemField('manufacturerSKU', getSourceValue);
+    var ean = resolveProductSystemField('EAN', getSourceValue);
+    var upc = resolveProductSystemField('UPC', getSourceValue);
+    var taxClassId = resolveProductSystemField('taxClassID', getSourceValue);
+    var onlineFlagRaw = resolveProductSystemField('onlineFlag', getSourceValue);
+    var onlineFlag = onlineFlagRaw === ''
+        ? true
+        : !(onlineFlagRaw === 'false' || onlineFlagRaw === '0');
+    // Quantity system fields — only when schema/session-mapped (never invent defaults)
+    var minOrderQuantity = resolveProductSystemField('minOrderQuantity', getSourceValue);
+    var stepQuantity = resolveProductSystemField('stepQuantity', getSourceValue);
+    var unitQuantity = resolveProductSystemField('unitQuantity', getSourceValue);
+    var unit = resolveProductSystemField('unit', getSourceValue);
+    var unitMeasure = resolveProductSystemField('unitMeasure', getSourceValue);
 
-    // SFCC <long-description> = BM "Product Details" ← CTP longDescription attribute
-    var longDescription = getAttrValue(mvAttrs, 'longDescription')
-        || getAttrValue(mvAttrs, 'long_description')
-        || getAttrValue(mvAttrs, 'productDetails')
-        || '';
-
-    var slug            = getLocalized(data.slug) || '';
-    var metaTitle       = getLocalized(data.metaTitle) || '';
-    var metaDescription = getLocalized(data.metaDescription) || '';
-    var metaKeywords    = getLocalized(data.metaKeywords) || '';
-
-    // Product-level fields from master variant attributes
-    var brand            = getAttrValue(mvAttrs, 'brand') || getAttrValue(mvAttrs, 'Brand') || '';
-    var manufacturerName = getAttrValue(mvAttrs, 'manufacturer') || getAttrValue(mvAttrs, 'manufacturerName') || '';
-    var manufacturerSku  = mv.sku || '';
-    var ean              = getAttrValue(mvAttrs, 'ean') || getAttrValue(mvAttrs, 'EAN') || mv.ean || '';
-    var upc              = getAttrValue(mvAttrs, 'upc') || getAttrValue(mvAttrs, 'UPC') || mv.upc || '';
-
-    var taxClassId = (ctpProduct.taxCategory && ctpProduct.taxCategory.id)
-        ? ctpProduct.taxCategory.id : '';
-
-    // Collect all variants — masterVariant first (CTP's designated default)
+    // Collect CT variants as separate SFCC products.
+    // Master product-id = schema id → ID. Variant product-id = {masterId}-{n} (1-based).
+    // masterVariant is always n=1 (default); additional variants are 2, 3, …
     var variants = [];
-    if (mv.sku) {
+    var variantSeq = 0;
+
+    function pushCtpVariant(ctpVariant, isDefault) {
+        if (!ctpVariant) return;
+        variantSeq += 1;
         variants.push({
-            productId:  sanitizeId(mv.sku) || (masterId + '-v1'),
-            sku:        mv.sku,
-            isDefault:  true,
-            images:     mv.images     || [],
-            attributes: mv.attributes || []
+            productId:  masterId ? (String(masterId) + '-' + variantSeq) : ('variant-' + variantSeq),
+            sku:        ctpVariant.sku || '',
+            isDefault:  !!isDefault,
+            images:     ctpVariant.images || [],
+            attributes: ctpVariant.attributes || [],
+            prices:     ctpVariant.prices || []
         });
     }
-    for (var i = 0; i < ctpVars.length; i++) {
-        var v = ctpVars[i];
-        if (v.sku) {
-            variants.push({
-                productId:  sanitizeId(v.sku),
-                sku:        v.sku,
-                isDefault:  false,
-                images:     v.images     || [],
-                attributes: v.attributes || []
-            });
-        }
+
+    // Always emit masterVariant as -1 when present (even without sku)
+    if (mv && (mv.sku || (mv.attributes && mv.attributes.length) || ctpVars.length
+            || mv.id != null || Object.keys(mv).length)) {
+        pushCtpVariant(mv, true);
     }
-    // Guarantee exactly one default — fallback to first variant if masterVariant had no SKU
+    var i;
+    for (i = 0; i < ctpVars.length; i++) {
+        pushCtpVariant(ctpVars[i], false);
+    }
+    // Guarantee exactly one default
     var hasDefault = false;
     for (var di = 0; di < variants.length; di++) {
         if (variants[di].isDefault) { hasDefault = true; break; }
@@ -301,7 +559,7 @@ function transformProduct(ctpProduct) {
         variants[0].isDefault = true;
     }
 
-    // Category IDs from CTP references
+    // Category IDs from CT references
     var categories = [];
     if (data.categories) {
         for (var ci = 0; ci < data.categories.length; ci++) {
@@ -321,6 +579,14 @@ function transformProduct(ctpProduct) {
         name:             name,
         shortDescription: shortDescription,
         longDescription:  longDescription,
+        // Full locale maps for catalog XML (string fields above remain for default/compat)
+        nameLocales:             nameLocales,
+        shortDescriptionLocales: shortDescriptionLocales,
+        longDescriptionLocales:  longDescriptionLocales,
+        slugLocales:             slugLocales,
+        metaTitleLocales:        metaTitleLocales,
+        metaDescriptionLocales:  metaDescriptionLocales,
+        metaKeywordsLocales:     metaKeywordsLocales,
         slug:             slug,
         metaTitle:        metaTitle,
         metaDescription:  metaDescription,
@@ -331,7 +597,15 @@ function transformProduct(ctpProduct) {
         ean:              ean,
         upc:              upc,
         taxClassId:       taxClassId,
+        onlineFlag:       onlineFlag,
+        minOrderQuantity: minOrderQuantity,
+        stepQuantity:     stepQuantity,
+        unitQuantity:     unitQuantity,
+        unit:             unit,
+        unitMeasure:      unitMeasure,
         masterImages:             mv.images || [],
+        // Master-owned CT attributes (SameForAll / product-level) for master <custom-attributes>
+        masterAttributes:         mv.attributes || [],
         categories:               categories,
         classificationCategory:   classificationCategory,
         variants:                 variants,
@@ -342,4 +616,10 @@ function transformProduct(ctpProduct) {
     };
 }
 
-module.exports = { transformProduct: transformProduct };
+module.exports = {
+    transformProduct:       transformProduct,
+    resolveMasterProductId: resolveMasterProductId,
+    sanitizeId:             sanitizeId,
+    toLocaleMap:            toLocaleMap,
+    isPlainLocaleMap:       isPlainLocaleMap
+};

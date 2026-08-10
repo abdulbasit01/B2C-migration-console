@@ -15,7 +15,7 @@ module.exports = {
     get:      get,
     http:     get('ServiceHttp'),
     shopify:  get('Shopify'),
-    ctp:      get('CTP'),
+    ctp:      get('CT'),
     sfcc:     get('SFCC'),
     webdav:   get('WebDAV'),
     catalog:  get('Catalog'),

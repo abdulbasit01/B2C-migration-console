@@ -98,7 +98,7 @@ function runSingleFile(exportKey, fileName, keys) {
                 ok:    false,
                 error: keys && keys.length
                     ? 'No matching stores found for the selected items.'
-                    : 'No commercetools stores found. Create stores in CTP Merchant Center under Stores.'
+                    : 'No commercetools stores found. Create stores in CT Merchant Center under Stores.'
             };
         }
 

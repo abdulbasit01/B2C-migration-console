@@ -3,7 +3,7 @@
 var X_DEFAULT_PRIORITY = ['en-US', 'en', 'en-GB', 'x-default'];
 
 /**
- * Map CTP locale keys to SFCC IMPEX xml:lang values.
+ * Map CT locale keys to SFCC IMPEX xml:lang values.
  * @param {string} ctpLocale
  * @returns {string}
  */
@@ -131,13 +131,13 @@ function extractPriceInfo(ctpMethod) {
 }
 
 /**
- * Transform a CTP shipping method into SFCC shipping method payload.
+ * Transform a CT shipping method into SFCC shipping method payload.
  * @param {Object} ctpMethod
  * @returns {Object}
  */
 function transformShippingMethod(ctpMethod) {
     if (!ctpMethod || !ctpMethod.id) {
-        throw new Error('CTP shipping method missing id');
+        throw new Error('CT shipping method missing id');
     }
 
     var priceInfo      = extractPriceInfo(ctpMethod);
@@ -188,7 +188,7 @@ function transformShippingMethod(ctpMethod) {
 }
 
 /**
- * CTP key or UUID used to fetch/migrate one shipping method.
+ * CT key or UUID used to fetch/migrate one shipping method.
  * @param {Object} ctpMethod
  * @returns {string}
  */
@@ -223,4 +223,4 @@ module.exports = {
     primaryLocalized:          primaryLocalized,
     localizedValue:            localizedValue
 };
-
+

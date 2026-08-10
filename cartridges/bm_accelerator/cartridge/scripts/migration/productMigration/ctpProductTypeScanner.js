@@ -22,7 +22,7 @@ function getToken() {
         body
     );
     if (res.status !== 200 || !res.data.access_token) {
-        throw new Error('CTP auth failed (' + res.status + ')');
+        throw new Error('CT auth failed (' + res.status + ')');
     }
     return res.data.access_token;
 }
@@ -53,7 +53,7 @@ function isQuantityAttr(ad) {
 }
 
 /**
- * Fetch products for one product type from CTP.
+ * Fetch products for one product type from CT.
  * Returns { count, products: [{ ctpId, ctpKey, sfccId }] }
  */
 function fetchProductsByType(tok, typeId) {
@@ -71,14 +71,14 @@ function fetchProductsByType(tok, typeId) {
         var ctpKey = (p.masterData && p.masterData.current && p.masterData.current.masterVariant && p.masterData.current.masterVariant.sku)
             ? p.masterData.current.masterVariant.sku
             : (p.key || '');
-        var sfccId = ctpKey ? ctpKey : ('CTP' + ctpId.replace(/-/g, ''));
+        var sfccId = ctpKey ? ctpKey : ('CT' + ctpId.replace(/-/g, ''));
         products.push({ ctpId: ctpId, ctpKey: p.key || '', sfccId: sfccId });
     }
     return { count: res.data.total || results.length, products: products };
 }
 
 /**
- * Fetch all CTP product types and classify each as 'set', 'bundle', or 'base'.
+ * Fetch all CT product types and classify each as 'set', 'bundle', or 'base'.
  *
  * Detection logic (in priority order):
  *  1. Type name contains "bundle"  → bundle
@@ -98,7 +98,7 @@ function scanProductTypes() {
         { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' }
     );
     if (res.status !== 200) {
-        throw new Error('CTP /product-types failed (' + res.status + ')');
+        throw new Error('CT /product-types failed (' + res.status + ')');
     }
 
     var types   = (res.data && res.data.results) ? res.data.results : [];
@@ -147,7 +147,7 @@ function scanProductTypes() {
 }
 
 /**
- * Returns summary of all CTP product types that produce Product Sets,
+ * Returns summary of all CT product types that produce Product Sets,
  * with a product count for each type.
  * @returns {Array} [{ typeId, typeName, refAttrName, count }]
  */
@@ -169,7 +169,7 @@ function getProductSetsSummary() {
 }
 
 /**
- * Returns summary of all CTP product types that produce Bundle Products,
+ * Returns summary of all CT product types that produce Bundle Products,
  * with a product count for each type.
  * @returns {Array} [{ typeId, typeName, refAttrName, quantityAttrName, count }]
  */

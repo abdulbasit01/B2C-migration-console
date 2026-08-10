@@ -6,7 +6,7 @@
  */
 
 /**
- * Extract a display string from a CTP/Shopify localised string or a plain string.
+ * Extract a display string from a CT/Shopify localised string or a plain string.
  * @param {Object|string} obj
  * @returns {string}
  */

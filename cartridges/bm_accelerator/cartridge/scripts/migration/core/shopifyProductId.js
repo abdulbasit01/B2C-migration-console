@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * Normalize a string for SFCC product-id (same rules as CTP product migration).
+ * Normalize a string for SFCC product-id (same rules as CT product migration).
  * @param {string} str
  * @returns {string}
  */

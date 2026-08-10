@@ -1,7 +1,6 @@
 'use strict';
 
 var registry = require('*/cartridge/scripts/migration/core/dataSourceRegistry');
-var sourceAttrIds = require('*/cartridge/scripts/migration/core/sourceAttrIds');
 var attrIdMapSession = require('*/cartridge/scripts/migration/core/attrIdMapSession');
 var fetcher  = registry.getFetcher('store');
 
@@ -66,7 +65,7 @@ function saveAttrIdMapFromAttrs(attrs) {
 }
 
 /**
- * Serialize a CTP custom field value for store IMPEX XML.
+ * Serialize a CT custom field value for store IMPEX XML.
  * @param {*} val
  * @returns {string}
  */
@@ -113,29 +112,10 @@ function resolveAttrId(sourceId, attrIdMap) {
 }
 
 function buildCustomAttributes(storeId, country, store, channel, attrIdMap) {
-    var platformId = registry.getPlatformId();
-    var prefix = sourceAttrIds.getPrefix(platformId);
-    var map    = attrIdMap || readAttrIdMap();
-    var attrs  = {};
-    var countryKey = resolveAttrId('countryCodeValue', map);
-    var invKey     = resolveAttrId('inventoryListId', map);
-    attrs[countryKey] = country || '';
-    attrs[invKey]     = 'inventory_m_store_' + storeId;
+    var map   = attrIdMap || readAttrIdMap();
+    var attrs = {};
 
-    if (platformId === 'sap') {
-        // SAP's PointOfService has only one natural identifier (name) — no separate
-        // UUID-vs-key or store-vs-channel distinction like CTP/Shopify, so a single
-        // trace attribute covers it instead of 4 redundant, identical-valued ones.
-        attrs[resolveAttrId(prefix + 'StoreCode', map)] = (store && (store.id || store.key)) || '';
-    } else {
-        attrs[resolveAttrId(prefix + 'StoreId', map)]  = (store && store.id) ? store.id : '';
-        attrs[resolveAttrId(prefix + 'StoreKey', map)] = (store && store.key) ? store.key : '';
-        if (channel) {
-            attrs[resolveAttrId(prefix + 'ChannelId', map)]  = channel.id || '';
-            attrs[resolveAttrId(prefix + 'ChannelKey', map)] = channel.key || '';
-        }
-    }
-
+    // Only CT Type / source custom fields — no hardcoded migration trace attrs
     if (store && store.custom && store.custom.fields) {
         var fields = store.custom.fields;
         var keys   = Object.keys(fields);
@@ -153,7 +133,7 @@ function buildCustomAttributes(storeId, country, store, channel, attrIdMap) {
 }
 
 /**
- * Transform one CTP store into an SFCC store record.
+ * Transform one CT store into an SFCC store record.
  * Address/geo enriched from linked supply/distribution channels when available.
  * @param {Object} store
  * @param {Object} channelById
@@ -200,7 +180,7 @@ function transformStore(store, channelById, storeIdOverride, attrIdMap) {
 }
 
 /**
- * Build store records from CTP stores.
+ * Build store records from CT stores.
  * @param {Array} stores
  * @param {Object} channelById
  * @param {Object.<string, string>} [attrIdMap]

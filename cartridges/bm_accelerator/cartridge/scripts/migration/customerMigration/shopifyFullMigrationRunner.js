@@ -6,15 +6,10 @@ var fetcher      = require('*/cartridge/scripts/migration/customerMigration/shop
 var xmlBuilder   = require('*/cartridge/scripts/migration/customerMigration/shopifyCustomerXmlBuilder');
 var uploader     = require('*/cartridge/scripts/migration/customerMigration/webDavUploader');
 var fileResolver = require('*/cartridge/scripts/migration/core/migrationFileResolver');
-var attrChecker  = require('*/cartridge/scripts/migration/customerMigration/shopifyCustomerAttrChecker');
 
 var MODULE_KEY                = 'customer';
 var FETCH_PAGE_SIZE           = 250;
 var MAX_SINGLE_FILE_CUSTOMERS = 20000;
-
-function ensureAttributes() {
-    try { attrChecker.createAttributes(attrChecker.SHOPIFY_BUILTIN_FIELDS); } catch (te) { /* non-fatal */ }
-}
 
 function ensureImpexDir(relativePath) {
     var dir = new File(File.IMPEX + File.SEPARATOR + String(relativePath).replace(/\//g, File.SEPARATOR));
@@ -26,14 +21,12 @@ function ensureImpexDir(relativePath) {
 
 /**
  * Stream every Shopify customer into one IMPEX file without ever holding the
- * full XML in memory as a single string (same approach as the CTP customer
+ * full XML in memory as a single string (same approach as the CT customer
  * streaming runner — avoids the api.jsStringLength platform quota).
  * @param {string} listId
  * @returns {Object}
  */
 function runSingleFile(listId) {
-    ensureAttributes();
-
     var impexPath = fileResolver.getRelativePath(MODULE_KEY);
     var fileName  = fileResolver.resolveRunFileName(MODULE_KEY, 0, 'webdav');
     var runDate   = fileResolver.getRunDate(MODULE_KEY, 0);
