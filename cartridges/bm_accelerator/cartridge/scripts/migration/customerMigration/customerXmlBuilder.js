@@ -54,23 +54,6 @@ function buildCustomerXml(ctpCustomer) {
     if (profile.email)        xml += '            <email>'        + xmlEsc(profile.email)        + '</email>\n';
     if (profile.company_name) xml += '            <company-name>' + xmlEsc(profile.company_name) + '</company-name>\n';
     if (profile.birthday)     xml += '            <birthday>'     + xmlEsc(profile.birthday)     + '</birthday>\n';
-
-    // custom-attributes belongs to the Profile system object — nested inside <profile>, last child
-    var attrIdMapSession = require('*/cartridge/scripts/migration/core/attrIdMapSession');
-    var attrMap = attrIdMapSession.read('customer');
-    function caId(id) { return attrIdMapSession.resolve(id, attrMap); }
-
-    xml += '            <custom-attributes>\n';
-    xml += '                <custom-attribute attribute-id="' + xmlEsc(caId('ctp_customer_id')) + '">' + xmlEsc(profile.c_ctp_customer_id) + '</custom-attribute>\n';
-    if (profile.c_ctp_customer_number) {
-        xml += '                <custom-attribute attribute-id="' + xmlEsc(caId('ctp_customer_number')) + '">' + xmlEsc(profile.c_ctp_customer_number) + '</custom-attribute>\n';
-        xml += '                <custom-attribute attribute-id="CTCustomerId">' + xmlEsc(profile.c_ctp_customer_number) + '</custom-attribute>\n';
-    }
-    if (profile.c_ctp_external_id)  xml += '                <custom-attribute attribute-id="' + xmlEsc(caId('ctp_external_id')) + '">'  + xmlEsc(profile.c_ctp_external_id)  + '</custom-attribute>\n';
-    if (profile.c_ctp_vat_id)       xml += '                <custom-attribute attribute-id="' + xmlEsc(caId('ctp_vat_id')) + '">'       + xmlEsc(profile.c_ctp_vat_id)       + '</custom-attribute>\n';
-    if (profile.c_ctp_locale)       xml += '                <custom-attribute attribute-id="' + xmlEsc(caId('ctp_locale')) + '">'       + xmlEsc(profile.c_ctp_locale)       + '</custom-attribute>\n';
-    if (profile.c_ctp_middle_name)  xml += '                <custom-attribute attribute-id="' + xmlEsc(caId('ctp_middle_name')) + '">'  + xmlEsc(profile.c_ctp_middle_name)  + '</custom-attribute>\n';
-    xml += '            </custom-attributes>\n';
     xml += '        </profile>\n';
 
     if (addresses.length > 0) {
@@ -81,7 +64,7 @@ function buildCustomerXml(ctpCustomer) {
         xml += '        </addresses>\n';
     }
 
-    // Include customer group assignment — CTP group UUID used directly as SFCC group ID
+    // Include customer group assignment — CT group UUID used directly as SFCC group ID
     if (ctpCustomer.customerGroup && ctpCustomer.customerGroup.id) {
         xml += '        <customer-groups>\n';
         xml += '            <customer-group group-id="' + xmlEsc(ctpCustomer.customerGroup.id) + '"/>\n';
@@ -99,7 +82,7 @@ var XML_FOOTER = '</customers>\n';
 /**
  * Build just the <customer> element(s) for a batch — no XML header/root wrapper.
  * Used so multiple batches can be concatenated into a single IMPEX file.
- * @param {Array} ctpCustomers - raw CTP customer objects from ctpCustomerFetcher
+ * @param {Array} ctpCustomers - raw CT customer objects from ctpCustomerFetcher
  * @returns {{ body: string, built: number, failed: number, errors: Array }}
  */
 function buildCustomerFragment(ctpCustomers) {
@@ -124,8 +107,8 @@ function buildCustomerFragment(ctpCustomers) {
 }
 
 /**
- * Build SFCC customer import XML for a batch of CTP customer objects.
- * @param {Array} ctpCustomers - raw CTP customer objects from ctpCustomerFetcher
+ * Build SFCC customer import XML for a batch of CT customer objects.
+ * @param {Array} ctpCustomers - raw CT customer objects from ctpCustomerFetcher
  * @returns {{ xml: string, built: number, failed: number, errors: Array }}
  */
 function buildXml(ctpCustomers) {

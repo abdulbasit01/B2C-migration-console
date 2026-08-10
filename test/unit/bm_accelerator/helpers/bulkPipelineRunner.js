@@ -57,7 +57,7 @@ function runPagedBatches(items, batchSize, fn) {
 }
 
 /**
- * Stream through totalCount records without holding all CTP objects in memory.
+ * Stream through totalCount records without holding all CT objects in memory.
  * @param {number} totalCount
  * @param {number} processBatchSize - runner batch size (matches production)
  * @param {number} generateBatchSize - fixture generation chunk

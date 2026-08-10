@@ -23,7 +23,7 @@ function getToken() {
         body
     );
     if (res.status !== 200 || !res.data.access_token) {
-        throw new Error('CTP auth failed (' + res.status + ')');
+        throw new Error('CT auth failed (' + res.status + ')');
     }
     return res.data.access_token;
 }
@@ -53,7 +53,7 @@ function inventoryBaseQs(supplyChannelId) {
 }
 
 /**
- * Return total inventory entries in CTP (optionally filtered by supply channel).
+ * Return total inventory entries in CT (optionally filtered by supply channel).
  * @param {string} [supplyChannelId]
  * @returns {number}
  */
@@ -72,17 +72,17 @@ function getCount(supplyChannelId) {
         { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }
     );
     if (res.status !== 200) {
-        throw new Error('CTP inventory count failed (' + res.status + ')');
+        throw new Error('CT inventory count failed (' + res.status + ')');
     }
     return res.data.total || 0;
 }
 
 /**
- * Fetch one page of inventory entries from CTP.
+ * Fetch one page of inventory entries from CT.
  * @param {number} offset
  * @param {number} limit
  * @param {string} [supplyChannelId]
- * @param {string} [sortField] - CTP sort field, e.g. id or sku
+ * @param {string} [sortField] - CT sort field, e.g. id or sku
  * @returns {{ results: Array, total: number }}
  */
 function fetchBatch(offset, limit, supplyChannelId, sortField) {
@@ -103,7 +103,7 @@ function fetchBatch(offset, limit, supplyChannelId, sortField) {
         { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' }
     );
     if (res.status !== 200) {
-        throw new Error('CTP inventory fetch failed (' + res.status + ')');
+        throw new Error('CT inventory fetch failed (' + res.status + ')');
     }
     return {
         results: res.data.results || [],
@@ -112,7 +112,7 @@ function fetchBatch(offset, limit, supplyChannelId, sortField) {
 }
 
 /**
- * Fetch inventory supply channels from CTP.
+ * Fetch inventory supply channels from CT.
  * Falls back to all channels when none match InventorySupply filter.
  * @returns {Array<{id: string, key: string, name: string}>}
  */
@@ -130,7 +130,7 @@ function fetchSupplyChannels() {
             { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }
         );
         if (res.status !== 200) {
-            throw new Error('CTP supply channels fetch failed (' + res.status + ')');
+            throw new Error('CT supply channels fetch failed (' + res.status + ')');
         }
         return (res.data && res.data.results) ? res.data.results : [];
     }

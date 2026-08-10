@@ -3,7 +3,7 @@
         Step <isprint value="${pdict.currentStep}" formatter="#"/> &mdash; <span class="acc-highlight">Move Products</span>
     </h2>
     <p class="acc-step-panel__intro">
-        Fetching products from CTP in batches of 500, building SFCC catalog XML, and uploading via WebDAV.
+        Fetching products from CT in batches of 500, building SFCC catalog XML, and uploading via WebDAV.
     </p>
 
     <div id="acc-move-status" class="acc-callout acc-callout--info" style="display:none;margin-bottom:20px;"></div>
@@ -32,7 +32,7 @@
                 <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
                     <label for="prod-job-id" style="font-size:13px;color:#54698d;white-space:nowrap;">Job ID:</label>
                     <input id="prod-job-id" type="text" class="acc-form__input"
-                           value="CTP-Product-Import"
+                           value="CT-Product-Import"
                            style="width:220px;font-family:monospace;font-size:12px;"/>
                     <button type="button" id="prod-trigger-btn" class="acc-btn acc-btn--secondary">
                         &#9658; Trigger

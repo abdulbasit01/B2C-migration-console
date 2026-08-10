@@ -6,15 +6,10 @@ var fetcher      = require('*/cartridge/scripts/migration/customerMigration/bcCu
 var xmlBuilder   = require('*/cartridge/scripts/migration/customerMigration/bcCustomerXmlBuilder');
 var uploader     = require('*/cartridge/scripts/migration/customerMigration/webDavUploader');
 var fileResolver = require('*/cartridge/scripts/migration/core/migrationFileResolver');
-var attrChecker  = require('*/cartridge/scripts/migration/customerMigration/bcCustomerAttrChecker');
 
 var MODULE_KEY                = 'customer';
 var FETCH_PAGE_SIZE           = 250;
 var MAX_SINGLE_FILE_CUSTOMERS = 20000;
-
-function ensureAttributes() {
-    try { attrChecker.createAttributes(attrChecker.BC_BUILTIN_FIELDS); } catch (te) { /* non-fatal */ }
-}
 
 function ensureImpexDir(relativePath) {
     var dir = new File(File.IMPEX + File.SEPARATOR + String(relativePath).replace(/\//g, File.SEPARATOR));
@@ -31,8 +26,6 @@ function ensureImpexDir(relativePath) {
  * @returns {Object}
  */
 function runSingleFile(listId) {
-    ensureAttributes();
-
     var impexPath = fileResolver.getRelativePath(MODULE_KEY);
     var fileName  = fileResolver.resolveRunFileName(MODULE_KEY, 0, 'webdav');
     var runDate   = fileResolver.getRunDate(MODULE_KEY, 0);

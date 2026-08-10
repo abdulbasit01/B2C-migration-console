@@ -31,7 +31,7 @@ function getAttrGroup(platformId) {
     if (id === 'bigcommerce') {
         return { id: 'BigCommerceMigration', name: 'BigCommerce Migration' };
     }
-    return { id: 'CTPMigration', name: 'CTP Migration' };
+    return { id: 'CTPMigration', name: 'CT Migration' };
 }
 
 /**

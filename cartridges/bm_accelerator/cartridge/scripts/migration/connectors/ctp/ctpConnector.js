@@ -33,7 +33,7 @@ function getToken(creds) {
         body
     );
     if (res.status !== 200 || !res.data.access_token) {
-        throw new Error('CTP auth failed (' + res.status + ')');
+        throw new Error('CT auth failed (' + res.status + ')');
     }
     return res.data.access_token;
 }
@@ -82,7 +82,7 @@ function testConnectionWith(creds) {
         body
     );
     if (tokenRes.status !== 200 || !tokenRes.data.access_token) {
-        throw new Error('CTP auth failed (' + tokenRes.status + ')');
+        throw new Error('CT auth failed (' + tokenRes.status + ')');
     }
 
     var token     = tokenRes.data.access_token;
@@ -389,7 +389,7 @@ function buildAiMapContent(selectedTasks, existingByTask) {
 
     return {
         titleSuffix: 'Schema field mapping',
-        intro:       'Live CTP attribute → SFCC value_type mappings.',
+        intro:       'Live CT attribute → SFCC value_type mappings.',
         groups:      groups
     };
 }

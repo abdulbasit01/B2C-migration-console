@@ -7,7 +7,7 @@ var pipeline = require('../helpers/bulkPipelineRunner');
 describe('Bulk data migration — Inventory Lists', function () {
     this.timeout(0);
 
-    it('generates synthetic CTP inventory entries (sanity)', function () {
+    it('generates synthetic CT inventory entries (sanity)', function () {
         var data = fixtures.inventoryEntries(100, 3);
         expect(data.entries).to.have.length(100);
         expect(data.channels).to.have.length(3);

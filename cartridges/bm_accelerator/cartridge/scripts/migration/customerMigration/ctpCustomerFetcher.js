@@ -23,13 +23,13 @@ function getToken() {
         body
     );
     if (res.status !== 200 || !res.data.access_token) {
-        throw new Error('CTP auth failed (' + res.status + ')');
+        throw new Error('CT auth failed (' + res.status + ')');
     }
     return res.data.access_token;
 }
 
 /**
- * Return total number of customers in the CTP project.
+ * Return total number of customers in the CT project.
  * @returns {number} total customer count
  */
 function getCount() {
@@ -40,13 +40,13 @@ function getCount() {
         { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }
     );
     if (res.status !== 200) {
-        throw new Error('CTP customer count failed (' + res.status + ')');
+        throw new Error('CT customer count failed (' + res.status + ')');
     }
     return res.data.total || 0;
 }
 
 /**
- * Fetch one page of customers from CTP.
+ * Fetch one page of customers from CT.
  * @param {number} offset - pagination offset
  * @param {number} limit  - page size (max 500)
  * @returns {{ results: Array, total: number }}
@@ -61,7 +61,7 @@ function fetchBatch(offset, limit) {
         { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' }
     );
     if (res.status !== 200) {
-        throw new Error('CTP customers fetch failed (' + res.status + ')');
+        throw new Error('CT customers fetch failed (' + res.status + ')');
     }
     return {
         results: res.data.results || [],
@@ -87,10 +87,10 @@ function normalizeUuid(id) {
 }
 
 /**
- * Fetch a single customer from CTP by their ID.
+ * Fetch a single customer from CT by their ID.
  * Accepts both dashed UUIDs and plain 32-char hex strings (SFCC customer numbers).
- * @param {string} ctpId - CTP customer UUID (with or without dashes)
- * @returns {Object|null} CTP customer object, or null if not found (404)
+ * @param {string} ctpId - CT customer UUID (with or without dashes)
+ * @returns {Object|null} CT customer object, or null if not found (404)
  */
 function fetchById(ctpId) {
     var c          = cfg.ctp;
@@ -102,7 +102,7 @@ function fetchById(ctpId) {
     );
     if (res.status === 404) return null;
     if (res.status !== 200) {
-        throw new Error('CTP customer fetch failed (' + res.status + ') for id: ' + normalised);
+        throw new Error('CT customer fetch failed (' + res.status + ') for id: ' + normalised);
     }
     return res.data;
 }

@@ -3,24 +3,11 @@
 var transformer      = require('*/cartridge/scripts/migration/customerMigration/bcCustomerTransformer');
 var ctpXmlBuilder    = require('*/cartridge/scripts/migration/customerMigration/customerXmlBuilder');
 var groupFetcher     = require('*/cartridge/scripts/migration/customerMigration/bcCustomerGroupFetcher');
-var attrIdMapSession = require('*/cartridge/scripts/migration/core/attrIdMapSession');
 
 var xmlEsc          = ctpXmlBuilder.xmlEsc;
 var buildAddressXml = ctpXmlBuilder.buildAddressXml;
 var XML_HEADER      = ctpXmlBuilder.XML_HEADER;
 var XML_FOOTER      = ctpXmlBuilder.XML_FOOTER;
-
-function resolveCustomerAttrId(canonicalId) {
-    return attrIdMapSession.resolve(canonicalId, attrIdMapSession.read('customer'));
-}
-
-function customAttrXml(attrId, value) {
-    return '                <custom-attribute attribute-id="' + xmlEsc(attrId) + '">' + xmlEsc(value) + '</custom-attribute>\n';
-}
-
-function customBoolAttrXml(attrId, value) {
-    return '                <custom-attribute attribute-id="' + xmlEsc(attrId) + '">' + (value ? 'true' : 'false') + '</custom-attribute>\n';
-}
 
 function buildCustomerXml(bcCustomer) {
     var transformed = transformer.transformCustomer(bcCustomer);
@@ -44,25 +31,6 @@ function buildCustomerXml(bcCustomer) {
     if (profile.last_name)  xml += '            <last-name>'  + xmlEsc(profile.last_name)  + '</last-name>\n';
     if (profile.email)      xml += '            <email>'      + xmlEsc(profile.email)      + '</email>\n';
     if (profile.phone)      xml += '            <phone-mobile>' + xmlEsc(profile.phone)     + '</phone-mobile>\n';
-
-    xml += '            <custom-attributes>\n';
-    xml += customAttrXml(resolveCustomerAttrId('bc_customer_id'), profile.c_bc_customer_id);
-    if (profile.c_bc_company) {
-        xml += customAttrXml(resolveCustomerAttrId('bc_company'), profile.c_bc_company);
-    }
-    if (profile.c_bc_notes) {
-        xml += customAttrXml(resolveCustomerAttrId('bc_notes'), profile.c_bc_notes);
-    }
-    if (profile.c_bc_customer_group_id) {
-        xml += customAttrXml(resolveCustomerAttrId('bc_customer_group_id'), profile.c_bc_customer_group_id);
-    }
-    if (profile.c_bc_tax_exempt_category) {
-        xml += customAttrXml(resolveCustomerAttrId('bc_tax_exempt_category'), profile.c_bc_tax_exempt_category);
-    }
-    if (profile.c_bc_accepts_marketing !== undefined) {
-        xml += customBoolAttrXml(resolveCustomerAttrId('bc_accepts_marketing'), profile.c_bc_accepts_marketing);
-    }
-    xml += '            </custom-attributes>\n';
     xml += '        </profile>\n';
 
     if (addresses.length > 0) {

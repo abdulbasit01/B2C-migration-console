@@ -92,7 +92,7 @@ function assignCustomerToGroups(customerNo, groupIds, siteId) {
 }
 
 /**
- * Create all selected CTP groups in SFCC and return a summary.
+ * Create all selected CT groups in SFCC and return a summary.
  * @param {Array<{ id: string, name: string }>} groups
  * @returns {{ created: number, skipped: number, failed: number, errors: Array<string> }}
  */

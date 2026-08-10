@@ -207,7 +207,7 @@ function getStore(creds) {
 }
 
 /**
- * Convert decimal price to CTP-like money shape used by shared transformers.
+ * Convert decimal price to CT-like money shape used by shared transformers.
  * @param {string|number} price
  * @param {string} currency
  * @returns {Object}

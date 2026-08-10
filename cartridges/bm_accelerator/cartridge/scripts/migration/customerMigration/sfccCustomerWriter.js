@@ -62,7 +62,7 @@ function createCustomer(token, listId, profile, password) {
 
         // Write all custom attributes from the transformer output.
         // Keys prefixed with "c_" are custom attribute names (transformer convention).
-        // Visit-scoped renames (attrIdMap) are applied so Shopify/CTP create-as-rename works.
+        // Visit-scoped renames (attrIdMap) are applied so Shopify/CT create-as-rename works.
         var attrIdMapSession = require('*/cartridge/scripts/migration/core/attrIdMapSession');
         var attrMap = attrIdMapSession.read('customer');
         var customKeys = Object.keys(profile);

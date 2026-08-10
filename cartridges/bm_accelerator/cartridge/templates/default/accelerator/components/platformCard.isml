@@ -1,4 +1,4 @@
-<iscomment>Expects: platform, wizardUrl, dataWizardUrl, contentMigrationUrl</iscomment>
+<iscomment>Expects: platform, dataWizardUrl, contentMigrationUrl</iscomment>
 <article class="acc-card ${platform.status === 'ready' ? 'acc-card--ready' : 'acc-card--disabled'}${platform.featured ? ' acc-card--featured' : ''}">
     <span class="acc-card__badge acc-card__badge--${platform.status}">
         <isif condition="${platform.status === 'ready'}">
@@ -34,10 +34,6 @@
                     </button>
                 </isif>
             <iselse/>
-                <a class="acc-btn acc-btn--secondary acc-card__cta"
-                   href="${pdict.wizardUrl}?platform=${platform.id}&amp;step=1">
-                    ${Resource.msg('accelerator.card.schemaMigration', 'accelerator', null)}
-                </a>
                 <a class="acc-btn acc-btn--secondary acc-card__cta"
                    href="${pdict.dataWizardUrl}?platform=${platform.id}">
                     ${Resource.msg('accelerator.card.dataMigration', 'accelerator', null)}

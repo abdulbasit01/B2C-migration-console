@@ -6,40 +6,10 @@ var fetcher      = require('*/cartridge/scripts/migration/customerMigration/ctpC
 var xmlBuilder   = require('*/cartridge/scripts/migration/customerMigration/customerXmlBuilder');
 var uploader     = require('*/cartridge/scripts/migration/customerMigration/webDavUploader');
 var fileResolver = require('*/cartridge/scripts/migration/core/migrationFileResolver');
-var sfccClient   = require('*/cartridge/scripts/migration/sfccClient');
 
 var MODULE_KEY               = 'customer';
 var FETCH_BATCH_SIZE         = 500;
 var MAX_SINGLE_FILE_CUSTOMERS = 20000;
-
-var FULL_CUSTOM_ATTRS = [
-    { id: 'ctp_customer_id',     display: 'CTP Customer ID'     },
-    { id: 'ctp_customer_number', display: 'CTP Customer Number' },
-    { id: 'ctp_external_id',     display: 'CTP External ID'     },
-    { id: 'CTCustomerId',        display: 'CT Customer ID'      }
-];
-
-var CTP_ATTR_GROUP_ID   = 'CTPMigration';
-var CTP_ATTR_GROUP_NAME = 'CTP Migration';
-
-function ensureAttributes() {
-    try {
-        var token = sfccClient.getSFCCToken();
-        try { sfccClient.ensureAttributeGroup(token, 'Profile', CTP_ATTR_GROUP_ID, CTP_ATTR_GROUP_NAME); } catch (ge) {}
-        for (var i = 0; i < FULL_CUSTOM_ATTRS.length; i++) {
-            var a = FULL_CUSTOM_ATTRS[i];
-            try {
-                sfccClient.createAttributeDefinition(token, 'Profile', {
-                    id: a.id, value_type: 'string', mandatory: false,
-                    searchable: false, externally_defined: false,
-                    externally_managed: false, order_required: false,
-                    display_name: { 'default': a.display }
-                });
-                try { sfccClient.addAttributeToGroup(token, 'Profile', CTP_ATTR_GROUP_ID, a.id); } catch (age) {}
-            } catch (e) { /* already exists */ }
-        }
-    } catch (te) { /* non-fatal */ }
-}
 
 function ensureImpexDir(relativePath) {
     var dir = new File(File.IMPEX + File.SEPARATOR + String(relativePath).replace(/\//g, File.SEPARATOR));
@@ -50,15 +20,13 @@ function ensureImpexDir(relativePath) {
 }
 
 /**
- * Stream every CTP customer into one IMPEX file without ever holding the
+ * Stream every CT customer into one IMPEX file without ever holding the
  * full XML in memory as a single string (avoids the api.jsStringLength quota
  * that a read-back-and-concatenate approach hits once a file passes ~1MB).
  * @param {string} listId
  * @returns {Object}
  */
 function runSingleFile(listId) {
-    ensureAttributes();
-
     var impexPath = fileResolver.getRelativePath(MODULE_KEY);
     var fileName  = fileResolver.resolveRunFileName(MODULE_KEY, 0, 'webdav');
     var runDate   = fileResolver.getRunDate(MODULE_KEY, 0);

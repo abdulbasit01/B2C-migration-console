@@ -43,5 +43,10 @@ module.exports = {
         hubName:             '',
         personalAccessToken: '',
         defaultDeliveryKey:  ''
+    },
+    openai: {
+        enabled: false,
+        apiKey:  '',
+        model:   'gpt-4o-mini'
     }
 };

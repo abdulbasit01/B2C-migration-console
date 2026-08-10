@@ -5,7 +5,7 @@
  *
  * Verified via GET /{baseSiteId}/stores?pageSize=&currentPage=&fields=FULL
  * (Postman test, 2026-07): omitting query/latitude/longitude returns every
- * store for the base site, paginated via pagination.totalResults. Unlike CTP,
+ * store for the base site, paginated via pagination.totalResults. Unlike CT,
  * address and geo-coordinates are embedded directly on each PointOfService —
  * there is no separate "channel" object to cross-reference, so this fetcher
  * treats every store as its own channel (self-referencing) to fit the shared
@@ -27,10 +27,10 @@ function exportKeySafe(key) {
 }
 
 /**
- * Build a CTP-shaped address object from a SAP PointOfService's embedded address,
+ * Build a CT-shaped address object from a SAP PointOfService's embedded address,
  * so the existing storeTransformer.js (buildAddressLine/stateCode/etc.) needs no changes.
  * @param {Object} addr - SAP PointOfService.address
- * @returns {Object} CTP-shaped address, or null if addr is falsy
+ * @returns {Object} CT-shaped address, or null if addr is falsy
  */
 function toCtpShapedAddress(addr) {
     if (!addr) return null;
@@ -47,7 +47,7 @@ function toCtpShapedAddress(addr) {
 }
 
 /**
- * Build a CTP-shaped GeoJSON point from SAP's { latitude, longitude } pair,
+ * Build a CT-shaped GeoJSON point from SAP's { latitude, longitude } pair,
  * so storeTransformer.js's parseGeoLocation() (which expects
  * { type: 'Point', coordinates: [lon, lat] }) works unmodified.
  * @param {Object} geoPoint - SAP PointOfService.geoPoint

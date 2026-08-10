@@ -40,6 +40,7 @@ function applyToConfig(cfg) {
     out.sap = out.sap || {};
     out.sfcc = out.sfcc || {};
     out.amplience = out.amplience || {};
+    out.openai = out.openai || {};
 
     out.shopify.storeUrl     = getPref('rcMigShopifyStoreUrl', out.shopify.storeUrl || '');
     out.shopify.clientId     = getPref('rcMigShopifyClientId', out.shopify.clientId || '');
@@ -71,7 +72,23 @@ function applyToConfig(cfg) {
     out.amplience.personalAccessToken = getPref('rcMigAmpliencePersonalAccessToken', out.amplience.personalAccessToken || '');
     out.amplience.defaultDeliveryKey  = getPref('rcMigAmplienceDefaultDeliveryKey', out.amplience.defaultDeliveryKey || '');
 
+    out.openai.enabled = !!getPref('rcMigOpenAiEnabled', out.openai.enabled || false);
+    out.openai.apiKey  = getPref('rcMigOpenAiApiKey', out.openai.apiKey || '');
+    out.openai.model   = getPref('rcMigOpenAiModel', out.openai.model || 'gpt-4o-mini');
+
     return out;
+}
+
+/**
+ * OpenAI prefs for Check Attributes mapping suggestions.
+ * @returns {{ enabled: boolean, apiKey: string, model: string }}
+ */
+function getOpenAiConfig() {
+    return {
+        enabled: !!getPref('rcMigOpenAiEnabled', false),
+        apiKey:  String(getPref('rcMigOpenAiApiKey', '') || ''),
+        model:   String(getPref('rcMigOpenAiModel', 'gpt-4o-mini') || 'gpt-4o-mini')
+    };
 }
 
 /**
@@ -88,5 +105,6 @@ function getBmCredentials() {
 module.exports = {
     getPref:          getPref,
     applyToConfig:    applyToConfig,
-    getBmCredentials: getBmCredentials
+    getBmCredentials: getBmCredentials,
+    getOpenAiConfig:  getOpenAiConfig
 };

@@ -33,7 +33,7 @@ var CUSTOM_FIELD_TYPE_MAP = {
     Set:             'set_of_string'
 };
 
-// CTP resourceTypeId → SFCC system object type
+// CT resourceTypeId → SFCC system object type
 var RESOURCE_TYPE_MAP = {
     'product':                       'Product',
     'product-variant':               'Product',
@@ -59,7 +59,7 @@ var RESOURCE_TYPE_MAP = {
     'review':                        'Product'
 };
 
-// CTP types that map to product-related resource IDs
+// CT types that map to product-related resource IDs
 var PRODUCT_RESOURCE_IDS = ['product', 'product-variant', 'product-price'];
 
 var _PERFECT = ['text', 'ltext', 'boolean', 'date', 'datetime', 'number', 'String', 'LocalizedString', 'Boolean', 'Date', 'DateTime', 'Number', 'Integer'];
@@ -103,7 +103,7 @@ var CTP_TYPE_FAMILIES = {
     Set: 'set', set: 'set', 'set-of-string': 'set'
 };
 
-/** Compatible SFCC value_type options per CTP type family (subset of BM types). */
+/** Compatible SFCC value_type options per CT type family (subset of BM types). */
 var FAMILY_SFCC_OPTIONS = {
     string:    ['string', 'text', 'html', 'email'],
     number:    ['double', 'int'],
@@ -123,7 +123,7 @@ function ctpTypeFamily(ctpType) {
 }
 
 /**
- * Allowed SFCC value_type options for a CTP type (user-selectable in pre-flight UI).
+ * Allowed SFCC value_type options for a CT type (user-selectable in pre-flight UI).
  * @param {string} ctpType
  * @param {string} [defaultType] - pre-selected value (defaults to resolver output)
  * @returns {Array<{ value: string, label: string }>}

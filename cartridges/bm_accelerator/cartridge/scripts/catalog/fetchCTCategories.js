@@ -18,7 +18,7 @@ function getCTAuthToken() {
     var c = cfg.ctp;
 
     if (!c || !c.authUrl || !c.clientId || !c.clientSecret || !c.projectKey) {
-        log.error('getCTAuthToken: missing CTP configuration (projectKey/clientId/authUrl)');
+        log.error('getCTAuthToken: missing CT configuration (projectKey/clientId/authUrl)');
         return null;
     }
 

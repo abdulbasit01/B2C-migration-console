@@ -4,7 +4,7 @@ var fetcher     = require('*/cartridge/scripts/migration/shippingMethodMigration
 var transformer = require('*/cartridge/scripts/migration/shippingMethodMigration/shippingMethodTransformer');
 var writer      = require('*/cartridge/scripts/migration/shippingMethodMigration/sfccShippingMethodWriter');
 /**
- * Migrate one shipping method by CTP key or UUID.
+ * Migrate one shipping method by CT key or UUID.
  * @param {string} ctpKeyOrId
  * @param {string} siteId
  * @returns {Object}
@@ -22,7 +22,7 @@ function runByKeyOrId(ctpKeyOrId, siteId) {
     }
     if (!ctpMethod) {
         return { ok: true, created: 0, skipped: 0, failed: 1,
-            errors: [ctpKeyOrId + ': shipping method not found in CTP'] };
+            errors: [ctpKeyOrId + ': shipping method not found in CT'] };
     }
 
     var method;

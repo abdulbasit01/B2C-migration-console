@@ -18,11 +18,11 @@ function toDecimal(value) {
 }
 
 /**
- * Pick the best price for a given currency from a CTP prices array.
+ * Pick the best price for a given currency from a CT prices array.
  * Prefers base (no channel, no country) prices; falls back to first price.
  * @param {Array}  prices
  * @param {string} currency e.g. "USD"
- * @returns {Object|null} CTP price value object
+ * @returns {Object|null} CT price value object
  */
 function findPrice(prices, currency) {
     if (!prices || !prices.length) return null;
@@ -72,7 +72,7 @@ function buildXml(transformedProducts, pricebookId, currency) {
         + '    <pricebook>\n'
         + '        <header pricebook-id="' + xmlEsc(pbId) + '">\n'
         + '            <currency>' + xmlEsc(cur) + '</currency>\n'
-        + '            <display-name xml:lang="x-default">CTP Migrated Prices</display-name>\n'
+        + '            <display-name xml:lang="x-default">CT Migrated Prices</display-name>\n'
         + '            <online-flag>true</online-flag>\n'
         + '        </header>\n'
         + '        <price-tables>\n'

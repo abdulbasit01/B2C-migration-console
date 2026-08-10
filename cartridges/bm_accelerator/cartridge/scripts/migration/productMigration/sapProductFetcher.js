@@ -3,7 +3,7 @@
 /**
  * SAP Commerce Cloud (Hybris) product fetcher — OCC v2 REST API.
  * Mirrors the ctpProductFetcher contract: getCount / fetchBatch(offset, limit) / fetchById.
- * SAP OCC's /products/search endpoint is offset-paged (currentPage/pageSize), like CTP —
+ * SAP OCC's /products/search endpoint is offset-paged (currentPage/pageSize), like CT —
  * no cursor handling needed here.
  *
  * NOTE: query params below (query, fields) are the standard OCC ProductSearchController

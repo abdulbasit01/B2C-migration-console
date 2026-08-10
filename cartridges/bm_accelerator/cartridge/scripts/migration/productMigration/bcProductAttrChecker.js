@@ -1,25 +1,17 @@
 'use strict';
 
-var sfccClient = require('*/cartridge/scripts/migration/sfccClient');
-var runner     = require('*/cartridge/scripts/migration/core/attrPreflightRunner');
-var nativeMap  = require('*/cartridge/scripts/migration/config/nativeFieldMap');
+var runner    = require('*/cartridge/scripts/migration/core/attrPreflightRunner');
+var nativeMap = require('*/cartridge/scripts/migration/config/nativeFieldMap');
 
 var BC_ATTR_GROUP_ID   = 'BigCommerceMigration';
 var BC_ATTR_GROUP_NAME = 'BigCommerce Migration';
-
-var BC_BUILTIN_FIELDS = [
-    { id: 'bc_product_id', label: 'BigCommerce Product ID', sfccType: 'string' },
-    { id: 'bc_sku',        label: 'BigCommerce SKU',        sfccType: 'string' },
-    { id: 'bc_status',     label: 'BigCommerce Status',     sfccType: 'string' }
-];
 
 function toSfccOptionId(optionName) {
     return 'bc_' + String(optionName || '').replace(/[^a-zA-Z0-9_]/g, '_');
 }
 
 /**
- * Discover BigCommerce variant option names from a sample of products.
- * @returns {Array<{ name: string, sfccId: string, label: string, ctpType: string }>}
+ * @returns {Array<{ name: string, sfccId: string, label: string, ctpType: string, sourceKey: string }>}
  */
 function getBcVariantOptionFields() {
     var fetcher  = require('*/cartridge/scripts/migration/productMigration/bcProductFetcher');
@@ -54,10 +46,11 @@ function getBcVariantOptionFields() {
                     var sfccId = (rule && rule.action === 'custom_attr') ? rule.sfccField : toSfccOptionId(optName);
 
                     fields.push({
-                        name:    optName,
-                        sfccId:  sfccId,
-                        label:   optName,
-                        ctpType: 'String'
+                        name:      optName,
+                        sourceKey: optName,
+                        sfccId:    sfccId,
+                        label:     optName,
+                        ctpType:   'String'
                     });
                 }
             }
@@ -75,69 +68,33 @@ function getBcVariantOptionFields() {
 }
 
 /**
- * Compare required BigCommerce tracking (+ discovered option) attributes against SFCC.
- * @returns {Array} [{ id, label, sfccType, ctpType }]
+ * @returns {{ mapped: Array, missing: Array, coveragePending: Array, skipped: Array }}
  */
 function checkMissingAttributes() {
-    var attrIdMapSession = require('*/cartridge/scripts/migration/core/attrIdMapSession');
-    var attrMap     = attrIdMapSession.read('product');
-    var sfccToken   = sfccClient.getSFCCToken();
-    var existingIds = sfccClient.getExistingAttributeIds(sfccToken, 'Product');
-
-    try { sfccClient.ensureAttributeGroup(sfccToken, 'Product', BC_ATTR_GROUP_ID, BC_ATTR_GROUP_NAME); } catch (ge) {}
-
-    var missing = [];
-    var seen    = {};
+    var fields = nativeMap.getMappedSourceFields('bigcommerce', 'Product');
     var i;
-
-    function consider(id, label, sfccType, ctpType) {
-        if (!id || seen[id]) return;
-        seen[id] = true;
-        var resolved = attrIdMapSession.resolve(id, attrMap);
-        if (!existingIds[resolved]) {
-            missing.push({
-                id:       id,
-                label:    label || id,
-                sfccType: sfccType || 'string',
-                ctpType:  ctpType || 'String'
-            });
-        } else {
-            try {
-                sfccClient.addAttributeToGroup(sfccToken, 'Product', BC_ATTR_GROUP_ID, resolved);
-            } catch (age) {}
-        }
-    }
-
-    for (i = 0; i < BC_BUILTIN_FIELDS.length; i++) {
-        var bf = BC_BUILTIN_FIELDS[i];
-        consider(bf.id, bf.label, bf.sfccType, 'String');
-    }
-
     try {
         var optionFields = getBcVariantOptionFields();
         for (i = 0; i < optionFields.length; i++) {
-            var of = optionFields[i];
-            consider(of.sfccId, of.label, 'string', of.ctpType);
+            fields.push(optionFields[i]);
         }
-    } catch (oe) {
-        // Option discovery is best-effort; builtins still checked.
-    }
+    } catch (oe) { /* best-effort */ }
 
-    return missing;
+    return runner.classifyFields({
+        sfccObjectType: 'Product',
+        taskName:       'Product',
+        moduleKey:      'product',
+        fields:         fields
+    });
 }
 
-/**
- * @param {Array} attrs
- * @returns {{ created: number, failed: number, alreadyExists: number, errors: Array, mappedAttrs: Array, results: Array }}
- */
 function createAttributes(attrs) {
     return runner.createDefinitions('Product', BC_ATTR_GROUP_ID, BC_ATTR_GROUP_NAME, attrs);
 }
 
 module.exports = {
-    checkMissingAttributes:  checkMissingAttributes,
-    createAttributes:        createAttributes,
+    checkMissingAttributes:   checkMissingAttributes,
+    createAttributes:         createAttributes,
     getBcVariantOptionFields: getBcVariantOptionFields,
-    toSfccOptionId:          toSfccOptionId,
-    BC_BUILTIN_FIELDS:       BC_BUILTIN_FIELDS
+    toSfccOptionId:           toSfccOptionId
 };

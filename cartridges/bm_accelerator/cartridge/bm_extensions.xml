@@ -60,7 +60,6 @@
             <pipeline name="Accelerator-DeleteInventoryAttribute"/>
             <pipeline name="Accelerator-DeleteProductAttribute"/>
             <pipeline name="Accelerator-DeleteShippingMethodAttribute"/>
-            <pipeline name="Accelerator-DeleteTaskAttrs"/>
             <pipeline name="Accelerator-DownloadMigrationFile"/>
             <pipeline name="Accelerator-DownloadContentXml"/>
             <pipeline name="Accelerator-DownloadProductXml"/>
@@ -83,8 +82,6 @@
             <pipeline name="Accelerator-FullTaxBuildBatch"/>
             <pipeline name="Accelerator-GetBundleProductsInfo"/>
             <pipeline name="Accelerator-GetCustomerLists"/>
-            <pipeline name="Accelerator-GetExistingAttrs"/>
-            <pipeline name="Accelerator-GetMigratedAttrs"/>
             <pipeline name="Accelerator-GetPricebooks"/>
             <pipeline name="Accelerator-GetProductCatalogs"/>
             <pipeline name="Accelerator-GetProductSetsInfo"/>
@@ -104,7 +101,6 @@
             <pipeline name="Accelerator-MigrateCustomerBatch"/>
             <pipeline name="Accelerator-MigrateCustomerById"/>
             <pipeline name="Accelerator-MigrateProductById"/>
-            <pipeline name="Accelerator-MigrateTask"/>
             <pipeline name="Accelerator-OrderMigration"/>
             <pipeline name="Accelerator-PricebookMigration"/>
             <pipeline name="Accelerator-PricebookMigrationCount"/>
@@ -112,21 +108,20 @@
             <pipeline name="Accelerator-ProductMigrationCount"/>
             <pipeline name="Accelerator-ProductWizard"/>
             <pipeline name="Accelerator-RunCategoryMigration"/>
-            <pipeline name="Accelerator-SaveMigrationResults"/>
             <pipeline name="Accelerator-SavePreflightSelection"/>
             <pipeline name="Accelerator-SaveProdConfig"/>
             <pipeline name="Accelerator-SaveProdWizardResults"/>
-            <pipeline name="Accelerator-SaveSchemaSelection"/>
+            <pipeline name="Accelerator-SaveAttrIdMap"/>
             <pipeline name="Accelerator-SaveVariantAttrSelection"/>
             <pipeline name="Accelerator-ShippingMethodMigration"/>
             <pipeline name="Accelerator-ShippingMethodMigrationCount"/>
             <pipeline name="Accelerator-Start"/>
             <pipeline name="Accelerator-StoreMigration"/>
+            <pipeline name="Accelerator-SuggestAttrMaps"/>
             <pipeline name="Accelerator-StoreMigrationCount"/>
             <pipeline name="Accelerator-TaxMigration"/>
             <pipeline name="Accelerator-TaxMigrationCount"/>
             <pipeline name="Accelerator-TestConnection"/>
-            <pipeline name="Accelerator-Wizard"/>
         </sub-pipelines>
         <icon>icons/accelerator.png</icon>
     </menuaction>
@@ -142,6 +137,9 @@
             <pipeline name="Accelerator-ProductMigrationCount"/>
             <pipeline name="Accelerator-CheckProductAttributes"/>
             <pipeline name="Accelerator-CreateProductAttributes"/>
+            <pipeline name="Accelerator-ClearAttrIdMap"/>
+            <pipeline name="Accelerator-SaveAttrIdMap"/>
+            <pipeline name="Accelerator-SuggestAttrMaps"/>
             <pipeline name="Accelerator-FullProductMigrationBuildBatch"/>
             <pipeline name="Accelerator-MigrateProductById"/>
             <pipeline name="Accelerator-GetProductCatalogs"/>

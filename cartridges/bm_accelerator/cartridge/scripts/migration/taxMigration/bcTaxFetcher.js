@@ -76,7 +76,7 @@ function collectShippingZoneCountries() {
 }
 
 /**
- * Map BigCommerce tax classes + shipping-zone countries to CTP-like tax categories.
+ * Map BigCommerce tax classes + shipping-zone countries to CT-like tax categories.
  * Rates default to 0 when no rate API is available.
  * @returns {Array}
  */

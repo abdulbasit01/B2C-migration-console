@@ -303,33 +303,31 @@
     var attrResults   = document.getElementById('acc-attr-results');
     var pendingMissing = [];
 
-    function renderAttrResults(missing) {
-        attrResults.innerHTML = '';
-        attrResults.style.display = 'block';
-        if (!missing.length) {
-            attrResults.innerHTML = '<p style="color:#2e7d32;font-size:13px;margin:0;">' + (MIGRATION_UI.allAttrsExist || ('All ' + SRC + ' attributes already exist in SFCC.')) + '</p>';
+    function renderAttrResults(missing, mapped, coveragePending, skipped, suggested, aiMeta) {
+        if (!window.AccAttrPreflight || !window.AccAttrPreflight.renderMissingResults) {
+            attrResults.innerHTML = '<p style="color:#c62828;font-size:13px;margin:0;">Attribute helper script failed to load.</p>';
+            attrResults.style.display = 'block';
             return;
         }
-        var html = '<p style="font-size:13px;color:#54698d;margin:0 0 10px;">'
-            + (window.AccAttrPreflight ? window.AccAttrPreflight.missingCountLabel(MIGRATION_UI, missing.length) : missing.length + (MIGRATION_UI.attrsMissingCount || ' attribute(s) missing in SFCC:'))
-            + '</p>';
-        html += '<table class="cm-attr-table"><thead><tr><th style="width:36px;"><input type="checkbox" id="acc-attr-select-all" checked/></th><th>Attribute ID</th><th>Label</th><th>' + (MIGRATION_UI.sourceTypeCol || 'Source Type') + '</th><th>SFCC Type</th><th>Action</th></tr></thead><tbody>';
-        for (var i = 0; i < missing.length; i++) {
-            var m = missing[i];
-            html += '<tr id="acc-attr-row-' + i + '"><td style="text-align:center;"><input type="checkbox" class="acc-attr-cb" data-idx="' + i + '" checked/></td>'
-                + '<td><input type="text" class="cm-attr-id-input" data-idx="' + i + '" value="' + m.id + '"/></td>'
-                + '<td>' + (m.label || m.id) + '</td><td>' + m.ctpType + '</td><td>'
-                + window.AccAttrPreflight.sfccTypeSelectHtml(m, i) + '</td>'
-                + '<td><button type="button" class="cm-btn--revert acc-attr-revert-btn" data-idx="' + i + '" disabled>Revert</button></td></tr>';
-        }
-        html += '</tbody></table><div style="margin-top:14px;"><button type="button" id="acc-create-attrs-btn" class="cm-btn cm-btn--primary">Create Selected Attributes</button>'
-            + '<span id="acc-create-attrs-msg" style="font-size:13px;color:#54698d;margin-left:12px;"></span></div>';
-        attrResults.innerHTML = html;
-        document.getElementById('acc-attr-select-all').addEventListener('change', function () {
-            var cbs = document.querySelectorAll('.acc-attr-cb');
-            for (var c = 0; c < cbs.length; c++) cbs[c].checked = this.checked;
+        window.AccAttrPreflight.renderMissingResults({
+            container:       attrResults,
+            mapped:          mapped || [],
+            coveragePending: coveragePending || [],
+            skipped:         skipped || [],
+            suggested:       suggested || [],
+            aiStatus:        (aiMeta && aiMeta.aiStatus) || 'skipped',
+            aiMessage:       (aiMeta && aiMeta.aiMessage) || '',
+            suggestAttrMapsUrl: (aiMeta && aiMeta.suggestAttrMapsUrl) || '',
+            taskName:           (aiMeta && aiMeta.taskName) || '',
+            sfccObjectType:     (aiMeta && aiMeta.sfccObjectType) || '',
+                sessionSystemMaps: (aiMeta && aiMeta.sessionSystemMaps) || [],
+            missing:         missing || [],
+            ui:              MIGRATION_UI,
+            createAttrsUrl:  CREATE_ATTRS_URL,
+            clearAttrMapUrl: CLEAR_ATTR_MAP_URL || '',
+            post:            post,
+            getPending:      function () { return pendingMissing; }
         });
-        document.getElementById('acc-create-attrs-btn').addEventListener('click', createSelectedAttributes);
     }
 
     function createSelectedAttributes() {
@@ -411,11 +409,20 @@
                 return;
             }
             pendingMissing = data.missing || [];
-            attrCheckMsg.textContent = pendingMissing.length
-                ? pendingMissing.length + (MIGRATION_UI.attrsMissingBrief || ' missing.')
+            var mapped = data.mapped || [];
+            var coveragePending = data.coveragePending || [];
+            var skipped = data.skipped || [];
+            var parts = [];
+            if (mapped.length) parts.push(mapped.length + ' mapped');
+            if ((data.suggested || []).length) parts.push(data.suggested.length + ' AI suggestions');
+            if (pendingMissing.length) parts.push(pendingMissing.length + (MIGRATION_UI.attrsMissingBrief || ' missing.'));
+            if (coveragePending.length) parts.push(coveragePending.length + ' SFCC pending');
+            if (skipped.length) parts.push(skipped.length + ' skipped');
+            attrCheckMsg.textContent = parts.length
+                ? parts.join(', ')
                 : (MIGRATION_UI.attrsAllInSync || 'All in sync.');
             attrCheckMsg.style.color = pendingMissing.length ? '#e65100' : '#2e7d32';
-            renderAttrResults(pendingMissing);
+            renderAttrResults(pendingMissing, mapped, coveragePending, skipped, data.suggested || [], data);
         });
     });
 

@@ -26,7 +26,7 @@ function getCtpToken() {
         body
     );
     if (res.status !== 200 || !res.data.access_token) {
-        throw new Error('CTP auth failed (' + res.status + ')');
+        throw new Error('CT auth failed (' + res.status + ')');
     }
     return res.data.access_token;
 }
@@ -41,7 +41,7 @@ function getCtpPricebookFields() {
         { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' }
     );
     if (res.status !== 200) {
-        throw new Error('CTP Types API failed (' + res.status + ')');
+        throw new Error('CT Types API failed (' + res.status + ')');
     }
 
     var fields = [];
@@ -65,7 +65,14 @@ function getCtpPricebookFields() {
 
 function checkMissingAttributes() {
     var attrIdMapSession = require('*/cartridge/scripts/migration/core/attrIdMapSession');
-    return runner.checkMissing(SFCC_OBJECT_TYPE, getCtpPricebookFields, null, attrIdMapSession.read('pricebook'));
+    return runner.checkMissing(
+        SFCC_OBJECT_TYPE,
+        getCtpPricebookFields,
+        null,
+        attrIdMapSession.read('pricebook'),
+        'pricebook',
+        'PriceBook'
+    );
 }
 
 function createAttributes(attrs) {

@@ -20,7 +20,7 @@ function groupIdForTag(tag) {
 }
 
 /**
- * Shopify has no direct equivalent of a CTP customer group — the closest analog is
+ * Shopify has no direct equivalent of a CT customer group — the closest analog is
  * customer tags. This derives one SFCC customer group per distinct tag found across
  * all Shopify customers by paging through the full customer list.
  * @returns {Array<{ id: string, key: string, name: string }>}

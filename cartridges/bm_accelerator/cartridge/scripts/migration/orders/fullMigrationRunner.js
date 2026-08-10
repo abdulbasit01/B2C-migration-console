@@ -32,7 +32,7 @@ function buildFetchOptions(options) {
 }
 
 /**
- * Stream CTP orders into one IMPEX XML file without holding all orders or XML in memory.
+ * Stream CT orders into one IMPEX XML file without holding all orders or XML in memory.
  * @param {Object} options
  * @returns {Object}
  */

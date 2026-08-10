@@ -31,6 +31,7 @@
     "upload:cms": "sgmf-scripts --uploadCartridge app_custom_cms",
     "upload:amplience": "npm run upload:cms",
     "uploadCartridge": "npm run compile:scss && sgmf-scripts --uploadCartridge bm_accelerator && sgmf-scripts --uploadCartridge app_custom_cms",
+    "coverage:native-fields": "python scripts/generate-native-field-coverage.py",
     "release": "node bin/Makefile release --"
   },
   "repository": {

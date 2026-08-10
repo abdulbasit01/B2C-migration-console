@@ -23,7 +23,7 @@ function getToken() {
         body
     );
     if (res.status !== 200 || !res.data.access_token) {
-        throw new Error('CTP auth failed (' + res.status + ')');
+        throw new Error('CT auth failed (' + res.status + ')');
     }
     return res.data.access_token;
 }
@@ -87,7 +87,7 @@ function getCount(currency, channelId, aggregate) {
         { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }
     );
     if (res.status !== 200) {
-        failCtp('CTP standalone-price count failed', res);
+        failCtp('CT standalone-price count failed', res);
     }
     return res.data.total || 0;
 }
@@ -115,7 +115,7 @@ function fetchBatch(offset, limit, currency, channelId, aggregate, sortField) {
         { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' }
     );
     if (res.status !== 200) {
-        failCtp('CTP standalone-price fetch failed', res);
+        failCtp('CT standalone-price fetch failed', res);
     }
     return {
         results: res.data.results || [],
@@ -124,7 +124,7 @@ function fetchBatch(offset, limit, currency, channelId, aggregate, sortField) {
 }
 
 /**
- * Fetch product distribution channels from CTP.
+ * Fetch product distribution channels from CT.
  * @returns {Array<{id: string, key: string, name: string}>}
  */
 function fetchDistributionChannels() {
@@ -138,7 +138,7 @@ function fetchDistributionChannels() {
         { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }
     );
     if (res.status !== 200) {
-        failCtp('CTP distribution channels fetch failed', res);
+        failCtp('CT distribution channels fetch failed', res);
     }
 
     var results = [];

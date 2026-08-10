@@ -23,13 +23,13 @@ function getToken() {
         body
     );
     if (res.status !== 200 || !res.data.access_token) {
-        throw new Error('CTP auth failed (' + res.status + ')');
+        throw new Error('CT auth failed (' + res.status + ')');
     }
     return res.data.access_token;
 }
 
 /**
- * Return total number of products in the CTP project.
+ * Return total number of products in the CT project.
  * @returns {number}
  */
 function getCount() {
@@ -40,13 +40,13 @@ function getCount() {
         { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }
     );
     if (res.status !== 200) {
-        throw new Error('CTP product count failed (' + res.status + ')');
+        throw new Error('CT product count failed (' + res.status + ')');
     }
     return res.data.total || 0;
 }
 
 /**
- * Fetch one page of products from CTP.
+ * Fetch one page of products from CT.
  * @param {number} offset
  * @param {number} limit  - max 500
  * @returns {{ results: Array, total: number }}
@@ -61,7 +61,7 @@ function fetchBatch(offset, limit) {
         { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' }
     );
     if (res.status !== 200) {
-        throw new Error('CTP products fetch failed (' + res.status + ')');
+        throw new Error('CT products fetch failed (' + res.status + ')');
     }
     return {
         results: res.data.results || [],
@@ -70,9 +70,9 @@ function fetchBatch(offset, limit) {
 }
 
 /**
- * Fetch a single product from CTP by its ID (UUID).
+ * Fetch a single product from CT by its ID (UUID).
  * @param {string} productId
- * @returns {Object} CTP product object
+ * @returns {Object} CT product object
  */
 function fetchById(productId) {
     var c   = cfg.ctp;
@@ -82,7 +82,7 @@ function fetchById(productId) {
         { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' }
     );
     if (res.status !== 200) {
-        throw new Error('CTP product fetch failed for ID ' + productId + ' (' + res.status + ')');
+        throw new Error('CT product fetch failed for ID ' + productId + ' (' + res.status + ')');
     }
     return res.data;
 }

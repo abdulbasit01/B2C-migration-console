@@ -11,7 +11,7 @@ Royal Cyber Salesforce B2C Commerce **Business Manager** cartridge (`bm_accelera
 | Schema wizard | Merchant Tools → B2C Migration → Start Migration Wizard | Fetch source attributes/metafields, map, create SFCC custom attributes |
 | Data wizard | Same dashboard → Data Migration | Export orders, customers, products, inventory, price books, tax, stores, shipping methods, categories |
 | Product wizard | B2C Migration → Product Catalog Wizard | Product-focused connect → configure → move |
-| Config | Site Preferences → **B2C Migration Console** | All runtime credentials (Shopify, CTP, OCAPI/BM) |
+| Config | Site Preferences → **B2C Migration Console** | All runtime credentials (Shopify, CT, OCAPI/BM) |
 
 Credentials are **not** entered in wizard forms. Configure Site Preferences, then use **Test Connection**.
 

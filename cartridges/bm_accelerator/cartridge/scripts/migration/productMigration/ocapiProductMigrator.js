@@ -19,16 +19,11 @@ function buildPayload(transformed) {
     if (transformed.name)        { payload.name             = { default: transformed.name }; }
     if (transformed.description) { payload.long_description = { default: transformed.description }; }
 
-    var customAttrs = [];
-    if (transformed.ctpId)  { customAttrs.push({ attribute_id: 'ctp_product_id',  c_ctp_product_id:  transformed.ctpId }); }
-    if (transformed.ctpKey) { customAttrs.push({ attribute_id: 'ctp_product_key', c_ctp_product_key: transformed.ctpKey }); }
-    if (customAttrs.length) { payload.custom_attributes = customAttrs; }
-
     return payload;
 }
 
 /**
- * Migrate one CTP product (master + variants) to SFCC via OCAPI Data API.
+ * Migrate one CT product (master + variants) to SFCC via OCAPI Data API.
  * @returns {{ ok, built, failed, errors }}
  */
 function migrateOne(ctpProduct, catalogId, token, apiBase) {
@@ -87,7 +82,7 @@ function migrateOne(ctpProduct, catalogId, token, apiBase) {
 }
 
 /**
- * Migrate one batch of CTP products via OCAPI.
+ * Migrate one batch of CT products via OCAPI.
  * @param {number} offset
  * @param {string} catalogId
  * @returns {{ ok, total, nextOffset, done, built, failed, errors }}
@@ -131,7 +126,7 @@ function migrateBatch(offset, catalogId) {
 }
 
 /**
- * Migrate a single CTP product by its UUID via OCAPI.
+ * Migrate a single CT product by its UUID via OCAPI.
  * @param {string} ctpId
  * @param {string} catalogId
  * @returns {{ ok, built, failed, errors }}

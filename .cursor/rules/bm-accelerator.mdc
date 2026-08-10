@@ -35,3 +35,6 @@ npm run upload:accelerator
 - Binary downloads: `Packages.java.io.FileInputStream` + `IOUtils.copy` to `response.base.getOutputStream()`
 - `getDataWizardSteps('')` → 2 steps (`DATA_WIZARD_STEPS`); `getDataWizardSteps('order')` → 5 steps
 - Clear `selectedDataType` when returning to data wizard steps 1–2
+
+## Check Attributes
+Follow `.cursor/rules/check-attributes.mdc` (rules **3.a / 3.b / 3.c**): map to SFCC system attrs when aliased or identity-matched; otherwise offer create. Mapping lives in `nativeFieldMap.json` (`sfccSystem` + `aliases` + `skipped`).

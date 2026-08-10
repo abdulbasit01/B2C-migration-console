@@ -68,8 +68,8 @@
     <div style="background:#f4f6f9;border:1px solid #dddbda;border-radius:4px;padding:16px 20px;font-size:13px;line-height:1.7;margin-top:20px;">
         <strong>What happens next (per batch of 500 products):</strong><br/>
         <strong>products-N.xml</strong> — SFCC catalog XML (product records, variants, images, category assignments, SEO page-url)<br/>
-        <strong>pricebook-N.xml</strong> — SFCC pricebook XML (variant prices extracted from CTP embedded prices)<br/>
-        <strong>inventory-N.xml</strong> — SFCC inventory XML (stock levels from CTP Inventory API)<br/>
+        <strong>pricebook-N.xml</strong> — SFCC pricebook XML (variant prices extracted from CT embedded prices)<br/>
+        <strong>inventory-N.xml</strong> — SFCC inventory XML (stock levels from CT Inventory API)<br/>
         All files are uploaded to
         <code style="background:#e0e5ee;padding:1px 5px;border-radius:3px;font-family:monospace;font-size:12px;">/Impex/src/instance/ctp-product-migration/</code>
         via WebDAV, then a BM import job processes them.

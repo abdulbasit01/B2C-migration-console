@@ -4,9 +4,7 @@
  * Connector registry — maps platform IDs to connector modules.
  *
  * Each connector must implement:
- *   testConnectionWith(creds)                → { project, expiresIn }
- *   buildFetchContent(counts)                  → StepContent
- *   buildAiMapContent(selectedTasks, existing) → StepContent
+ *   testConnectionWith(creds) → { project, expiresIn }
  */
 var connectors = {
     'commercetools': require('*/cartridge/scripts/migration/connectors/ctp/ctpConnector'),

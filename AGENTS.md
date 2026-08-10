@@ -22,6 +22,10 @@ Royal Cyber SFCC BM cartridge for schema + data migration from commercetools/Sho
 - Rhino: use `encodeURIComponent`, not `StringUtils.encodeURIComponent`
 - `session.custom` flags are strings (`'true'`), not booleans
 
+## Check Attributes (3.a / 3.b / 3.c)
+Before changing attribute check/create/map logic, read `.cursor/rules/check-attributes.mdc`.
+Source field → SFCC system via `nativeFieldMap` alias or identity = do not create; else offer create. No hardcoded trace attrs; no fuzzy invent maps.
+
 ## CMS architecture (`app_custom_cms`)
 - **Generic storefront cartridge** for headless CMS integrations (Amplience today; Contentful etc. later)
 - **Amplience today:** `AmplienceContent-List` API, migrated content helpers under `scripts/helpers/amplience*`

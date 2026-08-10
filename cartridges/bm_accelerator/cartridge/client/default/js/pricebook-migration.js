@@ -203,6 +203,9 @@
         var modalCreateBtn = document.getElementById('acc-modal-create');
 
         var pendingMissing = [];
+        var pendingMapped = [];
+        var pendingCoverage = [];
+        var pendingSkipped = [];
         var fullBuilt = 0;
         var fullFailed = 0;
         var fullFiles = 0;
@@ -594,7 +597,7 @@
             runNextExport();
         }
 
-        function renderAttrResults(missing) {
+        function renderAttrResults(missing, mapped, coveragePending, skipped, suggested, aiMeta) {
             if (!attrResults) return;
             if (!window.AccAttrPreflight || !window.AccAttrPreflight.renderMissingResults) {
                 attrResults.innerHTML = '<p style="color:#c62828;font-size:13px;margin:0;">Attribute helper script failed to load.</p>';
@@ -602,12 +605,23 @@
                 return;
             }
             window.AccAttrPreflight.renderMissingResults({
-                container:      attrResults,
-                missing:        missing,
-                ui:             ui,
-                createAttrsUrl: cfg.createAttrsUrl,
-                post:           post,
-                getPending:     function () { return pendingMissing; }
+                container:       attrResults,
+                mapped:          mapped || [],
+                coveragePending: coveragePending || [],
+                skipped:         skipped || [],
+                suggested:       suggested || [],
+                aiStatus:        (aiMeta && aiMeta.aiStatus) || 'skipped',
+                aiMessage:       (aiMeta && aiMeta.aiMessage) || '',
+                suggestAttrMapsUrl: (aiMeta && aiMeta.suggestAttrMapsUrl) || '',
+                taskName:           (aiMeta && aiMeta.taskName) || '',
+                sfccObjectType:     (aiMeta && aiMeta.sfccObjectType) || '',
+                sessionSystemMaps: (aiMeta && aiMeta.sessionSystemMaps) || [],
+                missing:         missing,
+                ui:              ui,
+                createAttrsUrl:  cfg.createAttrsUrl,
+                clearAttrMapUrl: cfg.clearAttrMapUrl || '',
+                post:            post,
+                getPending:      function () { return pendingMissing; }
             });
         }
 
@@ -658,14 +672,20 @@
                         }
                         return;
                     }
+                    pendingMapped = data.mapped || [];
+                    pendingCoverage = data.coveragePending || [];
+                    pendingSkipped = data.skipped || [];
                     pendingMissing = data.missing || [];
                     if (attrCheckMsg) {
-                        attrCheckMsg.textContent = pendingMissing.length
-                            ? pendingMissing.length + (ui.attrsMissingBrief || ' missing.')
+                        var parts = [];
+                        if (pendingMapped.length) parts.push(pendingMapped.length + ' mapped');
+                        if (pendingMissing.length) parts.push(pendingMissing.length + (ui.attrsMissingBrief || ' to create.'));
+                        attrCheckMsg.textContent = parts.length
+                            ? parts.join(', ')
                             : (ui.attrsAllInSync || 'All in sync.');
                         attrCheckMsg.style.color = pendingMissing.length ? '#e65100' : '#2e7d32';
                     }
-                    renderAttrResults(pendingMissing);
+                    renderAttrResults(pendingMissing, pendingMapped, pendingCoverage, pendingSkipped, data.suggested || [], data);
                 });
             });
         }

@@ -26,7 +26,7 @@ function getProductView(ctpProduct) {
 }
 
 /**
- * @param {Object} data - CTP product current/staged view
+ * @param {Object} data - CT product current/staged view
  * @returns {Array<{sku: string, prices: Array}>}
  */
 function collectVariants(data) {
@@ -102,7 +102,7 @@ function toRecord(sku, priceEntry) {
 }
 
 /**
- * Extract price records from one CTP product for a migration target.
+ * Extract price records from one CT product for a migration target.
  * @param {Object} ctpProduct
  * @param {string} currency
  * @param {string} channelId

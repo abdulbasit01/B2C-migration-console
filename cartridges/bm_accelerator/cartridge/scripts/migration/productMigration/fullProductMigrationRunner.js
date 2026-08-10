@@ -8,7 +8,7 @@ var uploader     = require('*/cartridge/scripts/migration/productMigration/produ
 var fileResolver = require('*/cartridge/scripts/migration/core/migrationFileResolver');
 
 var MODULE_KEY         = 'product';
-var BATCH_SIZE         = 500; // CTP batch size
+var BATCH_SIZE         = 500; // CT batch size
 var SHOPIFY_BATCH_SIZE = 10;  // Shopify GraphQL cost limit: 10 × (50+5+5+10) = 700 pts < 1000
 
 var CTP_PREFIX     = 'ctp';
@@ -79,10 +79,10 @@ function getNum(key) { return parseInt(String(session.custom[key] || 0), 10); }
 function addNum(key, n) { session.custom[key] = String(getNum(key) + (n || 0)); }
 function setNum(key, n) { session.custom[key] = String(n || 0); }
 
-// ─── CTP single-file batch accumulator ───────────────────────────────────────
+// ─── CT single-file batch accumulator ───────────────────────────────────────
 
 /**
- * Run one CTP batch — accumulates products/categories in local IMPEX temp files
+ * Run one CT batch — accumulates products/categories in local IMPEX temp files
  * and uploads a SINGLE XML file only on the final batch.
  *
  * @param {number} offset
@@ -341,7 +341,7 @@ function finalizeShopify(catalogId, total, impexPath, fileName) {
 }
 
 // ─── SAP Commerce (OCC) single-file batch accumulator ────────────────────────
-// Offset-paged like CTP (no cursor), so this mirrors runCtpBatch/finalizeCtp,
+// Offset-paged like CT (no cursor), so this mirrors runCtpBatch/finalizeCtp,
 // but passes sapProductTransformer.transformProduct into buildXmlParts like Shopify.
 
 var SK_SAP_TOTAL   = 'sapProdTotal';
@@ -621,7 +621,7 @@ function finalizeBc(catalogId, total, nextOffset, impexPath, fileName) {
 /**
  * Run one migration batch (platform-aware).
  *
- * @param {number|string|null} offsetOrCursor - numeric offset (CTP/SAP/BC) or cursor string (Shopify)
+ * @param {number|string|null} offsetOrCursor - numeric offset (CT/SAP/BC) or cursor string (Shopify)
  * @param {string} catalogId
  * @param {Array}  selectedVarAttrs           - selected variant option/attr names (all platforms)
  * @param {string} platform                   - 'shopify' | 'sap' | 'bigcommerce' | 'commercetools'

@@ -50,7 +50,7 @@ Credential URLs are placeholders; runtime code sets the full URL per call.
 Open **Site Preferences → B2C Migration Console** and set:
 
 - Shopify store URL, client ID, client secret/token, API version (if using Shopify)
-- commercetools project key, client ID/secret, auth/API URLs (if using CTP)
+- commercetools project key, client ID/secret, auth/API URLs (if using CT)
 - Amplience hub name, Personal Access Token, optional default delivery key (if using Amplience CMS)
 - OCAPI client ID, BM username/password, OCAPI version
 

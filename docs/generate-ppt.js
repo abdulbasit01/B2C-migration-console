@@ -150,7 +150,7 @@ sectionDivider('02  Architecture', 'Current Architecture & Existing Process');
     const s = contentSlide('Existing Process — Before Migration Console');
 
     const steps = [
-        { n: '1', t: 'Export Schema', d: 'Engineer manually reviews source platform (CTP / Shopify) and exports all field definitions to spreadsheet' },
+        { n: '1', t: 'Export Schema', d: 'Engineer manually reviews source platform (CT / Shopify) and exports all field definitions to spreadsheet' },
         { n: '2', t: 'Analyze Types', d: 'Team manually maps each source field type to SFCC equivalent — judgement calls on every field' },
         { n: '3', t: 'Manual Entry', d: 'Admin manually creates each attribute in SFCC Business Manager one by one — no automation' },
         { n: '4', t: 'QA & Verify', d: 'QA engineer checks every attribute against original spreadsheet to find missed or wrong entries' },
@@ -247,7 +247,7 @@ sectionDivider('04  Migration Architecture', 'Detailed technical architecture');
 
     // Auth box bottom
     box(s, 0.2, 6.45, 12.7, 0.7, C.darkGray, '', C.white, 10);
-    s.addText('Auth:  CTP → Basic(clientId:secret) → Bearer    |    Shopify → client_credentials → shpat_    |    SFCC → Basic(user:pass:bmClientId) → Bearer → OCAPI v25_6',
+    s.addText('Auth:  CT → Basic(clientId:secret) → Bearer    |    Shopify → client_credentials → shpat_    |    SFCC → Basic(user:pass:bmClientId) → Bearer → OCAPI v25_6',
         { x: 0.35, y: 6.6, w: 12.4, h: 0.4, fontSize: 10, color: C.accent, align: 'center' });
 }
 
@@ -277,7 +277,7 @@ sectionDivider('05  Platform Implementation', 'SFCC, commercetools & Shopify');
     ctpTypes.forEach((t, i) => s.addText(t, { x: 4.65, y: 1.6 + i * 0.33, w: 3.7, h: 0.3, fontSize: 10.5, color: C.white }));
 
     box(s, 4.5, 3.85, 4.0, 2.85, C.blue, '', C.white, 11);
-    s.addText('Type Mapping (CTP → SFCC)', { x: 4.65, y: 3.9, w: 3.7, h: 0.4, fontSize: 13, bold: true, color: C.accent });
+    s.addText('Type Mapping (CT → SFCC)', { x: 4.65, y: 3.9, w: 3.7, h: 0.4, fontSize: 13, bold: true, color: C.accent });
     const typeMap = [['text / ltext', 'string'], ['number', 'double'], ['boolean', 'boolean'], ['date / time', 'date / datetime'], ['set(text)', 'set_of_string'], ['money', 'double'], ['reference', 'string']];
     typeMap.forEach((row, i) => {
         s.addText(row[0], { x: 4.65, y: 4.35 + i * 0.35, w: 1.8, h: 0.3, fontSize: 10, color: C.yellow });
@@ -450,7 +450,7 @@ sectionDivider('08  Key Components', 'Responsibilities of each module');
         { name: 'sfccClient.js',      role: 'SFCC API',     color: C.purple, desc: 'SFCC OCAPI wrapper. Handles User Grant auth, GET existing attrs, PUT attribute definitions, DELETE for reset.' },
         { name: 'configAccessor.js',  role: 'Config',       color: C.orange, desc: 'Merges config.defaults.js + config.js (gitignored) + session credentials entered in Step 1 into a single config object.' },
         { name: 'attrBuilder.js',     role: 'Builder',      color: C.accent, desc: 'Builds the SFCC OCAPI attribute payload format. Used by all connectors to produce consistent output.' },
-        { name: 'ctpConnector.js',    role: 'CTP',          color: C.blue,   desc: 'commercetools connector. OAuth2 auth, paginated product-types + custom-types fetch, 8 object types supported.' },
+        { name: 'ctpConnector.js',    role: 'CT',          color: C.blue,   desc: 'commercetools connector. OAuth2 auth, paginated product-types + custom-types fetch, 8 object types supported.' },
         { name: 'shopifyConnector.js',role: 'Shopify',      color: C.purple, desc: 'Shopify connector. client_credentials OAuth, standard fields + GraphQL metafields, 6 object types.' },
         { name: 'migrationData.js',   role: 'Data',         color: C.gray,   desc: 'Platform definitions, wizard step config, and connect form field definitions for all platforms.' },
     ];

@@ -58,6 +58,7 @@ function clear(moduleKey) {
 
 /**
  * Persist remaps from create-attrs results: [{ id, canonicalId }].
+ * When id === canonicalId (or remove:true), clears that remap.
  * @param {string} moduleKey
  * @param {Array} attrs
  */
@@ -69,14 +70,55 @@ function saveFromAttrs(moduleKey, attrs) {
         if (!attr) continue;
         var canonical = attr.canonicalId || attr.sourceId || '';
         var target    = attr.id || '';
-        if (!canonical || !target) continue;
-        if (canonical !== target) {
-            map[canonical] = target;
-        } else if (map[canonical]) {
-            delete map[canonical];
+        if (!canonical) continue;
+        if (attr.remove || !target || canonical === target) {
+            if (map[canonical]) delete map[canonical];
+            continue;
         }
+        map[canonical] = target;
     }
     write(moduleKey, map);
+}
+
+/**
+ * Remove one source→SFCC remap.
+ * @param {string} moduleKey
+ * @param {string} sourceId
+ */
+function removeMapping(moduleKey, sourceId) {
+    if (!sourceId) return;
+    var map = read(moduleKey);
+    if (map[sourceId]) {
+        delete map[sourceId];
+        write(moduleKey, map);
+    }
+}
+
+/**
+ * Source field ids that map to a given SFCC target (reverse of resolve).
+ * @param {string|Object.<string, string>} moduleKeyOrMap
+ * @param {string} sfccField
+ * @returns {Array<string>}
+ */
+function sourcesForTarget(moduleKeyOrMap, sfccField) {
+    if (!sfccField) return [];
+    var map = typeof moduleKeyOrMap === 'string'
+        ? read(moduleKeyOrMap)
+        : (moduleKeyOrMap || {});
+    var target = String(sfccField).trim();
+    var targetLower = target.toLowerCase();
+    var out = [];
+    var keys = Object.keys(map);
+    var i;
+    for (i = 0; i < keys.length; i++) {
+        var src = keys[i];
+        var mapped = map[src] != null ? String(map[src]).trim() : '';
+        if (!mapped) continue;
+        if (mapped === target || mapped.toLowerCase() === targetLower) {
+            out.push(src);
+        }
+    }
+    return out;
 }
 
 /**
@@ -95,11 +137,13 @@ function resolve(sourceId, moduleKeyOrMap) {
 }
 
 module.exports = {
-    PREFIX:        PREFIX,
-    sessionKey:    sessionKey,
-    read:          read,
-    write:         write,
-    clear:         clear,
-    saveFromAttrs: saveFromAttrs,
-    resolve:       resolve
+    PREFIX:           PREFIX,
+    sessionKey:       sessionKey,
+    read:             read,
+    write:            write,
+    clear:            clear,
+    saveFromAttrs:    saveFromAttrs,
+    removeMapping:    removeMapping,
+    sourcesForTarget: sourcesForTarget,
+    resolve:          resolve
 };

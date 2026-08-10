@@ -3,72 +3,25 @@
 var fetcher     = require('*/cartridge/scripts/migration/customerMigration/ctpCustomerFetcher');
 var transformer = require('*/cartridge/scripts/migration/customerMigration/customerTransformer');
 var writer      = require('*/cartridge/scripts/migration/customerMigration/sfccCustomerWriter');
-var sfccClient  = require('*/cartridge/scripts/migration/sfccClient');
-
-// ─── CTP traceability attributes ──────────────────────────────────────────────
-// These three custom attribute definitions are created on the SFCC Customer
-// system object before the first profile batch so that c_ctp_customer_id,
-// c_ctp_customer_number, and c_ctp_external_id values written during migration
-// are stored correctly rather than silently dropped.
-
-var CTP_CUSTOM_ATTRS = [
-    { id: 'ctp_customer_id',     display: 'CTP Customer ID'     },
-    { id: 'ctp_customer_number', display: 'CTP Customer Number' },
-    { id: 'ctp_external_id',     display: 'CTP External ID'     },
-    { id: 'CTCustomerId',        display: 'CT Customer ID'      }
-];
-
-var CTP_ATTR_GROUP_ID   = 'CTPMigration';
-var CTP_ATTR_GROUP_NAME = 'CTP Migration';
-
-function ensureCtpAttributes(sfccToken) {
-    try { sfccClient.ensureAttributeGroup(sfccToken, 'Profile', CTP_ATTR_GROUP_ID, CTP_ATTR_GROUP_NAME); } catch (ge) {}
-    for (var i = 0; i < CTP_CUSTOM_ATTRS.length; i++) {
-        var attr = CTP_CUSTOM_ATTRS[i];
-        try {
-            sfccClient.createAttributeDefinition(sfccToken, 'Profile', {
-                id:                 attr.id,
-                value_type:         'string',
-                mandatory:          false,
-                searchable:         false,
-                externally_defined: false,
-                externally_managed: false,
-                order_required:     false,
-                display_name:       { 'default': attr.display }
-            });
-            try { sfccClient.addAttributeToGroup(sfccToken, 'Profile', CTP_ATTR_GROUP_ID, attr.id); } catch (age) {}
-        } catch (e) {
-            // Attribute already exists or creation failed — not fatal; migration continues
-        }
-    }
-}
 
 /**
  * Migrate one batch of customer profiles (no addresses — those run separately in phase 2).
  *
  * HTTP budget per call:
  *   1  getSFCCToken
- *   1  CTP auth  (inside fetchBatch)
- *   1  CTP GET /customers  (inside fetchBatch)
+ *   1  CT auth  (inside fetchBatch)
+ *   1  CT GET /customers  (inside fetchBatch)
  *   1  createCustomer (batch size capped at 1 — CustomerMgr.createCustomer quota is 2/request)
  *   ─────────────────
  *   4  total
  *
- * @param {number} offset - CTP pagination offset
+ * @param {number} offset - CT pagination offset
  * @param {string} listId - SFCC customer list ID (e.g. "RefArch")
  * @returns {Object} { ok, total, nextOffset, created, skipped, failed, done, errors, mappings }
  *   mappings: [{ ctpId, sfccNo, ctpAddresses, defaultShippingId }] — used by the address phase
  */
 function runProfileBatch(offset, listId) {
     if (!listId) return { ok: false, error: 'listId is required' };
-
-    // First batch only: try to create CTP traceability attr definitions via OCAPI (non-fatal)
-    if (offset === 0) {
-        try {
-            var sfccToken = sfccClient.getSFCCToken();
-            ensureCtpAttributes(sfccToken);
-        } catch (te) { /* token or attr creation failed — non-fatal, migration continues */ }
-    }
 
     var batch     = fetcher.fetchBatch(offset, 1);      // 1 customer per request — CustomerMgr.createCustomer() quota is 2/request
     var customers = batch.results;
@@ -191,10 +144,10 @@ function runAddressBatch(sfccCustomerNo, ctpAddresses, listId, offset) {
 }
 
 /**
- * Migrate a single customer profile by CTP customer ID.
+ * Migrate a single customer profile by CT customer ID.
  * Used by the Partial Migration "selected IDs" mode.
  *
- * @param {string} ctpId  - CTP customer UUID
+ * @param {string} ctpId  - CT customer UUID
  * @param {string} listId - SFCC customer list ID
  * @returns {Object} { ok, created, skipped, failed, errors, mappings }
  */
@@ -211,7 +164,7 @@ function runProfileBatchById(ctpId, listId) {
     }
     if (!ctpCustomer) {
         return { ok: true, created: 0, skipped: 0, failed: 1,
-                 errors: [ctpId + ': customer not found in CTP'], mappings: [] };
+                 errors: [ctpId + ': customer not found in CT'], mappings: [] };
     }
 
     var transformed;

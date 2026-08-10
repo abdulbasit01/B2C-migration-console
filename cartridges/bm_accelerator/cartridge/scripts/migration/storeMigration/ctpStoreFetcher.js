@@ -22,7 +22,7 @@ function getToken() {
         body
     );
     if (res.status !== 200 || !res.data.access_token) {
-        throw new Error('CTP auth failed (' + res.status + ')');
+        throw new Error('CT auth failed (' + res.status + ')');
     }
     return res.data.access_token;
 }
@@ -59,7 +59,7 @@ function hasAddress(channel) {
 }
 
 /**
- * Fetch one page of CTP stores.
+ * Fetch one page of CT stores.
  * @param {number} offset
  * @param {number} [limit]
  * @returns {{ results: Array, total: number }}
@@ -74,7 +74,7 @@ function fetchBatch(offset, limit) {
         { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }
     );
     if (res.status !== 200) {
-        failCtp('CTP stores fetch failed', res);
+        failCtp('CT stores fetch failed', res);
     }
     return {
         results: res.data.results || [],
@@ -94,7 +94,7 @@ function storeMatchesRef(store, refSet) {
 }
 
 /**
- * Fetch all CTP stores from /stores.
+ * Fetch all CT stores from /stores.
  * @returns {Array}
  */
 function fetchAllCtpStores() {
@@ -112,7 +112,7 @@ function fetchAllCtpStores() {
             { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }
         );
         if (res.status !== 200) {
-            failCtp('CTP stores fetch failed', res);
+            failCtp('CT stores fetch failed', res);
         }
         batch = {
             results: res.data.results || [],
@@ -126,7 +126,7 @@ function fetchAllCtpStores() {
 }
 
 /**
- * Fetch all CTP channels indexed by id (for address enrichment).
+ * Fetch all CT channels indexed by id (for address enrichment).
  * @returns {Object.<string, Object>}
  */
 function fetchChannelMap() {
@@ -144,7 +144,7 @@ function fetchChannelMap() {
             { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }
         );
         if (res.status !== 200) {
-            failCtp('CTP channels fetch failed', res);
+            failCtp('CT channels fetch failed', res);
         }
         batch = {
             results: res.data.results || [],

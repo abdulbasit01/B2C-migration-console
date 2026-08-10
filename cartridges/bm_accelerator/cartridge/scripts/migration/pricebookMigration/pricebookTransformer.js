@@ -8,7 +8,7 @@ function toDecimal(value) {
 }
 
 /**
- * @param {Object} entry - CTP standalone price
+ * @param {Object} entry - CT standalone price
  * @returns {Object|null}
  */
 function transformEntry(entry) {
