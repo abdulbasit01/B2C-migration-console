@@ -2,7 +2,7 @@
 
 /**
  * Transform a CT address into an SFCC address payload.
- * CT: streetNumber + streetName → SFCC address1
+ * CT: streetName → SFCC address1
  * @param {Object}  addr        - CT address object
  * @param {boolean} isPreferred - whether to mark as preferred shipping address
  * @returns {Object|null} SFCC address payload, or null if addr is falsy
@@ -17,14 +17,12 @@ function transformAddress(addr, isPreferred) {
 
     if (addr.firstName)   sfccAddr.first_name   = addr.firstName;
     if (addr.lastName)    sfccAddr.last_name     = addr.lastName;
+    if (addr.title)       sfccAddr.title         = addr.title;
     if (addr.salutation)  sfccAddr.salutation    = addr.salutation;
     if (addr.company)     sfccAddr.company_name  = addr.company;
 
-    // CT stores street as streetNumber + streetName (number-first in some locales)
-    var street = '';
-    if (addr.streetNumber) street = addr.streetNumber + ' ';
-    if (addr.streetName)   street += addr.streetName;
-    if (street.trim())     sfccAddr.address1 = street.trim();
+    // Per nativeFieldMap.json: streetName -> address1
+    if (addr.streetName) sfccAddr.address1 = addr.streetName;
 
     if (addr.additionalStreetInfo) sfccAddr.address2 = addr.additionalStreetInfo;
     if (addr.city)       sfccAddr.city        = addr.city;
@@ -37,6 +35,9 @@ function transformAddress(addr, isPreferred) {
 
     if (addr.phone)  sfccAddr.phone = addr.phone;
     if (addr.mobile && !sfccAddr.phone) sfccAddr.phone = addr.mobile;
+
+    if (addr.pOBox)     sfccAddr.post_box = addr.pOBox;
+    if (addr.apartment) sfccAddr.suite    = addr.apartment;
 
     return sfccAddr;
 }
@@ -63,27 +64,18 @@ function transformCustomer(ctpCustomer) {
     if (ctpCustomer.companyName) profile.company_name  = ctpCustomer.companyName;
     if (ctpCustomer.dateOfBirth) profile.birthday      = ctpCustomer.dateOfBirth;
 
-    // CT salutation and title both map to SFCC salutation (title takes precedence if salutation absent)
-    if (ctpCustomer.salutation)                       profile.salutation = ctpCustomer.salutation;
-    else if (ctpCustomer.title)                       profile.salutation = ctpCustomer.title;
+    // salutation and title are independent native SFCC fields
+    if (ctpCustomer.salutation) profile.salutation = ctpCustomer.salutation;
+    if (ctpCustomer.title)      profile.title       = ctpCustomer.title;
 
-    // Store CT customer group — keep exact CT UUID as the bridge between systems
-    if (ctpCustomer.customerGroup && ctpCustomer.customerGroup.id) {
-        profile.c_ctp_customer_group_id = ctpCustomer.customerGroup.id;
-    }
+    // customerNumber maps to the native SFCC customerNo (per nativeFieldMap.json)
+    if (ctpCustomer.customerNumber) profile.customer_no = ctpCustomer.customerNumber;
 
-    // Store CT identifiers as custom attributes for traceability after migration
-    profile.c_ctp_customer_id = ctpCustomer.id;
-    if (ctpCustomer.customerNumber) {
-        profile.c_ctp_customer_number = ctpCustomer.customerNumber;
-        profile.c_CTCustomerId        = ctpCustomer.customerNumber;
-    }
-    if (ctpCustomer.externalId)  profile.c_ctp_external_id  = ctpCustomer.externalId;
-
-    // CT built-in fields with no standard SFCC equivalent — stored as custom attributes
-    if (ctpCustomer.vatId)      profile.c_ctp_vat_id      = ctpCustomer.vatId;
-    if (ctpCustomer.locale)     profile.c_ctp_locale      = ctpCustomer.locale;
-    if (ctpCustomer.middleName) profile.c_ctp_middle_name = ctpCustomer.middleName;
+    // CT built-in fields with a native SFCC Profile equivalent
+    if (ctpCustomer.vatId)      profile.tax_id          = ctpCustomer.vatId;
+    // CT locale is a hyphenated BCP-47 tag (e.g. "en-GB"); SFCC Locale IDs use an underscore (e.g. "en_GB").
+    if (ctpCustomer.locale)     profile.preferred_locale = ctpCustomer.locale.replace(/-/g, '_');
+    if (ctpCustomer.middleName) profile.second_name     = ctpCustomer.middleName;
 
     // Map CT custom fields → SFCC custom attributes (requires matching attr definitions in SFCC)
     if (ctpCustomer.custom && ctpCustomer.custom.fields) {

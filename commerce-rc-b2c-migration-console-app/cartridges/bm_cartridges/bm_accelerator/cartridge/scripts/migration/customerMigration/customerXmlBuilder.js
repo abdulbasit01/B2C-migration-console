@@ -15,6 +15,7 @@ function xmlEsc(val) {
 function buildAddressXml(addr) {
     var preferred = addr.preferred ? 'true' : 'false';
     var xml = '        <address address-id="' + xmlEsc(addr.address_id) + '" preferred="' + preferred + '">\n';
+    if (addr.title)        xml += '            <title>'        + xmlEsc(addr.title)        + '</title>\n';
     if (addr.salutation)   xml += '            <salutation>'   + xmlEsc(addr.salutation)   + '</salutation>\n';
     if (addr.first_name)   xml += '            <first-name>'   + xmlEsc(addr.first_name)   + '</first-name>\n';
     if (addr.last_name)    xml += '            <last-name>'    + xmlEsc(addr.last_name)    + '</last-name>\n';
@@ -23,9 +24,11 @@ function buildAddressXml(addr) {
     if (addr.address2)     xml += '            <address2>'     + xmlEsc(addr.address2)     + '</address2>\n';
     if (addr.city)         xml += '            <city>'         + xmlEsc(addr.city)         + '</city>\n';
     if (addr.postal_code)  xml += '            <postal-code>'  + xmlEsc(addr.postal_code)  + '</postal-code>\n';
+    if (addr.post_box)     xml += '            <post-box>'     + xmlEsc(addr.post_box)     + '</post-box>\n';
     if (addr.state_code)   xml += '            <state-code>'   + xmlEsc(addr.state_code)   + '</state-code>\n';
     if (addr.country_code) xml += '            <country-code>' + xmlEsc(addr.country_code) + '</country-code>\n';
     if (addr.phone)        xml += '            <phone>'        + xmlEsc(addr.phone)        + '</phone>\n';
+    if (addr.suite)        xml += '            <suite>'        + xmlEsc(addr.suite)        + '</suite>\n';
     xml += '        </address>\n';
     return xml;
 }
@@ -35,8 +38,9 @@ function buildCustomerXml(ctpCustomer) {
     var profile     = transformed.profile;
     var addresses   = transformed.addresses;
 
-    var ctpId      = String(ctpCustomer.id);
-    var customerNo = ctpId;
+    // customer-no is required by the IMPEX schema and can't be blank — prefer CT's own
+    // customerNumber (matches sfccCustomerWriter.js), fall back to CT id if it's not set.
+    var customerNo = profile.customer_no || String(ctpCustomer.id);
     var password   = require('*/cartridge/scripts/migration/core/tempPassword').generate();
     var login      = xmlEsc(profile.login || profile.email);
 
@@ -48,12 +52,16 @@ function buildCustomerXml(ctpCustomer) {
     xml += '        </credentials>\n';
 
     xml += '        <profile>\n';
-    if (profile.salutation)   xml += '            <salutation>'   + xmlEsc(profile.salutation)   + '</salutation>\n';
-    if (profile.first_name)   xml += '            <first-name>'   + xmlEsc(profile.first_name)   + '</first-name>\n';
-    if (profile.last_name)    xml += '            <last-name>'    + xmlEsc(profile.last_name)    + '</last-name>\n';
-    if (profile.email)        xml += '            <email>'        + xmlEsc(profile.email)        + '</email>\n';
-    if (profile.company_name) xml += '            <company-name>' + xmlEsc(profile.company_name) + '</company-name>\n';
-    if (profile.birthday)     xml += '            <birthday>'     + xmlEsc(profile.birthday)     + '</birthday>\n';
+    if (profile.title)            xml += '            <title>'            + xmlEsc(profile.title)            + '</title>\n';
+    if (profile.salutation)       xml += '            <salutation>'       + xmlEsc(profile.salutation)       + '</salutation>\n';
+    if (profile.first_name)       xml += '            <first-name>'       + xmlEsc(profile.first_name)       + '</first-name>\n';
+    if (profile.second_name)      xml += '            <second-name>'      + xmlEsc(profile.second_name)      + '</second-name>\n';
+    if (profile.last_name)        xml += '            <last-name>'        + xmlEsc(profile.last_name)        + '</last-name>\n';
+    if (profile.email)            xml += '            <email>'            + xmlEsc(profile.email)            + '</email>\n';
+    if (profile.company_name)     xml += '            <company-name>'     + xmlEsc(profile.company_name)     + '</company-name>\n';
+    if (profile.birthday)         xml += '            <birthday>'         + xmlEsc(profile.birthday)         + '</birthday>\n';
+    if (profile.preferred_locale) xml += '            <preferred-locale>' + xmlEsc(profile.preferred_locale) + '</preferred-locale>\n';
+    if (profile.tax_id)           xml += '            <tax-id>'           + xmlEsc(profile.tax_id)           + '</tax-id>\n';
     xml += '        </profile>\n';
 
     if (addresses.length > 0) {

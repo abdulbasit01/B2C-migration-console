@@ -9,13 +9,14 @@
  * @param {string} listId   - SFCC customer list ID (e.g. "RefArch")
  * @param {Object} profile  - SFCC customer profile fields from customerTransformer
  * @param {string} password - temporary password
- * @returns {{ ok: boolean, customerNo: string|null, skipped: boolean, error: string }}
+ * @returns {{ ok: boolean, customerNo: string|null, skipped: boolean, error: string|null }}
  */
 function createCustomer(token, listId, profile, password) {
     var CustomerMgr = require('dw/customer/CustomerMgr');
     var Transaction = require('dw/system/Transaction');
 
     var login = profile.login || profile.email;
+    /** @type {{ ok: boolean, skipped: boolean, customerNo: string|null, error: string|null }} */
     var result = { ok: false, skipped: false, customerNo: null, error: null };
 
     try {
@@ -29,9 +30,9 @@ function createCustomer(token, listId, profile, password) {
         }
 
         // CustomerMgr.createCustomer(login, pass, customerNo:String) sets a specific number.
-        // CustomerMgr.createCustomer(login, pass, list:CustomerList) auto-generates a numeric ID.
-        // We use the source system's own ID as-is as the customer number to match full-migration XML.
-        var sourceNo = profile.c_ctp_customer_id || profile.c_shopify_customer_id || null;
+        // CustomerMgr.createCustomer(login, pass, list:CustomerList) auto-generates a numeric ID
+        // (used when the source system has no native customer number to carry over).
+        var sourceNo = profile.customer_no || profile.c_shopify_customer_id || null;
         var customer = sourceNo
             ? CustomerMgr.createCustomer(login, password, String(sourceNo))
             : CustomerMgr.createCustomer(login, password, list);
@@ -42,12 +43,30 @@ function createCustomer(token, listId, profile, password) {
         }
 
         var p = customer.getProfile();
+        if (!p) {
+            Transaction.rollback();
+            result.error = 'Customer profile not found';
+            return result;
+        }
         if (profile.email)        p.setEmail(profile.email);
         if (profile.first_name)   p.setFirstName(profile.first_name);
         if (profile.last_name)    p.setLastName(profile.last_name);
         if (profile.company_name) p.setCompanyName(profile.company_name);
         if (profile.salutation)   p.setSalutation(profile.salutation);
         if (profile.phone)        p.setPhoneMobile(profile.phone);
+        // Restricted/validated fields can throw (permission or invalid-value errors) — must not block customer creation.
+        if (profile.second_name) {
+            try { p.setSecondName(profile.second_name); } catch (se) { /* ignore */ }
+        }
+        if (profile.title) {
+            try { p.setTitle(profile.title); } catch (tte) { /* ignore */ }
+        }
+        if (profile.preferred_locale) {
+            try { p.setPreferredLocale(profile.preferred_locale); } catch (le) { /* e.g. locale not enabled on site */ }
+        }
+        if (profile.tax_id) {
+            try { p.setTaxID(profile.tax_id); } catch (te) { /* insufficient permission or other write restriction */ }
+        }
 
         if (profile.birthday) {
             try {
@@ -77,8 +96,7 @@ function createCustomer(token, listId, profile, password) {
             }
         }
 
-        result.customerNo         = String(p.customerNo);
-        result.ctpCustomerGroupId = profile.c_ctp_customer_group_id || null;
+        result.customerNo = String(p.customerNo);
         Transaction.commit();
         result.ok = true;
     } catch (e) {
@@ -88,7 +106,7 @@ function createCustomer(token, listId, profile, password) {
         // Duplicate login — SFCC throws when login already exists anywhere in the realm
         if (msgLc.indexOf('exist') >= 0 || msgLc.indexOf('duplicate') >= 0 ||
             msgLc.indexOf('login')  >= 0 || msgLc.indexOf('already')   >= 0) {
-            return { ok: false, skipped: true, customerNo: null };
+            return { ok: false, skipped: true, customerNo: null, error: null };
         }
         result.error = msg;
     }
@@ -131,15 +149,18 @@ function createAddress(token, listId, customerNo, address) {
 
         if (address.first_name)   addr.setFirstName(address.first_name);
         if (address.last_name)    addr.setLastName(address.last_name);
+        if (address.title)        addr.setTitle(address.title);
         if (address.salutation)   addr.setSalutation(address.salutation);
         if (address.company_name) addr.setCompanyName(address.company_name);
         if (address.address1)     addr.setAddress1(address.address1);
         if (address.address2)     addr.setAddress2(address.address2);
         if (address.city)         addr.setCity(address.city);
         if (address.postal_code)  addr.setPostalCode(address.postal_code);
+        if (address.post_box)     addr.setPostBox(address.post_box);
         if (address.country_code) addr.setCountryCode(address.country_code);
         if (address.state_code)   addr.setStateCode(address.state_code);
         if (address.phone)        addr.setPhone(address.phone);
+        if (address.suite)        addr.setSuite(address.suite);
 
         if (address.preferred) {
             book.setPreferredAddress(addr);
