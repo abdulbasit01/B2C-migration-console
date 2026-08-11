@@ -6,11 +6,11 @@ alwaysApply: true
 # bm_accelerator Migration Console
 
 ## Layout
-- Controller: `cartridges/bm_accelerator/cartridge/controllers/Accelerator.js`
-- Wizard data: `cartridges/bm_accelerator/cartridge/scripts/accelerator/migrationData.js`
-- Order pipeline: `cartridges/bm_accelerator/cartridge/scripts/migration/orders/`
-- Templates: `cartridges/bm_accelerator/cartridge/templates/default/accelerator/`
-- Resources: `cartridges/bm_accelerator/cartridge/templates/resources/accelerator.properties`
+- Controller: `commerce-rc-b2c-migration-console-app/cartridges/bm_cartridges/bm_accelerator/cartridge/controllers/Accelerator.js`
+- Wizard data: `commerce-rc-b2c-migration-console-app/cartridges/bm_cartridges/bm_accelerator/cartridge/scripts/accelerator/migrationData.js`
+- Order pipeline: `commerce-rc-b2c-migration-console-app/cartridges/bm_cartridges/bm_accelerator/cartridge/scripts/migration/orders/`
+- Templates: `commerce-rc-b2c-migration-console-app/cartridges/bm_cartridges/bm_accelerator/cartridge/templates/default/accelerator/`
+- Resources: `commerce-rc-b2c-migration-console-app/cartridges/bm_cartridges/bm_accelerator/cartridge/templates/resources/accelerator.properties`
 - Config: Site Preferences (`migrationPreferences.js` / `configAccessor.js`); `dw.json` for upload only (never commit secrets)
 
 ## Two wizards

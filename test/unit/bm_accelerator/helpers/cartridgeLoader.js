@@ -8,7 +8,7 @@ var Module = require('module');
 var path   = require('path');
 var fs     = require('fs');
 
-var CARTRIDGE_ROOT = path.resolve(__dirname, '../../../../cartridges/bm_accelerator/cartridge');
+var CARTRIDGE_ROOT = path.resolve(__dirname, '../../../../commerce-rc-b2c-migration-console-app/cartridges/bm_cartridges/bm_accelerator/cartridge');
 var MOCK_ROOT      = path.resolve(__dirname, '../mocks');
 var originalResolve = Module._resolveFilename;
 var installed = false;

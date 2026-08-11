@@ -1,0 +1,13 @@
+{
+  "id": "rc-b2c-migration-console",
+  "name": "Royal Cyber B2C Migration Console",
+  "description": "Business Manager migration console and Amplience CMS storefront API for moving catalog, customers, orders, and content into Salesforce B2C Commerce.",
+  "domain": "cms",
+  "version": "1.0.0",
+  "publisher": {
+    "name": "Royal Cyber",
+    "url": "https://www.royalcyber.com/",
+    "support": "https://www.royalcyber.com/contact/"
+  },
+  "dependencies": {}
+}

@@ -1,0 +1,44 @@
+[
+  {
+    "taskKey": "grant_bm_module",
+    "taskNumber": 1,
+    "name": "Grant Business Manager module access",
+    "description": "Open Administration → Organization → Roles, select the merchant role, and enable the B2C Migration module and menu actions for this site.",
+    "link": "/on/demandware.store/Sites-Site/default/ViewRoles-List"
+  },
+  {
+    "taskKey": "confirm_cartridge_paths",
+    "taskNumber": 2,
+    "name": "Confirm cartridge paths",
+    "description": "Verify the Business Manager site cartridge path includes bm_accelerator and the storefront site path includes app_custom_cms (plus modules if you use SFRA controllers).",
+    "link": "/on/demandware.store/Sites-Site/default/ViewApplication-BM"
+  },
+  {
+    "taskKey": "configure_site_preferences",
+    "taskNumber": 3,
+    "name": "Configure site preferences",
+    "description": "Open Merchant Tools → Site Preferences → Custom Preferences → B2C Migration Console and enter source-platform, OCAPI, Amplience, and optional OpenAI values. Do not put production secrets in IMPEX.",
+    "link": "/on/demandware.store/Sites-Site/default/ViewApplication-BM"
+  },
+  {
+    "taskKey": "configure_service_credentials",
+    "taskNumber": 4,
+    "name": "Configure service credentials",
+    "description": "Open Administration → Operations → Services and confirm accelerator.* services exist. Runtime code sets URLs per call; leave placeholder credentials unless your instance requires them.",
+    "link": "/on/demandware.store/Sites-Site/default/ViewServices-Start"
+  },
+  {
+    "taskKey": "test_source_connection",
+    "taskNumber": 5,
+    "name": "Test source connection",
+    "description": "Open Merchant Tools → B2C Migration → Start Migration Wizard and run Test Connection for commercetools, Shopify, BigCommerce, or SAP.",
+    "link": "/on/demandware.store/Sites-Site/default/ViewApplication-BM?pid=Accelerator-Start"
+  },
+  {
+    "taskKey": "optional_amplience_storefront",
+    "taskNumber": 6,
+    "name": "Optional Amplience storefront extension",
+    "description": "If this instance uses Storefront Next with GitHub connected, merge the Commerce App storefront PR. Otherwise run b2c cap pull and copy storefront-next/ into the merchant sfnext app. The gallery calls AmplienceContent-List on the storefront site.",
+    "link": "/on/demandware.store/Sites-Site/default/ViewApplication-BM"
+  }
+]

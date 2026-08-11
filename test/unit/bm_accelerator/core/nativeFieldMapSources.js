@@ -8,12 +8,12 @@ var path = require('path');
 
 var nativeMapPath = path.join(
     __dirname,
-    '../../../../cartridges/bm_accelerator/cartridge/scripts/migration/config/nativeFieldMap.js'
+    '../../../../commerce-rc-b2c-migration-console-app/cartridges/bm_cartridges/bm_accelerator/cartridge/scripts/migration/config/nativeFieldMap.js'
 );
 
 var jsonPath = path.join(
     __dirname,
-    '../../../../cartridges/bm_accelerator/cartridge/scripts/migration/config/nativeFieldMap.json'
+    '../../../../commerce-rc-b2c-migration-console-app/cartridges/bm_cartridges/bm_accelerator/cartridge/scripts/migration/config/nativeFieldMap.json'
 );
 
 describe('nativeFieldMap.getSourcesForSystemField', function () {

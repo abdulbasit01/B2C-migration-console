@@ -140,7 +140,7 @@ describe('nativeFieldMap', function () {
     });
 
     it('enforces one-to-one alias targets (no duplicate SFCC fields)', function () {
-        var map = require('../../../../cartridges/bm_accelerator/cartridge/scripts/migration/config/nativeFieldMap.json');
+        var map = require('../../../../commerce-rc-b2c-migration-console-app/cartridges/bm_cartridges/bm_accelerator/cartridge/scripts/migration/config/nativeFieldMap.json');
         var platforms = Object.keys(map.aliases || {});
         var pi;
         for (pi = 0; pi < platforms.length; pi++) {

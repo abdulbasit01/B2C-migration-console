@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<services xmlns="http://www.demandware.com/xml/impex/services/2014-09-26">
+    <service service-id="accelerator.http.generic" mode="delete"/>
+    <service service-id="accelerator.shopify.api" mode="delete"/>
+    <service service-id="accelerator.bigcommerce.api" mode="delete"/>
+    <service service-id="accelerator.ctp.api" mode="delete"/>
+    <service service-id="accelerator.sap.api" mode="delete"/>
+    <service service-id="accelerator.sfcc.ocapi" mode="delete"/>
+    <service service-id="accelerator.sfcc.webdav" mode="delete"/>
+    <service service-id="accelerator.amplience.api" mode="delete"/>
+    <service service-id="accelerator.openai.api" mode="delete"/>
+
+    <service-profile service-profile-id="accelerator.http.profile" mode="delete"/>
+    <service-profile service-profile-id="accelerator.shopify.profile" mode="delete"/>
+    <service-profile service-profile-id="accelerator.bigcommerce.profile" mode="delete"/>
+    <service-profile service-profile-id="accelerator.sap.profile" mode="delete"/>
+    <service-profile service-profile-id="accelerator.sfcc.profile" mode="delete"/>
+    <service-profile service-profile-id="accelerator.webdav.profile" mode="delete"/>
+    <service-profile service-profile-id="accelerator.amplience.profile" mode="delete"/>
+    <service-profile service-profile-id="accelerator.openai.profile" mode="delete"/>
+
+    <service-credential service-credential-id="accelerator.http.credential" mode="delete"/>
+    <service-credential service-credential-id="accelerator.shopify.credential" mode="delete"/>
+    <service-credential service-credential-id="accelerator.bigcommerce.credential" mode="delete"/>
+    <service-credential service-credential-id="accelerator.ctp.credential" mode="delete"/>
+    <service-credential service-credential-id="accelerator.sap.credential" mode="delete"/>
+    <service-credential service-credential-id="accelerator.sfcc.credential" mode="delete"/>
+    <service-credential service-credential-id="accelerator.webdav.credential" mode="delete"/>
+    <service-credential service-credential-id="accelerator.amplience.credential" mode="delete"/>
+    <service-credential service-credential-id="accelerator.openai.credential" mode="delete"/>
+</services>

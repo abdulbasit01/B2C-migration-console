@@ -8,7 +8,7 @@ var proxyquire = require('proxyquire').noCallThru();
 
 var runnerPath = path.join(
     __dirname,
-    '../../../../cartridges/bm_accelerator/cartridge/scripts/migration/contentMigration/contentMigrationRunner.js'
+    '../../../../commerce-rc-b2c-migration-console-app/cartridges/bm_cartridges/bm_accelerator/cartridge/scripts/migration/contentMigration/contentMigrationRunner.js'
 );
 
 describe('Amplience content migration runner', function () {

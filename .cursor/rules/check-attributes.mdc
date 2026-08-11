@@ -30,8 +30,6 @@ All of 3.a–3.c must be evaluated against the **curated source↔target mapping
 | `attrPreflightRunner.classifyFields` | Shared classifier for all modules |
 | `attrMapSuggestor` + OpenAI | Optional suggestions for **3.c create candidates only** |
 
-Regenerate coverage after alias/system changes: `npm run coverage:native-fields`.
-
 **Product XML:** curated aliases + session maps drive CT product transform/XML (not hardcoded key-over-id). SFCC system field **`ID`** is written as the catalog **`product-id` attribute** (alias `id → ID` stays curated; XML shape is `product-id="..."`). Other platforms/objects reuse `systemFieldResolver` later.
 
 ## Lookup order (mandatory)
@@ -64,7 +62,7 @@ Use `getRule` / `resolveSystemId` / `isExplicitSkip` — **not** fuzzy `getEffec
 
 ## Key files
 
-- Config: `cartridges/bm_accelerator/cartridge/scripts/migration/config/nativeFieldMap.json`
+- Config: `commerce-rc-b2c-migration-console-app/cartridges/bm_cartridges/bm_accelerator/cartridge/scripts/migration/config/nativeFieldMap.json`
 - API: `.../config/nativeFieldMap.js`
 - Resolver: `.../core/systemFieldResolver.js`
 - Runner: `.../core/attrPreflightRunner.js`
