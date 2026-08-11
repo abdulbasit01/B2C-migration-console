@@ -15,11 +15,13 @@ var MODULE_FETCHERS = {
     pricebook: {
         commercetools: '*/cartridge/scripts/migration/pricebookMigration/ctpPricebookFetcher',
         shopify:       '*/cartridge/scripts/migration/pricebookMigration/shopifyPricebookFetcher',
+        sap:           '*/cartridge/scripts/migration/pricebookMigration/sapPricebookFetcher',
         bigcommerce:   '*/cartridge/scripts/migration/pricebookMigration/bcPricebookFetcher'
     },
     pricebookEmbedded: {
         commercetools: '*/cartridge/scripts/migration/pricebookMigration/ctpEmbeddedPriceFetcher',
         shopify:       '*/cartridge/scripts/migration/pricebookMigration/shopifyPricebookFetcher',
+        sap:           '*/cartridge/scripts/migration/pricebookMigration/sapPricebookFetcher',
         bigcommerce:   '*/cartridge/scripts/migration/pricebookMigration/bcPricebookFetcher'
     },
     tax: {

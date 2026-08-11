@@ -95,11 +95,13 @@ function getCommonUiLabels(platformId) {
         orderCountChecking: 'Checking ' + src + '...',
         pbDescStandalone:   pickStr(platformId, {
             shopify:       'Shopify variant prices',
-            commercetools: 'Commercetools standalone prices'
+            commercetools: 'Commercetools standalone prices',
+            sap:           'SAP Commerce product prices'
         }),
         pbDescEmbedded: pickStr(platformId, {
             shopify:       'Shopify embedded product prices',
-            commercetools: 'Commercetools embedded product prices'
+            commercetools: 'Commercetools embedded product prices',
+            sap:           'SAP Commerce embedded product prices'
         })
     };
 }
@@ -121,19 +123,22 @@ function buildPricebookDescription(platformId, currency, channelId, aggregate, e
     if (embeddedSource) {
         desc = pickStr(id, {
             shopify:       'Shopify embedded variant prices (' + cur + ')',
-            commercetools: 'Commercetools embedded product prices (' + cur + ')'
+            commercetools: 'Commercetools embedded product prices (' + cur + ')',
+            sap:           'SAP Commerce embedded product prices (' + cur + ')'
         });
     } else {
         desc = pickStr(id, {
             shopify:       'Shopify variant-price migration (' + cur + ')',
-            commercetools: 'Commercetools standalone-price migration (' + cur + ')'
+            commercetools: 'Commercetools standalone-price migration (' + cur + ')',
+            sap:           'SAP Commerce product-price migration (' + cur + ')'
         });
     }
 
     if (aggregate) {
         desc += pickStr(id, {
             shopify:       ' - store catalog',
-            commercetools: ' - all channels'
+            commercetools: ' - all channels',
+            sap:           ' - store catalog'
         });
     } else if (channelId) {
         desc += ' - channel ' + channelId;

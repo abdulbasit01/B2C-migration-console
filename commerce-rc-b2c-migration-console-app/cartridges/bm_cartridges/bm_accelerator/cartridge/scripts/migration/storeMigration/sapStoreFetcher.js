@@ -3,13 +3,12 @@
 /**
  * Fetch stores from SAP Commerce Cloud OCC v2.
  *
- * Verified via GET /{baseSiteId}/stores?pageSize=&currentPage=&fields=FULL
- * (Postman test, 2026-07): omitting query/latitude/longitude returns every
- * store for the base site, paginated via pagination.totalResults. Unlike CT,
- * address and geo-coordinates are embedded directly on each PointOfService —
- * there is no separate "channel" object to cross-reference, so this fetcher
- * treats every store as its own channel (self-referencing) to fit the shared
- * storeTransformer.js contract without modifying it.
+ * GET /{baseSiteId}/stores returns every store for the base site when query/
+ * latitude/longitude are omitted, paginated via pagination.totalResults. Unlike
+ * CT, address and geo-coordinates sit directly on each PointOfService — there's
+ * no separate "channel" object to look up, so this fetcher treats every store
+ * as its own channel (self-referencing) to fit the shared storeTransformer.js
+ * contract without changing it.
  */
 
 var sapApi = require('*/cartridge/scripts/migration/core/sapApi');

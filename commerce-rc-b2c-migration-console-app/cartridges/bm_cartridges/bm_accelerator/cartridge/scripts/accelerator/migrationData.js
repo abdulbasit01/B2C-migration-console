@@ -458,36 +458,45 @@ function getMigrationUi(platformId) {
 
     ui.pbIntro = pick({
         shopify: 'Migrate <strong>Shopify variant prices</strong> into SFCC pricebooks. Use <strong>Standalone Prices</strong> for catalog variant prices, or <strong>Product Embedded Prices</strong> for the same data grouped from products.',
-        commercetools: 'Migrate commercetools prices into SFCC pricebooks. Use <strong>Standalone Prices</strong> for CT <code>/standalone-prices</code>, or <strong>Product Embedded Prices</strong> to scan each product for variant prices.'
+        commercetools: 'Migrate commercetools prices into SFCC pricebooks. Use <strong>Standalone Prices</strong> for CT <code>/standalone-prices</code>, or <strong>Product Embedded Prices</strong> to scan each product for variant prices.',
+        sap: 'Migrate <strong>SAP Commerce product prices</strong> into SFCC pricebooks. SAP has no standalone price resource, so both Standalone and Product Embedded Prices scan the same <code>/products/search</code> data for this base site\'s single currency.'
     });
     ui.pbAttrScan = pick({
         shopify: 'Scans Shopify price-related metafield definitions and checks whether matching attributes exist on the SFCC <strong>PriceBook</strong> system object.',
-        commercetools: 'Scans CT <strong>standalone-price</strong> custom-type field definitions and checks whether matching attributes exist on the SFCC <strong>PriceBook</strong> system object.'
+        commercetools: 'Scans CT <strong>standalone-price</strong> custom-type field definitions and checks whether matching attributes exist on the SFCC <strong>PriceBook</strong> system object.',
+        sap: 'Checks traceability attributes for SAP Commerce pricebook migration. SAP Commerce has no verified endpoint yet for discovering custom price field definitions.'
     });
     ui.pbStandaloneHelp = pick({
         shopify: 'Pricebooks discovered from <strong>Shopify variant prices</strong>, grouped by shop currency.',
-        commercetools: 'Pricebooks discovered from CT <strong>/standalone-prices</strong>, grouped by currency and distribution channel.'
+        commercetools: 'Pricebooks discovered from CT <strong>/standalone-prices</strong>, grouped by currency and distribution channel.',
+        sap: 'Pricebooks discovered from <strong>SAP Commerce product prices</strong> — a single target for this base site\'s currency.'
     });
     ui.pbStandaloneLoading = pick({
         shopify: 'Click <strong>Load Standalone</strong> to scan variant prices from Shopify.',
-        commercetools: 'Click <strong>Load Standalone</strong> to scan standalone prices from commercetools.'
+        commercetools: 'Click <strong>Load Standalone</strong> to scan standalone prices from commercetools.',
+        sap: 'Click <strong>Load Standalone</strong> to scan product prices from SAP Commerce.'
     });
     ui.pbEmbeddedHelp = pick({
         shopify: 'Scans every Shopify product and extracts variant <strong>prices</strong> grouped by currency.',
-        commercetools: 'Scans every CT product and extracts variant <strong>embedded prices</strong> grouped by currency and channel.'
+        commercetools: 'Scans every CT product and extracts variant <strong>embedded prices</strong> grouped by currency and channel.',
+        sap: 'Scans every SAP Commerce product and extracts its embedded <strong>price</strong> for this base site\'s currency.'
     });
     ui.pbEmbeddedLoading = pick({
         shopify: 'Click <strong>Load Embedded</strong> to scan products for variant prices.',
-        commercetools: 'Click <strong>Load Embedded</strong> to scan products for embedded prices.'
+        commercetools: 'Click <strong>Load Embedded</strong> to scan products for embedded prices.',
+        sap: 'Click <strong>Load Embedded</strong> to scan products for prices from SAP Commerce.'
     });
     ui.pbNoStandalone = pick({
         shopify: 'No variant prices found in Shopify.',
-        commercetools: 'No standalone prices found in commercetools.'
+        commercetools: 'No standalone prices found in commercetools.',
+        sap: 'No product prices found in SAP Commerce.'
     });
     ui.pbNoEmbedded = pick({
         shopify: 'No embedded prices found on Shopify products.',
-        commercetools: 'No embedded prices found on CT products.'
+        commercetools: 'No embedded prices found on CT products.',
+        sap: 'No embedded prices found on SAP Commerce products.'
     });
+    ui.pbAttrsNoSource = 'No custom price fields to check yet.';
 
     ui.storeIntro = pick({
         shopify: 'Select Shopify <strong>locations</strong> to export into one SFCC store IMPEX XML file (physical stores / store locator).',
@@ -583,7 +592,8 @@ function getMigrationUi(platformId) {
     });
     ui.pbHowWorks = pick({
         shopify: 'Select pricebooks from either section (or both). Each generates SFCC pricebook XML with <code>price-table</code> entries per SKU, uploaded to WebDAV. Variant prices are read from Shopify products.',
-        commercetools: 'Select pricebooks from either section (or both). Each generates SFCC pricebook XML with <code>price-table</code> entries per SKU, uploaded to WebDAV. Standalone prices are fetched from <code>/standalone-prices</code>; embedded prices are extracted from each product variant.'
+        commercetools: 'Select pricebooks from either section (or both). Each generates SFCC pricebook XML with <code>price-table</code> entries per SKU, uploaded to WebDAV. Standalone prices are fetched from <code>/standalone-prices</code>; embedded prices are extracted from each product variant.',
+        sap: 'Select the pricebook target. Generates SFCC pricebook XML with <code>price-table</code> entries per SKU, uploaded to WebDAV. Prices are read from each SAP Commerce product\'s embedded price via <code>/products/search</code>.'
     });
     ui.storeHowWorks = pick({
         shopify: 'Fetches selected locations from Shopify, maps them to SFCC <code>store</code> elements, and uploads a single XML file to WebDAV.',
