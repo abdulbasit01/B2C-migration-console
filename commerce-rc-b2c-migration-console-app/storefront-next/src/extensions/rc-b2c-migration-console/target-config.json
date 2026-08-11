@@ -1,0 +1,9 @@
+{
+  "components": [
+    {
+      "targetId": "royalcyber.home.cms.amplienceGallery",
+      "path": "extensions/rc-b2c-migration-console/components/AmplienceGallery.tsx",
+      "order": 0
+    }
+  ]
+}

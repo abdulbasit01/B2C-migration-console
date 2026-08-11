@@ -8,7 +8,7 @@ var Module = require('module');
 
 var CARTRIDGE_ROOT = path.resolve(
     __dirname,
-    '../../../../cartridges/bm_accelerator/cartridge'
+    '../../../../commerce-rc-b2c-migration-console-app/cartridges/bm_cartridges/bm_accelerator/cartridge'
 );
 var originalResolve = Module._resolveFilename;
 var installed = false;

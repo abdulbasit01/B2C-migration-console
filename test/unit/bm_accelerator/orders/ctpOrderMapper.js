@@ -8,13 +8,13 @@ var path       = require('path');
 
 var mapperPath = path.join(
     __dirname,
-    '../../../../cartridges/bm_accelerator/cartridge/scripts/migration/orders/mappers/ctpOrderMapper.js'
+    '../../../../commerce-rc-b2c-migration-console-app/cartridges/bm_cartridges/bm_accelerator/cartridge/scripts/migration/orders/mappers/ctpOrderMapper.js'
 );
 
 function loadOrderModule(file) {
     return require(path.join(
         __dirname,
-        '../../../../cartridges/bm_accelerator/cartridge/scripts/migration/orders',
+        '../../../../commerce-rc-b2c-migration-console-app/cartridges/bm_cartridges/bm_accelerator/cartridge/scripts/migration/orders',
         file
     ));
 }

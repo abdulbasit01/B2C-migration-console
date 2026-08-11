@@ -8,7 +8,7 @@ var path = require('path');
 
 var clientPath = path.join(
     __dirname,
-    '../../../../cartridges/bm_accelerator/cartridge/scripts/migration/core/openAiClient.js'
+    '../../../../commerce-rc-b2c-migration-console-app/cartridges/bm_cartridges/bm_accelerator/cartridge/scripts/migration/core/openAiClient.js'
 );
 
 describe('openAiClient.parseJsonContent', function () {

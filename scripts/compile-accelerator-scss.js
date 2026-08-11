@@ -18,7 +18,7 @@ const path = require('path');
 const sass = require('sass');
 
 const ROOT = path.resolve(__dirname, '..');
-const CARTRIDGE = path.join(ROOT, 'cartridges/bm_accelerator/cartridge');
+const CARTRIDGE = path.join(ROOT, 'commerce-rc-b2c-migration-console-app/cartridges/bm_cartridges/bm_accelerator/cartridge');
 const SCSS = path.join(CARTRIDGE, 'client/default/scss/accelerator-migration.scss');
 const JS_SRC = path.join(CARTRIDGE, 'client/default/js/data-wizard.js');
 const INV_MIGRATION_SRC = path.join(CARTRIDGE, 'client/default/js/inventory-migration.js');

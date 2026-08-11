@@ -2,21 +2,15 @@
   "name": "b2c-migration-console",
   "version": "1.0.0",
   "description": "Royal Cyber B2C Migration Console (BM + CMS storefront API)",
-  "main": "index.js",
+  "private": true,
   "engines": {
     "node": ">=18.0"
   },
   "scripts": {
-    "watch:scss": "sass --watch cartridges/bm_accelerator/cartridge/client/default/scss/accelerator-migration.scss:cartridges/bm_accelerator/cartridge/static/default/css/accelerator-migration.css",
+    "watch:scss": "sass --watch commerce-rc-b2c-migration-console-app/cartridges/bm_cartridges/bm_accelerator/cartridge/client/default/scss/accelerator-migration.scss:commerce-rc-b2c-migration-console-app/cartridges/bm_cartridges/bm_accelerator/cartridge/static/default/css/accelerator-migration.css",
     "dev": "npm run compile:scss",
-    "test": "sgmf-scripts --test test/unit/bm_accelerator/**/*.js test/unit/app_custom_cms/**/*.js test/unit/packages/**/*.js",
-    "test:amplience-core": "mocha test/unit/packages/amplience-core/**/*.js",
+    "test": "sgmf-scripts --test test/unit/bm_accelerator/**/*.js test/unit/app_custom_cms/**/*.js",
     "test:cms": "mocha test/unit/app_custom_cms/**/*.js",
-    "start:react": "node scripts/sync-amplience-core-to-sfcc.js && node scripts/free-dev-port.js 3001 && npm run sync:sfcc-catalog && npm install --prefix react-storefront && npm run dev --prefix react-storefront",
-    "sync:sfcc-catalog": "node scripts/sync-sfcc-catalog-to-react.js",
-    "sync:sfcc-catalog:cdn": "node scripts/sync-sfcc-catalog-to-react.js --force --probe-cdn",
-    "export:amplience-catalog": "node scripts/export-amplience-catalog.js",
-    "sync:amplience-core": "node scripts/sync-amplience-core-to-sfcc.js",
     "cover": "sgmf-scripts --cover 'test/unit'",
     "compile:scss": "node scripts/compile-accelerator-scss.js",
     "build": "npm run compile:scss",
@@ -26,13 +20,16 @@
     "lint:isml": "isml-linter",
     "build:isml": "isml-linter --build",
     "fix:isml": "isml-linter --autofix",
-    "upload": "sgmf-scripts --upload",
-    "upload:accelerator": "npm run compile:scss && sgmf-scripts --uploadCartridge bm_accelerator",
-    "upload:cms": "sgmf-scripts --uploadCartridge app_custom_cms",
+    "upload": "npm run uploadCartridge",
+    "upload:accelerator": "npm run compile:scss && dwupload --cartridge commerce-rc-b2c-migration-console-app/cartridges/bm_cartridges/bm_accelerator",
+    "upload:cms": "dwupload --cartridge commerce-rc-b2c-migration-console-app/cartridges/bm_cartridges/app_custom_cms",
     "upload:amplience": "npm run upload:cms",
-    "uploadCartridge": "npm run compile:scss && sgmf-scripts --uploadCartridge bm_accelerator && sgmf-scripts --uploadCartridge app_custom_cms",
-    "coverage:native-fields": "python scripts/generate-native-field-coverage.py",
-    "release": "node bin/Makefile release --"
+    "uploadCartridge": "npm run upload:accelerator && npm run upload:cms",
+    "cap:validate": "npm run compile:scss && node scripts/cap-cli.js validate",
+    "cap:package": "npm run compile:scss && node scripts/cap-cli.js package",
+    "cap:install": "node scripts/cap-cli.js install",
+    "cap:uninstall": "node scripts/cap-cli.js uninstall",
+    "cap:list": "node scripts/cap-cli.js list --local"
   },
   "repository": {
     "type": "git",
@@ -58,7 +55,6 @@
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-import": "^2.29.0",
     "eslint-plugin-sitegenesis": "~1.0.0",
-    "husky": "^4.2.5",
     "isml-linter": "^5.26.4",
     "lodash": "^4.17.15",
     "minimist": "^1.2.6",
@@ -66,27 +62,19 @@
     "mocha-junit-reporter": "^2.0.2",
     "moment-timezone": "^0.5.26",
     "nyc": "^15.1.0",
-    "pptxgenjs": "^4.0.1",
     "prettier": "3.0.0",
     "properties-parser": "^0.3.1",
     "proxyquire": "1.7.4",
     "request-promise": "^4.2.6",
     "sass": "^1.69.7",
     "sgmf-scripts": "^3.0.0",
-    "shelljs": "^0.8.5",
     "should": "^13.2.3",
     "sinon": "^17.0.1",
     "xml2js": "^0.4.22"
   },
-  "packageName": "app_custom_cms",
   "babel": {
     "presets": [
       "env"
     ]
-  },
-  "husky": {
-    "hooks": {
-      "pre-commit": "npx eslint cartridges/bm_accelerator/cartridge/client/default/js/content-migration.js cartridges/bm_accelerator/cartridge/client/default/js/content-schema-migration.js"
-    }
   }
 }

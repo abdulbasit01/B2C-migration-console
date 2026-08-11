@@ -1,6 +1,0 @@
-node_modules/
-cartridges/app_custom_cms/cartridge/static/
-coverage/
-doc/
-bin/
-codecept.conf.js

@@ -1,5 +1,11 @@
 {
     "extends": "stylelint-config-standard-scss",
+    "ignoreFiles": [
+        "**/node_modules/**",
+        "**/coverage/**",
+        "**/dist/**",
+        "**/static/**"
+    ],
     "rules": {
         "at-rule-empty-line-before": [ "always", { "ignoreAtRules": ["else"], "ignore": ["blockless-after-same-name-blockless", "inside-block"] } ],
         "at-rule-no-unknown": [true, { "ignoreAtRules": ["include", "each", "mixin", "if", "else", "content"] } ],
@@ -12,7 +18,7 @@
     },
     "overrides": [
         {
-            "files": ["cartridges/bm_accelerator/cartridge/client/default/scss/accelerator-migration.scss"],
+            "files": ["commerce-rc-b2c-migration-console-app/cartridges/bm_cartridges/bm_accelerator/cartridge/client/default/scss/accelerator-migration.scss"],
             "rules": {
                 "selector-class-pattern": null,
                 "color-hex-length": null,

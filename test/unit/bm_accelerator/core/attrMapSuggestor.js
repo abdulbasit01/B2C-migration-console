@@ -8,7 +8,7 @@ var path = require('path');
 
 var suggestorPath = path.join(
     __dirname,
-    '../../../../cartridges/bm_accelerator/cartridge/scripts/migration/core/attrMapSuggestor.js'
+    '../../../../commerce-rc-b2c-migration-console-app/cartridges/bm_cartridges/bm_accelerator/cartridge/scripts/migration/core/attrMapSuggestor.js'
 );
 
 function loadSuggestor(openAiStub, claimedFields) {
