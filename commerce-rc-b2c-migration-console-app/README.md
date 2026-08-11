@@ -7,7 +7,7 @@ Private Commerce App Package (CAP) for Salesforce B2C Commerce. Ships:
 - **IMPEX** — `accelerator.*` services and `rcMig*` site preferences
 - **Storefront Next** extension — Amplience component gallery (`royalcyber.home.cms.amplienceGallery`)
 
-App id: `rc-b2c-migration-console` · Version: `1.0.0` · Domain: `cms` (private install; CMS hub domain is Wave 4)
+App id: `rc-b2c-migration-console` · Version: `1.0.0` · Domain: `analytics` (private install; Additional Setup hub — `cms` is Wave 4)
 
 This package is for **private** `b2c cap install` on customer sandboxes. It is not submitted to the Commerce App Registry.
 
