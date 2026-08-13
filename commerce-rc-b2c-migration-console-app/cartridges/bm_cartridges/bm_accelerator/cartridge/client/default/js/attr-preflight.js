@@ -367,7 +367,8 @@
             + '</summary>'
             + '<p style="font-size:12px;color:#8a9ab8;margin:0 0 10px;">'
             + 'No curated SFCC system map - select rows to create as custom attributes and map on export. '
-            + 'Rows highlighted in purple have AI suggestions above and start unchecked.'
+            + 'Rows highlighted in purple have AI suggestions above and start unchecked. '
+            + 'A globe means the attribute will be created as <strong>localized</strong> (cannot change after create).'
             + '</p>'
             + '<div style="border:2px solid #f9a825;border-radius:4px;overflow:hidden;'
             + 'background:#fffde7;box-shadow:0 0 0 1px #ffe082;"><table class="cm-attr-table"><thead><tr>'
@@ -387,18 +388,38 @@
             var idStyle = hasSuggest
                 ? ' style="color:#6a1b9a;font-weight:600;"'
                 : '';
+            var willLocalize = !!(m.localizable || m.scope === 'localized');
+            var sourceWasLocalized = !!(m.sourceLocalizable && !willLocalize);
+            var globeHtml = willLocalize
+                ? ' <span class="cm-attr-globe" title="Localized — cannot change after create"'
+                + ' style="font-size:14px;line-height:1;vertical-align:middle;"'
+                + ' aria-label="Localized">&#127760;</span>'
+                : '';
+            var sourceNote = sourceWasLocalized
+                ? '<div style="margin-top:4px;font-size:11px;color:#b26a00;line-height:1.35;">'
+                + 'Source is localized; SFCC stores a single non-localized value on this object.'
+                + '</div>'
+                : '';
             html += '<tr class="cm-attr-row' + (hasSuggest ? ' cm-attr-row--ai' : '') + '" data-idx="' + i
-                + '" data-id="' + escHtml(m.id) + '"' + rowStyle + '>'
+                + '" data-id="' + escHtml(m.id) + '"'
+                + (willLocalize ? ' data-localizable="1"' : '')
+                + rowStyle + '>'
                 + '<td style="text-align:center;"><input type="checkbox" class="acc-attr-cb" data-idx="' + i + '"'
                 + checked + '/></td>'
                 + '<td><input type="text" class="cm-attr-id-input" data-idx="' + i + '" data-canonical="'
                 + escHtml(m.id) + '" value="' + escHtml(m.id) + '"' + idStyle + '/>'
+                + globeHtml
                 + (hasSuggest
                     ? '<div style="margin-top:4px;font-size:11px;color:#6a1b9a;font-weight:600;">Suggested by AI</div>'
                     : '')
+                + sourceNote
                 + '<div class="cm-attr-map-hint" data-idx="' + i + '" style="display:none;margin-top:4px;font-size:11px;color:#54698d;line-height:1.35;"></div></td>'
                 + '<td>' + escHtml(m.label || m.id) + '</td>'
-                + '<td style="color:#8a9ab8;">' + escHtml(m.ctpType || m.sourceType || '') + '</td>'
+                + '<td style="color:#8a9ab8;">' + escHtml(m.ctpType || m.sourceType || '')
+                + (willLocalize
+                    ? ' <span style="color:#1565c0;font-size:11px;">(localized)</span>'
+                    : '')
+                + '</td>'
                 + '<td>' + sfccTypeSelectHtml(m, i) + '</td>'
                 + '<td><span class="cm-attr-status" data-idx="' + i + '" style="font-size:12px;color:'
                 + statusColor + ';">' + escHtml(statusText) + '</span></td></tr>';
@@ -726,6 +747,9 @@
                 label: orig.label,
                 ctpType: orig.ctpType || orig.sourceType,
                 sfccType: readSfccType(idx, orig.sfccType),
+                localizable: !!(orig.localizable || orig.scope === 'localized'),
+                siteSpecific: !!orig.siteSpecific,
+                sourceLocalizable: !!orig.sourceLocalizable,
                 idx: idx
             });
         }

@@ -35,6 +35,12 @@
             </p>
         </header>
 
+        <div class="acc-warn-box" style="margin:16px 0 0;padding:12px 16px;background:#fff8e1;border:1px solid #ffe082;border-left:4px solid #f9a825;border-radius:4px;font-size:13px;line-height:1.55;color:#5d4037;max-width:720px;">
+            <strong style="color:#e65100;">Localization note:</strong>
+            ${pdict.migrationUi.attrScopeUnsupportedWarn}
+            ${pdict.migrationUi.attrScopeUnsupportedObjectsPricebook}
+        </div>
+
         <div id="acc-attr-preflight" style="margin:24px 0 28px;border:1px solid #dddbda;border-radius:6px;overflow:hidden;">
             <script type="application/json" id="acc-migration-ui-data"><isprint value="${pdict.migrationUiJson}" encoding="off"/></script>
             <div style="background:#f4f6f9;border-bottom:1px solid #dddbda;padding:11px 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">

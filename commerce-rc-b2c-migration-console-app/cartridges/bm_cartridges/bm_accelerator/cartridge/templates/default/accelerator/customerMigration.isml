@@ -165,6 +165,12 @@
             </p>
         </header>
 
+        <div class="acc-warn-box" style="margin:16px 0 0;padding:12px 16px;background:#fff8e1;border:1px solid #ffe082;border-left:4px solid #f9a825;border-radius:4px;font-size:13px;line-height:1.55;color:#5d4037;max-width:720px;">
+            <strong style="color:#e65100;">Localization note:</strong>
+            ${pdict.migrationUi.attrScopeUnsupportedWarn}
+            ${pdict.migrationUi.attrScopeUnsupportedObjectsCustomer}
+        </div>
+
         <!-- -- Config row -- -->
         <div style="margin:24px 0 16px;">
             <div style="display:flex;align-items:flex-start;flex-wrap:wrap;gap:10px;">

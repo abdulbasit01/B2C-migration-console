@@ -35,7 +35,9 @@ const CSS_OUT_FILE = path.join(CSS_OUT_DIR, 'accelerator-migration.css');
 const JS_OUT_DIR = path.join(CARTRIDGE, 'static/default/js');
 const JS_OUT_FILE = path.join(JS_OUT_DIR, 'data-wizard.js');
 const ATTR_PREFLIGHT_SRC = path.join(CARTRIDGE, 'client/default/js/attr-preflight.js');
+const CSRF_SRC = path.join(CARTRIDGE, 'client/default/js/csrf.js');
 const ATTR_PREFLIGHT_OUT = path.join(JS_OUT_DIR, 'attr-preflight.js');
+const CSRF_OUT = path.join(JS_OUT_DIR, 'csrf.js');
 const INV_MIGRATION_OUT = path.join(JS_OUT_DIR, 'inventory-migration.js');
 const PB_MIGRATION_OUT = path.join(JS_OUT_DIR, 'pricebook-migration.js');
 const TX_MIGRATION_OUT = path.join(JS_OUT_DIR, 'tax-migration.js');
@@ -67,6 +69,11 @@ if (fs.existsSync(ATTR_PREFLIGHT_SRC)) {
     fs.mkdirSync(JS_OUT_DIR, { recursive: true });
     fs.copyFileSync(ATTR_PREFLIGHT_SRC, ATTR_PREFLIGHT_OUT);
     console.log('Copied attr-preflight.js →', ATTR_PREFLIGHT_OUT);
+}
+if (fs.existsSync(CSRF_SRC)) {
+    fs.mkdirSync(JS_OUT_DIR, { recursive: true });
+    fs.copyFileSync(CSRF_SRC, CSRF_OUT);
+    console.log('Copied csrf.js →', CSRF_OUT);
 }
 if (fs.existsSync(INV_MIGRATION_SRC)) {
     fs.mkdirSync(JS_OUT_DIR, { recursive: true });

@@ -37,12 +37,36 @@ function getEnricher(platformId) {
                     ? typeMap.resolveMetafieldType(sourceType)
                     : typeMap.resolveFieldType(sourceType))
                 || 'string';
+            var scope = attrBuilder.resolveAttributeScope(sourceType, entry.sfccObjectType);
             return {
-                id:              entry.id,
-                label:           entry.label,
-                ctpType:         sourceType,
-                sfccType:        sfccType,
-                sfccTypeOptions: [{ value: sfccType, label: sfccType }]
+                id:                entry.id,
+                label:             entry.label,
+                ctpType:           sourceType,
+                sfccType:          sfccType,
+                sfccTypeOptions:   [{ value: sfccType, label: sfccType }],
+                sourceLocalizable: scope.sourceLocalizable,
+                localizable:       scope.localizable,
+                siteSpecific:      scope.siteSpecific,
+                scope:             scope.scope
+            };
+        };
+    }
+    if (platformId === 'sap') {
+        var sapTypeMap = require('*/cartridge/scripts/migration/connectors/sap/sapTypeMap');
+        return function (entry) {
+            var sourceType = entry.sourceType || entry.ctpType || 'java.lang.String';
+            var sfccType = entry.sfccType || sapTypeMap.resolveAttributeType(sourceType) || 'string';
+            var scope = attrBuilder.resolveAttributeScope(sourceType, entry.sfccObjectType);
+            return {
+                id:                entry.id,
+                label:             entry.label,
+                ctpType:           sourceType,
+                sfccType:          sfccType,
+                sfccTypeOptions:   [{ value: sfccType, label: sfccType }],
+                sourceLocalizable: scope.sourceLocalizable,
+                localizable:       scope.localizable,
+                siteSpecific:      scope.siteSpecific,
+                scope:             scope.scope
             };
         };
     }
@@ -268,10 +292,11 @@ function classifyFields(opts) {
         if (sessionSystemCanon) {
             // Keep as create candidate; UI hydrates AI "already mapped" from sessionSystemMaps
             missing.push(enrich({
-                id:         id,
-                label:      norm.label,
-                sourceType: norm.sourceType,
-                ctpType:    norm.sourceType
+                id:             id,
+                label:          norm.label,
+                sourceType:     norm.sourceType,
+                ctpType:        norm.sourceType,
+                sfccObjectType: sfccObjectType
             }));
             continue;
         }
@@ -302,10 +327,11 @@ function classifyFields(opts) {
         }
 
         missing.push(enrich({
-            id:         id,
-            label:      norm.label,
-            sourceType:  norm.sourceType,
-            ctpType:    norm.sourceType
+            id:             id,
+            label:          norm.label,
+            sourceType:     norm.sourceType,
+            ctpType:        norm.sourceType,
+            sfccObjectType: sfccObjectType
         }));
     }
 
@@ -483,10 +509,24 @@ function createDefinitions(sfccObjectType, groupId, groupName, attrs) {
         }
 
         try {
+            var sourceType = attr.ctpType || attr.sourceType || '';
+            var scope = attrBuilder.resolveAttributeScope(sourceType, sfccObjectType);
+            var localizable = Object.prototype.hasOwnProperty.call(attr, 'localizable')
+                ? !!attr.localizable
+                : scope.localizable;
+            if (!attrBuilder.supportsAttributeScope(sfccObjectType)) {
+                localizable = false;
+            }
             var def = attrBuilder.buildAttrDefinition(
                 attrId,
                 attr.sfccType || 'string',
-                attr.label    || attrId
+                attr.label    || attrId,
+                {
+                    localizable:    localizable,
+                    siteSpecific:   false,
+                    sourceType:     sourceType,
+                    sfccObjectType: sfccObjectType
+                }
             );
             sfccClient.createAttributeDefinition(sfccToken, sfccObjectType, def);
             sfccClient.addAttributeToGroup(sfccToken, sfccObjectType, groupId, attrId);
