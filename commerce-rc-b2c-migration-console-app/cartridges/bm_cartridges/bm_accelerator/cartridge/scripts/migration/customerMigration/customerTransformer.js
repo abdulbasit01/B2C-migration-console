@@ -43,6 +43,25 @@ function transformAddress(addr, isPreferred) {
 }
 
 /**
+ * Resolve a raw CT custom-field value to a plain scalar for an SFCC custom attribute.
+ * LocalizedString/LocalizedEnum values arrive as { "en-GB": "...", "en-US": "..." } —
+ * pick the customer's own locale, falling back to the first available language.
+ * Set (array) values are joined into a single delimited string.
+ * @param {*} val - raw CT custom field value
+ * @param {string} [locale] - CT customer locale (e.g. "en-GB")
+ * @returns {*} scalar value suitable for an SFCC custom attribute
+ */
+function resolveCustomFieldValue(val, locale) {
+    if (val === null || typeof val !== 'object') return val;
+    if (Array.isArray(val)) {
+        return val.map(function (v) { return resolveCustomFieldValue(v, locale); }).join(', ');
+    }
+    if (locale && val[locale] !== undefined) return val[locale];
+    var keys = Object.keys(val);
+    return keys.length ? val[keys[0]] : '';
+}
+
+/**
  * Transform a CT customer record into SFCC customer creation payloads.
  * @param {Object} ctpCustomer - CT customer object
  * @returns {{ profile: Object, addresses: Array }}
@@ -87,7 +106,7 @@ function transformCustomer(ctpCustomer) {
             var val = fields[keys[i]];
             if (val !== null && val !== undefined) {
                 var sfccAttrId = attrIdMapSession.resolve(keys[i], attrMap);
-                profile['c_' + sfccAttrId] = val;
+                profile['c_' + sfccAttrId] = resolveCustomFieldValue(val, ctpCustomer.locale);
             }
         }
     }

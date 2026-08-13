@@ -62,6 +62,23 @@ function buildCustomerXml(ctpCustomer) {
     if (profile.birthday)         xml += '            <birthday>'         + xmlEsc(profile.birthday)         + '</birthday>\n';
     if (profile.preferred_locale) xml += '            <preferred-locale>' + xmlEsc(profile.preferred_locale) + '</preferred-locale>\n';
     if (profile.tax_id)           xml += '            <tax-id>'           + xmlEsc(profile.tax_id)           + '</tax-id>\n';
+
+    // Dynamic CT custom-type fields, mapped by customerTransformer to "c_<sfccAttrId>" profile keys.
+    var customAttrXml = '';
+    var profileKeys    = Object.keys(profile);
+    for (var pk = 0; pk < profileKeys.length; pk++) {
+        var key = profileKeys[pk];
+        if (key.length > 2 && key.charAt(0) === 'c' && key.charAt(1) === '_') {
+            var attrVal = profile[key];
+            if (attrVal !== null && attrVal !== undefined) {
+                customAttrXml += '                <custom-attribute attribute-id="' + xmlEsc(key.slice(2)) + '">' + xmlEsc(attrVal) + '</custom-attribute>\n';
+            }
+        }
+    }
+    if (customAttrXml) {
+        xml += '            <custom-attributes>\n' + customAttrXml + '            </custom-attributes>\n';
+    }
+
     xml += '        </profile>\n';
 
     if (addresses.length > 0) {
