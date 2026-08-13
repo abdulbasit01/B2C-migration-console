@@ -59,6 +59,24 @@ function hasAddress(channel) {
 }
 
 /**
+ * CT Store.countries is an array of StoreCountry objects ({ code: "US" }), not plain strings.
+ * Normalize to plain codes here so downstream code matches the other connectors' shape.
+ * @param {Array} stores
+ * @returns {Array}
+ */
+function normalizeStoreCountries(stores) {
+    var i;
+    for (i = 0; i < stores.length; i++) {
+        var store = stores[i];
+        if (!store || !store.countries || !store.countries.length) continue;
+        store.countries = store.countries.map(function (c) {
+            return (c && typeof c === 'object') ? (c.code || '') : c;
+        });
+    }
+    return stores;
+}
+
+/**
  * Fetch one page of CT stores.
  * @param {number} offset
  * @param {number} [limit]
@@ -77,7 +95,7 @@ function fetchBatch(offset, limit) {
         failCtp('CT stores fetch failed', res);
     }
     return {
-        results: res.data.results || [],
+        results: normalizeStoreCountries(res.data.results || []),
         total:   res.data.total   || 0
     };
 }
@@ -115,7 +133,7 @@ function fetchAllCtpStores() {
             failCtp('CT stores fetch failed', res);
         }
         batch = {
-            results: res.data.results || [],
+            results: normalizeStoreCountries(res.data.results || []),
             total:   res.data.total   || 0
         };
         out = out.concat(batch.results);

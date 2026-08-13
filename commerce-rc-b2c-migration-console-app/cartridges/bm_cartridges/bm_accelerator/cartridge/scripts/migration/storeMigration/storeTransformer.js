@@ -49,7 +49,10 @@ function parseGeoLocation(geo) {
 
 function firstCountry(store) {
     var countries = store && store.countries ? store.countries : [];
-    return countries.length ? countries[0] : '';
+    if (!countries.length) return '';
+    var first = countries[0];
+    // CT Store.countries is an array of StoreCountry objects ({ code: "US" }), not plain strings.
+    return (first && typeof first === 'object') ? (first.code || '') : first;
 }
 
 function readAttrIdMap() {
@@ -144,20 +147,18 @@ function buildCustomAttributes(storeId, country, store, channel, attrIdMap) {
 function transformStore(store, channelById, storeIdOverride, attrIdMap) {
     if (!store) return null;
 
-    var storeKey = store.key || store.id || '';
-    var storeId  = storeIdOverride || sanitizeStoreId(storeKey);
+    // Per nativeFieldMap.json: id -> ID (key kept only as a fallback if id is somehow absent)
+    var sourceId = store.id || store.key || '';
+    var storeId  = storeIdOverride || sanitizeStoreId(sourceId);
     if (!storeId) return null;
 
     var name         = getLocalized(store.name) || storeId;
+    // Per nativeFieldMap.json: countries -> countryCode
     var country      = firstCountry(store);
     var channel      = fetcher.findLinkedChannel(store, channelById);
     var addr         = channel && channel.address ? channel.address : null;
     var geo          = channel ? parseGeoLocation(channel.geoLocation) : { latitude: '', longitude: '' };
     var map          = attrIdMap || readAttrIdMap();
-
-    if (addr && addr.country) {
-        country = addr.country;
-    }
 
     return {
         storeId:                   storeId,
@@ -210,7 +211,7 @@ function toMigrationRef(store) {
  * @returns {Object}
  */
 function toSummary(store) {
-    var storeId = sanitizeStoreId(store.key || store.id);
+    var storeId = sanitizeStoreId(store.id || store.key);
     var countries = store.countries || [];
     return {
         ref:         toMigrationRef(store),
