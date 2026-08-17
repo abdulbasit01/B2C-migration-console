@@ -13,7 +13,10 @@ function transformAttributeDef(attr) {
     var valueType = typeMap.resolveAttributeType(sapType);
     var id        = String(attr.qualifier || '').replace(/[^a-zA-Z0-9_]/g, '_');
     var label     = attr.name || attr.qualifier;
-    return attrBuilder.buildAttrDefinition(id, valueType, label);
+    return attrBuilder.buildAttrDefinition(id, valueType, label, {
+        sourceType:     sapType,
+        sfccObjectType: attr.sfccObjectType || 'Product'
+    });
 }
 
 /**
@@ -23,7 +26,10 @@ function transformAttributeDef(attr) {
  */
 function transformStandardField(field) {
     var valueType = typeMap.resolveAttributeType(field.type || 'java.lang.String');
-    return attrBuilder.buildAttrDefinition(field.key, valueType, field.label || field.key);
+    return attrBuilder.buildAttrDefinition(field.key, valueType, field.label || field.key, {
+        sourceType:     field.type || 'java.lang.String',
+        sfccObjectType: field.sfccObjectType || 'Product'
+    });
 }
 
 module.exports = { transformAttributeDef: transformAttributeDef, transformStandardField: transformStandardField };

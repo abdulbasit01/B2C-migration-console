@@ -118,10 +118,6 @@
         var checkAttrsBtn = document.getElementById('acc-check-attrs-btn');
         var attrCheckMsg = document.getElementById('acc-attr-check-msg');
         var attrResults = document.getElementById('acc-attr-results');
-        var preflightModal = document.getElementById('acc-preflight-modal');
-        var modalAttrList = document.getElementById('acc-modal-attr-list');
-        var modalSkipBtn = document.getElementById('acc-modal-skip');
-        var modalCreateBtn = document.getElementById('acc-modal-create');
 
         var overview = null;
         var fileName = defaultFileName();
@@ -131,7 +127,6 @@
         var pendingMapped = [];
         var pendingCoverage = [];
         var pendingSkipped = [];
-        var modalCallback = null;
 
         function setPhase(prefix, id, state, detail, pct) {
             var li  = document.getElementById(prefix + '-phase-' + id);
@@ -282,22 +277,6 @@
             });
         }
 
-        function runPreflightThenMigrate(onContinue) {
-            get(cfg.checkAttrsUrl, function (data) {
-                if (!data.ok || !data.missing || !data.missing.length) {
-                    onContinue();
-                    return;
-                }
-                if (modalAttrList) {
-                    modalAttrList.innerHTML = '<p style="font-size:13px;color:#54698d;">'
-                        + (window.AccAttrPreflight ? window.AccAttrPreflight.missingBriefLabel(ui, data.missing.length) : data.missing.length + (ui.attrsMissingBrief || ' attribute(s) missing.'))
-                        + '</p>';
-                }
-                modalCallback = onContinue;
-                if (preflightModal) preflightModal.style.display = 'flex';
-            });
-        }
-
         function finalizeFull(success, uploadedFile) {
             fullRunning = false;
             if (startBtn) startBtn.disabled = false;
@@ -397,28 +376,6 @@
             });
         }
 
-        if (modalSkipBtn) {
-            modalSkipBtn.addEventListener('click', function () {
-                if (preflightModal) preflightModal.style.display = 'none';
-                if (modalCallback) modalCallback();
-            });
-        }
-
-        if (modalCreateBtn) {
-            modalCreateBtn.addEventListener('click', function () {
-                modalCreateBtn.disabled = true;
-                get(cfg.checkAttrsUrl, function (checkData) {
-                    var missing = (checkData && checkData.missing) ? checkData.missing : [];
-                    post(cfg.createAttrsUrl, 'attrs=' + encodeURIComponent(JSON.stringify(missing)), function (data) {
-                        modalCreateBtn.disabled = false;
-                        if (!data.ok) return;
-                        if (preflightModal) preflightModal.style.display = 'none';
-                        if (modalCallback) modalCallback();
-                    });
-                });
-            });
-        }
-
         if (startBtn) {
             startBtn.addEventListener('click', function () {
                 if (fullFinished) {
@@ -429,8 +386,7 @@
                 if (fullRunning) return;
                 fullFinished = false;
                 startBtn.disabled = true;
-                startBtn.textContent = ui.checkingAttrs || 'Checking attributes...';
-                runPreflightThenMigrate(beginMigration);
+                beginMigration();
             });
         }
     }

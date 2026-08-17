@@ -95,6 +95,14 @@ function getCtpProductTypeFields() {
 function checkMissingAttributes() {
     var fields = nativeMap.getMappedSourceFields('commercetools', 'Product');
     var i;
+    // Product.key is a CT built-in (not a Product Type attr): offer create or map, never skip / never ID.
+    fields.push({
+        name:      'key',
+        sourceKey: 'key',
+        sfccId:    'key',
+        label:     'Key',
+        ctpType:   'text'
+    });
     try {
         var ctpFields = getCtpProductTypeFields();
         for (i = 0; i < ctpFields.length; i++) {

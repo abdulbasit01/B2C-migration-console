@@ -10,7 +10,10 @@ var attrBuilder = require('*/cartridge/scripts/migration/core/attrBuilder');
  */
 function transformStandardField(field) {
     var valueType = typeMap.resolveFieldType(field.type || 'string');
-    return attrBuilder.buildAttrDefinition(field.key, valueType, field.label || field.key);
+    return attrBuilder.buildAttrDefinition(field.key, valueType, field.label || field.key, {
+        sourceType:     field.type || 'string',
+        sfccObjectType: field.sfccObjectType || null
+    });
 }
 
 /**
@@ -23,7 +26,10 @@ function transformCustomField(cf) {
     var id    = String(rawId).replace(/[^a-zA-Z0-9_]/g, '_');
     var label = cf.label || cf.name || id;
     var valueType = typeMap.resolveFieldType(cf.type || 'string');
-    return attrBuilder.buildAttrDefinition(id, valueType, label);
+    return attrBuilder.buildAttrDefinition(id, valueType, label, {
+        sourceType:     cf.type || 'string',
+        sfccObjectType: cf.sfccObjectType || null
+    });
 }
 
 module.exports = {

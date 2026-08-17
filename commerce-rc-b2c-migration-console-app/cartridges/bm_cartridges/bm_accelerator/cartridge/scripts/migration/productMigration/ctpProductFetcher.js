@@ -54,7 +54,9 @@ function getCount() {
 function fetchBatch(offset, limit) {
     var c   = cfg.ctp;
     var tok = getToken();
-    var qs  = '?limit=' + (limit || 500) + '&offset=' + (offset || 0) + '&sort=id+asc&withTotal=true&expand=productType';
+    var qs  = '?limit=' + (limit || 500) + '&offset=' + (offset || 0)
+        + '&sort=id+asc&withTotal=true'
+        + '&expand=productType&expand=masterData.current.categories[*]';
 
     var res = http.get(
         c.apiUrl + '/' + c.projectKey + '/products' + qs,
@@ -78,7 +80,8 @@ function fetchById(productId) {
     var c   = cfg.ctp;
     var tok = getToken();
     var res = http.get(
-        c.apiUrl + '/' + c.projectKey + '/products/' + encodeURIComponent(productId) + '?expand=productType',
+        c.apiUrl + '/' + c.projectKey + '/products/' + encodeURIComponent(productId)
+            + '?expand=productType&expand=masterData.current.categories[*]',
         { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' }
     );
     if (res.status !== 200) {
@@ -87,4 +90,43 @@ function fetchById(productId) {
     return res.data;
 }
 
-module.exports = { getCount: getCount, fetchBatch: fetchBatch, fetchById: fetchById };
+/**
+ * CT category UUID → SFCC category-id (key when present, else UUID).
+ * Uses dw.util.HashMap — a plain JS object would exceed api.jsObjectSize (2000).
+ * @returns {dw.util.HashMap}
+ */
+function fetchCategoryIdMap() {
+    var HashMap = require('dw/util/HashMap');
+    var c     = cfg.ctp;
+    var tok   = getToken();
+    var map   = new HashMap();
+    var limit = 500;
+    var offset = 0;
+    var total = null;
+
+    do {
+        var res = http.get(
+            c.apiUrl + '/' + c.projectKey + '/categories?limit=' + limit
+                + '&offset=' + offset + '&withTotal=true',
+            { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' }
+        );
+        if (res.status !== 200) break;
+        if (total === null) total = res.data.total || 0;
+        var results = res.data.results || [];
+        var i;
+        for (i = 0; i < results.length; i++) {
+            var cat = results[i];
+            if (cat && cat.id) map.put(cat.id, cat.key || cat.id);
+        }
+        offset += limit;
+    } while (total !== null && offset < total);
+
+    return map;
+}
+
+module.exports = {
+    getCount: getCount,
+    fetchBatch: fetchBatch,
+    fetchById: fetchById,
+    fetchCategoryIdMap: fetchCategoryIdMap
+};

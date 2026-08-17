@@ -181,7 +181,26 @@ function transformAll(ctCategories, defaultLocale) {
     return sfccCategories;
 }
 
+/**
+ * CT category UUID → SFCC category-id (key when present, else UUID).
+ * Same ID scheme as transformCategory / catalog XML.
+ * @param {Array} ctCategories
+ * @returns {Object.<string, string>}
+ */
+function buildIdToSfccIdMap(ctCategories) {
+    var map = {};
+    var list = ctCategories || [];
+    var i;
+    for (i = 0; i < list.length; i++) {
+        var cat = list[i];
+        if (!cat || !cat.id) continue;
+        map[cat.id] = cat.key || cat.id;
+    }
+    return map;
+}
+
 module.exports = {
     transformCategory : transformCategory,
-    transformAll      : transformAll
+    transformAll      : transformAll,
+    buildIdToSfccIdMap: buildIdToSfccIdMap
 };

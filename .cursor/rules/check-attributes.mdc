@@ -41,7 +41,7 @@ For each source field id:
 3. **Explicit skip** in `skipped[platform][task]` → show in skipped section; **do not** create
 4. Else → **3.c** create candidate (propose SFCC custom id = **exact source name**, including hyphens; no silent hyphen→underscore rewrite for CT; **no** `ctp_` / platform prefix unless the source name itself has it)
 5. If the proposed/custom id **already exists** in SFCC (system or custom) → treat as exists (no create)
-6. **Optional AI suggest** (OpenAI, Site Prefs `rcMigOpenAi*`): after Check Attributes returns create candidates, the UI shows **Validating with AI…**, then calls `Accelerator-SuggestAttrMaps`. Allow-list = live/`sfccSystem` ids **minus** curated `aliases` targets (`getClaimedSystemFields`) **minus** SFCC fields already shown as mapped in Check Attributes (`excludeSfccFields`). Results show as **Validated with AI** with purple-highlighted suggestion rows — never auto-map, never auto-create, never write curated aliases. If AI disabled/fails, create list unchanged.
+6. **Optional AI suggest** (OpenAI, Site Prefs `rcMigOpenAi*`): after Check Attributes returns create candidates, the UI shows **Validating with AI…**, then calls `Accelerator-SuggestAttrMaps`. Allow-list = live/`sfccSystem` ids **minus** curated `aliases` targets (`getClaimedSystemFields`) **minus** SFCC fields already shown as mapped in Check Attributes (`excludeSfccFields`). Results show as **Validated with AI** with purple-highlighted suggestion rows — never auto-map, never auto-create, never write curated aliases. If AI disabled/fails, create list unchanged. Create candidates (including CT `key`) can also be mapped by the user to any **coverage-pending** (uncurated) SFCC system id whose type is compatible with the source from the Check Attributes dropdown — same session `SaveAttrIdMap` as AI accept; curated alias targets are not offered; 1:1 exclusive.
 
 Use `getRule` / `resolveSystemId` / `isExplicitSkip` — **not** fuzzy `getEffectiveRule` token matching for classify/create decisions. Do **not** add semantic aliases (e.g. `product-description` → `longDescription`) to `nativeFieldMap.json`; rely on AI suggestions instead.
 
@@ -52,10 +52,11 @@ Use `getRule` / `resolveSystemId` / `isExplicitSkip` — **not** fuzzy `getEffec
 - **Do** show and create CT source attribute ids exactly as on the source (e.g. `product-description`, not `product_description`)
 - **Do** keep platform normalize: `commercetools` / `ctp` → `ct`
 - **Do** call OpenAI only for create candidates when enabled + API key present
+- **Do** let the user map a 3.c create candidate to any uncurated/coverage-pending SFCC system field whose **value_type is compatible** with the source (string/text/html family, int/double, boolean, date, datetime — not cross-family). Same session `SaveAttrIdMap` as AI accept; curated alias targets are not offered; 1:1 exclusive.
 - **Don’t** hardcode migration “trace” attrs into the create table (`product_id`, `ctp_customer_id`, store trace ids, etc.)
 - **Don’t** invent SFCC system ids without a BM dump entry in `sfccSystem`
 - **Don’t** map `id` → `UUID` unless the source field is actually a UUID; prefer `id` → `ID` where applicable
-- **Don’t** map CT `key` to `ID` (key is custom/skip by policy)
+- **Don’t** map CT `key` to `ID` (key is a Check Attributes create/map candidate; catalog `product-id` stays `id → ID`)
 - **Don’t** prefer CT `key` over mapped `id` when writing catalog `product-id`
 - **Don’t** rewrite CT hyphens to underscores for Check Attributes / create / XML attribute ids
 - **Don’t** treat AI suggestions as curated aliases or silent maps

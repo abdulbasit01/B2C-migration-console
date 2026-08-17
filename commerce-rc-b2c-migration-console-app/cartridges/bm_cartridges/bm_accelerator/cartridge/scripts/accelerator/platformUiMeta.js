@@ -92,6 +92,18 @@ function getCommonUiLabels(platformId) {
         attrsAllInSync:     'All in sync.',
         attrCheckFailed:    'Check failed',
         attrCheckError:     'Could not check ' + short + ' attributes:',
+        attrScopeUnsupportedWarn:
+            'SFCC does not support localizable or site-specific attributes on this object. '
+            + 'Source attributes that are localized (mapped or newly created) will not remain localized after migration; '
+            + 'values are stored as a single non-localized value.',
+        attrScopeUnsupportedObjectsCustomer:
+            'Applies to Customer / Profile and customer address attributes.',
+        attrScopeUnsupportedObjectsOrder:
+            'Applies to Order attributes.',
+        attrScopeUnsupportedObjectsPricebook:
+            'Applies to PriceBook attributes.',
+        attrScopeUnsupportedObjectsInventory:
+            'Applies to ProductInventoryList and ProductInventoryRecord attributes.',
         orderCountChecking: 'Checking ' + src + '...',
         pbDescStandalone:   pickStr(platformId, {
             shopify:       'Shopify variant prices',

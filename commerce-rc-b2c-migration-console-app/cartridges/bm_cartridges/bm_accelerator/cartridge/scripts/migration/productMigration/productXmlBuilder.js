@@ -69,18 +69,65 @@ function buildCtpCustomAttrInner(attributes, selectedVarAttrs, productAttrMap, i
 var UUID_RE_XML = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
+ * Per-build options: localizableAttrIds (id → true/false/null from live BM Product defs),
+ * categoryIdToSfcc. Missing/unknown: locale maps keep xml:lang; non-localizable keys omit it.
+ */
+var _xmlOpts = {};
+
+function sfccCustomAttrExists(attrId) {
+    var map = _xmlOpts && _xmlOpts.localizableAttrIds;
+    if (map == null || attrId == null) return false;
+    if (typeof map.containsKey === 'function') return map.containsKey(attrId);
+    return Object.prototype.hasOwnProperty.call(map, attrId);
+}
+
+/**
+ * CT Product.key is product-level. Write as custom attr when the user created/mapped
+ * it in Check Attributes; never when the session target is an SFCC system field.
+ */
+function ctpProductKeyCustomXml(t, productAttrMap, selectedVarAttrs, indent) {
+    if (!t || !t.ctpKey) return '';
+    var mapped = attrIdMapSession.resolve('key', productAttrMap);
+    var target = mapped || 'key';
+    if (isProductSystemAttr(target)) return '';
+    var selected = selectedVarAttrs && selectedVarAttrs.indexOf('key') !== -1;
+    if (!sfccCustomAttrExists(target) && !selected) return '';
+    return customAttributeXml(indent, target, t.ctpKey);
+}
+
+function mapGet(map, key) {
+    if (!map || key == null) return '';
+    if (typeof map.get === 'function') {
+        var hv = map.get(key);
+        return (hv == null) ? '' : String(hv);
+    }
+    return map[key] ? String(map[key]) : '';
+}
+
+function resolveCategorySfccId(ctRef) {
+    if (!ctRef) return '';
+    var s = String(ctRef);
+    var mapped = mapGet(_xmlOpts && _xmlOpts.categoryIdToSfcc, s);
+    return mapped || s;
+}
+
+/**
  * Convert a CT member product UUID to its SFCC product ID.
- * Uses the batch lookup map (populated in buildXml) so member references
- * resolve to the same ID the product itself uses in the catalog XML.
+ * Prefers the batch lookup map, then the same id→ID schema map as the product itself.
+ * Never emits the legacy CT+nodash id when the member is a UUID (id → ID catalogs).
  */
 var _uuidToSfccId = {};
 function ctpMemberIdToSfcc(ctpId) {
     if (!ctpId) return '';
     var s = String(ctpId);
-    if (UUID_RE_XML.test(s)) {
-        return _uuidToSfccId[s] || ('CT' + s.replace(/-/g, ''));
-    }
-    return s;
+    var fromBatch = mapGet(_uuidToSfccId, s);
+    if (fromBatch) return fromBatch;
+    if (!UUID_RE_XML.test(s)) return s;
+    var mapped = ctpTransformer.resolveMasterProductId
+        ? ctpTransformer.resolveMasterProductId({ id: s })
+        : s;
+    if (mapped && /^CT[0-9a-f]{32}$/i.test(mapped)) return s;
+    return mapped || s;
 }
 
 /** Self-closing tag when value is empty, otherwise wraps value. */
@@ -92,7 +139,8 @@ function optTag(tag, val) {
 
 /**
  * Normalize string or locale map to { locale: text }.
- * @param {string|Object.<string, string>} val
+ * Also accepts CT lenum `{ key, label: { locale: text } }`.
+ * @param {string|Object} val
  * @returns {Object.<string, string>}
  */
 function normalizeLocaleMap(val) {
@@ -101,7 +149,11 @@ function normalizeLocaleMap(val) {
         return { 'x-default': String(val) };
     }
     if (typeof val !== 'object' || Array.isArray(val)) return {};
-    if (val.key !== undefined || val.typeId !== undefined) return {};
+    if (val.typeId !== undefined) return {};
+    if (val.label && typeof val.label === 'object' && !Array.isArray(val.label)) {
+        return normalizeLocaleMap(val.label);
+    }
+    if (val.key !== undefined) return {};
     var out = {};
     var keys = Object.keys(val);
     var i;
@@ -111,6 +163,176 @@ function normalizeLocaleMap(val) {
         out[keys[i]] = String(val[keys[i]]);
     }
     return out;
+}
+
+function defaultLocaleText(map) {
+    if (!map) return '';
+    return map['x-default'] || map.en || map['en-US'] || map['en-GB'] || map['en-AU']
+        || (Object.keys(map).length ? map[Object.keys(map)[0]] : '');
+}
+
+function isHexColor(s) {
+    return /^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/.test(String(s || ''));
+}
+
+function titleCaseWord(s) {
+    if (!s || !/^[a-z]+$/.test(s)) return s;
+    return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+function localeMapHasLangs(map) {
+    var keys = Object.keys(map || {});
+    if (keys.length > 1) return true;
+    if (keys.length === 1 && keys[0] !== 'x-default') return true;
+    return false;
+}
+
+function localeOrString(locales, fallback) {
+    if (locales && typeof locales === 'object' && !Array.isArray(locales) && Object.keys(locales).length) {
+        return locales;
+    }
+    return fallback;
+}
+
+function copyLocaleMap(map) {
+    var out = {};
+    var keys = Object.keys(map || {});
+    var i;
+    for (i = 0; i < keys.length; i++) out[keys[i]] = map[keys[i]];
+    return out;
+}
+
+/**
+ * Parse a CT attr value into an SFCC variation axis: non-localized key + display-value locales.
+ * Long text / newlines are not variation values (they stay as custom attributes).
+ * @returns {{ key: string, displayMap: Object, localizable: boolean }|null}
+ */
+function parseVariationValue(val) {
+    if (val == null || val === '') return null;
+    var key = '';
+    var displayMap = {};
+    var localizable = false;
+
+    if (typeof val === 'object' && !Array.isArray(val)) {
+        if (val.typeId !== undefined) return null;
+        if (val.key) {
+            key = String(val.key).trim();
+            displayMap = copyLocaleMap(normalizeLocaleMap(val.label));
+            localizable = Object.keys(displayMap).length > 0;
+            if (!Object.keys(displayMap).length) displayMap['x-default'] = key;
+        } else {
+            displayMap = copyLocaleMap(normalizeLocaleMap(val));
+            key = defaultLocaleText(displayMap);
+            localizable = Object.keys(displayMap).length > 0;
+        }
+    } else {
+        key = String(val).trim();
+        displayMap['x-default'] = key;
+        localizable = /[a-zA-Z]/.test(key) && !isHexColor(key);
+    }
+
+    if (!key || key.length > 80 || key.indexOf('\n') !== -1) return null;
+
+    if (displayMap['x-default'] == null) {
+        displayMap['x-default'] = titleCaseWord(key) || key;
+    } else if (displayMap['x-default'] === key) {
+        displayMap['x-default'] = titleCaseWord(key) || key;
+    }
+    if (isHexColor(key)) localizable = false;
+    return { key: key, displayMap: displayMap, localizable: localizable };
+}
+
+function emitLocalizedCustomAttribute(indent, attrId, map) {
+    var keys = Object.keys(map);
+    if (!keys.length) return '';
+    var def = defaultLocaleText(map);
+    if (!def) return '';
+    var xml = indent + '<custom-attribute attribute-id="' + xmlEsc(attrId)
+        + '" xml:lang="x-default">' + xmlEsc(def) + '</custom-attribute>\n';
+    var i;
+    for (i = 0; i < keys.length; i++) {
+        if (keys[i] === 'x-default') continue;
+        xml += indent + '<custom-attribute attribute-id="' + xmlEsc(attrId)
+            + '" xml:lang="' + xmlEsc(keys[i]) + '">'
+            + xmlEsc(map[keys[i]]) + '</custom-attribute>\n';
+    }
+    return xml;
+}
+
+/**
+ * Live SFCC Product definition: true / false / null (unknown — not in BM dump).
+ * @param {string} attrId
+ * @returns {boolean|null}
+ */
+function sfccAttrLocalizable(attrId) {
+    var map = _xmlOpts && _xmlOpts.localizableAttrIds;
+    if (map == null || attrId == null) return null;
+    if (typeof map.get === 'function') {
+        var hv;
+        if (typeof map.containsKey === 'function') {
+            if (map.containsKey(attrId)) {
+                hv = map.get(attrId);
+            } else {
+                return null;
+            }
+        } else {
+            hv = map.get(attrId);
+        }
+        if (hv == null || hv === 'x') return null;
+        return hv === true || hv === 1 || hv === '1' || hv === 'true' || String(hv) === 'true';
+    }
+    if (!Object.prototype.hasOwnProperty.call(map, attrId)) return null;
+    var pv = map[attrId];
+    if (pv == null || pv === 'x') return null;
+    return pv === true || pv === 1 || pv === '1' || pv === 'true';
+}
+
+function unlocalizedCustomAttribute(indent, attrId, scalar) {
+    if (!scalar) return '';
+    return indent + '<custom-attribute attribute-id="' + xmlEsc(attrId) + '">'
+        + xmlEsc(scalar) + '</custom-attribute>\n';
+}
+
+/**
+ * Custom attribute XML.
+ * Live BM localizable flag is the source of truth: xml:lang on every entry when
+ * the SFCC attribute is localizable. Non-localizable defs omit xml:lang.
+ * Unknown defs: locale maps (ltext) keep xml:lang; variation keys do not.
+ */
+function customAttributeXml(indent, attrId, val) {
+    if (val === null || val === undefined) return '';
+    var axis = parseVariationValue(val);
+    var sourceMap = normalizeLocaleMap(val);
+    var map = Object.keys(sourceMap).length ? copyLocaleMap(sourceMap) : {};
+    var scalar = axis ? axis.key : defaultLocaleText(map);
+    if (!scalar && (typeof val === 'string' || typeof val === 'number')) {
+        scalar = String(val);
+    }
+    if (!scalar && typeof val === 'object' && !Array.isArray(val) && val.key != null) {
+        scalar = String(val.key);
+    }
+    if (!scalar) return '';
+
+    var loc = sfccAttrLocalizable(attrId);
+    var hasLangs = localeMapHasLangs(sourceMap);
+    if (loc === true || (loc == null && hasLangs)) {
+        if (!Object.keys(map).length) {
+            map['x-default'] = scalar;
+        } else if (!map['x-default']) {
+            map['x-default'] = defaultLocaleText(map) || scalar;
+        }
+        return emitLocalizedCustomAttribute(indent, attrId, map);
+    }
+    if (loc === false) {
+        return unlocalizedCustomAttribute(indent, attrId, scalar);
+    }
+    if (axis) {
+        return unlocalizedCustomAttribute(indent, attrId, axis.key);
+    }
+    if (Object.keys(map).length) {
+        return emitLocalizedCustomAttribute(indent, attrId, map);
+    }
+    return unlocalizedCustomAttribute(indent, attrId, scalar);
 }
 
 /**
@@ -124,59 +346,28 @@ function localizedElementsXml(indent, tag, localeMapOrString) {
     var map = normalizeLocaleMap(localeMapOrString);
     var keys = Object.keys(map);
     if (!keys.length) return '';
-    var xml = '';
-    if (map['x-default'] == null) {
-        var def = map.en || map['en-US'] || map['en-GB'] || map['en-AU'] || map[keys[0]];
-        xml += indent + '<' + tag + ' xml:lang="x-default">' + xmlEsc(def) + '</' + tag + '>\n';
-    }
-    for (var i = 0; i < keys.length; i++) {
+    var def = defaultLocaleText(map);
+    var xml = indent + '<' + tag + ' xml:lang="x-default">' + xmlEsc(def) + '</' + tag + '>\n';
+    var i;
+    for (i = 0; i < keys.length; i++) {
+        if (keys[i] === 'x-default') continue;
         xml += indent + '<' + tag + ' xml:lang="' + xmlEsc(keys[i]) + '">'
             + xmlEsc(map[keys[i]]) + '</' + tag + '>\n';
     }
     return xml;
 }
 
-/**
- * Custom attribute XML: localized maps → one element per xml:lang; else single value.
- * @param {string} indent
- * @param {string} attrId
- * @param {*} val
- * @returns {string}
- */
-function customAttributeXml(indent, attrId, val) {
-    if (val === null || val === undefined) return '';
-    if (typeof val === 'object' && !Array.isArray(val) && val.key !== undefined && val.key !== null) {
-        return indent + '<custom-attribute attribute-id="' + xmlEsc(attrId) + '">'
-            + xmlEsc(String(val.key)) + '</custom-attribute>\n';
+function variationAxisDisplayName(attrId) {
+    var parts = String(attrId || '').split(/[-_]/);
+    var i;
+    var w;
+    var out = [];
+    for (i = 0; i < parts.length; i++) {
+        w = parts[i];
+        if (!w) continue;
+        out.push(w.charAt(0).toUpperCase() + w.slice(1));
     }
-    var map = normalizeLocaleMap(val);
-    var keys = Object.keys(map);
-    if (!keys.length) {
-        if (typeof val === 'string' || typeof val === 'number') {
-            var s = String(val);
-            if (!s) return '';
-            return indent + '<custom-attribute attribute-id="' + xmlEsc(attrId) + '">'
-                + xmlEsc(s) + '</custom-attribute>\n';
-        }
-        return '';
-    }
-    // Single non-locale scalar already normalized to x-default only
-    if (keys.length === 1 && keys[0] === 'x-default') {
-        return indent + '<custom-attribute attribute-id="' + xmlEsc(attrId) + '">'
-            + xmlEsc(map['x-default']) + '</custom-attribute>\n';
-    }
-    var xml = '';
-    if (map['x-default'] == null) {
-        var def = map.en || map['en-US'] || map['en-GB'] || map['en-AU'] || map[keys[0]];
-        xml += indent + '<custom-attribute attribute-id="' + xmlEsc(attrId)
-            + '" xml:lang="x-default">' + xmlEsc(def) + '</custom-attribute>\n';
-    }
-    for (var i = 0; i < keys.length; i++) {
-        xml += indent + '<custom-attribute attribute-id="' + xmlEsc(attrId)
-            + '" xml:lang="' + xmlEsc(keys[i]) + '">'
-            + xmlEsc(map[keys[i]]) + '</custom-attribute>\n';
-    }
-    return xml;
+    return out.join(' ') || attrId;
 }
 
 /**
@@ -186,13 +377,13 @@ function customAttributeXml(indent, attrId, val) {
 function buildPageAttributes(t) {
     var indent = '            ';
     var inner = '';
-    inner += localizedElementsXml(indent, 'page-title', t.metaTitleLocales || t.metaTitle);
-    inner += localizedElementsXml(indent, 'page-description', t.metaDescriptionLocales || t.metaDescription);
-    inner += localizedElementsXml(indent, 'page-url', t.slugLocales || t.slug);
+    inner += localizedElementsXml(indent, 'page-title', localeOrString(t.metaTitleLocales, t.metaTitle));
+    inner += localizedElementsXml(indent, 'page-description', localeOrString(t.metaDescriptionLocales, t.metaDescription));
+    inner += localizedElementsXml(indent, 'page-url', localeOrString(t.slugLocales, t.slug));
     if (t.metaKeywordsLocales || t.metaKeywords) {
-        inner += localizedElementsXml(indent, 'page-keywords', t.metaKeywordsLocales || t.metaKeywords);
+        inner += localizedElementsXml(indent, 'page-keywords', localeOrString(t.metaKeywordsLocales, t.metaKeywords));
     }
-    if (!inner) return '';
+    if (!inner) return '        <page-attributes/>\n';
     return '        <page-attributes>\n' + inner + '        </page-attributes>\n';
 }
 
@@ -276,33 +467,12 @@ function buildVariationsXml(t, selectedVarAttrs, platform) {
             }
             sfccAxisId = resolveProductAttrId(sfccAxisId);
 
-            var key     = '';
-            var display = '';
-
-            if (typeof val === 'object' && !Array.isArray(val)) {
-                // CT lenum/enum: { key: "P2V", label: { "en": "Gray" } }
-                if (val.key) {
-                    key     = String(val.key).trim();
-                    display = (val.label && typeof val.label === 'object')
-                        ? (val.label['en'] || val.label[Object.keys(val.label)[0]] || key).trim()
-                        : key;
-                } else {
-                    // plain localized string { "en": "value" }
-                    var loc = val['en'] || val['en-US'] || (Object.keys(val).length ? val[Object.keys(val)[0]] : '');
-                    key     = String(loc || '').trim();
-                    display = key;
-                }
-            } else {
-                key     = String(val).trim();
-                display = key;
-            }
-
-            // Skip empty or whitespace-only keys (SFCC requires \S|(\S(.*)\S) pattern)
-            if (!key) continue;
-            // Skip long text strings — not suitable as variation axis values (SFCC limit 256 chars)
-            if (key.length > 256) continue;
+            var parsed = parseVariationValue(val);
+            if (!parsed) continue;
+            var key = parsed.key;
+            var displayMap = parsed.displayMap;
             if (!attrMap[sfccAxisId]) attrMap[sfccAxisId] = {};
-            if (!attrMap[sfccAxisId][key]) attrMap[sfccAxisId][key] = display;
+            if (!attrMap[sfccAxisId][key]) attrMap[sfccAxisId][key] = displayMap;
         }
     }
 
@@ -314,16 +484,14 @@ function buildVariationsXml(t, selectedVarAttrs, platform) {
             xml += '                <variation-attribute attribute-id="' + xmlEsc(attrName)
                 + '" variation-attribute-id="' + xmlEsc(attrName) + '">\n';
             xml += '                    <display-name xml:lang="x-default">'
-                + xmlEsc(attrName.charAt(0).toUpperCase() + attrName.slice(1))
+                + xmlEsc(variationAxisDisplayName(attrName))
                 + '</display-name>\n';
             xml += '                    <variation-attribute-values>\n';
             var valueKeys = Object.keys(attrMap[attrName]);
             for (var vki = 0; vki < valueKeys.length; vki++) {
                 var vKey = valueKeys[vki];
                 xml += '                        <variation-attribute-value value="' + xmlEsc(vKey) + '">\n';
-                xml += '                            <display-value xml:lang="x-default">'
-                    + xmlEsc(attrMap[attrName][vKey])
-                    + '</display-value>\n';
+                xml += localizedElementsXml('                            ', 'display-value', attrMap[attrName][vKey]);
                 xml += '                        </variation-attribute-value>\n';
             }
             xml += '                    </variation-attribute-values>\n';
@@ -383,55 +551,75 @@ var STORE_ATTRS = '        <store-attributes>\n'
     + '            <non-discountable-flag>false</non-discountable-flag>\n'
     + '        </store-attributes>\n';
 
+function unitAndQtyXml(t) {
+    var xml = '';
+    xml += optTag('ean', t.ean);
+    xml += optTag('upc', t.upc);
+    if (t.unit) {
+        xml += '        <unit>' + xmlEsc(t.unit) + '</unit>\n';
+    } else {
+        xml += '        <unit/>\n';
+    }
+    if (t.unitQuantity != null && t.unitQuantity !== '') {
+        xml += '        <unit-quantity>' + xmlEsc(String(t.unitQuantity)) + '</unit-quantity>\n';
+    }
+    xml += '        <min-order-quantity>' + xmlEsc(t.minOrderQuantity || '1') + '</min-order-quantity>\n';
+    xml += '        <step-quantity>' + xmlEsc(t.stepQuantity || '1') + '</step-quantity>\n';
+    return xml;
+}
+
+function classificationCategoryXml(t) {
+    var classCatId = resolveCategorySfccId(t.classificationCategory);
+    var classCatalogId = (_xmlOpts && _xmlOpts.catalogId) || '';
+    if (classCatId && classCatalogId) {
+        return '        <classification-category catalog-id="' + xmlEsc(classCatalogId) + '">'
+            + xmlEsc(classCatId) + '</classification-category>\n';
+    }
+    if (classCatId) {
+        return '        <classification-category>' + xmlEsc(classCatId) + '</classification-category>\n';
+    }
+    return '';
+}
+
 /**
  * Build product XML + category-assignment XML for one transformed product.
  * Matches reference SFCC catalog XML structure exactly.
  *
  * @returns {{ productXml: string, categoryXml: string }}
  */
-function buildProductXml(t, selectedVarAttrs) {
+function buildProductXml(t, selectedVarAttrs, xmlOpts) {
+    if (xmlOpts) _xmlOpts = xmlOpts;
     var pid        = xmlEsc(t.productId);
     var productXml = '';
     var catXml     = '';
 
     // ── Master / simple product ───────────────────────────────────────────
     productXml += '    <product product-id="' + pid + '">\n';
-    productXml += optTag('ean',  t.ean);
-    productXml += optTag('upc',  t.upc);
-    // unit / quantities: only when schema or session map provided a value (no hardcoded defaults)
-    if (t.unit) {
-        productXml += '        <unit>' + xmlEsc(t.unit) + '</unit>\n';
-    } else {
-        productXml += '        <unit/>\n';
-    }
-    if (t.minOrderQuantity) {
-        productXml += '        <min-order-quantity>' + xmlEsc(t.minOrderQuantity) + '</min-order-quantity>\n';
-    }
-    if (t.stepQuantity) {
-        productXml += '        <step-quantity>' + xmlEsc(t.stepQuantity) + '</step-quantity>\n';
-    }
+    productXml += unitAndQtyXml(t);
 
-    productXml += localizedElementsXml('        ', 'display-name', t.nameLocales || t.name);
-    productXml += localizedElementsXml('        ', 'short-description', t.shortDescriptionLocales || t.shortDescription);
-    productXml += localizedElementsXml('        ', 'long-description', t.longDescriptionLocales || t.longDescription);
+    productXml += localizedElementsXml('        ', 'display-name', localeOrString(t.nameLocales, t.name));
+    productXml += localizedElementsXml('        ', 'short-description', localeOrString(t.shortDescriptionLocales, t.shortDescription));
+    productXml += localizedElementsXml('        ', 'long-description', localeOrString(t.longDescriptionLocales, t.longDescription));
 
     productXml += '        <online-flag>' + (t.onlineFlag === false ? 'false' : 'true') + '</online-flag>\n';
     productXml += '        <available-flag>true</available-flag>\n';
     productXml += '        <searchable-flag>true</searchable-flag>\n';
-    productXml += '        <searchable-if-unavailable-flag>false</searchable-if-unavailable-flag>\n';
 
     // Images skipped — CT image URLs are external and incompatible with SFCC DIS path format
-
-    if (t.taxClassId)       productXml += '        <tax-class-id>'       + xmlEsc(t.taxClassId)       + '</tax-class-id>\n';
-    if (t.brand)            productXml += '        <brand>'              + xmlEsc(t.brand)            + '</brand>\n';
-    if (t.manufacturerName) productXml += '        <manufacturer-name>'  + xmlEsc(t.manufacturerName) + '</manufacturer-name>\n';
-    if (t.manufacturerSku)  productXml += '        <manufacturer-sku>'   + xmlEsc(t.manufacturerSku)  + '</manufacturer-sku>\n';
-
-    productXml += buildPageAttributes(t);
 
     var sourcePlatform = t.shopifyId ? 'shopify'
         : (t.sapId ? 'sap'
             : (t.bcId ? 'bigcommerce' : 'ctp'));
+
+    if (t.taxClassId)       productXml += '        <tax-class-id>'       + xmlEsc(t.taxClassId)       + '</tax-class-id>\n';
+    if (t.brand)            productXml += '        <brand>'              + xmlEsc(t.brand)            + '</brand>\n';
+    if (t.manufacturerName) productXml += '        <manufacturer-name>'  + xmlEsc(t.manufacturerName) + '</manufacturer-name>\n';
+    // CT sku is unique per variant — manufacturer-sku belongs on variant products only.
+    if (t.manufacturerSku && !(sourcePlatform === 'ctp' && t.hasVariants)) {
+        productXml += '        <manufacturer-sku>' + xmlEsc(t.manufacturerSku) + '</manufacturer-sku>\n';
+    }
+
+    productXml += buildPageAttributes(t);
 
     var productAttrMap = attrIdMapSession.read('product');
 
@@ -444,6 +632,7 @@ function buildProductXml(t, selectedVarAttrs) {
             productAttrMap,
             '            '
         );
+        masterInner += ctpProductKeyCustomXml(t, productAttrMap, selectedVarAttrs, '            ');
         if (masterInner) {
             productXml += '        <custom-attributes>\n' + masterInner + '        </custom-attributes>\n';
         }
@@ -459,10 +648,7 @@ function buildProductXml(t, selectedVarAttrs) {
         productXml += buildVariationsXml(t, selectedVarAttrs, sourcePlatform);
     }
 
-    // classification-category: use first CT category key if available
-    if (t.classificationCategory) {
-        productXml += '        <classification-category>' + xmlEsc(t.classificationCategory) + '</classification-category>\n';
-    }
+    productXml += classificationCategoryXml(t);
 
     productXml += '        <pinterest-enabled-flag>false</pinterest-enabled-flag>\n';
     productXml += '        <facebook-enabled-flag>false</facebook-enabled-flag>\n';
@@ -484,15 +670,14 @@ function buildProductXml(t, selectedVarAttrs) {
             } else {
                 productXml += '        <unit/>\n';
             }
-            if (t.minOrderQuantity) {
-                productXml += '        <min-order-quantity>' + xmlEsc(t.minOrderQuantity) + '</min-order-quantity>\n';
-            }
-            if (t.stepQuantity) {
-                productXml += '        <step-quantity>' + xmlEsc(t.stepQuantity) + '</step-quantity>\n';
-            }
+            productXml += '        <min-order-quantity>' + xmlEsc(t.minOrderQuantity || '1') + '</min-order-quantity>\n';
+            productXml += '        <step-quantity>' + xmlEsc(t.stepQuantity || '1') + '</step-quantity>\n';
             productXml += '        <online-flag>' + (t.onlineFlag === false ? 'false' : 'true') + '</online-flag>\n';
             productXml += '        <available-flag>true</available-flag>\n';
+            productXml += '        <searchable-flag>true</searchable-flag>\n';
+            if (t.taxClassId) productXml += '        <tax-class-id>' + xmlEsc(t.taxClassId) + '</tax-class-id>\n';
             if (v.sku) productXml += '        <manufacturer-sku>' + xmlEsc(v.sku) + '</manufacturer-sku>\n';
+            productXml += '        <page-attributes/>\n';
 
             var varInner;
             var hasVarSelection = selectedVarAttrs && selectedVarAttrs.length;
@@ -577,6 +762,7 @@ function buildProductXml(t, selectedVarAttrs) {
 
             if (varInner) productXml += '        <custom-attributes>\n' + varInner + '        </custom-attributes>\n';
 
+            productXml += classificationCategoryXml(t);
             productXml += '        <pinterest-enabled-flag>false</pinterest-enabled-flag>\n';
             productXml += '        <facebook-enabled-flag>false</facebook-enabled-flag>\n';
             productXml += STORE_ATTRS;
@@ -586,7 +772,9 @@ function buildProductXml(t, selectedVarAttrs) {
 
     // ── Category assignments (after ALL products in the file) ─────────────
     for (var ci = 0; ci < t.categories.length; ci++) {
-        catXml += '    <category-assignment category-id="' + xmlEsc(t.categories[ci]) + '" product-id="' + pid + '">\n';
+        var assignCatId = resolveCategorySfccId(t.categories[ci]);
+        if (!assignCatId) continue;
+        catXml += '    <category-assignment category-id="' + xmlEsc(assignCatId) + '" product-id="' + pid + '">\n';
         if (ci === 0) catXml += '        <primary-flag>true</primary-flag>\n';
         catXml += '    </category-assignment>\n';
     }
@@ -603,10 +791,13 @@ function buildProductXml(t, selectedVarAttrs) {
  * @param {string}   catalogId        - used only for UUID→SFCC-ID map key; not written here
  * @param {Array}    selectedVarAttrs
  * @param {Function} [transformerFn]
+ * @param {Object}   [xmlOpts]          - { localizableAttrIds, categoryIdToSfcc }
  * @returns {{ productsXml, categoriesXml, built, failed, errors, setCount, bundleCount }}
  */
-function buildXmlParts(rawProducts, catalogId, selectedVarAttrs, transformerFn) {
+function buildXmlParts(rawProducts, catalogId, selectedVarAttrs, transformerFn, xmlOpts) {
     var transform = transformerFn || ctpTransformer.transformProduct;
+    _xmlOpts = xmlOpts || {};
+    if (catalogId && !_xmlOpts.catalogId) _xmlOpts.catalogId = catalogId;
 
     _uuidToSfccId = {};
     for (var mi = 0; mi < rawProducts.length; mi++) {
@@ -616,7 +807,7 @@ function buildXmlParts(rawProducts, catalogId, selectedVarAttrs, transformerFn) 
             // Same schema map as transformer: id → ID → product-id (never prefer key)
             _uuidToSfccId[cpId] = ctpTransformer.resolveMasterProductId
                 ? ctpTransformer.resolveMasterProductId(cp)
-                : ('CT' + String(cpId).replace(/-/g, ''));
+                : String(cpId);
         }
     }
 
@@ -665,10 +856,11 @@ function buildXmlParts(rawProducts, catalogId, selectedVarAttrs, transformerFn) 
  * @param {string}   catalogId
  * @param {Array}    selectedVarAttrs
  * @param {Function} [transformerFn]
+ * @param {Object}   [xmlOpts]
  * @returns {{ xml, built, failed, errors, setCount, bundleCount }}
  */
-function buildXml(rawProducts, catalogId, selectedVarAttrs, transformerFn) {
-    var parts = buildXmlParts(rawProducts, catalogId, selectedVarAttrs, transformerFn);
+function buildXml(rawProducts, catalogId, selectedVarAttrs, transformerFn, xmlOpts) {
+    var parts = buildXmlParts(rawProducts, catalogId, selectedVarAttrs, transformerFn, xmlOpts);
 
     var xml = '<?xml version="1.0" encoding="UTF-8"?>\n'
             + '<catalog xmlns="http://www.demandware.com/xml/impex/catalog/2006-10-31"'

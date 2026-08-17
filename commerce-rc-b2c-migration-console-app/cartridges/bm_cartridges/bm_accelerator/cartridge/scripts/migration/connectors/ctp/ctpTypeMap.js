@@ -1,5 +1,7 @@
 'use strict';
 
+var attrBuilder = require('*/cartridge/scripts/migration/core/attrBuilder');
+
 var PRODUCT_TYPE_MAP = {
     text:            'string',
     ltext:           'string',
@@ -150,19 +152,25 @@ function getSfccTypeOptions(ctpType, defaultType) {
 
 /**
  * Build a missing-attribute payload for pre-flight UI (includes selectable SFCC types).
- * @param {Object} entry - { id, label, ctpType, sfccType? }
+ * @param {Object} entry - { id, label, ctpType, sfccType?, sfccObjectType? }
  * @param {Function} [resolveFn] - optional resolver (resolveCustomFieldType or resolveProductType)
  * @returns {Object}
  */
 function enrichMissingAttribute(entry, resolveFn) {
     var resolver = resolveFn || resolveCustomFieldType;
-    var sfccType = entry.sfccType || resolver(entry.ctpType) || 'string';
+    var sourceType = entry.ctpType || entry.sourceType || '';
+    var sfccType = entry.sfccType || resolver(sourceType) || 'string';
+    var scope = attrBuilder.resolveAttributeScope(sourceType, entry.sfccObjectType);
     return {
-        id:              entry.id,
-        label:           entry.label,
-        ctpType:         entry.ctpType,
-        sfccType:        sfccType,
-        sfccTypeOptions: getSfccTypeOptions(entry.ctpType, sfccType)
+        id:                 entry.id,
+        label:              entry.label,
+        ctpType:            sourceType,
+        sfccType:           sfccType,
+        sfccTypeOptions:    getSfccTypeOptions(sourceType, sfccType),
+        sourceLocalizable:  scope.sourceLocalizable,
+        localizable:        scope.localizable,
+        siteSpecific:       scope.siteSpecific,
+        scope:              scope.scope
     };
 }
 

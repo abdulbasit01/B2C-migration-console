@@ -208,9 +208,17 @@ describe('nativeFieldMap', function () {
         assert.property(byId, 'lineItems');
         assert.isTrue(nativeFieldMap.isSkipped('commercetools', 'Order', 'taxMode'));
         assert.isTrue(nativeFieldMap.isSkipped('ct', 'Order', 'version'));
-        assert.isTrue(nativeFieldMap.isExplicitSkip('ct', 'Product', 'key'));
-        assert.isFalse(nativeFieldMap.isExplicitSkip('ct', 'Product', 'name'));
-        // name is mapped via alias, not an explicit skip
         assert.isTrue(nativeFieldMap.isSkipped('ct', 'Product', 'name'));
+        assert.isFalse(nativeFieldMap.isExplicitSkip('ct', 'Product', 'key'));
+        assert.isFalse(nativeFieldMap.isSkipped('ct', 'Product', 'key'));
+    });
+
+    it('getSystemValueType returns OCAPI value_type for Product system fields', function () {
+        assert.equal(nativeFieldMap.getSystemValueType('Product', 'EAN'), 'string');
+        assert.equal(nativeFieldMap.getSystemValueType('Product', 'searchable'), 'boolean');
+        assert.equal(nativeFieldMap.getSystemValueType('Product', 'longDescription'), 'html');
+        assert.equal(nativeFieldMap.getSystemValueType('Product', 'minOrderQuantity'), 'double');
+        assert.equal(nativeFieldMap.getSystemValueType('Product', 'ean'), 'string');
+        assert.equal(nativeFieldMap.getSystemValueType('Product', 'notAField'), '');
     });
 });

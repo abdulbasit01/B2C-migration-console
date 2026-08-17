@@ -10,6 +10,7 @@ var attrBuilder        = require('*/cartridge/scripts/migration/core/attrBuilder
 var nativeFieldMap     = require('*/cartridge/scripts/migration/config/nativeFieldMap');
 var attrIdMapSession   = require('*/cartridge/scripts/migration/core/attrIdMapSession');
 var openAiClient       = require('*/cartridge/scripts/migration/core/openAiClient');
+var sfccTypeCompat     = require('*/cartridge/scripts/migration/core/sfccTypeCompat');
 
 /**
  * Map SFCC system object type to nativeFieldMap task name.
@@ -37,12 +38,36 @@ function getEnricher(platformId) {
                     ? typeMap.resolveMetafieldType(sourceType)
                     : typeMap.resolveFieldType(sourceType))
                 || 'string';
+            var scope = attrBuilder.resolveAttributeScope(sourceType, entry.sfccObjectType);
             return {
-                id:              entry.id,
-                label:           entry.label,
-                ctpType:         sourceType,
-                sfccType:        sfccType,
-                sfccTypeOptions: [{ value: sfccType, label: sfccType }]
+                id:                entry.id,
+                label:             entry.label,
+                ctpType:           sourceType,
+                sfccType:          sfccType,
+                sfccTypeOptions:   [{ value: sfccType, label: sfccType }],
+                sourceLocalizable: scope.sourceLocalizable,
+                localizable:       scope.localizable,
+                siteSpecific:      scope.siteSpecific,
+                scope:             scope.scope
+            };
+        };
+    }
+    if (platformId === 'sap') {
+        var sapTypeMap = require('*/cartridge/scripts/migration/connectors/sap/sapTypeMap');
+        return function (entry) {
+            var sourceType = entry.sourceType || entry.ctpType || 'java.lang.String';
+            var sfccType = entry.sfccType || sapTypeMap.resolveAttributeType(sourceType) || 'string';
+            var scope = attrBuilder.resolveAttributeScope(sourceType, entry.sfccObjectType);
+            return {
+                id:                entry.id,
+                label:             entry.label,
+                ctpType:           sourceType,
+                sfccType:          sfccType,
+                sfccTypeOptions:   [{ value: sfccType, label: sfccType }],
+                sourceLocalizable: scope.sourceLocalizable,
+                localizable:       scope.localizable,
+                siteSpecific:      scope.siteSpecific,
+                scope:             scope.scope
             };
         };
     }
@@ -76,12 +101,15 @@ function normalizeField(field, platformId) {
 /**
  * Build system-attr list and id lookup from OCAPI definitions.
  * @param {Array} allAttrs
- * @returns {{ systemAttrs: Array, systemIds: Object, systemIdsLower: Object, existingIds: Object, existingIdsLower: Object }}
+ * @returns {{ systemAttrs: Array, systemIds: Object, systemIdsLower: Object, systemTypes: Object, existingIds: Object, existingIdsLower: Object }}
  */
 function indexAttrs(allAttrs) {
     var systemAttrs = [];
     var systemIds   = {};
     var systemIdsLower = {};
+    var systemTypes = {};
+    var valueTypes = {};
+    var valueTypesLower = {};
     var existingIds = {};
     var existingIdsLower = {};
     var i;
@@ -89,19 +117,57 @@ function indexAttrs(allAttrs) {
         var a = allAttrs[i];
         existingIds[a.id] = true;
         existingIdsLower[String(a.id).toLowerCase()] = a.id;
+        if (a.valueType) {
+            valueTypes[a.id] = String(a.valueType);
+            valueTypesLower[String(a.id).toLowerCase()] = String(a.valueType);
+        }
         if (a.system) {
             systemAttrs.push(a);
             systemIds[a.id] = true;
             systemIdsLower[String(a.id).toLowerCase()] = a.id;
+            if (a.valueType) {
+                systemTypes[a.id] = String(a.valueType);
+            }
         }
     }
     return {
         systemAttrs: systemAttrs,
         systemIds: systemIds,
         systemIdsLower: systemIdsLower,
+        systemTypes: systemTypes,
+        valueTypes: valueTypes,
+        valueTypesLower: valueTypesLower,
         existingIds: existingIds,
         existingIdsLower: existingIdsLower
     };
+}
+
+/**
+ * @param {string} sid
+ * @param {Object} indexed
+ * @param {string} [taskName]
+ * @returns {string}
+ */
+function lookupSystemValueType(sid, indexed, taskName) {
+    if (sid && indexed) {
+        if (indexed.valueTypes && indexed.valueTypes[sid]) {
+            return indexed.valueTypes[sid];
+        }
+        var lower = String(sid).toLowerCase();
+        if (indexed.valueTypesLower && indexed.valueTypesLower[lower]) {
+            return indexed.valueTypesLower[lower];
+        }
+        if (indexed.systemTypes && indexed.systemTypes[sid]) {
+            return indexed.systemTypes[sid];
+        }
+        var canon = indexed.systemIdsLower
+            ? indexed.systemIdsLower[lower]
+            : '';
+        if (canon && indexed.systemTypes && indexed.systemTypes[canon]) {
+            return indexed.systemTypes[canon];
+        }
+    }
+    return nativeFieldMap.getSystemValueType(taskName, sid) || '';
 }
 
 /**
@@ -268,10 +334,11 @@ function classifyFields(opts) {
         if (sessionSystemCanon) {
             // Keep as create candidate; UI hydrates AI "already mapped" from sessionSystemMaps
             missing.push(enrich({
-                id:         id,
-                label:      norm.label,
-                sourceType: norm.sourceType,
-                ctpType:    norm.sourceType
+                id:             id,
+                label:          norm.label,
+                sourceType:     norm.sourceType,
+                ctpType:        norm.sourceType,
+                sfccObjectType: sfccObjectType
             }));
             continue;
         }
@@ -302,10 +369,11 @@ function classifyFields(opts) {
         }
 
         missing.push(enrich({
-            id:         id,
-            label:      norm.label,
-            sourceType:  norm.sourceType,
-            ctpType:    norm.sourceType
+            id:             id,
+            label:          norm.label,
+            sourceType:     norm.sourceType,
+            ctpType:        norm.sourceType,
+            sfccObjectType: sfccObjectType
         }));
     }
 
@@ -343,7 +411,19 @@ function classifyFields(opts) {
         attrIdMapSession.saveFromAttrs(moduleKey, autoMapped);
     }
 
-    // SFCC system attrs with no curated source yet (informational - not create candidates)
+    // SFCC system attrs with no curated source yet (coverage pending).
+    // Shown as map-to targets on 3.c create rows; not created from this check.
+    // Exclude fields already claimed by curated maps, identity matches, or session maps.
+    var coverageTaken = {};
+    var ti;
+    for (ti = 0; ti < mapped.length; ti++) {
+        if (mapped[ti] && mapped[ti].sfccField) coverageTaken[mapped[ti].sfccField] = true;
+    }
+    var claimedKeys = Object.keys(claimedSystem);
+    for (ti = 0; ti < claimedKeys.length; ti++) {
+        coverageTaken[claimedKeys[ti]] = true;
+    }
+
     var coveragePending = [];
     var cov = nativeFieldMap.getCoverage(
         platformId === 'commercetools' ? 'commercetools' : platformId,
@@ -355,17 +435,28 @@ function classifyFields(opts) {
         for (ci = 0; ci < covIds.length; ci++) {
             var sid = covIds[ci];
             var info = cov.attributes[sid];
-            if (info && info.status === 'pending') {
+            if (info && info.status === 'pending' && !coverageTaken[sid]) {
+                var valueType = lookupSystemValueType(sid, indexed, taskName);
                 coveragePending.push({
-                    id:     sid,
-                    label:  sid,
-                    status: 'pending',
-                    source: null,
-                    note:   'SFCC system field with no source mapping yet - not created from this check.'
+                    id:        sid,
+                    label:     sid,
+                    status:    'pending',
+                    source:    null,
+                    valueType: valueType,
+                    note:      'SFCC system field with no source mapping yet - not created from this check.'
                 });
             }
         }
     }
+
+    var anyTypedPending = false;
+    for (ti = 0; ti < coveragePending.length; ti++) {
+        if (coveragePending[ti] && coveragePending[ti].valueType) {
+            anyTypedPending = true;
+            break;
+        }
+    }
+    sfccTypeCompat.attachMappableSystemFields(missing, coveragePending, anyTypedPending);
 
     // Source fields intentionally not created (structural / platform / migrate elsewhere)
     var skipped = nativeFieldMap.getSkippedFields(
@@ -483,10 +574,24 @@ function createDefinitions(sfccObjectType, groupId, groupName, attrs) {
         }
 
         try {
+            var sourceType = attr.ctpType || attr.sourceType || '';
+            var scope = attrBuilder.resolveAttributeScope(sourceType, sfccObjectType);
+            var localizable = Object.prototype.hasOwnProperty.call(attr, 'localizable')
+                ? !!attr.localizable
+                : scope.localizable;
+            if (!attrBuilder.supportsAttributeScope(sfccObjectType)) {
+                localizable = false;
+            }
             var def = attrBuilder.buildAttrDefinition(
                 attrId,
                 attr.sfccType || 'string',
-                attr.label    || attrId
+                attr.label    || attrId,
+                {
+                    localizable:    localizable,
+                    siteSpecific:   false,
+                    sourceType:     sourceType,
+                    sfccObjectType: sfccObjectType
+                }
             );
             sfccClient.createAttributeDefinition(sfccToken, sfccObjectType, def);
             sfccClient.addAttributeToGroup(sfccToken, sfccObjectType, groupId, attrId);

@@ -15,7 +15,10 @@ function transformMetafieldDef(def) {
     var rawId       = def.namespace ? def.namespace + '__' + def.key : def.key;
     var id          = rawId.replace(/[^a-zA-Z0-9_]/g, '_');
     var label       = def.name || def.key;
-    return attrBuilder.buildAttrDefinition(id, valueType, label);
+    return attrBuilder.buildAttrDefinition(id, valueType, label, {
+        sourceType:     shopifyType,
+        sfccObjectType: def.sfccObjectType || null
+    });
 }
 
 /**
@@ -25,7 +28,10 @@ function transformMetafieldDef(def) {
  */
 function transformStandardField(field) {
     var valueType = typeMap.resolveMetafieldType(field.type || 'single_line_text_field');
-    return attrBuilder.buildAttrDefinition(field.key, valueType, field.label || field.key);
+    return attrBuilder.buildAttrDefinition(field.key, valueType, field.label || field.key, {
+        sourceType:     field.type || 'single_line_text_field',
+        sfccObjectType: field.sfccObjectType || null
+    });
 }
 
 module.exports = { transformMetafieldDef: transformMetafieldDef, transformStandardField: transformStandardField };

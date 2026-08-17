@@ -112,6 +112,17 @@ describe('productTransformer map-driven system fields', function () {
         assert.equal(pid, id);
     });
 
+    it('does not use CT key for product-id even when session maps key → ID', function () {
+        var transformer = loadTransformer({ key: 'ID' });
+        var id = 'cccccccc-cccc-cccc-cccc-cccccccccccc';
+        var t = transformer.transformProduct(sampleProduct({
+            id: id,
+            key: 'human-key'
+        }));
+        assert.equal(t.productId, id);
+        assert.equal(t.ctpKey, 'human-key');
+    });
+
     it('maps description → shortDescription via schema', function () {
         var transformer = loadTransformer({});
         var t = transformer.transformProduct(sampleProduct());
