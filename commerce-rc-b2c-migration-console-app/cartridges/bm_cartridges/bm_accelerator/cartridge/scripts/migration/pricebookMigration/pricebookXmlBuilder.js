@@ -18,9 +18,22 @@ function xmlEsc(val) {
  */
 function buildPriceTableXml(record) {
     var productId = record.productId || record.sku;
-    return '            <price-table product-id="' + xmlEsc(productId) + '">\n'
-        + '                <amount quantity="1">' + record.amount + '</amount>\n'
-        + '            </price-table>\n';
+    // SFCC's price-table schema only allows amount/percentage/price-info as children —
+    // custom-attributes is not valid here (confirmed by a real BM import validation error),
+    // so per-price custom fields cannot be represented in this XML at all. Quantity tiers,
+    // however, map directly onto multiple <amount quantity="N"> rows in the same table.
+    var xml = '            <price-table product-id="' + xmlEsc(productId) + '">\n'
+        + '                <amount quantity="1">' + record.amount + '</amount>\n';
+
+    if (record.tiers && record.tiers.length) {
+        for (var i = 0; i < record.tiers.length; i++) {
+            xml += '                <amount quantity="' + xmlEsc(record.tiers[i].quantity) + '">'
+                + xmlEsc(record.tiers[i].amount) + '</amount>\n';
+        }
+    }
+
+    xml += '            </price-table>\n';
+    return xml;
 }
 
 /**

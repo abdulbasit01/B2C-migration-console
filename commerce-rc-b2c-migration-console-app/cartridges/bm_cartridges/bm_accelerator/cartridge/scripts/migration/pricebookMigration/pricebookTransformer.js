@@ -17,13 +17,31 @@ function transformEntry(entry) {
     if (!productId) return null;
     var amount = toDecimal(entry.value);
     if (!amount) return null;
-    return {
+
+    var record = {
         sku:        productId,
         productId:  productId,
         amount:     amount,
         currency:   entry.value.currencyCode,
         hasChannel: !!(entry.channel && entry.channel.id)
     };
+
+    // CT quantity tiers -> SFCC price-table quantity-based <amount> rows (same concept:
+    // a different price kicks in once a minimum quantity is reached).
+    if (entry.tiers && entry.tiers.length) {
+        var tiers = [];
+        var ti;
+        for (ti = 0; ti < entry.tiers.length; ti++) {
+            var tier       = entry.tiers[ti];
+            var tierAmount = tier.value ? toDecimal(tier.value) : '';
+            if (tierAmount && tier.minimumQuantity) {
+                tiers.push({ quantity: tier.minimumQuantity, amount: tierAmount });
+            }
+        }
+        if (tiers.length) record.tiers = tiers;
+    }
+
+    return record;
 }
 
 /**
@@ -62,6 +80,7 @@ function mergeRecords(pending, rec) {
     if (!rec.hasChannel && pending.hasChannel) {
         pending.amount     = rec.amount;
         pending.hasChannel = false;
+        pending.tiers      = rec.tiers;
     }
     return pending;
 }
