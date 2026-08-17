@@ -448,9 +448,27 @@ function resolveProductSystemFieldLocales(sfccField, getSourceLocales) {
  * @param {Object} ctpProduct
  * @returns {string}
  */
+/**
+ * CT category reference → SFCC category-id.
+ * Prefers expanded Category.key (catalog XML uses key || id).
+ * @param {Object} ref - { id, key?, obj? }
+ * @returns {string}
+ */
+function ctCategoryRefToSfccId(ref) {
+    if (!ref) return '';
+    if (ref.obj && ref.obj.key) return String(ref.obj.key);
+    if (ref.key) return String(ref.key);
+    return ref.id ? String(ref.id) : '';
+}
+
 function resolveMasterProductId(ctpProduct) {
     ctpProduct = ctpProduct || {};
-    var getSourceValue = makeCtpSourceGetter(ctpProduct, {}, {});
+    var rawGet = makeCtpSourceGetter(ctpProduct, {}, {});
+    // Never let session/AI map of key → ID replace catalog product-id (id → ID).
+    var getSourceValue = function (sourceKey) {
+        if (sourceKey === 'key') return '';
+        return rawGet(sourceKey);
+    };
     var mapped = resolveProductSystemField('ID', getSourceValue);
     if (mapped) {
         var sanitized = sanitizeId(mapped);
@@ -559,18 +577,15 @@ function transformProduct(ctpProduct) {
         variants[0].isDefault = true;
     }
 
-    // Category IDs from CT references
+    // Category IDs: prefer expanded Category.key (same as catalog XML category-id)
     var categories = [];
     if (data.categories) {
         for (var ci = 0; ci < data.categories.length; ci++) {
-            if (data.categories[ci].id) categories.push(data.categories[ci].id);
+            var catId = ctCategoryRefToSfccId(data.categories[ci]);
+            if (catId) categories.push(catId);
         }
     }
-    // classification-category: use first category key (obj may have .key or only .id)
-    var classificationCategory = '';
-    if (data.categories && data.categories.length) {
-        classificationCategory = data.categories[0].key || data.categories[0].id || '';
-    }
+    var classificationCategory = categories.length ? categories[0] : '';
 
     return {
         productId:        masterId,
@@ -621,5 +636,6 @@ module.exports = {
     resolveMasterProductId: resolveMasterProductId,
     sanitizeId:             sanitizeId,
     toLocaleMap:            toLocaleMap,
-    isPlainLocaleMap:       isPlainLocaleMap
+    isPlainLocaleMap:       isPlainLocaleMap,
+    ctCategoryRefToSfccId:  ctCategoryRefToSfccId
 };

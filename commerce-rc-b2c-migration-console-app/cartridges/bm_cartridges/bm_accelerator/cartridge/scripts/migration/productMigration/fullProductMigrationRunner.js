@@ -28,8 +28,10 @@ var SK_BUNDLES    = 'migProdBundles';
 var SK_FILENAME   = 'migProdFileName';
 
 // Temp file names written to local IMPEX during accumulation
-var TEMP_PRODS = 'prod-run-body.xml';
-var TEMP_CATS  = 'prod-run-cats.xml';
+var TEMP_PRODS   = 'prod-run-body.xml';
+var TEMP_CATS    = 'prod-run-cats.xml';
+var TEMP_CATMAP  = 'prod-run-catmap.tsv';
+var TEMP_LOCATTR = 'prod-run-locattrs.tsv';
 
 // ─── Local IMPEX file helpers ─────────────────────────────────────────────────
 
@@ -73,8 +75,159 @@ function removeLocal(fileName) {
     if (f.exists()) f.remove();
 }
 
-// ─── Session counter helpers ──────────────────────────────────────────────────
+/**
+ * Persist HashMap as uuid[TAB]key lines — never JSON.parse into a JS object (api.jsObjectSize).
+ * @param {dw.util.HashMap} hashMap
+ */
+function persistCategoryMap(hashMap) {
+    if (!hashMap || typeof hashMap.keySet !== 'function') return;
+    var File       = require('dw/io/File');
+    var FileWriter = require('dw/io/FileWriter');
+    var f = new File(getLocalPath(TEMP_CATMAP));
+    var w = new FileWriter(f, 'UTF-8', false);
+    try {
+        var it = hashMap.keySet().iterator();
+        while (it.hasNext()) {
+            var k = it.next();
+            w.write(String(k) + '\t' + String(hashMap.get(k) || '') + '\n');
+        }
+    } finally {
+        w.close();
+    }
+}
 
+/**
+ * @returns {dw.util.HashMap|null}
+ */
+function loadCategoryMapFromTsv() {
+    var File       = require('dw/io/File');
+    var FileReader = require('dw/io/FileReader');
+    var HashMap    = require('dw/util/HashMap');
+    var f = new File(getLocalPath(TEMP_CATMAP));
+    if (!f.exists()) return null;
+    var map = new HashMap();
+    var reader = new FileReader(f, 'UTF-8');
+    try {
+        var line;
+        while ((line = reader.readLine()) !== null) {
+            var tab = line.indexOf('\t');
+            if (tab < 1) continue;
+            map.put(line.substring(0, tab), line.substring(tab + 1));
+        }
+    } finally {
+        reader.close();
+    }
+    return map.size() > 0 ? map : null;
+}
+
+function persistLocAttrMap(hashMap) {
+    if (!hashMap || typeof hashMap.keySet !== 'function') return;
+    var File       = require('dw/io/File');
+    var FileWriter = require('dw/io/FileWriter');
+    var f = new File(getLocalPath(TEMP_LOCATTR));
+    var w = new FileWriter(f, 'UTF-8', false);
+    try {
+        var it = hashMap.keySet().iterator();
+        while (it.hasNext()) {
+            var k = it.next();
+            var v = hashMap.get(k);
+            var flag = (v === true) ? '1' : (v === false) ? '0' : 'x';
+            w.write(String(k) + '\t' + flag + '\n');
+        }
+    } finally {
+        w.close();
+    }
+}
+
+/**
+ * id → boolean localizable from live Product attribute definitions.
+ * @returns {dw.util.HashMap|null}
+ */
+function loadLocAttrMapFromTsv() {
+    var File       = require('dw/io/File');
+    var FileReader = require('dw/io/FileReader');
+    var HashMap    = require('dw/util/HashMap');
+    var f = new File(getLocalPath(TEMP_LOCATTR));
+    if (!f.exists()) return null;
+    var map = new HashMap();
+    var reader = new FileReader(f, 'UTF-8');
+    try {
+        var line;
+        while ((line = reader.readLine()) !== null) {
+            var tab = line.indexOf('\t');
+            if (tab < 1) continue;
+            var rest = line.substring(tab + 1);
+            map.put(line.substring(0, tab), rest === '1' ? true : (rest === '0' ? false : null));
+        }
+    } finally {
+        reader.close();
+    }
+    return map.size() > 0 ? map : null;
+}
+
+var PRODUCT_SYSTEM_LOCALIZABLE = {
+    name: true,
+    shortDescription: true,
+    longDescription: true,
+    pageTitle: true,
+    pageDescription: true,
+    pageKeywords: true,
+    pageURL: true,
+    storeReceiptName: true
+};
+
+function fetchProductLocalizableAttrIds() {
+    var cached = loadLocAttrMapFromTsv();
+    if (cached) return cached;
+    try {
+        var sfccClient = require('*/cartridge/scripts/migration/sfccClient');
+        var HashMap    = require('dw/util/HashMap');
+        var token = sfccClient.getSFCCToken();
+        var attrs = sfccClient.getAttributeDefinitions(token, 'Product') || [];
+        var map = new HashMap();
+        var i;
+        var id;
+        var loc;
+        var sysKeys = Object.keys(PRODUCT_SYSTEM_LOCALIZABLE);
+        for (i = 0; i < sysKeys.length; i++) {
+            map.put(sysKeys[i], true);
+        }
+        for (i = 0; i < attrs.length; i++) {
+            id = attrs[i] && attrs[i].id;
+            if (!id) continue;
+            loc = attrs[i].localizable;
+            if (loc === true || loc === false) {
+                map.put(id, loc);
+            } else if (PRODUCT_SYSTEM_LOCALIZABLE[id]) {
+                map.put(id, true);
+            } else if (!map.containsKey(id)) {
+                map.put(id, 'x');
+            }
+        }
+        persistLocAttrMap(map);
+        return map;
+    } catch (e) {
+        return null;
+    }
+}
+
+function getCtpXmlOpts(catalogId) {
+    var opts = { catalogId: catalogId || '' };
+    var cached = loadCategoryMapFromTsv();
+    if (cached) {
+        opts.categoryIdToSfcc = cached;
+    } else {
+        try {
+            opts.categoryIdToSfcc = ctpFetcher.fetchCategoryIdMap();
+            persistCategoryMap(opts.categoryIdToSfcc);
+        } catch (e2) { /* transformer expand still supplies keys when present */ }
+    }
+    var locMap = fetchProductLocalizableAttrIds();
+    if (locMap) opts.localizableAttrIds = locMap;
+    return opts;
+}
+
+// ─── Session counter helpers ──────────────────────────────────────────────────
 function getNum(key) { return parseInt(String(session.custom[key] || 0), 10); }
 function addNum(key, n) { session.custom[key] = String(getNum(key) + (n || 0)); }
 function setNum(key, n) { session.custom[key] = String(n || 0); }
@@ -97,6 +250,8 @@ function runCtpBatch(offset, catalogId, selectedVarAttrs) {
         // Clear any leftover temp files and reset all session counters
         removeLocal(TEMP_PRODS);
         removeLocal(TEMP_CATS);
+        removeLocal(TEMP_CATMAP);
+        removeLocal(TEMP_LOCATTR);
         setNum(SK_TOTAL, 0);
         setNum(SK_BUILT, 0);
         setNum(SK_FAILED, 0);
@@ -133,7 +288,8 @@ function runCtpBatch(offset, catalogId, selectedVarAttrs) {
     }
 
     // Build batch parts and append to temp files
-    var parts = xmlBuilder.buildXmlParts(rawProds, catalogId, selectedVarAttrs);
+    var xmlOpts = getCtpXmlOpts(catalogId);
+    var parts = xmlBuilder.buildXmlParts(rawProds, catalogId, selectedVarAttrs, null, xmlOpts);
     appendLocal(TEMP_PRODS, parts.productsXml);
     appendLocal(TEMP_CATS,  parts.categoriesXml);
 
@@ -193,6 +349,7 @@ function finalizeCtp(catalogId, total, nextOffset, impexPath, fileName) {
 
     removeLocal(TEMP_PRODS);
     removeLocal(TEMP_CATS);
+    removeLocal(TEMP_CATMAP);
 
     if (writeErr) {
         return { ok: false, error: 'Local IMPEX write failed: ' + (writeErr.message || String(writeErr)) };
@@ -696,7 +853,7 @@ function runById(prodId, catalogId, selectedVarAttrs, platform) {
     }
 
     var fileName      = fileResolver.resolveXmlFileName(MODULE_KEY, 0, 1, 'webdav', prefix);
-    var catalogResult = xmlBuilder.buildXml([product], catalogId, selectedVarAttrs, transformerFn);
+    var catalogResult = xmlBuilder.buildXml([product], catalogId, selectedVarAttrs, transformerFn, getCtpXmlOpts(catalogId));
 
     var File       = require('dw/io/File');
     var FileWriter = require('dw/io/FileWriter');

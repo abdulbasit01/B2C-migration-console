@@ -87,7 +87,7 @@
         var skipN = counts.skipped || 0;
         var pendN = counts.coveragePending || 0;
         return ''
-            + '<div style="margin:0 0 16px;padding:12px 14px;background:#f4f6f9;border:1px solid #e0e5ee;border-radius:6px;">'
+            + '<div id="acc-attr-preview-summary" style="margin:0 0 16px;padding:12px 14px;background:#f4f6f9;border:1px solid #e0e5ee;border-radius:6px;">'
             + '<div style="font-size:13px;font-weight:600;color:#16325c;margin:0 0 8px;">Attribute check preview</div>'
             + '<div style="display:flex;flex-wrap:wrap;gap:8px 16px;font-size:12px;color:#54698d;">'
             + '<span><strong style="color:#1565c0;">' + mappedN + '</strong> mapped to SFCC system (no create)</span>'
@@ -98,9 +98,9 @@
             + '<span><strong style="color:#6a6a6a;">' + pendN + '</strong> SFCC system with no source yet</span>'
             + '</div>'
             + '<p style="margin:10px 0 0;font-size:11px;color:#8a9ab8;line-height:1.4;">'
-            + 'Mapped fields use existing SFCC system attributes. AI suggestions are possible system maps for create candidates - accept to map without creating, or leave unchecked and create as custom. '
+            + 'Mapped fields use existing SFCC system attributes. Create candidates can be created as custom, mapped via AI, or mapped to any unmapped SFCC system field that is not already curated. '
             + 'Skipped fields are platform modes, nested structures, or data that migrates elsewhere (for example order XML) - do not create them. '
-            + 'SFCC system fields with no source mapping are listed for visibility only - they are not created from this check.'
+            + 'SFCC system fields with no source mapping yet can be chosen as map targets from a create-candidate row.'
             + '</p></div>';
     }
 
@@ -170,13 +170,81 @@
             + '</div>';
     }
 
+    function pendingFieldId(entry) {
+        if (!entry) return '';
+        if (typeof entry === 'string') return entry;
+        return entry.id || '';
+    }
+
+    function pendingOptionLabel(id, valueType) {
+        if (!id) return '';
+        return valueType ? (id + '(' + valueType + ')') : id;
+    }
+
+    function pendingValueType(pendingFields, id) {
+        var i;
+        var p;
+        if (!id || !pendingFields) return '';
+        for (i = 0; i < pendingFields.length; i++) {
+            p = pendingFields[i];
+            if (pendingFieldId(p) === id) return (p && p.valueType) || '';
+        }
+        return '';
+    }
+
+    function pendingFieldOptionsHtml(pendingFields, skipIds, allowedIds) {
+        var html = '';
+        var skip = skipIds || {};
+        var i;
+        var id;
+        var p;
+        var label;
+        if (!pendingFields || !pendingFields.length) return html;
+        for (i = 0; i < pendingFields.length; i++) {
+            p = pendingFields[i];
+            id = pendingFieldId(p);
+            if (!id || skip[id]) continue;
+            if (allowedIds && !allowedIds[id]) continue;
+            label = pendingOptionLabel(id, p && p.valueType);
+            html += '<option value="' + escHtml(id) + '" data-base-label="' + escHtml(label) + '">'
+                + escHtml(label) + '</option>';
+        }
+        return html;
+    }
+
+    function idAllowSet(ids) {
+        if (ids == null) return null;
+        var set = {};
+        var i;
+        for (i = 0; i < ids.length; i++) {
+            if (ids[i]) set[ids[i]] = true;
+        }
+        return set;
+    }
+
+    function mappableAllowSet(sourceId, missing) {
+        var i;
+        for (i = 0; i < (missing || []).length; i++) {
+            if (missing[i] && missing[i].id === sourceId) {
+                return idAllowSet(missing[i].mappableSystemFields);
+            }
+        }
+        return null;
+    }
+
+    function cssSafeId(id) {
+        return String(id || '').replace(/"/g, '');
+    }
+
     /**
      * AI suggestions: possible SFCC system targets for create candidates.
      * @param {Array} suggested
      * @param {Object} [ui]
+     * @param {Array} [pendingFields]
+     * @param {Array} [missing]
      * @returns {string}
      */
-    function suggestedTableHtml(suggested, ui) {
+    function suggestedTableHtml(suggested, ui, pendingFields, missing) {
         if (!suggested || !suggested.length) return '';
         var html = '<details style="margin:0 0 16px;" open>'
             + '<summary style="cursor:pointer;font-size:13px;font-weight:600;color:#6a1b9a;margin:0 0 10px;">'
@@ -184,7 +252,8 @@
             + '</summary>'
             + '<p style="font-size:12px;color:#8a9ab8;margin:0 0 10px;">'
             + 'OpenAI found possible system attributes for these create candidates. '
-            + 'Pick a target and click Use mapping. Each SFCC system attribute can be mapped from only one source — '
+            + 'Pick a target (including Other unmapped system fields) and click Use mapping. '
+            + 'Each SFCC system attribute can be mapped from only one source — '
             + 'Revert that mapping before assigning the same target to another source. '
             + 'You can Update mapping to a free target, or Revert and create as custom instead.'
             + '</p>'
@@ -201,16 +270,27 @@
             var s = suggested[i];
             var targets = s.targets || [];
             var opts = '';
+            var aiIds = {};
             var t;
             for (t = 0; t < targets.length; t++) {
                 var tgt = targets[t];
+                if (tgt && tgt.sfccField) aiIds[tgt.sfccField] = true;
                 var confPct = Math.round((tgt.confidence || 0) * 100);
-                var label = tgt.sfccField
+                var typedName = pendingOptionLabel(tgt.sfccField, pendingValueType(pendingFields, tgt.sfccField));
+                var label = typedName
                     + (tgt.reason ? ' — ' + tgt.reason : '')
                     + (confPct ? ' (' + confPct + '%)' : '');
-                opts += '<option value="' + escHtml(tgt.sfccField) + '"'
+                opts += '<option value="' + escHtml(tgt.sfccField) + '" data-base-label="' + escHtml(label) + '"'
                     + (t === 0 ? ' selected' : '') + '>'
                     + escHtml(label) + '</option>';
+            }
+            var extraPending = pendingFieldOptionsHtml(
+                pendingFields,
+                aiIds,
+                mappableAllowSet(s.id, missing)
+            );
+            if (extraPending) {
+                opts += '<optgroup label="Other unmapped system fields">' + extraPending + '</optgroup>';
             }
             html += '<tr class="cm-ai-suggest-row" data-source-id="' + escHtml(s.id) + '" data-idx="' + i + '" '
                 + 'style="background:#f3e5f5;">'
@@ -318,7 +398,7 @@
     }
 
     /**
-     * SFCC system attrs with no source mapping (informational).
+     * SFCC system attrs with no curated source mapping yet.
      * @param {Array} pending
      * @returns {string}
      */
@@ -326,11 +406,12 @@
         if (!pending || !pending.length) return '';
         var html = '<details style="margin:0 0 16px;">'
             + '<summary style="cursor:pointer;font-size:13px;font-weight:600;color:#1565c0;margin:0 0 10px;">'
-            + pending.length + ' SFCC system field(s) with no source mapping yet (informational)'
+            + pending.length + ' SFCC system field(s) with no source mapping yet'
             + '</summary>'
             + '<p style="font-size:12px;color:#64b5f6;margin:0 0 10px;">'
-            + 'These SFCC Order/object system attributes have no curated source field. '
-            + 'They do not need create from this check.'
+            + 'These SFCC system attributes have no curated source field. '
+            + 'Map a type-compatible create-candidate to any of them from the table above, or leave them unmapped. '
+            + 'They are not created from this check.'
             + '</p>'
             + '<div style="border:2px solid #1e88e5;border-radius:4px;overflow:hidden;'
             + 'background:#e3f2fd;box-shadow:0 0 0 1px #90caf9;">'
@@ -343,7 +424,7 @@
         for (i = 0; i < pending.length; i++) {
             var p = pending[i];
             html += '<tr>'
-                + '<td><code>' + escHtml(p.id) + '</code></td>'
+                + '<td><code>' + escHtml(pendingOptionLabel(p.id, p.valueType)) + '</code></td>'
                 + '<td style="font-size:12px;color:#1565c0;padding-left:20px;">No source map</td>'
                 + '<td style="font-size:12px;color:#54698d;">'
                 + escHtml(p.note || 'Not created from this check.')
@@ -353,20 +434,137 @@
         return html;
     }
 
+    var liveSystemMapped = [];
+    var liveCoveragePending = [];
+    var originalPendingById = {};
+    var liveAlreadyExistsCount = 0;
+    var liveMissingCount = 0;
+    var liveSuggestedCount = 0;
+    var liveSkippedCount = 0;
+    var liveUi = {};
+
+    function clonePendingEntry(p) {
+        return {
+            id: p.id,
+            label: p.label || p.id,
+            status: p.status || 'pending',
+            source: p.source || null,
+            note: p.note || 'SFCC system field with no source mapping yet - not created from this check.',
+            valueType: p.valueType || ''
+        };
+    }
+
+    function refreshScopeTables() {
+        var sumEl = document.getElementById('acc-attr-preview-summary');
+        if (sumEl) {
+            var fresh = document.createElement('div');
+            fresh.innerHTML = previewSummaryHtml({
+                systemMapped: liveSystemMapped.length,
+                alreadyExists: liveAlreadyExistsCount,
+                suggested: liveSuggestedCount,
+                missing: liveMissingCount,
+                skipped: liveSkippedCount,
+                coveragePending: liveCoveragePending.length
+            });
+            if (fresh.firstChild && sumEl.parentNode) {
+                sumEl.parentNode.replaceChild(fresh.firstChild, sumEl);
+            }
+        }
+        var mappedWrap = document.getElementById('acc-mapped-system-wrap');
+        if (mappedWrap) {
+            mappedWrap.innerHTML = liveSystemMapped.length
+                ? mappedTableHtml(
+                    liveSystemMapped,
+                    liveUi,
+                    liveSystemMapped.length + ' mapped to SFCC system attributes (no create):'
+                )
+                : '';
+        }
+        var pendWrap = document.getElementById('acc-coverage-pending-wrap');
+        if (pendWrap) {
+            pendWrap.innerHTML = coveragePendingTableHtml(liveCoveragePending);
+        }
+    }
+
+    /**
+     * After AI Use mapping: system field leaves "no source mapping yet" and joins mapped.
+     */
+    function moveSystemFieldToMapped(sourceId, sfccField, sourceLabel) {
+        if (!sfccField) return;
+        var nextPending = [];
+        var i;
+        for (i = 0; i < liveCoveragePending.length; i++) {
+            if (liveCoveragePending[i].id !== sfccField) nextPending.push(liveCoveragePending[i]);
+        }
+        liveCoveragePending = nextPending;
+        var found = false;
+        for (i = 0; i < liveSystemMapped.length; i++) {
+            if (liveSystemMapped[i].id === sourceId) {
+                liveSystemMapped[i].sfccField = sfccField;
+                liveSystemMapped[i].note = 'Mapped to SFCC system field — will not create a new attribute.';
+                liveSystemMapped[i].status = 'mapped';
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            liveSystemMapped.push({
+                id: sourceId,
+                label: sourceLabel || sourceId,
+                sfccField: sfccField,
+                status: 'mapped',
+                note: 'Mapped to SFCC system field — will not create a new attribute.'
+            });
+        }
+        refreshScopeTables();
+    }
+
+    /**
+     * After AI Revert / target change: previous system field returns to pending if it started there.
+     */
+    function moveSystemFieldToPending(sourceId, sfccField) {
+        var nextMapped = [];
+        var i;
+        for (i = 0; i < liveSystemMapped.length; i++) {
+            var row = liveSystemMapped[i];
+            if (!(row.id === sourceId && (!sfccField || row.sfccField === sfccField))) {
+                nextMapped.push(row);
+            }
+        }
+        liveSystemMapped = nextMapped;
+        if (sfccField && originalPendingById[sfccField]) {
+            var already = false;
+            for (i = 0; i < liveCoveragePending.length; i++) {
+                if (liveCoveragePending[i].id === sfccField) { already = true; break; }
+            }
+            var stillMapped = false;
+            for (i = 0; i < liveSystemMapped.length; i++) {
+                if (liveSystemMapped[i].sfccField === sfccField) { stillMapped = true; break; }
+            }
+            if (!already && !stillMapped) {
+                liveCoveragePending.push(clonePendingEntry(originalPendingById[sfccField]));
+            }
+        }
+        refreshScopeTables();
+    }
+
     /**
      * Build missing-attrs table HTML with rename + status columns.
      * @param {Array} missing
      * @param {Object} ui
+     * @param {Object} [suggestedIds]
+     * @param {Array} [pendingFields]
      * @returns {string}
      */
-    function missingTableHtml(missing, ui, suggestedIds) {
+    function missingTableHtml(missing, ui, suggestedIds, pendingFields) {
         suggestedIds = suggestedIds || {};
         var html = '<details style="margin:0 0 16px;" open>'
             + '<summary style="cursor:pointer;font-size:13px;font-weight:600;color:#f57f17;margin:0 0 10px;">'
             + escHtml(String(missingCountLabel(ui, missing.length)).replace(/:\s*$/, ''))
             + '</summary>'
             + '<p style="font-size:12px;color:#8a9ab8;margin:0 0 10px;">'
-            + 'No curated SFCC system map - select rows to create as custom attributes and map on export. '
+            + 'No curated SFCC system map. Select rows to create as custom attributes and map on export, '
+            + 'or map to an unmapped SFCC system field that is not already curated and whose type is compatible. '
             + 'Rows highlighted in purple have AI suggestions above and start unchecked. '
             + 'A globe means the attribute will be created as <strong>localized</strong> (cannot change after create).'
             + '</p>'
@@ -400,6 +598,11 @@
                 + 'Source is localized; SFCC stores a single non-localized value on this object.'
                 + '</div>'
                 : '';
+            var pendingOpts = pendingFieldOptionsHtml(
+                pendingFields,
+                null,
+                idAllowSet(m.mappableSystemFields)
+            );
             html += '<tr class="cm-attr-row' + (hasSuggest ? ' cm-attr-row--ai' : '') + '" data-idx="' + i
                 + '" data-id="' + escHtml(m.id) + '"'
                 + (willLocalize ? ' data-localizable="1"' : '')
@@ -413,6 +616,22 @@
                     ? '<div style="margin-top:4px;font-size:11px;color:#6a1b9a;font-weight:600;">Suggested by AI</div>'
                     : '')
                 + sourceNote
+                + (pendingOpts
+                    ? '<div class="cm-pending-map-wrap" style="margin-top:8px;">'
+                    + '<select class="cm-pending-map-select" data-idx="' + i + '" data-source-id="'
+                    + escHtml(m.id) + '" style="width:100%;max-width:280px;font-size:12px;">'
+                    + '<option value="">— map to unmapped SFCC field —</option>'
+                    + pendingOpts
+                    + '</select>'
+                    + '<div style="margin-top:4px;white-space:nowrap;">'
+                    + '<button type="button" class="cm-btn cm-pending-use-map-btn" data-idx="' + i
+                    + '" data-source-id="' + escHtml(m.id) + '" '
+                    + 'style="font-size:11px;padding:3px 8px;margin-right:4px;">Use mapping</button>'
+                    + '<button type="button" class="cm-btn cm-pending-revert-btn" data-idx="' + i
+                    + '" data-source-id="' + escHtml(m.id) + '" '
+                    + 'style="font-size:11px;padding:3px 8px;display:none;">Revert</button>'
+                    + '</div></div>'
+                    : '')
                 + '<div class="cm-attr-map-hint" data-idx="' + i + '" style="display:none;margin-top:4px;font-size:11px;color:#54698d;line-height:1.35;"></div></td>'
                 + '<td>' + escHtml(m.label || m.id) + '</td>'
                 + '<td style="color:#8a9ab8;">' + escHtml(m.ctpType || m.sourceType || '')
@@ -432,19 +651,80 @@
     }
 
     /**
-     * SFCC targets already claimed by an accepted AI map: field -> sourceId.
+     * SFCC targets already claimed by an accepted map: field -> sourceId.
      * @returns {Object.<string, string>}
      */
     function getClaimedSfccTargets() {
         var claimed = {};
-        var rows = document.querySelectorAll('.cm-ai-suggest-row[data-mapped-to]');
+        var rows = document.querySelectorAll('.cm-ai-suggest-row[data-mapped-to], .cm-attr-row[data-mapped-to]');
         var i;
+        var field;
+        var sourceId;
+        var m;
         for (i = 0; i < rows.length; i++) {
-            var field = rows[i].getAttribute('data-mapped-to');
-            var sourceId = rows[i].getAttribute('data-source-id');
+            field = rows[i].getAttribute('data-mapped-to');
+            sourceId = rows[i].getAttribute('data-source-id') || rows[i].getAttribute('data-id');
             if (field && sourceId) claimed[field] = sourceId;
         }
+        if (liveSystemMapped) {
+            for (i = 0; i < liveSystemMapped.length; i++) {
+                m = liveSystemMapped[i];
+                if (m && m.sfccField && m.id && !claimed[m.sfccField]) {
+                    claimed[m.sfccField] = m.id;
+                }
+            }
+        }
         return claimed;
+    }
+
+    function ensureSelectOption(sel, value, label) {
+        if (!sel || !value) return;
+        var o;
+        for (o = 0; o < sel.options.length; o++) {
+            if (sel.options[o].value === value) return;
+        }
+        var pending = originalPendingById[value];
+        var typed = pendingOptionLabel(value, pending && pending.valueType);
+        var opt = document.createElement('option');
+        opt.value = value;
+        opt.text = (label && label !== value) ? label : typed;
+        opt.setAttribute('data-base-label', opt.text);
+        sel.appendChild(opt);
+    }
+
+    function refreshSelectTakenState(sel, claimed, ownSource, ownMapped) {
+        if (!sel) return;
+        var o;
+        var firstFree = '';
+        for (o = 0; o < sel.options.length; o++) {
+            var opt = sel.options[o];
+            var val = opt.value;
+            if (!val) continue;
+            var baseLabel = opt.getAttribute('data-base-label') || opt.text;
+            if (!opt.getAttribute('data-base-label')) {
+                opt.setAttribute('data-base-label', opt.text);
+                baseLabel = opt.text;
+            }
+            var takenBy = claimed[val];
+            var takenByOther = !!(takenBy && takenBy !== ownSource);
+            opt.disabled = takenByOther;
+            if (takenByOther) {
+                opt.text = baseLabel + ' (in use by ' + takenBy + ')';
+            } else {
+                opt.text = baseLabel;
+            }
+            if (!takenByOther && !firstFree) firstFree = val;
+        }
+        if (sel.selectedIndex >= 0 && sel.options[sel.selectedIndex] && sel.options[sel.selectedIndex].disabled) {
+            if (ownMapped && !sel.querySelector('option[value="' + ownMapped + '"]:disabled')) {
+                sel.value = ownMapped;
+            } else if (firstFree) {
+                sel.value = firstFree;
+            } else {
+                sel.value = '';
+            }
+        }
+        return firstFree;
     }
 
     /**
@@ -460,40 +740,15 @@
             var row = document.querySelector('.cm-ai-suggest-row[data-idx="' + idx + '"]');
             var ownSource = row ? row.getAttribute('data-source-id') : '';
             var ownMapped = row ? (row.getAttribute('data-mapped-to') || '') : '';
-            var o;
-            var firstFree = '';
-            for (o = 0; o < sel.options.length; o++) {
-                var opt = sel.options[o];
-                var val = opt.value;
-                var baseLabel = opt.getAttribute('data-base-label') || opt.text;
-                if (!opt.getAttribute('data-base-label')) {
-                    opt.setAttribute('data-base-label', opt.text);
-                    baseLabel = opt.text;
-                }
-                var takenBy = claimed[val];
-                var takenByOther = !!(takenBy && takenBy !== ownSource);
-                opt.disabled = takenByOther;
-                if (takenByOther) {
-                    opt.text = baseLabel + ' (in use by ' + takenBy + ')';
-                } else {
-                    opt.text = baseLabel;
-                }
-                if (!takenByOther && !firstFree) firstFree = val;
-            }
-            // If current selection is taken by someone else, move to first free option
-            if (sel.selectedIndex >= 0 && sel.options[sel.selectedIndex].disabled) {
-                if (ownMapped && !sel.querySelector('option[value="' + ownMapped + '"]:disabled')) {
-                    sel.value = ownMapped;
-                } else if (firstFree) {
-                    sel.value = firstFree;
-                }
-            }
-            // Disable Use/Update when no free targets (and not already mapped on this row)
+            var firstFree = refreshSelectTakenState(sel, claimed, ownSource, ownMapped);
             var useBtn = document.querySelector('.cm-ai-use-map-btn[data-idx="' + idx + '"]');
             if (useBtn && !ownMapped) {
-                var hasFree = false;
-                for (o = 0; o < sel.options.length; o++) {
-                    if (!sel.options[o].disabled) { hasFree = true; break; }
+                var hasFree = !!firstFree;
+                var o;
+                if (!hasFree) {
+                    for (o = 0; o < sel.options.length; o++) {
+                        if (sel.options[o].value && !sel.options[o].disabled) { hasFree = true; break; }
+                    }
                 }
                 useBtn.disabled = !hasFree;
                 if (!hasFree) {
@@ -505,10 +760,88 @@
                 }
             }
         }
+        var pendingSels = document.querySelectorAll('.cm-pending-map-select');
+        for (s = 0; s < pendingSels.length; s++) {
+            sel = pendingSels[s];
+            idx = sel.getAttribute('data-idx');
+            var createRow = document.querySelector('.cm-attr-row[data-idx="' + idx + '"]');
+            ownSource = createRow ? (createRow.getAttribute('data-id') || '') : (sel.getAttribute('data-source-id') || '');
+            ownMapped = createRow ? (createRow.getAttribute('data-mapped-to') || '') : '';
+            refreshSelectTakenState(sel, claimed, ownSource, ownMapped);
+            var pendingBtn = document.querySelector('.cm-pending-use-map-btn[data-idx="' + idx + '"]');
+            if (pendingBtn && !ownMapped) {
+                var pendingHasFree = false;
+                var po;
+                for (po = 0; po < sel.options.length; po++) {
+                    if (sel.options[po].value && !sel.options[po].disabled) { pendingHasFree = true; break; }
+                }
+                pendingBtn.disabled = !pendingHasFree;
+            }
+        }
+    }
+
+    function syncPendingSelectForSource(sourceId, sfccField) {
+        var row = document.querySelector('.cm-attr-row[data-id="' + cssSafeId(sourceId) + '"]');
+        if (!row) return;
+        var idx = row.getAttribute('data-idx');
+        var sel = document.querySelector('.cm-pending-map-select[data-idx="' + idx + '"]');
+        var revertBtn = document.querySelector('.cm-pending-revert-btn[data-idx="' + idx + '"]');
+        var useBtn = document.querySelector('.cm-pending-use-map-btn[data-idx="' + idx + '"]');
+        if (sfccField) {
+            if (sel) {
+                ensureSelectOption(sel, sfccField, sfccField);
+                sel.value = sfccField;
+            }
+            row.setAttribute('data-mapped-to', sfccField);
+            if (revertBtn) revertBtn.style.display = 'inline-block';
+            if (useBtn) {
+                useBtn.textContent = 'Update mapping';
+                useBtn.disabled = false;
+            }
+        } else {
+            if (sel) sel.value = '';
+            row.removeAttribute('data-mapped-to');
+            if (revertBtn) revertBtn.style.display = 'none';
+            if (useBtn) useBtn.textContent = 'Use mapping';
+        }
+    }
+
+    function syncAiRowForSource(sourceId, sfccField) {
+        var row = document.querySelector('.cm-ai-suggest-row[data-source-id="' + cssSafeId(sourceId) + '"]');
+        if (!row) return;
+        var idx = row.getAttribute('data-idx');
+        var sel = document.querySelector('.cm-ai-target-select[data-idx="' + idx + '"]');
+        var statusEl = document.querySelector('.cm-ai-suggest-status[data-idx="' + idx + '"]');
+        var btn = document.querySelector('.cm-ai-use-map-btn[data-idx="' + idx + '"]');
+        var revertBtn = document.querySelector('.cm-ai-revert-btn[data-idx="' + idx + '"]');
+        if (sfccField) {
+            if (sel) {
+                ensureSelectOption(sel, sfccField, sfccField);
+                sel.value = sfccField;
+            }
+            row.setAttribute('data-mapped-to', sfccField);
+            if (statusEl) {
+                statusEl.textContent = 'Mapped to ' + sfccField;
+                statusEl.style.color = '#2e7d32';
+            }
+            if (btn) {
+                btn.textContent = 'Update mapping';
+                btn.disabled = false;
+            }
+            if (revertBtn) revertBtn.style.display = 'inline-block';
+        } else {
+            row.removeAttribute('data-mapped-to');
+            if (statusEl) {
+                statusEl.textContent = 'AI suggestion';
+                statusEl.style.color = '#6a1b9a';
+            }
+            if (btn) btn.textContent = 'Use mapping';
+            if (revertBtn) revertBtn.style.display = 'none';
+        }
     }
 
     /**
-     * Update create-table row after AI map accept/revert.
+     * Update create-table row after map accept/revert.
      * @param {string} sourceId
      * @param {string} mode - 'mapped'|'suggestion'
      * @param {string} [sfccField]
@@ -516,6 +849,9 @@
     function syncCreateRowForAi(sourceId, mode, sfccField) {
         var rows = document.querySelectorAll('.cm-attr-row[data-id]');
         var r;
+        var hasAi = !!document.querySelector(
+            '.cm-ai-suggest-row[data-source-id="' + cssSafeId(sourceId) + '"]'
+        );
         for (r = 0; r < rows.length; r++) {
             if (rows[r].getAttribute('data-id') !== sourceId) continue;
             var rowIdx = rows[r].getAttribute('data-idx');
@@ -525,21 +861,29 @@
             if (mode === 'mapped') {
                 if (cb) cb.checked = false;
                 if (statusEl) {
-                    statusEl.textContent = 'Mapped via AI';
+                    statusEl.textContent = 'Mapped to ' + (sfccField || 'system field');
                     statusEl.style.color = '#2e7d32';
+                    statusEl.title = '';
                 }
-                setRowAttrFeedback(rowIdx, 'exists', sourceId, sfccField, 'Mapped via AI suggestion');
+                if (hintEl && sfccField) {
+                    hintEl.style.display = 'block';
+                    hintEl.innerHTML = 'Source <code>' + escHtml(sourceId)
+                        + '</code> maps to <code>' + escHtml(sfccField) + '</code> in export';
+                    hintEl.style.color = '#54698d';
+                }
+                syncPendingSelectForSource(sourceId, sfccField);
             } else {
-                if (cb) cb.checked = false;
+                if (cb) cb.checked = !hasAi;
                 if (statusEl) {
-                    statusEl.textContent = 'AI suggestion';
-                    statusEl.style.color = '#6a1b9a';
+                    statusEl.textContent = hasAi ? 'AI suggestion' : 'Needs create';
+                    statusEl.style.color = hasAi ? '#6a1b9a' : '#8a9ab8';
                     statusEl.title = '';
                 }
                 if (hintEl) {
                     hintEl.style.display = 'none';
                     hintEl.textContent = '';
                 }
+                syncPendingSelectForSource(sourceId, '');
             }
         }
     }
@@ -576,6 +920,7 @@
             return;
         }
         if (btn) btn.disabled = true;
+        var prevField = row ? (row.getAttribute('data-mapped-to') || '') : '';
         var payload = [{ canonicalId: sourceId, id: sfccField }];
         post(saveUrl, 'attrs=' + encodeURIComponent(JSON.stringify(payload)), function (data) {
             if (btn) btn.disabled = false;
@@ -592,6 +937,10 @@
                 if (row) row.setAttribute('data-mapped-to', sfccField);
                 syncCreateRowForAi(sourceId, 'mapped', sfccField);
                 refreshAiTargetAvailability();
+                if (prevField && prevField !== sfccField) {
+                    moveSystemFieldToPending(sourceId, prevField);
+                }
+                moveSystemFieldToMapped(sourceId, sfccField, opts.sourceLabel || sourceId);
                 if (opts.onAccepted) opts.onAccepted(sourceId, sfccField, data);
             } else {
                 if (statusEl) {
@@ -623,6 +972,7 @@
             return;
         }
         if (revertBtn) revertBtn.disabled = true;
+        var prevField = row ? (row.getAttribute('data-mapped-to') || '') : '';
         // id === canonicalId clears the remap in saveFromAttrs
         var payload = [{ canonicalId: sourceId, id: sourceId, remove: true }];
         post(saveUrl, 'attrs=' + encodeURIComponent(JSON.stringify(payload)), function (data) {
@@ -640,12 +990,115 @@
                 if (row) row.removeAttribute('data-mapped-to');
                 syncCreateRowForAi(sourceId, 'suggestion');
                 refreshAiTargetAvailability();
+                if (prevField) moveSystemFieldToPending(sourceId, prevField);
                 if (opts.onReverted) opts.onReverted(sourceId, data);
             } else {
                 if (statusEl) {
                     statusEl.textContent = (data && data.error) || 'Revert failed';
                     statusEl.style.color = '#c62828';
                 }
+            }
+        });
+    }
+
+    /**
+     * Map a create-candidate to an unmapped (not curated) SFCC system field.
+     * @param {Object} opts
+     */
+    function acceptManualPendingMap(opts) {
+        var saveUrl = opts.saveAttrMapUrl || '';
+        var sourceId = opts.sourceId || '';
+        var sfccField = opts.sfccField || '';
+        var idx = opts.idx;
+        var post = opts.post;
+        var statusEl = document.querySelector('.cm-attr-status[data-idx="' + idx + '"]');
+        var btn = document.querySelector('.cm-pending-use-map-btn[data-idx="' + idx + '"]');
+        var createRow = document.querySelector('.cm-attr-row[data-idx="' + idx + '"]');
+        if (!sfccField) {
+            if (statusEl) {
+                statusEl.textContent = 'Pick an SFCC field';
+                statusEl.style.color = '#c62828';
+            }
+            return;
+        }
+        if (!saveUrl || !sourceId || !post) {
+            if (statusEl) {
+                statusEl.textContent = 'Save URL unavailable';
+                statusEl.style.color = '#c62828';
+            }
+            return;
+        }
+        var claimed = getClaimedSfccTargets();
+        var takenBy = claimed[sfccField];
+        if (takenBy && takenBy !== sourceId) {
+            if (statusEl) {
+                statusEl.textContent = 'Already mapped from ' + takenBy + ' — revert that first';
+                statusEl.style.color = '#c62828';
+            }
+            return;
+        }
+        if (btn) btn.disabled = true;
+        var prevField = createRow ? (createRow.getAttribute('data-mapped-to') || '') : '';
+        var aiRow = document.querySelector(
+            '.cm-ai-suggest-row[data-source-id="' + cssSafeId(sourceId) + '"]'
+        );
+        if (!prevField && aiRow) prevField = aiRow.getAttribute('data-mapped-to') || '';
+        var payload = [{ canonicalId: sourceId, id: sfccField }];
+        post(saveUrl, 'attrs=' + encodeURIComponent(JSON.stringify(payload)), function (data) {
+            if (btn) btn.disabled = false;
+            if (data && data.ok) {
+                syncCreateRowForAi(sourceId, 'mapped', sfccField);
+                syncAiRowForSource(sourceId, sfccField);
+                refreshAiTargetAvailability();
+                if (prevField && prevField !== sfccField) {
+                    moveSystemFieldToPending(sourceId, prevField);
+                }
+                moveSystemFieldToMapped(sourceId, sfccField, opts.sourceLabel || sourceId);
+                if (opts.onAccepted) opts.onAccepted(sourceId, sfccField, data);
+            } else if (statusEl) {
+                statusEl.textContent = (data && data.error) || 'Save failed';
+                statusEl.style.color = '#c62828';
+            }
+        });
+    }
+
+    /**
+     * Undo a create-row map to an unmapped SFCC system field.
+     * @param {Object} opts
+     */
+    function revertManualPendingMap(opts) {
+        var saveUrl = opts.saveAttrMapUrl || '';
+        var sourceId = opts.sourceId || '';
+        var idx = opts.idx;
+        var post = opts.post;
+        var statusEl = document.querySelector('.cm-attr-status[data-idx="' + idx + '"]');
+        var revertBtn = document.querySelector('.cm-pending-revert-btn[data-idx="' + idx + '"]');
+        var createRow = document.querySelector('.cm-attr-row[data-idx="' + idx + '"]');
+        if (!saveUrl || !sourceId || !post) {
+            if (statusEl) {
+                statusEl.textContent = 'Save URL unavailable';
+                statusEl.style.color = '#c62828';
+            }
+            return;
+        }
+        if (revertBtn) revertBtn.disabled = true;
+        var prevField = createRow ? (createRow.getAttribute('data-mapped-to') || '') : '';
+        var aiRow = document.querySelector(
+            '.cm-ai-suggest-row[data-source-id="' + cssSafeId(sourceId) + '"]'
+        );
+        if (!prevField && aiRow) prevField = aiRow.getAttribute('data-mapped-to') || '';
+        var payload = [{ canonicalId: sourceId, id: sourceId, remove: true }];
+        post(saveUrl, 'attrs=' + encodeURIComponent(JSON.stringify(payload)), function (data) {
+            if (revertBtn) revertBtn.disabled = false;
+            if (data && data.ok) {
+                syncAiRowForSource(sourceId, '');
+                syncCreateRowForAi(sourceId, 'suggestion');
+                refreshAiTargetAvailability();
+                if (prevField) moveSystemFieldToPending(sourceId, prevField);
+                if (opts.onReverted) opts.onReverted(sourceId, data);
+            } else if (statusEl) {
+                statusEl.textContent = (data && data.error) || 'Revert failed';
+                statusEl.style.color = '#c62828';
             }
         });
     }
@@ -664,40 +1117,31 @@
             var sm = sessionMaps[i];
             if (!sm || !sm.sourceId || !sm.sfccField) continue;
             var row = document.querySelector(
-                '.cm-ai-suggest-row[data-source-id="' + sm.sourceId.replace(/"/g, '') + '"]'
+                '.cm-ai-suggest-row[data-source-id="' + cssSafeId(sm.sourceId) + '"]'
             );
-            if (!row) continue;
-            var idx = row.getAttribute('data-idx');
-            var sel = document.querySelector('.cm-ai-target-select[data-idx="' + idx + '"]');
-            var statusEl = document.querySelector('.cm-ai-suggest-status[data-idx="' + idx + '"]');
-            var btn = document.querySelector('.cm-ai-use-map-btn[data-idx="' + idx + '"]');
-            var revertBtn = document.querySelector('.cm-ai-revert-btn[data-idx="' + idx + '"]');
-            if (sel) {
-                var opt = null;
-                var o;
-                for (o = 0; o < sel.options.length; o++) {
-                    if (sel.options[o].value === sm.sfccField) { opt = sel.options[o]; break; }
+            if (row) {
+                var idx = row.getAttribute('data-idx');
+                var sel = document.querySelector('.cm-ai-target-select[data-idx="' + idx + '"]');
+                var statusEl = document.querySelector('.cm-ai-suggest-status[data-idx="' + idx + '"]');
+                var btn = document.querySelector('.cm-ai-use-map-btn[data-idx="' + idx + '"]');
+                var revertBtn = document.querySelector('.cm-ai-revert-btn[data-idx="' + idx + '"]');
+                if (sel) {
+                    ensureSelectOption(sel, sm.sfccField, sm.sfccField + ' (session map)');
+                    sel.value = sm.sfccField;
                 }
-                if (!opt) {
-                    opt = document.createElement('option');
-                    opt.value = sm.sfccField;
-                    opt.text = sm.sfccField + ' (session map)';
-                    opt.setAttribute('data-base-label', opt.text);
-                    sel.appendChild(opt);
+                row.setAttribute('data-mapped-to', sm.sfccField);
+                if (statusEl) {
+                    statusEl.textContent = 'Mapped to ' + sm.sfccField;
+                    statusEl.style.color = '#2e7d32';
                 }
-                sel.value = sm.sfccField;
+                if (btn) {
+                    btn.textContent = 'Update mapping';
+                    btn.disabled = false;
+                }
+                if (revertBtn) revertBtn.style.display = 'inline-block';
             }
-            row.setAttribute('data-mapped-to', sm.sfccField);
-            if (statusEl) {
-                statusEl.textContent = 'Mapped to ' + sm.sfccField;
-                statusEl.style.color = '#2e7d32';
-            }
-            if (btn) {
-                btn.textContent = 'Update mapping';
-                btn.disabled = false;
-            }
-            if (revertBtn) revertBtn.style.display = 'inline-block';
             syncCreateRowForAi(sm.sourceId, 'mapped', sm.sfccField);
+            moveSystemFieldToMapped(sm.sourceId, sm.sfccField, sm.sourceId);
         }
         refreshAiTargetAvailability();
     }
@@ -828,6 +1272,21 @@
         var split = splitMapped(mapped);
         if (!container) return;
 
+        liveUi = ui;
+        liveSystemMapped = split.systemMapped.slice();
+        liveAlreadyExistsCount = split.alreadyExists.length;
+        liveMissingCount = missing.length;
+        liveSuggestedCount = suggested.length;
+        liveSkippedCount = skipped.length;
+        liveCoveragePending = [];
+        originalPendingById = {};
+        var pi;
+        for (pi = 0; pi < coveragePending.length; pi++) {
+            var pe = clonePendingEntry(coveragePending[pi]);
+            liveCoveragePending.push(pe);
+            originalPendingById[pe.id] = clonePendingEntry(pe);
+        }
+
         if (!mapped.length && !missing.length && !suggested.length
             && !coveragePending.length && !skipped.length) {
             container.innerHTML = '<div style="padding:12px 14px;background:#f4f6f9;border:1px solid #e0e5ee;border-radius:6px;">'
@@ -864,11 +1323,15 @@
         html += aiStatusBarHtml(barState, barMsg, suggested.length);
 
         if (split.systemMapped.length) {
-            html += mappedTableHtml(
-                split.systemMapped,
-                ui,
-                split.systemMapped.length + ' mapped to SFCC system attributes (no create):'
-            );
+            html += '<div id="acc-mapped-system-wrap">'
+                + mappedTableHtml(
+                    split.systemMapped,
+                    ui,
+                    split.systemMapped.length + ' mapped to SFCC system attributes (no create):'
+                )
+                + '</div>';
+        } else {
+            html += '<div id="acc-mapped-system-wrap"></div>';
         }
         if (split.alreadyExists.length) {
             html += mappedTableHtml(
@@ -878,16 +1341,18 @@
             );
         }
         if (suggested.length) {
-            html += suggestedTableHtml(suggested, ui);
+            html += suggestedTableHtml(suggested, ui, coveragePending, missing);
         }
         if (missing.length) {
-            html += missingTableHtml(missing, ui, sugIds);
+            html += missingTableHtml(missing, ui, sugIds, coveragePending);
         } else if (mapped.length || suggested.length) {
             html += '<p style="color:#2e7d32;font-size:13px;margin:0 0 16px;">'
                 + (ui.noAttrsToCreate || 'No attributes need to be created.') + '</p>';
         }
         html += skippedTableHtml(skipped);
-        html += coveragePendingTableHtml(coveragePending);
+        html += '<div id="acc-coverage-pending-wrap">'
+            + coveragePendingTableHtml(coveragePending)
+            + '</div>';
 
         container.innerHTML = html;
         container.style.display = 'block';
@@ -924,6 +1389,7 @@
                 acceptAiSuggestion({
                     saveAttrMapUrl: saveAttrMapUrl,
                     sourceId: row.id,
+                    sourceLabel: row.label || row.id,
                     sfccField: target,
                     idx: idx,
                     post: opts.post,
@@ -942,6 +1408,42 @@
                 revertAiSuggestion({
                     saveAttrMapUrl: saveAttrMapUrl,
                     sourceId: row.id,
+                    idx: idx,
+                    post: opts.post,
+                    onReverted: opts.onAiReverted
+                });
+            });
+        }
+
+        var pendingUseBtns = document.querySelectorAll('.cm-pending-use-map-btn');
+        var pui;
+        for (pui = 0; pui < pendingUseBtns.length; pui++) {
+            pendingUseBtns[pui].addEventListener('click', function () {
+                var idx = parseInt(this.getAttribute('data-idx'), 10);
+                var sourceId = this.getAttribute('data-source-id') || '';
+                var sel = document.querySelector('.cm-pending-map-select[data-idx="' + idx + '"]');
+                var target = sel ? sel.value : '';
+                acceptManualPendingMap({
+                    saveAttrMapUrl: saveAttrMapUrl,
+                    sourceId: sourceId,
+                    sourceLabel: sourceId,
+                    sfccField: target,
+                    idx: idx,
+                    post: opts.post,
+                    onAccepted: opts.onAiAccepted
+                });
+            });
+        }
+
+        var pendingRevertBtns = document.querySelectorAll('.cm-pending-revert-btn');
+        var pri;
+        for (pri = 0; pri < pendingRevertBtns.length; pri++) {
+            pendingRevertBtns[pri].addEventListener('click', function () {
+                var idx = parseInt(this.getAttribute('data-idx'), 10);
+                var sourceId = this.getAttribute('data-source-id') || '';
+                revertManualPendingMap({
+                    saveAttrMapUrl: saveAttrMapUrl,
+                    sourceId: sourceId,
                     idx: idx,
                     post: opts.post,
                     onReverted: opts.onAiReverted

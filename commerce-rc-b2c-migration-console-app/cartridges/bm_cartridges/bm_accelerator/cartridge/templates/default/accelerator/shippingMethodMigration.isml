@@ -130,19 +130,6 @@
     </section>
 </div>
 
-<div id="acc-preflight-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center;">
-    <div style="background:#fff;border-radius:6px;padding:28px 32px;max-width:620px;width:90%;max-height:82vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.3);">
-        <h3 style="margin:0 0 6px;color:#16325c;font-size:16px;">${pdict.migrationUi.attrModalTitle}</h3>
-        <p style="font-size:13px;color:#54698d;margin:0 0 16px;">Create missing ShippingMethod attributes now, or skip and migrate without them.</p>
-        <div id="acc-modal-attr-list"></div>
-        <p id="acc-modal-status" style="font-size:12px;margin:12px 0 0;min-height:16px;"></p>
-        <div style="margin-top:16px;display:flex;gap:12px;justify-content:flex-end;flex-wrap:wrap;">
-            <button id="acc-modal-skip" type="button" class="acc-btn acc-btn--ghost">Skip &amp; Migrate</button>
-            <button id="acc-modal-create" type="button" class="acc-btn acc-btn--primary">Create Attributes &amp; Migrate</button>
-        </div>
-    </div>
-</div>
-
 <script>
 (function () {
     var LIST_METHODS_URL = '${pdict.listMethodsUrl}';
@@ -478,42 +465,6 @@
         window.location.href = DATA_WIZARD_ENTRY_URL;
     }
 
-    var preflightModal = document.getElementById('acc-preflight-modal');
-    var modalAttrList = document.getElementById('acc-modal-attr-list');
-    var modalSkipBtn = document.getElementById('acc-modal-skip');
-    var modalCreateBtn = document.getElementById('acc-modal-create');
-    var modalStatus = document.getElementById('acc-modal-status');
-    var modalCallback = null;
-
-    function runPreflightThenMigrate(onContinue) {
-        get(CHECK_ATTRS_URL, function (data) {
-            if (!data.ok || !data.missing || !data.missing.length) { onContinue(); return; }
-            modalAttrList.innerHTML = '<p style="font-size:13px;color:#54698d;">'
-                + (window.AccAttrPreflight ? window.AccAttrPreflight.missingBriefLabel(MIGRATION_UI, data.missing.length) : data.missing.length + (MIGRATION_UI.attrsMissingBrief || ' attribute(s) missing.'))
-                + '</p>';
-            modalCallback = onContinue;
-            modalCreateBtn.style.display = '';
-            preflightModal.style.display = 'flex';
-        });
-    }
-
-    modalSkipBtn.addEventListener('click', function () {
-        preflightModal.style.display = 'none';
-        if (modalCallback) modalCallback();
-    });
-    modalCreateBtn.addEventListener('click', function () {
-        modalCreateBtn.disabled = true;
-        get(CHECK_ATTRS_URL, function (checkData) {
-            var missing = (checkData && checkData.missing) ? checkData.missing : [];
-            post(CREATE_ATTRS_URL, 'attrs=' + encodeURIComponent(JSON.stringify(missing)), function (data) {
-                modalCreateBtn.disabled = false;
-                if (!data.ok) { modalStatus.textContent = data.error || 'Failed'; return; }
-                preflightModal.style.display = 'none';
-                if (modalCallback) modalCallback();
-            });
-        });
-    });
-
     function runFullBatch(offset, total) {
         var pct = (total > 0) ? Math.round((offset / total) * 100) : 0;
         setPhase('full', 'build', 'active', offset + ' / ' + (total || '?') + ' processed', pct);
@@ -576,17 +527,14 @@
         fullFinished = false;
         lastUploadedFile = '';
         startBtn.disabled = true;
-        startBtn.textContent = MIGRATION_UI.checkingAttrs || 'Checking attributes...';
-        runPreflightThenMigrate(function () {
-            fullRunning = true;
-            fullBuilt = 0; fullFailed = 0; fullFiles = 0;
-            fullSelectedKeys = keys;
-            startBtn.textContent = 'Building...';
-            fullPhaseList.style.display = 'block';
-            setPhase('full', 'build', 'pending', '', 0);
-            setPhase('full', 'import', 'pending', null, 0);
-            runFullBatch(0, keys.length);
-        });
+        startBtn.textContent = 'Building...';
+        fullRunning = true;
+        fullBuilt = 0; fullFailed = 0; fullFiles = 0;
+        fullSelectedKeys = keys;
+        fullPhaseList.style.display = 'block';
+        setPhase('full', 'build', 'pending', '', 0);
+        setPhase('full', 'import', 'pending', null, 0);
+        runFullBatch(0, keys.length);
     });
 }());
 </script>

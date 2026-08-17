@@ -363,23 +363,6 @@
 </div>
 
 
-<!-- Attribute pre-flight modal -->
-<div id="acc-preflight-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center;">
-    <div style="background:#fff;border-radius:6px;padding:28px 32px;max-width:620px;width:90%;max-height:82vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.3);">
-        <h3 style="margin:0 0 6px;color:#16325c;font-size:16px;">Missing ${pdict.platformLabel} Attributes in SFCC</h3>
-        <p style="font-size:13px;color:#54698d;margin:0 0 16px;">
-            The following ${pdict.platformLabel} customer attributes do not exist on the SFCC <strong>Profile</strong> system object.
-            Create them now so their values are stored during migration, or skip to migrate without them.
-        </p>
-        <div id="acc-modal-attr-list"></div>
-        <p id="acc-modal-status" style="font-size:12px;margin:12px 0 0;min-height:16px;"></p>
-        <div style="margin-top:16px;display:flex;gap:12px;justify-content:flex-end;flex-wrap:wrap;">
-            <button id="acc-modal-skip"   type="button" class="acc-btn acc-btn--ghost">Skip &amp; Migrate</button>
-            <button id="acc-modal-create" type="button" class="acc-btn acc-btn--primary">Create Attributes &amp; Migrate</button>
-        </div>
-    </div>
-</div>
-
 <script>
 (function () {
     var PROFILE_URL      = '${pdict.profileUrl}';
@@ -933,156 +916,7 @@
         );
     }
 
-    // ????????????????????????????????????????????????????????????????????????
-    // ATTRIBUTE PRE-FLIGHT MODAL
-    // ????????????????????????????????????????????????????????????????????????
-
-    var preflightModal = document.getElementById('acc-preflight-modal');
-    var modalAttrList  = document.getElementById('acc-modal-attr-list');
-    var modalSkipBtn   = document.getElementById('acc-modal-skip');
-    var modalCreateBtn = document.getElementById('acc-modal-create');
-    var modalStatus    = document.getElementById('acc-modal-status');
-    var modalMissing   = [];
-    var modalCallback  = null;
-
-    function showPreflightModal(missing, onContinue) {
-        modalMissing  = missing;
-        modalCallback = onContinue;
-
-        var html = '<div style="border:1px solid #e0e5ee;border-radius:4px;overflow:hidden;margin-bottom:4px;">'
-            + '<table class="cm-attr-table">'
-            + '<thead><tr>'
-            + '<th>Attribute ID</th>'
-            + '<th>Label</th>'
-            + '<th>Source Type</th>'
-            + '<th>SFCC Type</th>'
-            + '<th>Notes</th>'
-            + '</tr></thead><tbody>';
-        for (var i = 0; i < missing.length; i++) {
-            var m = missing[i];
-            html += '<tr>'
-                + '<td><code>' + escHtml(m.id) + '</code></td>'
-                + '<td>' + escHtml(m.label || m.id) + '</td>'
-                + '<td style="color:#8a9ab8;">' + escHtml(m.ctpType || '—') + '</td>'
-                + '<td>' + window.AccAttrPreflight.sfccTypeSelectHtml(m, i, 'cm-attr-type-select cm-attr-modal-type') + '</td>'
-                + '<td>' + (m.sfccNativeNote
-                    ? '<span class="acc-info-tip" aria-label="' + escHtml(m.sfccNativeNote) + '">&#9432;'
-                        + '<span class="acc-info-tip__text">' + escHtml(m.sfccNativeNote) + '</span></span>'
-                    : '') + '</td>'
-                + '</tr>';
-        }
-        html += '</tbody></table></div>';
-        modalAttrList.innerHTML    = html;
-        modalStatus.textContent    = '';
-        modalStatus.style.color    = '#54698d';
-        modalCreateBtn.disabled    = false;
-        modalCreateBtn.textContent = 'Create Attributes & Migrate';
-        preflightModal.style.display = 'flex';
-    }
-
-    function closePreflightModal() {
-        preflightModal.style.display = 'none';
-    }
-
-    modalSkipBtn.addEventListener('click', function () {
-        closePreflightModal();
-        if (modalCallback) { modalCallback(); }
-    });
-
-    modalCreateBtn.addEventListener('click', function () {
-        modalCreateBtn.disabled    = true;
-        modalCreateBtn.textContent = 'Creating attributes...';
-        modalStatus.textContent    = '';
-
-        var req = new XMLHttpRequest();
-        req.open('POST', CREATE_ATTRS_URL, true);
-        req.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
-        req.onreadystatechange = function () {
-            if (req.readyState !== 4) return;
-            var data;
-            try { data = JSON.parse(req.responseText); } catch (e) { data = { ok: false, error: 'Parse error' }; }
-
-            if (!data.ok) {
-                modalStatus.textContent = 'Error: ' + (data.error || 'Attribute creation failed');
-                modalStatus.style.color = '#c62828';
-                modalCreateBtn.disabled    = false;
-                modalCreateBtn.textContent = 'Retry';
-                return;
-            }
-
-            var r    = data.result || {};
-            var msg  = r.created + ' attribute(s) created';
-            if (r.failed) msg += ', ' + r.failed + ' failed';
-            modalStatus.textContent = msg + '. Starting migration...';
-            modalStatus.style.color = r.failed ? '#e65100' : '#2e7d32';
-
-            setTimeout(function () {
-                closePreflightModal();
-                if (modalCallback) { modalCallback(); }
-            }, 900);
-        };
-        req.send('attrs=' + encodeURIComponent(JSON.stringify(modalMissing.map(function (m, i) {
-            return {
-                id: m.id,
-                label: m.label,
-                ctpType: m.ctpType,
-                sfccType: window.AccAttrPreflight.readSfccType(i, m.sfccType, 'cm-attr-modal-type')
-            };
-        }))));
-    });
-
-    /**
-     * Run the attribute pre-flight check, then call onContinue.
-     * - Missing attributes found ? show modal so user can create them first.
-     * - All attributes present  ? call onContinue directly.
-     * - Check fails             ? show the modal in error mode so the user knows,
-     *                             but still allows them to proceed.
-     */
-    function runPreflightThenMigrate(onContinue) {
-        var req = new XMLHttpRequest();
-        req.open('GET', CHECK_ATTRS_URL, true);
-        req.onreadystatechange = function () {
-            if (req.readyState !== 4) return;
-            var data;
-            try { data = JSON.parse(req.responseText); } catch (e) { data = { ok: false, error: 'Response parse error' }; }
-
-            if (!data.ok) {
-                // Check failed ? show modal with error message so user can decide to proceed anyway
-                showPreflightError(data.error || 'Attribute check failed', onContinue);
-                return;
-            }
-
-            if (data.missing && data.missing.length > 0) {
-                showPreflightModal(data.missing, onContinue);
-            } else {
-                onContinue();
-            }
-        };
-        req.onerror = function () {
-            showPreflightError('Network error ? could not reach the attribute check endpoint', onContinue);
-        };
-        req.send(null);
-    }
-
-    function showPreflightError(errorMsg, onContinue) {
-        modalAttrList.innerHTML = '<p style="color:#c62828;font-size:13px;margin:0 0 8px;">'
-            + '<strong>Could not check ' + PLATFORM_LABEL + ' attributes:</strong> ' + errorMsg + '</p>'
-            + '<p style="font-size:13px;color:#54698d;margin:0;">You can proceed without the check ? '
-            + 'missing attributes will not be created automatically.</p>';
-        modalStatus.textContent = '';
-        modalCreateBtn.style.display = 'none';
-        modalSkipBtn.textContent = 'Proceed Anyway';
-        modalCallback = function () {
-            modalCreateBtn.style.display = '';
-            modalSkipBtn.textContent = 'Skip & Migrate';
-            onContinue();
-        };
-        preflightModal.style.display = 'flex';
-    }
-
-    // ????????????????????????????????????????????????????????????????????????
-    // PARTIAL MIGRATION ? start button (with pre-flight)
-    // ????????????????????????????????????????????????????????????????????????
+    // PARTIAL MIGRATION — start button
 
     startBtn.addEventListener('click', function () {
         var listId = listIdEl.value.trim();
@@ -1113,23 +947,20 @@
         if (!valid || partialRunning) return;
 
         startBtn.disabled    = true;
-        startBtn.textContent = 'Checking attributes...';
+        startBtn.textContent = 'Running...';
 
-        runPreflightThenMigrate(function () {
-            partialRunning   = true;
-            profilesCreated  = 0; profilesSkipped = 0; profilesFailed = 0; profileErrors = [];
-            addrsCreated     = 0; addrsFailed     = 0; allMappings    = [];
+        partialRunning   = true;
+        profilesCreated  = 0; profilesSkipped = 0; profilesFailed = 0; profileErrors = [];
+        addrsCreated     = 0; addrsFailed     = 0; allMappings    = [];
 
-            startBtn.textContent    = 'Running...';
-            statusBox.style.display = 'none';
-            overallEl.textContent   = '';
-            phaseList.style.display = 'block';
+        statusBox.style.display = 'none';
+        overallEl.textContent   = '';
+        phaseList.style.display = 'block';
 
-            setPhase('acc', 'profiles',  'pending', '', 0);
-            setPhase('acc', 'addresses', 'pending', '', 0);
+        setPhase('acc', 'profiles',  'pending', '', 0);
+        setPhase('acc', 'addresses', 'pending', '', 0);
 
-            runProfilesById(ids, 0);
-        });
+        runProfilesById(ids, 0);
     });
 
     // ????????????????????????????????????????????????????????????????????????
@@ -1226,22 +1057,19 @@
         fullFinished = false;
 
         fullStartBtn.disabled    = true;
-        fullStartBtn.textContent = 'Checking attributes...';
+        fullStartBtn.textContent = 'Building...';
 
-        runPreflightThenMigrate(function () {
-            fullRunning   = true;
-            fullBuilt     = 0; fullFailed = 0; fullBatches = 0; fullFileName = '';
+        fullRunning   = true;
+        fullBuilt     = 0; fullFailed = 0; fullBatches = 0; fullFileName = '';
 
-            fullStartBtn.textContent    = 'Building...';
-            fullStatusBox.style.display = 'none';
-            fullOverallEl.textContent   = '';
-            fullPhaseList.style.display = 'block';
+        fullStatusBox.style.display = 'none';
+        fullOverallEl.textContent   = '';
+        fullPhaseList.style.display = 'block';
 
-            setPhase('full', 'build',  'pending', '', 0);
-            setPhase('full', 'import', 'pending', null, 0);
+        setPhase('full', 'build',  'pending', '', 0);
+        setPhase('full', 'import', 'pending', null, 0);
 
-            runFullBatch(0, 0);
-        });
+        runFullBatch(0, 0);
     });
 
 }());

@@ -89,7 +89,7 @@ function doGet(url, token) {
  * Get every attribute definition for an SFCC system object type.
  * @param {string} token
  * @param {string} objectType
- * @returns {Array<{ id: string, displayName: string, system: boolean }>}
+ * @returns {Array<{ id: string, displayName: string, system: boolean, localizable: boolean|null, valueType: string }>}
  */
 function getAttributeDefinitions(token, objectType) {
     var attrs    = [];
@@ -106,10 +106,16 @@ function getAttributeDefinitions(token, objectType) {
         var page = res.data.data || [];
         for (var i = 0; i < page.length; i++) {
             var a = page[i];
+            var locRaw = a.localizable;
+            var locKnown = (locRaw === true || locRaw === false
+                || locRaw === 1 || locRaw === 0
+                || locRaw === 'true' || locRaw === 'false');
             attrs.push({
-                id:          a.id,
-                displayName: (a.display_name && a.display_name.default) || a.id,
-                system:      !!a.system
+                id:           a.id,
+                displayName:  (a.display_name && a.display_name.default) || a.id,
+                system:       !!a.system,
+                localizable:  locKnown ? (locRaw === true || locRaw === 1 || locRaw === 'true') : null,
+                valueType:    a.value_type || a.valueType || a['value-type'] || ''
             });
         }
         start += pageSize;

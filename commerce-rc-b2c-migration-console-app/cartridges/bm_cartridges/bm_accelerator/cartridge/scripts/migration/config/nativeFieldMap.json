@@ -486,8 +486,7 @@
             "Product": {
                 "version": "Platform version metadata - not migrated as an SFCC attribute.",
                 "productType": "Product type reference - attributes come from the type; not a Product system attribute.",
-                "masterData": "Container for current/staged product data - fields under it are mapped individually.",
-                "key": "CT key is custom/trace by policy (not mapped to ID)."
+                "masterData": "Container for current/staged product data - fields under it are mapped individually."
             },
             "Customer": {
                 "id": "CT customer UUID - not a Profile system attribute (Profile has UUID but only maps from UUID).",

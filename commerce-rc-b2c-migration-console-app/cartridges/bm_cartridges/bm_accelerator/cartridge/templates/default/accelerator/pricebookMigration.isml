@@ -169,19 +169,6 @@
     </section>
 </div>
 
-<div id="acc-preflight-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center;">
-    <div style="background:#fff;border-radius:6px;padding:28px 32px;max-width:620px;width:90%;max-height:82vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.3);">
-        <h3 style="margin:0 0 6px;color:#16325c;font-size:16px;">${pdict.migrationUi.attrModalTitle}</h3>
-        <p style="font-size:13px;color:#54698d;margin:0 0 16px;">Create missing PriceBook attributes now, or skip and migrate without them.</p>
-        <div id="acc-modal-attr-list"></div>
-        <p id="acc-modal-status" style="font-size:12px;margin:12px 0 0;min-height:16px;"></p>
-        <div style="margin-top:16px;display:flex;gap:12px;justify-content:flex-end;flex-wrap:wrap;">
-            <button id="acc-modal-skip" type="button" class="acc-btn acc-btn--ghost">Skip &amp; Migrate</button>
-            <button id="acc-modal-create" type="button" class="acc-btn acc-btn--primary">Create Attributes &amp; Migrate</button>
-        </div>
-    </div>
-</div>
-
 <script src="${pdict.pricebookMigrationJsUrl}"></script>
 </div>
 </isdecorate>

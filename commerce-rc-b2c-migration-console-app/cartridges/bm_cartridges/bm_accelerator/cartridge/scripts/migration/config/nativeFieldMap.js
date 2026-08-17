@@ -101,6 +101,79 @@ function getSystemIds(task) {
 }
 
 /**
+ * OCAPI value_type for an SFCC system attribute. Used when the live
+ * attribute-definitions payload omits value_type (sparse select).
+ * Live OCAPI types always win over this table.
+ */
+var SYSTEM_VALUE_TYPES = {
+    Product: {
+        EAN: 'string',
+        ID: 'string',
+        UPC: 'string',
+        UUID: 'string',
+        available: 'boolean',
+        brand: 'string',
+        creationDate: 'datetime',
+        facebookEnabled: 'boolean',
+        image: 'image',
+        lastModified: 'datetime',
+        localizedTaxClassID: 'string',
+        longDescription: 'html',
+        manufacturerName: 'string',
+        manufacturerSKU: 'string',
+        minOrderQuantity: 'double',
+        name: 'string',
+        onlineFlag: 'boolean',
+        onlineFrom: 'datetime',
+        onlineTo: 'datetime',
+        pageDescription: 'html',
+        pageKeywords: 'string',
+        pageTitle: 'string',
+        pageURL: 'string',
+        pinterestEnabled: 'boolean',
+        searchPlacement: 'int',
+        searchRank: 'double',
+        searchable: 'boolean',
+        searchableIfUnavailable: 'boolean',
+        shortDescription: 'html',
+        siteMapChangeFrequency: 'enum_of_string',
+        siteMapIncluded: 'enum_of_int',
+        siteMapPriority: 'double',
+        stepQuantity: 'double',
+        storeForcePriceEnabled: 'boolean',
+        storeNonDiscountableEnabled: 'boolean',
+        storeNonInventoryEnabled: 'boolean',
+        storeNonRevenueEnabled: 'boolean',
+        storeReceiptName: 'string',
+        storeTaxClass: 'string',
+        taxClassID: 'string',
+        template: 'string',
+        thumbnail: 'image',
+        unit: 'string',
+        unitMeasure: 'string',
+        unitQuantity: 'double'
+    }
+};
+
+/**
+ * @param {string} task
+ * @param {string} attrId
+ * @returns {string} OCAPI value_type or ''
+ */
+function getSystemValueType(task, attrId) {
+    var map = SYSTEM_VALUE_TYPES[task];
+    if (!map || !attrId) return '';
+    if (Object.prototype.hasOwnProperty.call(map, attrId)) return map[attrId];
+    var lower = String(attrId).toLowerCase();
+    var keys = Object.keys(map);
+    var i;
+    for (i = 0; i < keys.length; i++) {
+        if (keys[i].toLowerCase() === lower) return map[keys[i]];
+    }
+    return '';
+}
+
+/**
  * Case-insensitive key lookup in a plain object map.
  * @param {Object} map
  * @param {string} key
@@ -403,5 +476,6 @@ module.exports = {
     getSourcesForSystemField: getSourcesForSystemField,
     resolveSystemId:          resolveSystemId,
     getSystemIds:             getSystemIds,
+    getSystemValueType:       getSystemValueType,
     getCoverage:              getCoverage
 };
