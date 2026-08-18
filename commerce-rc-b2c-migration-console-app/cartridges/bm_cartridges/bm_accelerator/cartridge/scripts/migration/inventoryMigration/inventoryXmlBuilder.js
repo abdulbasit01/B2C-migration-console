@@ -27,6 +27,20 @@ function buildRecordXml(record) {
     xml += '                <ats>' + record.ats + '</ats>\n';
     xml += '                <on-order>' + (record.onOrder || 0) + '</on-order>\n';
     xml += '                <turnover>' + (record.turnover || 0) + '</turnover>\n';
+
+    // Dynamic CT custom-type fields for this inventory record.
+    if (record.customAttributes) {
+        var keys = Object.keys(record.customAttributes);
+        if (keys.length) {
+            xml += '                <custom-attributes>\n';
+            for (var i = 0; i < keys.length; i++) {
+                xml += '                    <custom-attribute attribute-id="' + xmlEsc(keys[i]) + '">'
+                    + xmlEsc(record.customAttributes[keys[i]]) + '</custom-attribute>\n';
+            }
+            xml += '                </custom-attributes>\n';
+        }
+    }
+
     xml += '            </record>\n';
     return xml;
 }
