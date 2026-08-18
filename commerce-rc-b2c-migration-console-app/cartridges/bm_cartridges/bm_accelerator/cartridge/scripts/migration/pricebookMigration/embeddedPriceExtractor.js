@@ -93,12 +93,29 @@ function toRecord(sku, priceEntry) {
     if (!sku || !priceEntry || !priceEntry.value) return null;
     var amount = toDecimal(priceEntry.value);
     if (!amount) return null;
-    return {
+
+    var record = {
         sku:        sku,
         amount:     amount,
         currency:   priceEntry.value.currencyCode,
         hasChannel: !!(priceEntry.channel && priceEntry.channel.id)
     };
+
+    // CT quantity tiers -> SFCC price-table quantity-based <amount> rows.
+    if (priceEntry.tiers && priceEntry.tiers.length) {
+        var tiers = [];
+        var ti;
+        for (ti = 0; ti < priceEntry.tiers.length; ti++) {
+            var tier       = priceEntry.tiers[ti];
+            var tierAmount = tier.value ? toDecimal(tier.value) : '';
+            if (tierAmount && tier.minimumQuantity) {
+                tiers.push({ quantity: tier.minimumQuantity, amount: tierAmount });
+            }
+        }
+        if (tiers.length) record.tiers = tiers;
+    }
+
+    return record;
 }
 
 /**
