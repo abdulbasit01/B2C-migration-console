@@ -3805,7 +3805,9 @@ exports.CategoryMigration = function () {
         checkProductsUrl      : URLUtils.url('Accelerator-CheckCategoryProducts').toString(),
         attrPreflightJsUrl    : URLUtils.staticURL('/js/attr-preflight.js').toString() + '?v=12',
         createAttrsUrl        : URLUtils.url('Accelerator-CreateCategoryAttributes').toString(),
+        deleteAttrUrl         : URLUtils.url('Accelerator-DeleteCategoryAttribute').toString(),
         clearAttrMapUrl       : clearAttrMapUrlFor('category'),
+        saveCustomAttrsUrl    : URLUtils.url('Accelerator-SaveCategoryCustomAttrs').toString(),
         jsUrl: URLUtils.url('Accelerator-CategoryMigrationJS').toString() + '?v=' + new Date().getTime()
     }));
 };
@@ -3826,13 +3828,23 @@ exports.CheckCategoryAttributes = function () {
         if (!selectedParam && !deleteParam) {
             var categoryAttributeMgr = require('*/cartridge/scripts/catalog/categoryAttributeMgr');
             var catPlatform = String(session.custom.migrationPlatformId || 'commercetools');
-            var attrs = categoryAttributeMgr.checkAttributes(catPlatform);
+            var result = categoryAttributeMgr.checkAttributes(catPlatform);
+            var suggestUrl = URLUtils.url('Accelerator-SuggestAttrMaps').toString();
             response.setContentType('application/json');
             response.writer.print(JSON.stringify({
                 ok: true,
-                attrs: attrs.attrs || attrs,
-                mapped: attrs.mapped || [],
-                missing: attrs.missing || []
+                attrs: result.attrs || [],
+                mapped: result.mapped || [],
+                missing: result.missing || [],
+                coveragePending: result.coveragePending || [],
+                skipped: result.skipped || [],
+                suggested: result.suggested || [],
+                aiStatus: (result && result.aiStatus) || 'skipped',
+                aiMessage: (result && result.aiMessage) || '',
+                taskName: (result && result.taskName) || 'Category',
+                sfccObjectType: (result && result.sfccObjectType) || 'Category',
+                suggestAttrMapsUrl: suggestUrl,
+                sessionSystemMaps: []
             }));
             return;
         }
@@ -3964,6 +3976,91 @@ exports.CheckAttributeStatus = function () {
 };
 exports.CheckAttributeStatus.public = true;
 
+/**
+ * Delete a single custom attribute definition from the SFCC Category system object.
+ * POST: attrId=<attribute-id>
+ */
+exports.DeleteCategoryAttribute = function () {
+    var attrId = getParam('attrId');
+    if (!attrId) {
+        jsonResponse({ ok: false, error: 'attrId is required' });
+        return;
+    }
+    try {
+        var sfccClient = require('*/cartridge/scripts/migration/sfccClient');
+        var token = sfccClient.getSFCCToken();
+        sfccClient.deleteAttributeDefinition(token, 'Category', attrId);
+        jsonResponse({ ok: true, deleted: attrId });
+    } catch (e) {
+        jsonResponse({ ok: false, error: e.message || String(e) });
+    }
+};
+exports.DeleteCategoryAttribute.public = true;
+
+/**
+ * GET: Fetch discovered CT custom-Type fields for the category object
+ * POST: Save the user's selection of CT custom-Type fields to include in XML
+ * POST: attrs=<JSON array of field names to include>
+ */
+exports.SaveCategoryCustomAttrs = function () {
+    response.setContentType('application/json');
+
+    try {
+        var attrsJsonParam = null;
+        if (request.httpParameterMap.attrs) {
+            attrsJsonParam = request.httpParameterMap.attrs.stringValue;
+        }
+
+        // POST request — save the selection
+        if (attrsJsonParam) {
+            var selected = [];
+            try {
+                selected = JSON.parse(attrsJsonParam);
+            } catch (pe) {
+                selected = [];
+            }
+            session.custom.selectedCategoryCustomAttrs = JSON.stringify(selected);
+            response.writer.print(JSON.stringify({ ok: true, saved: selected.length }));
+            return;
+        }
+
+        // GET request — fetch available CT custom-Type fields
+        var savedSelection = [];
+        try {
+            var saved = session.custom.selectedCategoryCustomAttrs;
+            if (saved) {
+                savedSelection = JSON.parse(saved);
+            }
+        } catch (e) {
+            savedSelection = [];
+        }
+
+        var customFields = [];
+        var catPlatform = String(session.custom.migrationPlatformId || 'commercetools');
+
+        if (catPlatform === 'commercetools') {
+            try {
+                var categoryAttributeMgr = require('*/cartridge/scripts/catalog/categoryAttributeMgr');
+                customFields = categoryAttributeMgr.getCtpCategoryTypeFields() || [];
+            } catch (ctErr) {
+                customFields = [];
+            }
+        }
+
+        response.writer.print(JSON.stringify({
+            ok: true,
+            attrs: customFields,
+            savedSelection: savedSelection
+        }));
+
+    } catch (e) {
+        response.writer.print(JSON.stringify({
+            ok: false,
+            error: e.message || 'Unknown error'
+        }));
+    }
+};
+exports.SaveCategoryCustomAttrs.public = true;
 
 
 // Fetch all available SFCC catalogs using native CatalogMgr (no credentials needed)
@@ -4697,7 +4794,7 @@ exports.RunCategoryMigration = function () {
         // Merge session-stored mapping as fallback for keys not provided by client.
         // This handles the cross-session case where the user navigates away after Step 1
         // and returns directly to Step 3 — the attr table is empty so client sends no mapping.
-        var CANONICAL_ATTRS = ['ctId', 'ctSlug', 'ctPosition', 'level', 'isLeaf', 'sapCode'];
+        var CANONICAL_ATTRS = ['level', 'isLeaf', 'sapCode'];
         for (var cai = 0; cai < CANONICAL_ATTRS.length; cai++) {
             var cKey = CANONICAL_ATTRS[cai];
             if (!attrIds[cKey]) {

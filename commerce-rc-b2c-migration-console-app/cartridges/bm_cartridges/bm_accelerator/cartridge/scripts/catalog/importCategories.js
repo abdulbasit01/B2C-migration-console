@@ -37,9 +37,15 @@ function importCategory(token, catalogId, sfccCategory, instanceHost) {
         position: sfccCategory.position,
         page_title: sfccCategory.pageTitle,
         page_description: sfccCategory.pageDescription,
-        c_ctSlug: (sfccCategory.customAttributes && sfccCategory.customAttributes.ctSlug) || '',
-        c_ctId: (sfccCategory.customAttributes && sfccCategory.customAttributes.ctId) || ''
+        page_keywords: sfccCategory.pageKeywords,
+        page_url: sfccCategory.pageURL
     };
+
+    // Genuine CT custom-Type fields (merchant-defined extensions) — dynamically prefixed as c_<id>.
+    var ca = sfccCategory.customAttributes || {};
+    Object.keys(ca).forEach(function (key) {
+        payload['c_' + key] = ca[key];
+    });
 
     var res = serviceHttp.put('sfcc', url, {
         Authorization:  'Bearer ' + token,

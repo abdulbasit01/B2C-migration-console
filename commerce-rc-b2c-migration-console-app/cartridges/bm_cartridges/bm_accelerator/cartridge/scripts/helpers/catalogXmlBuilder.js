@@ -133,10 +133,13 @@ function buildCategoryXml(sfccCategory) {
         xml += '        <parent>' + escapeXml(sfccCategory.parentId) + '</parent>\n';
     }
 
-    // 4. position — now correctly reflects drag-and-drop overrides
-    // position is a float in SFCC — lower number = appears first
-    if (sfccCategory.position !== undefined && sfccCategory.position !== null) {
-        xml += '        <position>' + parseFloat(sfccCategory.position).toFixed(1) + '</position>\n';
+    // 4. position — uses the raw CT orderHint string when available, since
+    // parseFloat (sfccCategory.position) truncates precision beyond a JS double;
+    // orderHint is a string by design to support arbitrary-precision ordering.
+    if (sfccCategory.positionRaw) {
+        xml += '        <position>' + escapeXml(sfccCategory.positionRaw) + '</position>\n';
+    } else if (sfccCategory.position !== undefined && sfccCategory.position !== null) {
+        xml += '        <position>' + sfccCategory.position + '</position>\n';
     }
 
     // 5. page-attributes
@@ -144,8 +147,12 @@ function buildCategoryXml(sfccCategory) {
         && Object.keys(sfccCategory.pageTitle).length > 0;
     var hasPageDesc  = sfccCategory.pageDescription
         && Object.keys(sfccCategory.pageDescription).length > 0;
+    var hasPageKeywords = sfccCategory.pageKeywords
+        && Object.keys(sfccCategory.pageKeywords).length > 0;
+    var hasPageURL = sfccCategory.pageURL
+        && Object.keys(sfccCategory.pageURL).length > 0;
 
-    if (hasPageTitle || hasPageDesc) {
+    if (hasPageTitle || hasPageDesc || hasPageKeywords || hasPageURL) {
         xml += '        <page-attributes>\n';
         if (hasPageTitle) {
             Object.keys(sfccCategory.pageTitle)
@@ -174,6 +181,36 @@ function buildCategoryXml(sfccCategory) {
                     if (val) {
                         xml += '            <page-description xml:lang="' + lang + '">'
                             + val + '</page-description>\n';
+                    }
+                });
+        }
+        if (hasPageKeywords) {
+            Object.keys(sfccCategory.pageKeywords)
+                .sort(function (a, b) {
+                    if (a === 'x-default') return -1;
+                    if (b === 'x-default') return 1;
+                    return a.localeCompare(b);
+                })
+                .forEach(function (lang) {
+                    var val = escapeXml(sfccCategory.pageKeywords[lang]);
+                    if (val) {
+                        xml += '            <page-keywords xml:lang="' + lang + '">'
+                            + val + '</page-keywords>\n';
+                    }
+                });
+        }
+        if (hasPageURL) {
+            Object.keys(sfccCategory.pageURL)
+                .sort(function (a, b) {
+                    if (a === 'x-default') return -1;
+                    if (b === 'x-default') return 1;
+                    return a.localeCompare(b);
+                })
+                .forEach(function (lang) {
+                    var val = escapeXml(sfccCategory.pageURL[lang]);
+                    if (val) {
+                        xml += '            <page-url xml:lang="' + lang + '">'
+                            + val + '</page-url>\n';
                     }
                 });
         }

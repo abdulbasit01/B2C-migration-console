@@ -29,6 +29,49 @@ function resolveLocale(localizedObj, defaultLocale) {
     return keys[0] || '';
 }
 
+function localizedFallback(obj) {
+    if (!obj || typeof obj !== 'object') return '';
+    return obj.en || obj['en-US'] || obj['en-GB']
+        || (Object.keys(obj).length ? obj[Object.keys(obj)[0]] : '');
+}
+
+/**
+ * Serialize a raw CT custom-Type field value (merchant-defined) for
+ * SFCC category custom-attributes. Mirrors inventoryTransformer's approach.
+ * @param {*} val
+ * @returns {string}
+ */
+function formatCustomFieldValue(val) {
+    if (val === null || val === undefined) return '';
+    if (typeof val === 'boolean' || typeof val === 'number') return String(val);
+    if (typeof val === 'string') return val;
+    if (Array.isArray(val)) {
+        var parts = [];
+        for (var ai = 0; ai < val.length; ai++) {
+            var item = formatCustomFieldValue(val[ai]);
+            if (item) parts.push(item);
+        }
+        return parts.join(',');
+    }
+    if (typeof val === 'object') {
+        if (val.centAmount !== undefined && val.currencyCode) {
+            var digits = typeof val.fractionDigits === 'number' ? val.fractionDigits : 2;
+            return (val.centAmount / Math.pow(10, digits)).toFixed(digits) + ' ' + val.currencyCode;
+        }
+        if (val.id && (val.typeId || val.type_id)) {
+            return String(val.id);
+        }
+        var localized = localizedFallback(val);
+        if (localized) return localized;
+        try {
+            return JSON.stringify(val);
+        } catch (e) {
+            return '';
+        }
+    }
+    return String(val);
+}
+
 /**
  * Transforms a CT category into SFCC-compatible object.
  * @param {Object} ctCategory   - raw CT category
@@ -50,7 +93,14 @@ function transformCategory(ctCategory, defaultLocale, idToKey) {
         description     : {},
         pageTitle       : {},
         pageDescription : {},
+        pageKeywords    : {},
+        pageURL         : {},
+        // position: parsed float used for sort comparisons only.
+        // positionRaw: the untouched CT orderHint string — parseFloat truncates
+        // its precision (orderHint is a string by design, for arbitrary-precision
+        // fractional ordering), so the XML must use the raw string, not this number.
         position        : ctCategory.orderHint ? parseFloat(ctCategory.orderHint) : 0,
+        positionRaw     : ctCategory.orderHint || null,
         online          : true,
         customAttributes: {}
     };
@@ -117,20 +167,52 @@ function transformCategory(ctCategory, defaultLocale, idToKey) {
         }
     }
 
-    // ── ctSlug: localized slug → fall back to category key ──────────────────
+    // ── metaKeywords ─────────────────────────────────────────────────────────
+    if (ctCategory.metaKeywords) {
+        var keywordsKeys = Object.keys(ctCategory.metaKeywords);
+        var defaultKeywordsLocale = resolveLocale(ctCategory.metaKeywords, defaultLocale);
+
+        keywordsKeys.forEach(function (locale) {
+            var sfccLocale = (locale === defaultKeywordsLocale) ? 'x-default' : locale;
+            sfccCategory.pageKeywords[sfccLocale] = ctCategory.metaKeywords[locale];
+        });
+
+        if (!sfccCategory.pageKeywords['x-default'] && keywordsKeys.length > 0) {
+            sfccCategory.pageKeywords['x-default'] = ctCategory.metaKeywords[keywordsKeys[0]];
+        }
+    }
+
+    // ── slug → pageURL, falling back to the category key when unset ─────────
     var resolvedSlug = '';
     if (ctCategory.slug) {
         var slugLocale = resolveLocale(ctCategory.slug, defaultLocale);
         var slugKeys   = Object.keys(ctCategory.slug);
+
+        slugKeys.forEach(function (locale) {
+            var sfccLocale = (locale === slugLocale) ? 'x-default' : locale;
+            sfccCategory.pageURL[sfccLocale] = ctCategory.slug[locale];
+        });
+
         resolvedSlug = ctCategory.slug[slugLocale]
             || ctCategory.slug['en-US']
             || ctCategory.slug['en-GB']
             || (slugKeys.length > 0 ? ctCategory.slug[slugKeys[0]] : '')
             || '';
     }
-    sfccCategory.customAttributes.ctSlug     = resolvedSlug || ctCategory.key || '';
-    sfccCategory.customAttributes.ctId       = ctCategory.id || '';
-    sfccCategory.customAttributes.ctPosition = ctCategory.orderHint ? parseFloat(ctCategory.orderHint) : sfccCategory.position;
+    if (!sfccCategory.pageURL['x-default']) {
+        sfccCategory.pageURL['x-default'] = resolvedSlug || ctCategory.key || '';
+    }
+
+    // Genuine CT Custom Type fields (merchant-defined extensions) — dynamic pass-through.
+    if (ctCategory.custom && ctCategory.custom.fields) {
+        var ctFieldKeys = Object.keys(ctCategory.custom.fields);
+        for (var cfi = 0; cfi < ctFieldKeys.length; cfi++) {
+            var formattedCf = formatCustomFieldValue(ctCategory.custom.fields[ctFieldKeys[cfi]]);
+            if (formattedCf !== '') {
+                sfccCategory.customAttributes[ctFieldKeys[cfi]] = formattedCf;
+            }
+        }
+    }
 
     return sfccCategory;
 }
