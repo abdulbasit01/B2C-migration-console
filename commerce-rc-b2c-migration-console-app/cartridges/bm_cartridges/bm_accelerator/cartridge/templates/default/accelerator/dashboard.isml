@@ -1,0 +1,26 @@
+<isdecorate template="application/MenuFrame">
+<iscontent type="text/html" charset="UTF-8"/>
+<link rel="stylesheet" href="${pdict.cssUrl}"/>
+<div class="acc-page">
+<div class="acc-shell">
+        <isinclude template="accelerator/components/header"/>
+
+        <iscomment> <isinclude template="accelerator/components/advisorBanner"/> </iscomment>
+
+        <section class="acc-section">
+            <header class="acc-section__head">
+                <h2>${Resource.msg('accelerator.platforms.heading', 'accelerator', null)}</h2>
+            </header>
+            <div class="acc-cards">
+                <isloop items="${pdict.platforms}" var="platform">
+                    <isinclude template="accelerator/components/platformCard"/>
+                </isloop>
+            </div>
+        </section>
+
+        <iscomment> <button type="button" class="acc-fab" disabled="disabled" title="AI Migration Advisor (demo)">
+            AI Migration Advisor
+        </button> </iscomment>
+    </div>
+</div>
+</isdecorate>

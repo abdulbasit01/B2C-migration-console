@@ -1,0 +1,33 @@
+<section class="amp-widget-fallback">
+    <isif condition="${pdict.amp.hasBody}">
+        <isprint value="${pdict.amp.bodyHtml}" encoding="off" />
+    </isif>
+
+    <isif condition="${!empty(pdict.amp.images)}">
+        <div class="amp-widget-fallback__images">
+            <isloop items="${pdict.amp.images}" var="image">
+                <isif condition="${!empty(image.url)}">
+                    <figure class="amp-widget-fallback__image">
+                        <img src="${image.url}" alt="${image.name}" loading="lazy" />
+                    </figure>
+                </isif>
+            </isloop>
+        </div>
+    </isif>
+
+    <isif condition="${!empty(pdict.amp.fields)}">
+        <isloop items="${pdict.amp.fields}" var="field">
+            <isif condition="${!empty(field.markup)}">
+                <isprint value="${field.markup}" encoding="off" />
+            </isif>
+        </isloop>
+    </isif>
+
+    <isif condition="${!pdict.amp.hasBody && empty(pdict.amp.fields) && empty(pdict.amp.images)}">
+        <h2>${pdict.amp.name}</h2>
+        <p>No mapped preview fields are available for this schema.</p>
+        <isif condition="${!empty(pdict.amp.schema)}">
+            <p class="amp-widget-fallback__schema">${pdict.amp.schema}</p>
+        </isif>
+    </isif>
+</section>

@@ -1,0 +1,9 @@
+{
+  "gallery": {
+    "title": "Amplience component gallery",
+    "eyebrow": "Royal Cyber CMS",
+    "empty": "No Amplience components found. Confirm app_custom_cms is on the storefront cartridge path and AmplienceContent-List is reachable.",
+    "error": "Could not load AmplienceContent-List.",
+    "loading": "Loading catalog…"
+  }
+}

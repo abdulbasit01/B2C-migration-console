@@ -7,7 +7,7 @@ var pipeline = require('../helpers/bulkPipelineRunner');
 describe('Bulk data migration — Taxation', function () {
     this.timeout(0);
 
-    it('generates synthetic CTP tax categories (sanity)', function () {
+    it('generates synthetic CT tax categories (sanity)', function () {
         var cats = fixtures.taxCategories(20, 15);
         expect(cats).to.have.length(20);
         expect(cats[0].rates).to.have.length(15);

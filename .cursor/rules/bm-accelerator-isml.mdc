@@ -1,6 +1,6 @@
 ---
 description: SFCC ISML patterns for bm_accelerator templates
-globs: cartridges/bm_accelerator/**/*.isml
+globs: commerce-rc-b2c-migration-console-app/cartridges/bm_cartridges/bm_accelerator/**/*.isml
 alwaysApply: false
 ---
 

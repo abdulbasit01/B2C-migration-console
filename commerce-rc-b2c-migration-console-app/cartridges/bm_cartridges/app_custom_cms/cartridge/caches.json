@@ -1,0 +1,8 @@
+{
+  "caches": [
+    {
+      "id": "amplienceLiveCdn",
+      "expiration": 300
+    }
+  ]
+}

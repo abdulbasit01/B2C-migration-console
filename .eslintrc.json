@@ -4,6 +4,14 @@
         "airbnb-base/legacy",
         "prettier"
     ],
+    "ignorePatterns": [
+        "node_modules/",
+        "coverage/",
+        "dist/",
+        "scripts/",
+        "commerce-rc-b2c-migration-console-app/storefront-next/",
+        "commerce-rc-b2c-migration-console-app/cartridges/bm_cartridges/*/cartridge/static/"
+    ],
     "rules": {
         "import/no-unresolved": "off",
         "indent": ["error", 4, { "SwitchCase": 1, "VariableDeclarator": 1 }],

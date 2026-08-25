@@ -1,0 +1,14 @@
+<section class="amp-main-banner<isif condition="${!empty(pdict.amp.textAlign)}"> amp-main-banner--align-${pdict.amp.textAlign.toLowerCase()}</isif>">
+    <isif condition="${!empty(pdict.amp.imageUrl)}">
+        <img src="${pdict.amp.imageUrl}" alt="${pdict.amp.name}" loading="lazy" />
+    </isif>
+    <div class="amp-main-banner__overlay">
+        <isif condition="${!empty(pdict.amp.heading)}">
+            <isprint value="${pdict.amp.heading}" encoding="off" />
+        <iselseif condition="${pdict.amp.hasBody}">
+            <isprint value="${pdict.amp.bodyHtml}" encoding="off" />
+        <iselse/>
+            <h2>${pdict.amp.name}</h2>
+        </isif>
+    </div>
+</section>

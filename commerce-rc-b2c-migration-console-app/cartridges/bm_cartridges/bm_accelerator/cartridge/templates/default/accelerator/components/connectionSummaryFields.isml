@@ -1,0 +1,13 @@
+<iscomment>Expects: pdict.connectionSummary with lines[] — value, placeholder, secret (optional)</iscomment>
+<isloop items="${pdict.connectionSummary.lines}" var="line">
+    <div class="acc-form__group<isif condition="${line.secret}"> cms-form__group--secret</isif>">
+        <label class="acc-form__label">${line.label}</label>
+        <input class="acc-form__input acc-form__input--readonly<isif condition="${line.secret}"> cms-input--secret</isif>"
+               type="<isif condition="${line.secret}">password<iselse/>text</isif>"
+               value="${line.value}"
+               placeholder="${line.placeholder}"
+               readonly="readonly"
+               tabindex="-1"
+               aria-readonly="true" />
+    </div>
+</isloop>

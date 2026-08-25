@@ -1,0 +1,3837 @@
+{
+    "sfccSystem": {
+        "Product": [
+            "EAN",
+            "ID",
+            "UPC",
+            "UUID",
+            "available",
+            "brand",
+            "creationDate",
+            "facebookEnabled",
+            "image",
+            "lastModified",
+            "localizedTaxClassID",
+            "longDescription",
+            "manufacturerName",
+            "manufacturerSKU",
+            "minOrderQuantity",
+            "name",
+            "onlineFlag",
+            "onlineFrom",
+            "onlineTo",
+            "pageDescription",
+            "pageKeywords",
+            "pageTitle",
+            "pageURL",
+            "pinterestEnabled",
+            "searchPlacement",
+            "searchRank",
+            "searchable",
+            "searchableIfUnavailable",
+            "shortDescription",
+            "siteMapChangeFrequency",
+            "siteMapIncluded",
+            "siteMapPriority",
+            "stepQuantity",
+            "storeForcePriceEnabled",
+            "storeNonDiscountableEnabled",
+            "storeNonInventoryEnabled",
+            "storeNonRevenueEnabled",
+            "storeReceiptName",
+            "storeTaxClass",
+            "taxClassID",
+            "template",
+            "thumbnail",
+            "unit",
+            "unitMeasure",
+            "unitQuantity"
+        ],
+        "Customer": [
+            "UUID",
+            "birthday",
+            "companyName",
+            "creationDate",
+            "customerNo",
+            "email",
+            "emailVerified",
+            "fax",
+            "firstName",
+            "gender",
+            "jobTitle",
+            "lastLoginTime",
+            "lastModified",
+            "lastName",
+            "lastVisitTime",
+            "nextBirthday",
+            "phoneBusiness",
+            "phoneHome",
+            "phoneMobile",
+            "preferredLocale",
+            "salutation",
+            "secondName",
+            "suffix",
+            "taxID",
+            "taxIDType",
+            "title"
+        ],
+        "CustomerAddress": [
+            "ID",
+            "UUID",
+            "address1",
+            "address2",
+            "city",
+            "companyName",
+            "countryCode",
+            "creationDate",
+            "firstName",
+            "jobTitle",
+            "lastModified",
+            "lastName",
+            "phone",
+            "postBox",
+            "postalCode",
+            "salutation",
+            "secondName",
+            "stateCode",
+            "suffix",
+            "suite",
+            "title"
+        ],
+        "Category": [
+            "ID",
+            "UUID",
+            "creationDate",
+            "description",
+            "displayMode",
+            "displayName",
+            "image",
+            "lastModified",
+            "online",
+            "onlineFrom",
+            "onlineTo",
+            "pageDescription",
+            "pageKeywords",
+            "pageTitle",
+            "pageURL",
+            "searchPlacement",
+            "searchRank",
+            "siteMapChangeFrequency",
+            "siteMapIncluded",
+            "siteMapPriority",
+            "template",
+            "thumbnail"
+        ],
+        "Order": [
+            "UUID",
+            "affiliatePartnerID",
+            "affiliatePartnerName",
+            "businessType",
+            "cancelCode",
+            "cancelDescription",
+            "channelType",
+            "confirmationStatus",
+            "createdBy",
+            "creationDate",
+            "currencyCode",
+            "customerEmail",
+            "customerLocaleID",
+            "customerName",
+            "customerNo",
+            "customerOrderReference",
+            "exportAfter",
+            "exportStatus",
+            "externalOrderNo",
+            "externalOrderStatus",
+            "externalOrderText",
+            "lastModified",
+            "orderNo",
+            "originalOrderNo",
+            "paymentStatus",
+            "replaceCode",
+            "replaceDescription",
+            "replacedOrderNo",
+            "replacementOrderNo",
+            "shippingStatus",
+            "status"
+        ],
+        "Store": [
+            "ID",
+            "UUID",
+            "address1",
+            "address2",
+            "city",
+            "countryCode",
+            "creationDate",
+            "email",
+            "fax",
+            "image",
+            "inventoryListID",
+            "lastModified",
+            "latitude",
+            "longitude",
+            "name",
+            "phone",
+            "posEnabled",
+            "postalCode",
+            "stateCode",
+            "storeEvents",
+            "storeHours",
+            "storeLocatorEnabled"
+        ],
+        "ShippingMethod": [
+            "ID",
+            "UUID",
+            "creationDate",
+            "description",
+            "displayName",
+            "lastModified",
+            "taxClassID"
+        ],
+        "InventoryList": [
+            "ID",
+            "UUID",
+            "creationDate",
+            "description",
+            "lastModified"
+        ],
+        "ProductInventoryRecord": [
+            "allocation",
+            "ATS"
+        ],
+        "PriceBook": [
+            "ID",
+            "UUID",
+            "creationDate",
+            "currencyCode",
+            "deltaFiles",
+            "description",
+            "displayName",
+            "lastModified",
+            "onlineFlag"
+        ]
+    },
+    "aliases": {
+        "shopify": {
+            "Product": {
+                "title": "name",
+                "body_html": "longDescription",
+                "vendor": "brand",
+                "variant_sku": "manufacturerSKU",
+                "variant_barcode": "UPC"
+            },
+            "Category": {
+                "title": "displayName",
+                "body_html": "description",
+                "handle": "ID",
+                "template_suffix": "template",
+                "seo_title": "pageTitle",
+                "seo_description": "pageDescription",
+                "published": "online"
+            },
+            "Customer": {
+                "first_name": "firstName",
+                "last_name": "lastName",
+                "phone": {
+                    "sfccField": "phoneMobile",
+                    "note": "Maps to SFCC Profile phoneMobile (also phoneHome / phoneBusiness / fax available)."
+                },
+                "verified_email": "emailVerified",
+                "locale": "preferredLocale"
+            },
+            "CustomerAddress": {
+                "id": "ID",
+                "zip": "postalCode",
+                "province": "stateCode",
+                "country_code": "countryCode",
+                "company": "companyName",
+                "first_name": "firstName",
+                "last_name": "lastName"
+            },
+            "Order": {
+                "order_number": "orderNo",
+                "name": "externalOrderNo",
+                "email": "customerEmail",
+                "currency": "currencyCode",
+                "financial_status": "paymentStatus",
+                "fulfillment_status": "shippingStatus",
+                "note": "externalOrderText",
+                "customer_locale": "customerLocaleID",
+                "source_name": "channelType"
+            },
+            "Store": {
+                "id": "ID",
+                "country_code": "countryCode"
+            },
+            "InventoryList": {
+                "id": "ID",
+                "name": "description"
+            },
+            "ShippingMethod": {
+                "id": "ID",
+                "name": "displayName",
+                "tax_class_id": "taxClassID"
+            }
+        },
+        "sap": {
+            "Product": {
+                "code": "ID",
+                "summary": "shortDescription",
+                "description": "longDescription",
+                "manufacturer": "manufacturerName",
+                "ean": "EAN",
+                "upc": "UPC"
+            }
+        },
+        "bigcommerce": {
+            "Product": {
+                "description": "longDescription",
+                "sku": "manufacturerSKU",
+                "upc": "UPC"
+            },
+            "Category": {
+                "name": "displayName",
+                "page_title": "pageTitle",
+                "meta_description": "pageDescription",
+                "meta_keywords": "pageKeywords",
+                "is_visible": "online"
+            },
+            "Customer": {
+                "first_name": "firstName",
+                "last_name": "lastName",
+                "company": "companyName",
+                "phone": {
+                    "sfccField": "phoneMobile",
+                    "note": "Maps to SFCC Profile phoneMobile (also phoneHome / phoneBusiness / fax available)."
+                }
+            },
+            "CustomerAddress": {
+                "id": "ID",
+                "postal_code": "postalCode",
+                "state_or_province": "stateCode",
+                "country_code": "countryCode",
+                "company": "companyName",
+                "first_name": "firstName",
+                "last_name": "lastName"
+            },
+            "Order": {
+                "id": "externalOrderNo",
+                "payment_status": "paymentStatus",
+                "customer_id": "customerNo",
+                "currency_code": "currencyCode",
+                "staff_notes": "externalOrderText",
+                "customer_message": "customerOrderReference",
+                "external_source": "externalOrderStatus"
+            },
+            "InventoryList": {
+                "id": "ID",
+                "name": "description"
+            },
+            "ShippingMethod": {
+                "id": "ID",
+                "name": "displayName",
+                "tax_class_id": "taxClassID"
+            },
+            "Store": {
+                "id": "ID",
+                "country_code": "countryCode"
+            }
+        },
+        "ct": {
+            "Product": {
+                "id": "ID",
+                "name": "name",
+                "description": "shortDescription",
+                "slug": "pageURL",
+                "metaTitle": "pageTitle",
+                "metaDescription": "pageDescription",
+                "metaKeywords": "pageKeywords",
+                "sku": "manufacturerSKU",
+                "taxCategory": "taxClassID",
+                "images": "image",
+                "masterData.published": "onlineFlag",
+                "createdAt": "creationDate",
+                "lastModifiedAt": "lastModified"
+            },
+            "Customer": {
+                "email": "email",
+                "firstName": "firstName",
+                "lastName": "lastName",
+                "middleName": "secondName",
+                "title": "title",
+                "salutation": "salutation",
+                "companyName": "companyName",
+                "dateOfBirth": "birthday",
+                "vatId": "taxID",
+                "locale": "preferredLocale",
+                "customerNumber": "customerNo",
+                "isEmailVerified": "emailVerified",
+                "createdAt": "creationDate",
+                "lastModifiedAt": "lastModified"
+            },
+            "CustomerAddress": {
+                "id": "ID",
+                "streetName": "address1",
+                "additionalStreetInfo": "address2",
+                "city": "city",
+                "postalCode": "postalCode",
+                "state": "stateCode",
+                "country": "countryCode",
+                "company": "companyName",
+                "firstName": "firstName",
+                "lastName": "lastName",
+                "title": "title",
+                "salutation": "salutation",
+                "phone": "phone",
+                "pOBox": "postBox",
+                "apartment": "suite"
+            },
+            "Category": {
+                "id": "ID",
+                "name": "displayName",
+                "slug": "pageURL",
+                "description": "description",
+                "metaTitle": "pageTitle",
+                "metaDescription": "pageDescription",
+                "metaKeywords": "pageKeywords",
+                "assets": "image",
+                "createdAt": "creationDate",
+                "lastModifiedAt": "lastModified"
+            },
+            "Order": {
+                "orderNumber": "orderNo",
+                "purchaseOrderNumber": "customerOrderReference",
+                "customerId": "customerNo",
+                "customerEmail": "customerEmail",
+                "orderState": "status",
+                "shipmentState": "shippingStatus",
+                "paymentState": "paymentStatus",
+                "locale": "customerLocaleID",
+                "origin": "channelType",
+                "totalPrice.currencyCode": "currencyCode",
+                "createdAt": "creationDate",
+                "lastModifiedAt": "lastModified",
+                "createdBy": "createdBy"
+            },
+            "Store": {
+                "id": "ID",
+                "name": "name",
+                "countries": "countryCode",
+                "createdAt": "creationDate",
+                "lastModifiedAt": "lastModified"
+            },
+            "ShippingMethod": {
+                "id": "ID",
+                "name": "displayName",
+                "localizedDescription": "description",
+                "taxCategory": "taxClassID",
+                "createdAt": "creationDate",
+                "lastModifiedAt": "lastModified"
+            },
+            "InventoryList": {
+                "id": "ID",
+                "createdAt": "creationDate",
+                "lastModifiedAt": "lastModified"
+            },
+            "ProductInventoryRecord": {
+                "quantityOnStock": "allocation",
+                "availableQuantity": "ATS"
+            },
+            "PriceBook": {
+                "value.currencyCode": "currencyCode"
+            }
+        }
+    },
+    "skipped": {
+        "ct": {
+            "Order": {
+                "id": "CT Order UUID - not an SFCC Order system attribute; used only for traceability in migration if needed.",
+                "version": "Platform version metadata - not migrated as an SFCC attribute.",
+                "taxMode": "Platform tax calculation mode - not stored on SFCC Order; tax amounts migrate in order XML totals.",
+                "taxRoundingMode": "Platform tax rounding setting - outcome is in migrated tax amounts, not a separate SFCC attribute.",
+                "taxCalculationMode": "Platform tax calculation setting - not an SFCC Order attribute.",
+                "priceRoundingMode": "Platform price rounding setting - not an SFCC Order attribute.",
+                "inventoryMode": "Platform inventory reservation mode - not an SFCC Order attribute.",
+                "shippingMode": "Single vs Multiple shipping mode - shipping data migrates as shipment XML, not an Order attribute.",
+                "lineItems": "Line items migrate as order product-lineitem XML, not Order system attributes.",
+                "customLineItems": "Custom line items migrate in order XML structure, not as Order attributes.",
+                "totalPrice": "Money amount migrates in order totals XML; only totalPrice.currencyCode maps to currencyCode.",
+                "taxedPrice": "Taxed totals migrate in order XML; not a flat Order system attribute.",
+                "taxedShippingPrice": "Shipping tax totals migrate in order XML.",
+                "discountOnTotalPrice": "Discount totals migrate in order XML structure.",
+                "billingAddress": "Migrates as order billing address XML, not an Order attribute.",
+                "shippingAddress": "Migrates as order shipping address XML, not an Order attribute.",
+                "shipping": "Multi-shipping info migrates as shipment XML.",
+                "shippingInfo": "Shipping method/price migrate as shipment XML.",
+                "shippingKey": "Shipping method key - used in shipment mapping, not an Order attribute.",
+                "itemShippingAddresses": "Per-item addresses migrate with line shipping details.",
+                "paymentInfo": "Payments migrate via payment instruments in order XML.",
+                "discountCodes": "Discount codes migrate with order pricing XML where applicable.",
+                "directDiscounts": "Direct discounts migrate with order pricing XML where applicable.",
+                "syncInfo": "CT sync metadata - not migrated as SFCC attributes.",
+                "returnInfo": "Returns are a separate flow; not Order system attributes.",
+                "refusedGifts": "CT gift refusal refs - not SFCC Order attributes.",
+                "cart": "Source cart reference - not an SFCC Order attribute.",
+                "quote": "Source quote reference - not an SFCC Order attribute.",
+                "store": "Store reference - not mapped to an Order system attribute.",
+                "businessUnit": "B2B business unit reference - create custom only if required.",
+                "customerGroup": "Customer group ref - not an Order system attribute.",
+                "anonymousId": "Anonymous session id - not an SFCC Order attribute.",
+                "country": "Price selection country - not an SFCC Order system attribute.",
+                "state": "CT workflow State reference - not SFCC order status (orderState maps to status).",
+                "custom": "Custom type fields are listed separately when present on CT Types; create only if needed.",
+                "completedAt": "Import-only timestamp - no matching SFCC Order system attribute.",
+                "lastModifiedBy": "Client logging metadata - not migrated as an attribute."
+            },
+            "Product": {
+                "version": "Platform version metadata - not migrated as an SFCC attribute.",
+                "productType": "Product type reference - attributes come from the type; not a Product system attribute.",
+                "masterData": "Container for current/staged product data - fields under it are mapped individually."
+            },
+            "Customer": {
+                "id": "CT customer UUID - not a Profile system attribute (Profile has UUID but only maps from UUID).",
+                "version": "Platform version metadata - not migrated as an SFCC attribute.",
+                "password": "Auth credential - never migrated.",
+                "authenticationMode": "Auth mode - not a Profile system attribute.",
+                "addresses": "Migrated via CustomerAddress object, not Profile attributes.",
+                "shippingAddressIds": "Address role refs - handled with address migration.",
+                "billingAddressIds": "Address role refs - handled with address migration.",
+                "stores": "Store assignments - not Profile system attributes.",
+                "customerGroup": "Migrated via customer groups flow, not a Profile attribute.",
+                "customerGroupAssignments": "Group assignments - handled in group migration.",
+                "key": "CT key is custom/trace by policy.",
+                "custom": "Custom type fields listed separately when present on CT Types."
+            }
+        }
+    },
+    "coverage": {
+        "shopify": {
+            "Product": {
+                "attributes": {
+                    "EAN": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "ID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "UPC": {
+                        "status": "mapped",
+                        "source": "variant_barcode"
+                    },
+                    "UUID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "available": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "brand": {
+                        "status": "mapped",
+                        "source": "vendor"
+                    },
+                    "creationDate": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "facebookEnabled": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "image": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "lastModified": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "localizedTaxClassID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "longDescription": {
+                        "status": "mapped",
+                        "source": "body_html"
+                    },
+                    "manufacturerName": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "manufacturerSKU": {
+                        "status": "mapped",
+                        "source": "variant_sku"
+                    },
+                    "minOrderQuantity": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "name": {
+                        "status": "mapped",
+                        "source": "title"
+                    },
+                    "onlineFlag": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "onlineFrom": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "onlineTo": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "pageDescription": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "pageKeywords": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "pageTitle": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "pageURL": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "pinterestEnabled": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "searchPlacement": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "searchRank": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "searchable": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "searchableIfUnavailable": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "shortDescription": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "siteMapChangeFrequency": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "siteMapIncluded": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "siteMapPriority": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "stepQuantity": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "storeForcePriceEnabled": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "storeNonDiscountableEnabled": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "storeNonInventoryEnabled": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "storeNonRevenueEnabled": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "storeReceiptName": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "storeTaxClass": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "taxClassID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "template": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "thumbnail": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "unit": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "unitMeasure": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "unitQuantity": {
+                        "status": "pending",
+                        "source": null
+                    }
+                },
+                "mappedCount": 5,
+                "pendingCount": 40,
+                "sfccSystemCount": 45
+            },
+            "Category": {
+                "attributes": {
+                    "ID": {
+                        "status": "mapped",
+                        "source": "handle"
+                    },
+                    "UUID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "creationDate": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "description": {
+                        "status": "mapped",
+                        "source": "body_html"
+                    },
+                    "displayMode": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "displayName": {
+                        "status": "mapped",
+                        "source": "title"
+                    },
+                    "image": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "lastModified": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "online": {
+                        "status": "mapped",
+                        "source": "published"
+                    },
+                    "onlineFrom": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "onlineTo": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "pageDescription": {
+                        "status": "mapped",
+                        "source": "seo_description"
+                    },
+                    "pageKeywords": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "pageTitle": {
+                        "status": "mapped",
+                        "source": "seo_title"
+                    },
+                    "pageURL": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "searchPlacement": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "searchRank": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "siteMapChangeFrequency": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "siteMapIncluded": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "siteMapPriority": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "template": {
+                        "status": "mapped",
+                        "source": "template_suffix"
+                    },
+                    "thumbnail": {
+                        "status": "pending",
+                        "source": null
+                    }
+                },
+                "mappedCount": 7,
+                "pendingCount": 15,
+                "sfccSystemCount": 22
+            },
+            "Customer": {
+                "attributes": {
+                    "UUID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "birthday": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "companyName": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "creationDate": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "customerNo": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "email": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "emailVerified": {
+                        "status": "mapped",
+                        "source": "verified_email"
+                    },
+                    "fax": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "firstName": {
+                        "status": "mapped",
+                        "source": "first_name"
+                    },
+                    "gender": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "jobTitle": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "lastLoginTime": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "lastModified": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "lastName": {
+                        "status": "mapped",
+                        "source": "last_name"
+                    },
+                    "lastVisitTime": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "nextBirthday": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "phoneBusiness": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "phoneHome": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "phoneMobile": {
+                        "status": "mapped",
+                        "source": "phone"
+                    },
+                    "preferredLocale": {
+                        "status": "mapped",
+                        "source": "locale"
+                    },
+                    "salutation": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "secondName": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "suffix": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "taxID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "taxIDType": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "title": {
+                        "status": "pending",
+                        "source": null
+                    }
+                },
+                "mappedCount": 5,
+                "pendingCount": 21,
+                "sfccSystemCount": 26
+            },
+            "CustomerAddress": {
+                "attributes": {
+                    "ID": {
+                        "status": "mapped",
+                        "source": "id"
+                    },
+                    "UUID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "address1": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "address2": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "city": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "companyName": {
+                        "status": "mapped",
+                        "source": "company"
+                    },
+                    "countryCode": {
+                        "status": "mapped",
+                        "source": "country_code"
+                    },
+                    "creationDate": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "firstName": {
+                        "status": "mapped",
+                        "source": "first_name"
+                    },
+                    "jobTitle": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "lastModified": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "lastName": {
+                        "status": "mapped",
+                        "source": "last_name"
+                    },
+                    "phone": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "postBox": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "postalCode": {
+                        "status": "mapped",
+                        "source": "zip"
+                    },
+                    "salutation": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "secondName": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "stateCode": {
+                        "status": "mapped",
+                        "source": "province"
+                    },
+                    "suffix": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "suite": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "title": {
+                        "status": "pending",
+                        "source": null
+                    }
+                },
+                "mappedCount": 7,
+                "pendingCount": 14,
+                "sfccSystemCount": 21
+            },
+            "Order": {
+                "attributes": {
+                    "UUID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "affiliatePartnerID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "affiliatePartnerName": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "businessType": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "cancelCode": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "cancelDescription": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "channelType": {
+                        "status": "mapped",
+                        "source": "source_name"
+                    },
+                    "confirmationStatus": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "createdBy": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "creationDate": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "currencyCode": {
+                        "status": "mapped",
+                        "source": "currency"
+                    },
+                    "customerEmail": {
+                        "status": "mapped",
+                        "source": "email"
+                    },
+                    "customerLocaleID": {
+                        "status": "mapped",
+                        "source": "customer_locale"
+                    },
+                    "customerName": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "customerNo": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "customerOrderReference": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "exportAfter": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "exportStatus": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "externalOrderNo": {
+                        "status": "mapped",
+                        "source": "name"
+                    },
+                    "externalOrderStatus": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "externalOrderText": {
+                        "status": "mapped",
+                        "source": "note"
+                    },
+                    "lastModified": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "orderNo": {
+                        "status": "mapped",
+                        "source": "order_number"
+                    },
+                    "originalOrderNo": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "paymentStatus": {
+                        "status": "mapped",
+                        "source": "financial_status"
+                    },
+                    "replaceCode": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "replaceDescription": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "replacedOrderNo": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "replacementOrderNo": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "shippingStatus": {
+                        "status": "mapped",
+                        "source": "fulfillment_status"
+                    },
+                    "status": {
+                        "status": "pending",
+                        "source": null
+                    }
+                },
+                "mappedCount": 9,
+                "pendingCount": 22,
+                "sfccSystemCount": 31
+            },
+            "Store": {
+                "attributes": {
+                    "ID": {
+                        "status": "mapped",
+                        "source": "id"
+                    },
+                    "UUID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "address1": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "address2": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "city": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "countryCode": {
+                        "status": "mapped",
+                        "source": "country_code"
+                    },
+                    "creationDate": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "email": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "fax": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "image": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "inventoryListID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "lastModified": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "latitude": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "longitude": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "name": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "phone": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "posEnabled": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "postalCode": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "stateCode": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "storeEvents": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "storeHours": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "storeLocatorEnabled": {
+                        "status": "pending",
+                        "source": null
+                    }
+                },
+                "mappedCount": 2,
+                "pendingCount": 20,
+                "sfccSystemCount": 22
+            },
+            "InventoryList": {
+                "attributes": {
+                    "ID": {
+                        "status": "mapped",
+                        "source": "id"
+                    },
+                    "UUID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "creationDate": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "description": {
+                        "status": "mapped",
+                        "source": "name"
+                    },
+                    "lastModified": {
+                        "status": "pending",
+                        "source": null
+                    }
+                },
+                "mappedCount": 2,
+                "pendingCount": 3,
+                "sfccSystemCount": 5
+            },
+            "ShippingMethod": {
+                "attributes": {
+                    "ID": {
+                        "status": "mapped",
+                        "source": "id"
+                    },
+                    "UUID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "creationDate": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "description": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "displayName": {
+                        "status": "mapped",
+                        "source": "name"
+                    },
+                    "lastModified": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "taxClassID": {
+                        "status": "mapped",
+                        "source": "tax_class_id"
+                    }
+                },
+                "mappedCount": 3,
+                "pendingCount": 4,
+                "sfccSystemCount": 7
+            },
+            "ProductInventoryRecord": {
+                "attributes": {
+                    "allocation": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "ATS": {
+                        "status": "pending",
+                        "source": null
+                    }
+                },
+                "mappedCount": 0,
+                "pendingCount": 2,
+                "sfccSystemCount": 2
+            },
+            "PriceBook": {
+                "attributes": {
+                    "ID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "UUID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "creationDate": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "currencyCode": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "deltaFiles": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "description": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "displayName": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "lastModified": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "onlineFlag": {
+                        "status": "pending",
+                        "source": null
+                    }
+                },
+                "mappedCount": 0,
+                "pendingCount": 9,
+                "sfccSystemCount": 9
+            }
+        },
+        "sap": {
+            "Product": {
+                "attributes": {
+                    "EAN": {
+                        "status": "mapped",
+                        "source": "ean"
+                    },
+                    "ID": {
+                        "status": "mapped",
+                        "source": "code"
+                    },
+                    "UPC": {
+                        "status": "mapped",
+                        "source": "upc"
+                    },
+                    "UUID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "available": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "brand": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "creationDate": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "facebookEnabled": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "image": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "lastModified": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "localizedTaxClassID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "longDescription": {
+                        "status": "mapped",
+                        "source": "description"
+                    },
+                    "manufacturerName": {
+                        "status": "mapped",
+                        "source": "manufacturer"
+                    },
+                    "manufacturerSKU": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "minOrderQuantity": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "name": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "onlineFlag": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "onlineFrom": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "onlineTo": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "pageDescription": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "pageKeywords": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "pageTitle": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "pageURL": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "pinterestEnabled": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "searchPlacement": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "searchRank": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "searchable": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "searchableIfUnavailable": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "shortDescription": {
+                        "status": "mapped",
+                        "source": "summary"
+                    },
+                    "siteMapChangeFrequency": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "siteMapIncluded": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "siteMapPriority": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "stepQuantity": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "storeForcePriceEnabled": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "storeNonDiscountableEnabled": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "storeNonInventoryEnabled": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "storeNonRevenueEnabled": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "storeReceiptName": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "storeTaxClass": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "taxClassID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "template": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "thumbnail": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "unit": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "unitMeasure": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "unitQuantity": {
+                        "status": "pending",
+                        "source": null
+                    }
+                },
+                "mappedCount": 6,
+                "pendingCount": 39,
+                "sfccSystemCount": 45
+            },
+            "Customer": {
+                "attributes": {
+                    "UUID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "birthday": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "companyName": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "creationDate": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "customerNo": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "email": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "emailVerified": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "fax": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "firstName": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "gender": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "jobTitle": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "lastLoginTime": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "lastModified": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "lastName": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "lastVisitTime": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "nextBirthday": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "phoneBusiness": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "phoneHome": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "phoneMobile": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "preferredLocale": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "salutation": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "secondName": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "suffix": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "taxID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "taxIDType": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "title": {
+                        "status": "pending",
+                        "source": null
+                    }
+                },
+                "mappedCount": 0,
+                "pendingCount": 26,
+                "sfccSystemCount": 26
+            },
+            "CustomerAddress": {
+                "attributes": {
+                    "ID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "UUID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "address1": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "address2": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "city": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "companyName": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "countryCode": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "creationDate": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "firstName": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "jobTitle": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "lastModified": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "lastName": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "phone": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "postBox": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "postalCode": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "salutation": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "secondName": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "stateCode": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "suffix": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "suite": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "title": {
+                        "status": "pending",
+                        "source": null
+                    }
+                },
+                "mappedCount": 0,
+                "pendingCount": 21,
+                "sfccSystemCount": 21
+            },
+            "Category": {
+                "attributes": {
+                    "ID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "UUID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "creationDate": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "description": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "displayMode": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "displayName": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "image": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "lastModified": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "online": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "onlineFrom": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "onlineTo": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "pageDescription": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "pageKeywords": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "pageTitle": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "pageURL": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "searchPlacement": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "searchRank": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "siteMapChangeFrequency": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "siteMapIncluded": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "siteMapPriority": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "template": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "thumbnail": {
+                        "status": "pending",
+                        "source": null
+                    }
+                },
+                "mappedCount": 0,
+                "pendingCount": 22,
+                "sfccSystemCount": 22
+            },
+            "Order": {
+                "attributes": {
+                    "UUID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "affiliatePartnerID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "affiliatePartnerName": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "businessType": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "cancelCode": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "cancelDescription": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "channelType": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "confirmationStatus": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "createdBy": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "creationDate": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "currencyCode": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "customerEmail": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "customerLocaleID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "customerName": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "customerNo": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "customerOrderReference": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "exportAfter": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "exportStatus": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "externalOrderNo": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "externalOrderStatus": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "externalOrderText": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "lastModified": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "orderNo": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "originalOrderNo": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "paymentStatus": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "replaceCode": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "replaceDescription": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "replacedOrderNo": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "replacementOrderNo": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "shippingStatus": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "status": {
+                        "status": "pending",
+                        "source": null
+                    }
+                },
+                "mappedCount": 0,
+                "pendingCount": 31,
+                "sfccSystemCount": 31
+            },
+            "Store": {
+                "attributes": {
+                    "ID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "UUID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "address1": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "address2": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "city": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "countryCode": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "creationDate": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "email": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "fax": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "image": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "inventoryListID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "lastModified": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "latitude": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "longitude": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "name": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "phone": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "posEnabled": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "postalCode": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "stateCode": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "storeEvents": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "storeHours": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "storeLocatorEnabled": {
+                        "status": "pending",
+                        "source": null
+                    }
+                },
+                "mappedCount": 0,
+                "pendingCount": 22,
+                "sfccSystemCount": 22
+            },
+            "ShippingMethod": {
+                "attributes": {
+                    "ID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "UUID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "creationDate": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "description": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "displayName": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "lastModified": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "taxClassID": {
+                        "status": "pending",
+                        "source": null
+                    }
+                },
+                "mappedCount": 0,
+                "pendingCount": 7,
+                "sfccSystemCount": 7
+            },
+            "InventoryList": {
+                "attributes": {
+                    "ID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "UUID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "creationDate": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "description": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "lastModified": {
+                        "status": "pending",
+                        "source": null
+                    }
+                },
+                "mappedCount": 0,
+                "pendingCount": 5,
+                "sfccSystemCount": 5
+            },
+            "ProductInventoryRecord": {
+                "attributes": {
+                    "allocation": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "ATS": {
+                        "status": "pending",
+                        "source": null
+                    }
+                },
+                "mappedCount": 0,
+                "pendingCount": 2,
+                "sfccSystemCount": 2
+            },
+            "PriceBook": {
+                "attributes": {
+                    "ID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "UUID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "creationDate": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "currencyCode": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "deltaFiles": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "description": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "displayName": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "lastModified": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "onlineFlag": {
+                        "status": "pending",
+                        "source": null
+                    }
+                },
+                "mappedCount": 0,
+                "pendingCount": 9,
+                "sfccSystemCount": 9
+            }
+        },
+        "bigcommerce": {
+            "Product": {
+                "attributes": {
+                    "EAN": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "ID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "UPC": {
+                        "status": "mapped",
+                        "source": "upc"
+                    },
+                    "UUID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "available": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "brand": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "creationDate": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "facebookEnabled": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "image": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "lastModified": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "localizedTaxClassID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "longDescription": {
+                        "status": "mapped",
+                        "source": "description"
+                    },
+                    "manufacturerName": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "manufacturerSKU": {
+                        "status": "mapped",
+                        "source": "sku"
+                    },
+                    "minOrderQuantity": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "name": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "onlineFlag": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "onlineFrom": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "onlineTo": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "pageDescription": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "pageKeywords": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "pageTitle": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "pageURL": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "pinterestEnabled": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "searchPlacement": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "searchRank": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "searchable": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "searchableIfUnavailable": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "shortDescription": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "siteMapChangeFrequency": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "siteMapIncluded": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "siteMapPriority": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "stepQuantity": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "storeForcePriceEnabled": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "storeNonDiscountableEnabled": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "storeNonInventoryEnabled": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "storeNonRevenueEnabled": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "storeReceiptName": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "storeTaxClass": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "taxClassID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "template": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "thumbnail": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "unit": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "unitMeasure": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "unitQuantity": {
+                        "status": "pending",
+                        "source": null
+                    }
+                },
+                "mappedCount": 3,
+                "pendingCount": 42,
+                "sfccSystemCount": 45
+            },
+            "Category": {
+                "attributes": {
+                    "ID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "UUID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "creationDate": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "description": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "displayMode": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "displayName": {
+                        "status": "mapped",
+                        "source": "name"
+                    },
+                    "image": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "lastModified": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "online": {
+                        "status": "mapped",
+                        "source": "is_visible"
+                    },
+                    "onlineFrom": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "onlineTo": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "pageDescription": {
+                        "status": "mapped",
+                        "source": "meta_description"
+                    },
+                    "pageKeywords": {
+                        "status": "mapped",
+                        "source": "meta_keywords"
+                    },
+                    "pageTitle": {
+                        "status": "mapped",
+                        "source": "page_title"
+                    },
+                    "pageURL": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "searchPlacement": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "searchRank": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "siteMapChangeFrequency": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "siteMapIncluded": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "siteMapPriority": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "template": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "thumbnail": {
+                        "status": "pending",
+                        "source": null
+                    }
+                },
+                "mappedCount": 5,
+                "pendingCount": 17,
+                "sfccSystemCount": 22
+            },
+            "Customer": {
+                "attributes": {
+                    "UUID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "birthday": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "companyName": {
+                        "status": "mapped",
+                        "source": "company"
+                    },
+                    "creationDate": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "customerNo": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "email": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "emailVerified": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "fax": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "firstName": {
+                        "status": "mapped",
+                        "source": "first_name"
+                    },
+                    "gender": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "jobTitle": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "lastLoginTime": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "lastModified": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "lastName": {
+                        "status": "mapped",
+                        "source": "last_name"
+                    },
+                    "lastVisitTime": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "nextBirthday": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "phoneBusiness": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "phoneHome": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "phoneMobile": {
+                        "status": "mapped",
+                        "source": "phone"
+                    },
+                    "preferredLocale": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "salutation": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "secondName": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "suffix": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "taxID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "taxIDType": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "title": {
+                        "status": "pending",
+                        "source": null
+                    }
+                },
+                "mappedCount": 4,
+                "pendingCount": 22,
+                "sfccSystemCount": 26
+            },
+            "CustomerAddress": {
+                "attributes": {
+                    "ID": {
+                        "status": "mapped",
+                        "source": "id"
+                    },
+                    "UUID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "address1": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "address2": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "city": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "companyName": {
+                        "status": "mapped",
+                        "source": "company"
+                    },
+                    "countryCode": {
+                        "status": "mapped",
+                        "source": "country_code"
+                    },
+                    "creationDate": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "firstName": {
+                        "status": "mapped",
+                        "source": "first_name"
+                    },
+                    "jobTitle": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "lastModified": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "lastName": {
+                        "status": "mapped",
+                        "source": "last_name"
+                    },
+                    "phone": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "postBox": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "postalCode": {
+                        "status": "mapped",
+                        "source": "postal_code"
+                    },
+                    "salutation": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "secondName": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "stateCode": {
+                        "status": "mapped",
+                        "source": "state_or_province"
+                    },
+                    "suffix": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "suite": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "title": {
+                        "status": "pending",
+                        "source": null
+                    }
+                },
+                "mappedCount": 7,
+                "pendingCount": 14,
+                "sfccSystemCount": 21
+            },
+            "Order": {
+                "attributes": {
+                    "UUID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "affiliatePartnerID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "affiliatePartnerName": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "businessType": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "cancelCode": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "cancelDescription": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "channelType": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "confirmationStatus": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "createdBy": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "creationDate": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "currencyCode": {
+                        "status": "mapped",
+                        "source": "currency_code"
+                    },
+                    "customerEmail": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "customerLocaleID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "customerName": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "customerNo": {
+                        "status": "mapped",
+                        "source": "customer_id"
+                    },
+                    "customerOrderReference": {
+                        "status": "mapped",
+                        "source": "customer_message"
+                    },
+                    "exportAfter": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "exportStatus": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "externalOrderNo": {
+                        "status": "mapped",
+                        "source": "id"
+                    },
+                    "externalOrderStatus": {
+                        "status": "mapped",
+                        "source": "external_source"
+                    },
+                    "externalOrderText": {
+                        "status": "mapped",
+                        "source": "staff_notes"
+                    },
+                    "lastModified": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "orderNo": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "originalOrderNo": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "paymentStatus": {
+                        "status": "mapped",
+                        "source": "payment_status"
+                    },
+                    "replaceCode": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "replaceDescription": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "replacedOrderNo": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "replacementOrderNo": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "shippingStatus": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "status": {
+                        "status": "pending",
+                        "source": null
+                    }
+                },
+                "mappedCount": 7,
+                "pendingCount": 24,
+                "sfccSystemCount": 31
+            },
+            "InventoryList": {
+                "attributes": {
+                    "ID": {
+                        "status": "mapped",
+                        "source": "id"
+                    },
+                    "UUID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "creationDate": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "description": {
+                        "status": "mapped",
+                        "source": "name"
+                    },
+                    "lastModified": {
+                        "status": "pending",
+                        "source": null
+                    }
+                },
+                "mappedCount": 2,
+                "pendingCount": 3,
+                "sfccSystemCount": 5
+            },
+            "ShippingMethod": {
+                "attributes": {
+                    "ID": {
+                        "status": "mapped",
+                        "source": "id"
+                    },
+                    "UUID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "creationDate": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "description": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "displayName": {
+                        "status": "mapped",
+                        "source": "name"
+                    },
+                    "lastModified": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "taxClassID": {
+                        "status": "mapped",
+                        "source": "tax_class_id"
+                    }
+                },
+                "mappedCount": 3,
+                "pendingCount": 4,
+                "sfccSystemCount": 7
+            },
+            "Store": {
+                "attributes": {
+                    "ID": {
+                        "status": "mapped",
+                        "source": "id"
+                    },
+                    "UUID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "address1": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "address2": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "city": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "countryCode": {
+                        "status": "mapped",
+                        "source": "country_code"
+                    },
+                    "creationDate": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "email": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "fax": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "image": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "inventoryListID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "lastModified": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "latitude": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "longitude": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "name": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "phone": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "posEnabled": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "postalCode": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "stateCode": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "storeEvents": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "storeHours": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "storeLocatorEnabled": {
+                        "status": "pending",
+                        "source": null
+                    }
+                },
+                "mappedCount": 2,
+                "pendingCount": 20,
+                "sfccSystemCount": 22
+            },
+            "ProductInventoryRecord": {
+                "attributes": {
+                    "allocation": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "ATS": {
+                        "status": "pending",
+                        "source": null
+                    }
+                },
+                "mappedCount": 0,
+                "pendingCount": 2,
+                "sfccSystemCount": 2
+            },
+            "PriceBook": {
+                "attributes": {
+                    "ID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "UUID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "creationDate": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "currencyCode": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "deltaFiles": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "description": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "displayName": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "lastModified": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "onlineFlag": {
+                        "status": "pending",
+                        "source": null
+                    }
+                },
+                "mappedCount": 0,
+                "pendingCount": 9,
+                "sfccSystemCount": 9
+            }
+        },
+        "ct": {
+            "Product": {
+                "attributes": {
+                    "EAN": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "ID": {
+                        "status": "mapped",
+                        "source": "id"
+                    },
+                    "UPC": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "UUID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "available": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "brand": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "creationDate": {
+                        "status": "mapped",
+                        "source": "createdAt"
+                    },
+                    "facebookEnabled": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "image": {
+                        "status": "mapped",
+                        "source": "images"
+                    },
+                    "lastModified": {
+                        "status": "mapped",
+                        "source": "lastModifiedAt"
+                    },
+                    "localizedTaxClassID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "longDescription": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "manufacturerName": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "manufacturerSKU": {
+                        "status": "mapped",
+                        "source": "sku"
+                    },
+                    "minOrderQuantity": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "name": {
+                        "status": "mapped",
+                        "source": "name"
+                    },
+                    "onlineFlag": {
+                        "status": "mapped",
+                        "source": "masterData.published"
+                    },
+                    "onlineFrom": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "onlineTo": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "pageDescription": {
+                        "status": "mapped",
+                        "source": "metaDescription"
+                    },
+                    "pageKeywords": {
+                        "status": "mapped",
+                        "source": "metaKeywords"
+                    },
+                    "pageTitle": {
+                        "status": "mapped",
+                        "source": "metaTitle"
+                    },
+                    "pageURL": {
+                        "status": "mapped",
+                        "source": "slug"
+                    },
+                    "pinterestEnabled": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "searchPlacement": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "searchRank": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "searchable": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "searchableIfUnavailable": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "shortDescription": {
+                        "status": "mapped",
+                        "source": "description"
+                    },
+                    "siteMapChangeFrequency": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "siteMapIncluded": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "siteMapPriority": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "stepQuantity": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "storeForcePriceEnabled": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "storeNonDiscountableEnabled": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "storeNonInventoryEnabled": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "storeNonRevenueEnabled": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "storeReceiptName": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "storeTaxClass": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "taxClassID": {
+                        "status": "mapped",
+                        "source": "taxCategory"
+                    },
+                    "template": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "thumbnail": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "unit": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "unitMeasure": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "unitQuantity": {
+                        "status": "pending",
+                        "source": null
+                    }
+                },
+                "mappedCount": 13,
+                "pendingCount": 32,
+                "sfccSystemCount": 45
+            },
+            "Customer": {
+                "attributes": {
+                    "UUID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "birthday": {
+                        "status": "mapped",
+                        "source": "dateOfBirth"
+                    },
+                    "companyName": {
+                        "status": "mapped",
+                        "source": "companyName"
+                    },
+                    "creationDate": {
+                        "status": "mapped",
+                        "source": "createdAt"
+                    },
+                    "customerNo": {
+                        "status": "mapped",
+                        "source": "customerNumber"
+                    },
+                    "email": {
+                        "status": "mapped",
+                        "source": "email"
+                    },
+                    "emailVerified": {
+                        "status": "mapped",
+                        "source": "isEmailVerified"
+                    },
+                    "fax": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "firstName": {
+                        "status": "mapped",
+                        "source": "firstName"
+                    },
+                    "gender": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "jobTitle": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "lastLoginTime": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "lastModified": {
+                        "status": "mapped",
+                        "source": "lastModifiedAt"
+                    },
+                    "lastName": {
+                        "status": "mapped",
+                        "source": "lastName"
+                    },
+                    "lastVisitTime": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "nextBirthday": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "phoneBusiness": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "phoneHome": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "phoneMobile": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "preferredLocale": {
+                        "status": "mapped",
+                        "source": "locale"
+                    },
+                    "salutation": {
+                        "status": "mapped",
+                        "source": "salutation"
+                    },
+                    "secondName": {
+                        "status": "mapped",
+                        "source": "middleName"
+                    },
+                    "suffix": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "taxID": {
+                        "status": "mapped",
+                        "source": "vatId"
+                    },
+                    "taxIDType": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "title": {
+                        "status": "mapped",
+                        "source": "title"
+                    }
+                },
+                "mappedCount": 14,
+                "pendingCount": 12,
+                "sfccSystemCount": 26
+            },
+            "CustomerAddress": {
+                "attributes": {
+                    "ID": {
+                        "status": "mapped",
+                        "source": "id"
+                    },
+                    "UUID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "address1": {
+                        "status": "mapped",
+                        "source": "streetName"
+                    },
+                    "address2": {
+                        "status": "mapped",
+                        "source": "additionalStreetInfo"
+                    },
+                    "city": {
+                        "status": "mapped",
+                        "source": "city"
+                    },
+                    "companyName": {
+                        "status": "mapped",
+                        "source": "company"
+                    },
+                    "countryCode": {
+                        "status": "mapped",
+                        "source": "country"
+                    },
+                    "creationDate": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "firstName": {
+                        "status": "mapped",
+                        "source": "firstName"
+                    },
+                    "jobTitle": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "lastModified": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "lastName": {
+                        "status": "mapped",
+                        "source": "lastName"
+                    },
+                    "phone": {
+                        "status": "mapped",
+                        "source": "phone"
+                    },
+                    "postBox": {
+                        "status": "mapped",
+                        "source": "pOBox"
+                    },
+                    "postalCode": {
+                        "status": "mapped",
+                        "source": "postalCode"
+                    },
+                    "salutation": {
+                        "status": "mapped",
+                        "source": "salutation"
+                    },
+                    "secondName": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "stateCode": {
+                        "status": "mapped",
+                        "source": "state"
+                    },
+                    "suffix": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "suite": {
+                        "status": "mapped",
+                        "source": "apartment"
+                    },
+                    "title": {
+                        "status": "mapped",
+                        "source": "title"
+                    }
+                },
+                "mappedCount": 15,
+                "pendingCount": 6,
+                "sfccSystemCount": 21
+            },
+            "Category": {
+                "attributes": {
+                    "ID": {
+                        "status": "mapped",
+                        "source": "id"
+                    },
+                    "UUID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "creationDate": {
+                        "status": "mapped",
+                        "source": "createdAt"
+                    },
+                    "description": {
+                        "status": "mapped",
+                        "source": "description"
+                    },
+                    "displayMode": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "displayName": {
+                        "status": "mapped",
+                        "source": "name"
+                    },
+                    "image": {
+                        "status": "mapped",
+                        "source": "assets"
+                    },
+                    "lastModified": {
+                        "status": "mapped",
+                        "source": "lastModifiedAt"
+                    },
+                    "online": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "onlineFrom": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "onlineTo": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "pageDescription": {
+                        "status": "mapped",
+                        "source": "metaDescription"
+                    },
+                    "pageKeywords": {
+                        "status": "mapped",
+                        "source": "metaKeywords"
+                    },
+                    "pageTitle": {
+                        "status": "mapped",
+                        "source": "metaTitle"
+                    },
+                    "pageURL": {
+                        "status": "mapped",
+                        "source": "slug"
+                    },
+                    "searchPlacement": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "searchRank": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "siteMapChangeFrequency": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "siteMapIncluded": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "siteMapPriority": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "template": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "thumbnail": {
+                        "status": "pending",
+                        "source": null
+                    }
+                },
+                "mappedCount": 10,
+                "pendingCount": 12,
+                "sfccSystemCount": 22
+            },
+            "Order": {
+                "attributes": {
+                    "UUID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "affiliatePartnerID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "affiliatePartnerName": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "businessType": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "cancelCode": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "cancelDescription": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "channelType": {
+                        "status": "mapped",
+                        "source": "origin"
+                    },
+                    "confirmationStatus": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "createdBy": {
+                        "status": "mapped",
+                        "source": "createdBy"
+                    },
+                    "creationDate": {
+                        "status": "mapped",
+                        "source": "createdAt"
+                    },
+                    "currencyCode": {
+                        "status": "mapped",
+                        "source": "totalPrice.currencyCode"
+                    },
+                    "customerEmail": {
+                        "status": "mapped",
+                        "source": "customerEmail"
+                    },
+                    "customerLocaleID": {
+                        "status": "mapped",
+                        "source": "locale"
+                    },
+                    "customerName": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "customerNo": {
+                        "status": "mapped",
+                        "source": "customerId"
+                    },
+                    "customerOrderReference": {
+                        "status": "mapped",
+                        "source": "purchaseOrderNumber"
+                    },
+                    "exportAfter": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "exportStatus": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "externalOrderNo": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "externalOrderStatus": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "externalOrderText": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "lastModified": {
+                        "status": "mapped",
+                        "source": "lastModifiedAt"
+                    },
+                    "orderNo": {
+                        "status": "mapped",
+                        "source": "orderNumber"
+                    },
+                    "originalOrderNo": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "paymentStatus": {
+                        "status": "mapped",
+                        "source": "paymentState"
+                    },
+                    "replaceCode": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "replaceDescription": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "replacedOrderNo": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "replacementOrderNo": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "shippingStatus": {
+                        "status": "mapped",
+                        "source": "shipmentState"
+                    },
+                    "status": {
+                        "status": "mapped",
+                        "source": "orderState"
+                    }
+                },
+                "mappedCount": 13,
+                "pendingCount": 18,
+                "sfccSystemCount": 31
+            },
+            "Store": {
+                "attributes": {
+                    "ID": {
+                        "status": "mapped",
+                        "source": "id"
+                    },
+                    "UUID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "address1": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "address2": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "city": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "countryCode": {
+                        "status": "mapped",
+                        "source": "countries"
+                    },
+                    "creationDate": {
+                        "status": "mapped",
+                        "source": "createdAt"
+                    },
+                    "email": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "fax": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "image": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "inventoryListID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "lastModified": {
+                        "status": "mapped",
+                        "source": "lastModifiedAt"
+                    },
+                    "latitude": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "longitude": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "name": {
+                        "status": "mapped",
+                        "source": "name"
+                    },
+                    "phone": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "posEnabled": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "postalCode": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "stateCode": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "storeEvents": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "storeHours": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "storeLocatorEnabled": {
+                        "status": "pending",
+                        "source": null
+                    }
+                },
+                "mappedCount": 5,
+                "pendingCount": 17,
+                "sfccSystemCount": 22
+            },
+            "ShippingMethod": {
+                "attributes": {
+                    "ID": {
+                        "status": "mapped",
+                        "source": "id"
+                    },
+                    "UUID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "creationDate": {
+                        "status": "mapped",
+                        "source": "createdAt"
+                    },
+                    "description": {
+                        "status": "mapped",
+                        "source": "localizedDescription"
+                    },
+                    "displayName": {
+                        "status": "mapped",
+                        "source": "name"
+                    },
+                    "lastModified": {
+                        "status": "mapped",
+                        "source": "lastModifiedAt"
+                    },
+                    "taxClassID": {
+                        "status": "mapped",
+                        "source": "taxCategory"
+                    }
+                },
+                "mappedCount": 6,
+                "pendingCount": 1,
+                "sfccSystemCount": 7
+            },
+            "InventoryList": {
+                "attributes": {
+                    "ID": {
+                        "status": "mapped",
+                        "source": "id"
+                    },
+                    "UUID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "creationDate": {
+                        "status": "mapped",
+                        "source": "createdAt"
+                    },
+                    "description": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "lastModified": {
+                        "status": "mapped",
+                        "source": "lastModifiedAt"
+                    }
+                },
+                "mappedCount": 3,
+                "pendingCount": 2,
+                "sfccSystemCount": 5
+            },
+            "ProductInventoryRecord": {
+                "attributes": {
+                    "allocation": {
+                        "status": "mapped",
+                        "source": "quantityOnStock"
+                    },
+                    "ATS": {
+                        "status": "mapped",
+                        "source": "availableQuantity"
+                    }
+                },
+                "mappedCount": 2,
+                "pendingCount": 0,
+                "sfccSystemCount": 2
+            },
+            "PriceBook": {
+                "attributes": {
+                    "ID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "UUID": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "creationDate": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "currencyCode": {
+                        "status": "mapped",
+                        "source": "value.currencyCode"
+                    },
+                    "deltaFiles": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "description": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "displayName": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "lastModified": {
+                        "status": "pending",
+                        "source": null
+                    },
+                    "onlineFlag": {
+                        "status": "pending",
+                        "source": null
+                    }
+                },
+                "mappedCount": 1,
+                "pendingCount": 8,
+                "sfccSystemCount": 9
+            }
+        }
+    }
+}

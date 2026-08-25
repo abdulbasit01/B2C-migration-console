@@ -6,7 +6,7 @@ var assert = require('chai').assert;
 var path = require('path');
 var proxyquire = require('proxyquire').noCallThru();
 
-var ordersRoot = path.join(__dirname, '../../../../cartridges/bm_accelerator/cartridge/scripts/migration/orders');
+var ordersRoot = path.join(__dirname, '../../../../commerce-rc-b2c-migration-console-app/cartridges/bm_cartridges/bm_accelerator/cartridge/scripts/migration/orders');
 
 function load(modulePath) {
     return require(path.join(ordersRoot, modulePath));

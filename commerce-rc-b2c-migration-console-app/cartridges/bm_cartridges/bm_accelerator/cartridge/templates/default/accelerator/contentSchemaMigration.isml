@@ -1,0 +1,137 @@
+<isdecorate template="application/MenuFrame">
+
+<iscontent type="text/html" charset="UTF-8"/>
+
+<link rel="stylesheet" href="${pdict.cssUrl}"/>
+
+<script src="${pdict.contentSchemaMigrationJsUrl}"></script>
+
+<div class="acc-page acc-page--wizard">
+
+<div class="acc-shell">
+
+    <isinclude template="accelerator/components/header"/>
+
+    <div class="acc-back-nav">
+        <a class="acc-back" href="${pdict.dashboardUrl}">&larr; ${Resource.msg('accelerator.wizard.back', 'accelerator', null)}</a>
+    </div>
+
+    <section class="acc-section acc-section--wizard">
+
+        <header class="acc-section__head">
+            <h2>${Resource.msg('accelerator.contentschemamigration.heading', 'accelerator', null)}</h2>
+            <p class="cms-intro">${Resource.msg('accelerator.contentschemamigration.intro', 'accelerator', null)}</p>
+        </header>
+
+        <div id="acc-cms-schema-root"
+             class="acc-cms-wizard"
+             data-platform-id="${pdict.platform.id}"
+             data-test-connection-url="<isprint value="${pdict.testConnectionUrl}" encoding="htmldoublequote"/>"
+             data-list-types-url="<isprint value="${pdict.listContentTypesUrl}" encoding="htmldoublequote"/>">
+
+            <div class="cms-steps" role="tablist">
+                <button type="button" id="cms-schema-tab-1" class="cms-steps__tab cms-steps__tab--active" data-step="1">
+                    ${Resource.msg('accelerator.contentschemamigration.step.connect', 'accelerator', null)}
+                </button>
+                <button type="button" id="cms-schema-tab-2" class="cms-steps__tab" data-step="2">
+                    ${Resource.msg('accelerator.contentschemamigration.step.fetch', 'accelerator', null)}
+                </button>
+                <button type="button" id="cms-schema-tab-3" class="cms-steps__tab" data-step="3">
+                    ${Resource.msg('accelerator.contentschemamigration.step.map', 'accelerator', null)}
+                </button>
+            </div>
+
+            <main class="acc-wizard-card">
+
+                <div id="cms-schema-panel-step1" class="cms-panel cms-step-panel">
+                    <div class="cms-panel__head">
+                        <span class="cms-panel__title">${Resource.msg('accelerator.contentschemamigration.connect.title', 'accelerator', null)}</span>
+                        <span id="acc-cms-schema-conn-status" class="cms-panel__status"></span>
+                    </div>
+                    <div class="cms-panel__body">
+                        <p class="cms-panel__hint">${pdict.platform.connectHint}</p>
+                        <form id="acc-cms-schema-connect-form" class="acc-form acc-form--grid cms-connect-form">
+                            <input type="hidden" name="platformId" value="${pdict.platform.id}" />
+                            <isif condition="${pdict.connectionSummary}">
+                                <isinclude template="accelerator/components/connectionSummaryFields"/>
+                            </isif>
+                        </form>
+                        <isif condition="${pdict.connectionSummary}">
+                            <p class="cms-prefs-hint">
+                                ${Resource.msg('accelerator.datawizard.connect.prefsHint', 'accelerator', null)}
+                                <strong>${pdict.connectionSummary.prefsHint}</strong>
+                            </p>
+                            <isif condition="${!pdict.connectionSummary.configured}">
+                                <div class="acc-status acc-status--error" role="status">
+                                    ${Resource.msg('accelerator.datawizard.connect.notConfigured', 'accelerator', null)}
+                                </div>
+                            </isif>
+                        </isif>
+                        <div class="cms-panel__inline-actions">
+                            <button type="button" id="acc-cms-schema-test-btn" class="acc-btn acc-btn--primary">
+                                ${Resource.msg('accelerator.datawizard.testConnection', 'accelerator', null)}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="cms-schema-panel-step2" class="cms-panel cms-step-panel" style="display:none;">
+                    <div class="cms-panel__head">
+                        <span class="cms-panel__title">${Resource.msg('accelerator.contentschemamigration.fetch.title', 'accelerator', null)}</span>
+                        <button type="button" id="acc-cms-schema-load-btn" class="acc-btn acc-btn--ghost">
+                            ${Resource.msg('accelerator.contentschemamigration.fetch.load', 'accelerator', null)}
+                        </button>
+                        <span id="acc-cms-schema-list-status" class="cms-panel__status"></span>
+                    </div>
+                    <div class="cms-panel__body">
+                        <p class="cms-panel__hint">${Resource.msg('accelerator.contentschemamigration.fetch.prompt', 'accelerator', null)}</p>
+                        <div id="acc-cms-schema-list-loading" class="cms-muted">${Resource.msg('accelerator.contentschemamigration.fetch.loadHint', 'accelerator', null)}</div>
+                        <div id="acc-cms-schema-list-error" class="cms-error" style="display:none;"></div>
+                    </div>
+                </div>
+
+                <div id="cms-schema-panel-step3" class="cms-panel cms-step-panel" style="display:none;">
+                    <div class="cms-panel__head">
+                        <span class="cms-panel__title">${Resource.msg('accelerator.contentschemamigration.map.title', 'accelerator', null)}</span>
+                        <span id="acc-cms-schema-map-status" class="cms-panel__status"></span>
+                    </div>
+                    <div class="cms-panel__body cms-panel__body--preview">
+                        <p class="cms-panel__hint">${Resource.msg('accelerator.contentschemamigration.map.prompt', 'accelerator', null)}</p>
+                        <p class="cms-panel__hint cms-panel__hint--note">${Resource.msg('accelerator.contentschemamigration.map.note', 'accelerator', null)}</p>
+                        <div id="acc-cms-schema-table-wrap" style="display:none;">
+                            <table class="cms-content-table cms-schema-table">
+                                <thead>
+                                    <tr>
+                                        <th class="cms-col-label">${Resource.msg('accelerator.contentschemamigration.table.label', 'accelerator', null)}</th>
+                                        <th class="cms-col-schema">${Resource.msg('accelerator.contentschemamigration.table.schema', 'accelerator', null)}</th>
+                                        <th class="cms-col-sfcc">${Resource.msg('accelerator.contentschemamigration.table.sfccComponent', 'accelerator', null)}</th>
+                                        <th class="cms-col-fields">${Resource.msg('accelerator.contentschemamigration.table.fields', 'accelerator', null)}</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="acc-cms-schema-tbody"></tbody>
+                            </table>
+                        </div>
+                        <div id="acc-cms-schema-map-empty" class="cms-muted">${Resource.msg('accelerator.contentschemamigration.map.empty', 'accelerator', null)}</div>
+                    </div>
+                </div>
+
+            </main>
+
+            <footer class="acc-wizard-footer">
+                <button type="button" id="acc-cms-schema-prev" class="acc-btn acc-btn--ghost" style="visibility:hidden;">
+                    ${Resource.msg('accelerator.wizard.previous', 'accelerator', null)}
+                </button>
+                <button type="button" id="acc-cms-schema-next" class="acc-btn acc-btn--primary" disabled="disabled">
+                    ${Resource.msg('accelerator.wizard.continue', 'accelerator', null)}
+                </button>
+            </footer>
+
+        </div>
+    </section>
+
+</div>
+
+</div>
+
+</isdecorate>
+

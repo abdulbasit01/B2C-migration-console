@@ -1,0 +1,49 @@
+<isdecorate template="common/layout/page">
+    <isscript>
+        var assets = require('*/cartridge/scripts/assets.js');
+        assets.addCss('/css/amplienceContent.css');
+        assets.addJs('/js/amplienceLocaleSelect.js');
+    </isscript>
+
+    <main class="amp-detail container">
+        <a class="amp-detail__back" href="${URLUtils.url('AmplienceContent-Show')}">
+            &larr; All migrated content
+        </a>
+        <header class="amp-detail__header">
+            <p>${pdict.amp.widgetType}</p>
+            <h1>${pdict.amp.name}</h1>
+            <isif condition="${pdict.amp.live}">
+                <span class="amp-detail__live">Live from Amplience CDN</span>
+            <iselseif condition="${!pdict.hubConfigured}">
+                <span class="amp-detail__live">Set rcMigAmplienceHubName in Site Preferences for live sync</span>
+            <iselse/>
+                <span class="amp-detail__live">Showing SFCC snapshot (CDN unavailable)</span>
+            </isif>
+            <a class="amp-detail__live" href="${URLUtils.url('AmplienceContent-Detail', 'cid', pdict.amp.id, 'nocache', '1')}">
+                Force refresh now
+            </a>
+            <span class="amp-detail__live-hint">Uses CDN cache (~5 min). Force refresh bypasses cache for this item only.</span>
+            <isif condition="${!empty(pdict.amp.liveError)}">
+                <p class="amp-detail__live-error">${pdict.amp.liveError}</p>
+            </isif>
+            <isif condition="${!empty(pdict.amp.deliveryKey)}">
+                <span>Delivery key: ${pdict.amp.deliveryKey}</span>
+            </isif>
+        </header>
+
+        <section class="amp-detail__component">
+            <isinclude template="components/content/amplienceAsset" />
+        </section>
+
+        <dl class="amp-detail__metadata">
+            <dt>SFCC Content ID</dt>
+            <dd>${pdict.amp.id}</dd>
+            <dt>Amplience Content ID</dt>
+            <dd>${pdict.amp.contentId}</dd>
+            <dt>Schema</dt>
+            <dd>${pdict.amp.schema}</dd>
+            <dt>Image URL</dt>
+            <dd>${empty(pdict.amp.imageUrl) ? '(none)' : pdict.amp.imageUrl}</dd>
+        </dl>
+    </main>
+</isdecorate>

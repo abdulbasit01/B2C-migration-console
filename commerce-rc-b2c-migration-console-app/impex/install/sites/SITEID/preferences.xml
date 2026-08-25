@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<preferences xmlns="http://www.demandware.com/xml/impex/preferences/2007-12-31">
+    <custom-preferences>
+        <custom-preference preference-id="rcMigShopifyApiVersion" site-id="SITEID">2025-01</custom-preference>
+        <custom-preference preference-id="rcMigBcApiVersion" site-id="SITEID">v3</custom-preference>
+        <custom-preference preference-id="rcMigOcapiVersion" site-id="SITEID">v25_6</custom-preference>
+        <custom-preference preference-id="rcMigOpenAiEnabled" site-id="SITEID">false</custom-preference>
+        <custom-preference preference-id="rcMigOpenAiModel" site-id="SITEID">gpt-4o-mini</custom-preference>
+    </custom-preferences>
+</preferences>

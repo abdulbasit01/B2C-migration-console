@@ -1,0 +1,138 @@
+<isdecorate template="common/layout/page">
+    <isscript>
+        var assets = require('*/cartridge/scripts/assets.js');
+        assets.addCss('/css/amplienceContent.css');
+        assets.addJs('/js/amplienceLocaleSelect.js');
+        assets.addJs('/js/amplienceGalleryView.js');
+    </isscript>
+
+    <main class="amp-gallery container">
+        <header class="amp-gallery__header">
+            <p class="amp-gallery__eyebrow">Amplience Migration</p>
+            <h1>Migrated Content Components</h1>
+            <p>
+                Showing ${pdict.amplience.total} content assets.
+                Banners and image components render as simple previews.
+                Rich text and localized components include a <strong>Locale</strong> dropdown to load live Amplience content.
+            </p>
+            <p class="amp-gallery__refresh-hint">
+                To build a full page (banner + rich text), use
+                <strong>Compose page</strong> with content IDs from each component.
+            </p>
+            <isif condition="${!pdict.hubConfigured}">
+                <div class="alert alert-warning">
+                    Set <code>rcMigAmplienceHubName</code> under Site Preferences → B2C Migration Console
+                    so live CDN sync can run.
+                </div>
+            </isif>
+        </header>
+
+        <form class="amp-gallery__search" method="get" action="${URLUtils.url('AmplienceContent-Show')}">
+            <isif condition="${!empty(pdict.amplience.type)}">
+                <input type="hidden" name="type" value="${pdict.amplience.type}" />
+            </isif>
+            <input type="hidden" name="view" id="amp-gallery-view-input" value="${pdict.amplience.view || 'list'}" />
+            <label class="amp-gallery__search-label" for="amp-gallery-q">Search components</label>
+            <div class="amp-gallery__search-row">
+                <input
+                    id="amp-gallery-q"
+                    class="amp-gallery__search-input"
+                    type="search"
+                    name="q"
+                    value="${pdict.amplience.query || ''}"
+                    placeholder="Search by name, SFCC id, Amplience id, or delivery key"
+                />
+                <button class="amp-gallery__search-button" type="submit">Search</button>
+            </div>
+        </form>
+
+        <nav class="amp-gallery__filters" aria-label="Filter components">
+            <isloop items="${pdict.widgetTypes}" var="widgetType">
+                <a
+                    class="amp-gallery__filter<isif condition="${pdict.amplience.type === widgetType.id}"> active</isif>"
+                    href="${URLUtils.url('AmplienceContent-Show', 'type', widgetType.id, 'q', pdict.amplience.query || '', 'view', pdict.amplience.view || 'list')}"
+                >${widgetType.label}</a>
+            </isloop>
+        </nav>
+
+        <isif condition="${!pdict.amplience.folderFound}">
+            <div class="alert alert-warning">
+                Folder <code>amplience</code> was not found in the content library assigned to this site.
+            </div>
+        <iselseif condition="${empty(pdict.amplience.items)}">
+            <div class="alert alert-info">No online Amplience assets match this filter.</div>
+        <iselse/>
+            <div class="amp-gallery__toolbar">
+                <p class="amp-gallery__count">${pdict.amplience.total} component<isif condition="${pdict.amplience.total != 1}">s</isif></p>
+                <div class="amp-gallery__view-toggle" role="group" aria-label="Gallery layout">
+                    <button type="button" class="amp-gallery__view-btn<isif condition="${pdict.amplience.view === 'grid'}"> is-active</isif>" data-view="grid" aria-pressed="${pdict.amplience.view === 'grid' ? 'true' : 'false'}">Gallery</button>
+                    <button type="button" class="amp-gallery__view-btn<isif condition="${pdict.amplience.view === 'list'}"> is-active</isif>" data-view="list" aria-pressed="${pdict.amplience.view === 'list' ? 'true' : 'false'}">List</button>
+                </div>
+            </div>
+            <div class="amp-gallery__grid<isif condition="${pdict.amplience.view === 'list'}"> amp-gallery__grid--list</isif>" id="amp-gallery-grid" data-view="${pdict.amplience.view || 'list'}">
+                <isloop items="${pdict.amplience.items}" var="item">
+                    <article class="amp-gallery__item amp-gallery__item--${item.widgetType}" data-content-id="${item.id}">
+                        <div class="amp-gallery__preview" data-amp-preview="${item.id}">
+                            <isif condition="${!empty(item.imageUrl)}">
+                                <img
+                                    class="amp-gallery__preview-thumb"
+                                    src="${item.imageUrl}"
+                                    alt="${item.name}"
+                                    loading="lazy"
+                                />
+                            </isif>
+                            <isinclude template="amplience/galleryItemPreview" attribute="item" value="${item}" />
+                        </div>
+                        <div class="amp-gallery__card-foot">
+                            <div class="amp-gallery__card-head">
+                                <div class="amp-gallery__meta-copy">
+                                    <strong>${item.name}</strong>
+                                    <span>${item.widgetLabel || item.widgetType}</span>
+                                </div>
+                                <div class="amp-gallery__meta-actions">
+                                    <isif condition="${!empty(item.availableLocales) && item.availableLocales.length > 1}">
+                                        <div class="amp-gallery__locale-control" role="group" aria-label="Locale for ${item.name}">
+                                            <span class="amp-gallery__locale-text">Lang</span>
+                                            <select
+                                                class="amp-card-locale-select"
+                                                data-cid="${item.id}"
+                                                data-preview-url="${URLUtils.url('AmplienceContent-Preview')}"
+                                                aria-label="Locale for ${item.name}"
+                                            >
+                                                <isloop items="${item.availableLocales}" var="localeOption">
+                                                    <option
+                                                        value="${localeOption.locale}"
+                                                        <isif condition="${localeOption.locale === item.previewLocale}">selected</isif>
+                                                    >${localeOption.label}</option>
+                                                </isloop>
+                                            </select>
+                                        </div>
+                                    </isif>
+                                    <a class="amp-gallery__view-link" href="${URLUtils.url('AmplienceContent-Detail', 'cid', item.id)}">
+                                        View
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </article>
+                </isloop>
+            </div>
+        </isif>
+
+        <isif condition="${pdict.amplience.pageCount > 1}">
+            <nav class="amp-gallery__pagination" aria-label="Content pages">
+                <isif condition="${pdict.amplience.hasPrevious}">
+                    <a href="${URLUtils.url('AmplienceContent-Show', 'page', pdict.amplience.page - 1, 'type', pdict.amplience.type, 'q', pdict.amplience.query || '', 'view', pdict.amplience.view || 'list')}">
+                        Previous
+                    </a>
+                </isif>
+                <span>Page ${pdict.amplience.page} of ${pdict.amplience.pageCount}</span>
+                <isif condition="${pdict.amplience.hasNext}">
+                    <a href="${URLUtils.url('AmplienceContent-Show', 'page', pdict.amplience.page + 1, 'type', pdict.amplience.type, 'q', pdict.amplience.query || '', 'view', pdict.amplience.view || 'list')}">
+                        Next
+                    </a>
+                </isif>
+            </nav>
+        </isif>
+    </main>
+</isdecorate>

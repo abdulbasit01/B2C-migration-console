@@ -1,0 +1,481 @@
+'use strict';
+
+/**
+ * Shared SFCC system-attribute catalog + per-source aliases.
+ *
+ * nativeFieldMap.json shape:
+ *   sfccSystem[task]              — SFCC OOTB attribute IDs (same for every source)
+ *   aliases[platform][task]       — source field → SFCC system field (1:1)
+ *   skipped[platform][task]       — source fields intentionally not created as attrs
+ *                                   (structural / platform / migrate-elsewhere) with notes
+ *   coverage[platform][task]      — per SFCC system attribute identifier:
+ *                                   attributes: {
+ *                                     "<sfccId>": { "status": "mapped"|"pending", "source": "<sourceField>"|null }
+ *                                   }
+ *                                   Counts curated aliases only (not runtime identity).
+ *
+ * Platform keys: ct | shopify | sap | bigcommerce
+ * ("commercetools" / "ctp" normalize to "ct")
+ *
+ * Lookup order for a source field (Check Attributes rules 3.a / 3.b / 3.c):
+ *   1. platform alias (rename) whose target is in sfccSystem  → map, do not create
+ *   2. identity match against shared sfccSystem list            → map, do not create
+ *   3. explicit skipped[]                                       → informational, do not create
+ *   4. null → missing create candidate (custom on the fly)
+ *   5. optional OpenAI suggestions against sfccSystem (UI only; not curated aliases)
+ * See .cursor/rules/check-attributes.mdc
+ */
+
+var rules = require('*/cartridge/scripts/migration/config/nativeFieldMap.json');
+var detector = require('*/cartridge/scripts/migration/core/nativeFieldDetector');
+
+var sfccSystemIndex = null;
+
+/**
+ * True when the rule means "map to an existing SFCC field; do not create".
+ * @param {string} action
+ * @returns {boolean}
+ */
+function isMapAction(action) {
+    return action === 'map' || action === 'skip' || action === 'flag';
+}
+
+/**
+ * Normalize connector / registry platform ids to map keys.
+ * @param {string} platformId
+ * @returns {string}
+ */
+function normalizePlatformId(platformId) {
+    var id = String(platformId || '').toLowerCase();
+    if (id === 'commercetools' || id === 'ctp') return 'ct';
+    return id;
+}
+
+/**
+ * @returns {Object.<string, Object.<string, string>>} task → lowerId → canonicalId
+ */
+function getSystemIndex() {
+    if (sfccSystemIndex) return sfccSystemIndex;
+    sfccSystemIndex = {};
+    var system = rules.sfccSystem || {};
+    var tasks = Object.keys(system);
+    var t;
+    for (t = 0; t < tasks.length; t++) {
+        var task = tasks[t];
+        var ids = system[task] || [];
+        var byLower = {};
+        var i;
+        for (i = 0; i < ids.length; i++) {
+            var id = String(ids[i] || '');
+            if (id) byLower[id.toLowerCase()] = id;
+        }
+        sfccSystemIndex[task] = byLower;
+    }
+    return sfccSystemIndex;
+}
+
+/**
+ * @param {string} task
+ * @param {string} attrId
+ * @returns {string|null} canonical SFCC system id
+ */
+function resolveSystemId(task, attrId) {
+    var byLower = getSystemIndex()[task];
+    if (!byLower || !attrId) return null;
+    return byLower[String(attrId).toLowerCase()] || null;
+}
+
+/**
+ * Dump-backed SFCC OOTB system attribute ids for a task.
+ * @param {string} task
+ * @returns {Array<string>}
+ */
+function getSystemIds(task) {
+    var list = (rules.sfccSystem && rules.sfccSystem[task]) || [];
+    var out = [];
+    var i;
+    for (i = 0; i < list.length; i++) {
+        if (list[i]) out.push(String(list[i]));
+    }
+    return out;
+}
+
+/**
+ * OCAPI value_type for an SFCC system attribute. Used when the live
+ * attribute-definitions payload omits value_type (sparse select).
+ * Live OCAPI types always win over this table.
+ */
+var SYSTEM_VALUE_TYPES = {
+    Product: {
+        EAN: 'string',
+        ID: 'string',
+        UPC: 'string',
+        UUID: 'string',
+        available: 'boolean',
+        brand: 'string',
+        creationDate: 'datetime',
+        facebookEnabled: 'boolean',
+        image: 'image',
+        lastModified: 'datetime',
+        localizedTaxClassID: 'string',
+        longDescription: 'html',
+        manufacturerName: 'string',
+        manufacturerSKU: 'string',
+        minOrderQuantity: 'double',
+        name: 'string',
+        onlineFlag: 'boolean',
+        onlineFrom: 'datetime',
+        onlineTo: 'datetime',
+        pageDescription: 'html',
+        pageKeywords: 'string',
+        pageTitle: 'string',
+        pageURL: 'string',
+        pinterestEnabled: 'boolean',
+        searchPlacement: 'int',
+        searchRank: 'double',
+        searchable: 'boolean',
+        searchableIfUnavailable: 'boolean',
+        shortDescription: 'html',
+        siteMapChangeFrequency: 'enum_of_string',
+        siteMapIncluded: 'enum_of_int',
+        siteMapPriority: 'double',
+        stepQuantity: 'double',
+        storeForcePriceEnabled: 'boolean',
+        storeNonDiscountableEnabled: 'boolean',
+        storeNonInventoryEnabled: 'boolean',
+        storeNonRevenueEnabled: 'boolean',
+        storeReceiptName: 'string',
+        storeTaxClass: 'string',
+        taxClassID: 'string',
+        template: 'string',
+        thumbnail: 'image',
+        unit: 'string',
+        unitMeasure: 'string',
+        unitQuantity: 'double'
+    }
+};
+
+/**
+ * @param {string} task
+ * @param {string} attrId
+ * @returns {string} OCAPI value_type or ''
+ */
+function getSystemValueType(task, attrId) {
+    var map = SYSTEM_VALUE_TYPES[task];
+    if (!map || !attrId) return '';
+    if (Object.prototype.hasOwnProperty.call(map, attrId)) return map[attrId];
+    var lower = String(attrId).toLowerCase();
+    var keys = Object.keys(map);
+    var i;
+    for (i = 0; i < keys.length; i++) {
+        if (keys[i].toLowerCase() === lower) return map[keys[i]];
+    }
+    return '';
+}
+
+/**
+ * Case-insensitive key lookup in a plain object map.
+ * @param {Object} map
+ * @param {string} key
+ * @returns {*}
+ */
+function lookupCI(map, key) {
+    if (!map || key == null) return undefined;
+    if (Object.prototype.hasOwnProperty.call(map, key)) return map[key];
+    var lower = String(key).toLowerCase();
+    var keys = Object.keys(map);
+    var i;
+    for (i = 0; i < keys.length; i++) {
+        if (keys[i].toLowerCase() === lower) return map[keys[i]];
+    }
+    return undefined;
+}
+
+/**
+ * Normalize alias value to a rule fragment.
+ * @param {string|Object} raw
+ * @returns {{ sfccField: string, note: string }|null}
+ */
+function normalizeAlias(raw) {
+    if (raw == null) return null;
+    if (typeof raw === 'string') {
+        return { sfccField: raw, note: '' };
+    }
+    if (raw.sfccField) {
+        return { sfccField: raw.sfccField, note: raw.note || '' };
+    }
+    return null;
+}
+
+/**
+ * Return the rule for a given attribute, or null if none applies.
+ * @param {string} platformId - connector id (e.g. "ct", "commercetools", "shopify")
+ * @param {string} task       - runner task name (e.g. "Product")
+ * @param {string} attrId     - source attribute / field key
+ * @returns {{ sfccField: string, action: string, note: string }|null}
+ */
+function getRule(platformId, task, attrId) {
+    var platform = normalizePlatformId(platformId);
+    var aliases = rules.aliases && rules.aliases[platform]
+        ? rules.aliases[platform][task]
+        : null;
+    var aliasRaw = lookupCI(aliases, attrId);
+    var alias = normalizeAlias(aliasRaw);
+    // Alias only counts when the target is in the shared dump-backed sfccSystem list.
+    if (alias && alias.sfccField) {
+        var aliasTarget = resolveSystemId(task, alias.sfccField);
+        if (aliasTarget) {
+            return {
+                sfccField: aliasTarget,
+                action:    'map',
+                note:      alias.note || ('Maps to SFCC system field "' + aliasTarget + '".')
+            };
+        }
+    }
+
+    var systemId = resolveSystemId(task, attrId);
+    if (systemId) {
+        return {
+            sfccField: systemId,
+            action:    'map',
+            note:      'Maps to SFCC system field "' + systemId + '".'
+        };
+    }
+
+    return null;
+}
+
+/**
+ * True when attr is listed in skipped[] (do not create / not an attribute).
+ * Distinct from isSkipped(), which also treats curated system maps as skipped.
+ * @param {string} platformId
+ * @param {string} task
+ * @param {string} attrId
+ * @returns {boolean}
+ */
+function isExplicitSkip(platformId, task, attrId) {
+    var platform = normalizePlatformId(platformId);
+    var skippedMap = rules.skipped && rules.skipped[platform]
+        ? rules.skipped[platform][task]
+        : null;
+    return lookupCI(skippedMap, attrId) !== undefined;
+}
+
+/**
+ * True when attr is curated as skipped (do not create) or maps to a native SFCC field.
+ * @param {string} platformId
+ * @param {string} task
+ * @param {string} attrId
+ * @returns {boolean}
+ */
+function isSkipped(platformId, task, attrId) {
+    if (isExplicitSkip(platformId, task, attrId)) return true;
+    var rule = getRule(platformId, task, attrId);
+    return !!(rule && isMapAction(rule.action));
+}
+
+/**
+ * Curated source fields that are intentionally not created as SFCC attributes
+ * (platform modes, nested structures, migrate-in-XML, etc.).
+ * @param {string} platformId
+ * @param {string} task
+ * @returns {Array<{ id: string, label: string, status: string, note: string }>}
+ */
+function getSkippedFields(platformId, task) {
+    var platform = normalizePlatformId(platformId);
+    var skippedMap = rules.skipped && rules.skipped[platform]
+        ? rules.skipped[platform][task]
+        : null;
+    var out = [];
+    var keys;
+    var i;
+    var key;
+    var raw;
+    var note;
+
+    if (!skippedMap) return out;
+
+    keys = Object.keys(skippedMap);
+    for (i = 0; i < keys.length; i++) {
+        key = keys[i];
+        raw = skippedMap[key];
+        if (raw == null) {
+            note = '';
+        } else if (typeof raw === 'string') {
+            note = raw;
+        } else {
+            note = raw.reason || raw.note || '';
+        }
+        out.push({
+            id:     key,
+            label:  key,
+            status: 'skipped',
+            note:   String(note || 'Not created as an SFCC attribute.')
+        });
+    }
+    return out;
+}
+
+/**
+ * Curated rules win when present. Otherwise fall back to live detection against
+ * SFCC system attributes (action: map).
+ * @param {string} platformId
+ * @param {string} task
+ * @param {string} attrId
+ * @param {string} [attrLabel]
+ * @param {Array<{id: string, displayName: string, system: boolean}>} [sfccAttrs]
+ * @returns {{ sfccField: string, action: string, note: string }|null}
+ */
+function getEffectiveRule(platformId, task, attrId, attrLabel, sfccAttrs) {
+    var staticRule = getRule(platformId, task, attrId);
+    if (staticRule) return staticRule;
+    if (!sfccAttrs || !sfccAttrs.length) return null;
+
+    var matches = detector.findNativeMatches(attrId, attrLabel, sfccAttrs);
+    if (!matches.length) return null;
+
+    var best = matches[0];
+    return {
+        sfccField: best.id,
+        action:    'map',
+        note:      'Matches existing SFCC system field "' + (best.displayName || best.id) + '" (' + best.id + ').'
+    };
+}
+
+/**
+ * Curated source fields to surface in preflight Mapped section (aliases only).
+ * Identity matches still apply at lookup time when a live source field name
+ * equals an sfccSystem id; they are not invented here (keeps coverage in sync).
+ * @param {string} platformId
+ * @param {string} task
+ * @returns {Array<{ name: string, label: string, sourceKey: string, sfccId: string }>}
+ */
+function getMappedSourceFields(platformId, task) {
+    var platform = normalizePlatformId(platformId);
+    var out = [];
+    var seen = {};
+    var aliases = rules.aliases && rules.aliases[platform]
+        ? rules.aliases[platform][task]
+        : null;
+    var keys;
+    var i;
+    var key;
+    var alias;
+    var target;
+
+    if (!aliases) return out;
+
+    keys = Object.keys(aliases);
+    for (i = 0; i < keys.length; i++) {
+        key = keys[i];
+        alias = normalizeAlias(aliases[key]);
+        if (!alias || !alias.sfccField) continue;
+        target = resolveSystemId(task, alias.sfccField);
+        // Skip aliases whose target is not in the dump-backed system list.
+        if (!target) continue;
+        if (seen[key]) continue;
+        seen[key] = true;
+        out.push({
+            name:      key,
+            sourceKey: key,
+            label:     key,
+            // Keep source key as the field id so preflight "Source Attribute" shows
+            // orderNumber (not the SFCC target). Lookup still uses sourceKey.
+            sfccId:    key
+        });
+    }
+
+    return out;
+}
+
+/**
+ * SFCC system fields already claimed by curated aliases for platform+task (1:1 targets).
+ * Used to keep AI suggestions off fields that Check Attributes already maps.
+ * @param {string} platformId
+ * @param {string} task
+ * @returns {Array<string>} canonical SFCC system ids
+ */
+function getClaimedSystemFields(platformId, task) {
+    var platform = normalizePlatformId(platformId);
+    var out = [];
+    var seen = {};
+    var aliases = rules.aliases && rules.aliases[platform]
+        ? rules.aliases[platform][task]
+        : null;
+    if (!aliases) return out;
+    var keys = Object.keys(aliases);
+    var i;
+    for (i = 0; i < keys.length; i++) {
+        var alias = normalizeAlias(aliases[keys[i]]);
+        if (!alias || !alias.sfccField) continue;
+        var target = resolveSystemId(task, alias.sfccField);
+        if (!target || seen[target]) continue;
+        seen[target] = true;
+        out.push(target);
+    }
+    return out;
+}
+
+/**
+ * Source field keys whose curated alias targets a given SFCC system field.
+ * Used by XML/transform writers so export follows schema mapping (reverse of getRule).
+ * @param {string} platformId
+ * @param {string} task
+ * @param {string} sfccField
+ * @returns {Array<string>}
+ */
+function getSourcesForSystemField(platformId, task, sfccField) {
+    var platform = normalizePlatformId(platformId);
+    var target = resolveSystemId(task, sfccField);
+    if (!target) return [];
+    var out = [];
+    var seen = {};
+    var aliases = rules.aliases && rules.aliases[platform]
+        ? rules.aliases[platform][task]
+        : null;
+    if (!aliases) return out;
+    var keys = Object.keys(aliases);
+    var i;
+    for (i = 0; i < keys.length; i++) {
+        var key = keys[i];
+        var alias = normalizeAlias(aliases[key]);
+        if (!alias || !alias.sfccField) continue;
+        var aliasTarget = resolveSystemId(task, alias.sfccField);
+        if (aliasTarget !== target || seen[key]) continue;
+        seen[key] = true;
+        out.push(key);
+    }
+    return out;
+}
+
+/**
+ * Cross-check identifiers: which SFCC system fields are mapped from a source, which are pending.
+ * Reads coverage[] from nativeFieldMap.json.
+ * @param {string} platformId
+ * @param {string} [task]
+ * @returns {Object|null}
+ */
+function getCoverage(platformId, task) {
+    var platform = normalizePlatformId(platformId);
+    var cov = rules.coverage && rules.coverage[platform];
+    if (!cov) return null;
+    if (!task) return cov;
+    return cov[task] || null;
+}
+
+module.exports = {
+    isMapAction:              isMapAction,
+    normalizePlatformId:      normalizePlatformId,
+    getRule:                  getRule,
+    isSkipped:                isSkipped,
+    isExplicitSkip:           isExplicitSkip,
+    getSkippedFields:         getSkippedFields,
+    getEffectiveRule:         getEffectiveRule,
+    getMappedSourceFields:    getMappedSourceFields,
+    getClaimedSystemFields:   getClaimedSystemFields,
+    getSourcesForSystemField: getSourcesForSystemField,
+    resolveSystemId:          resolveSystemId,
+    getSystemIds:             getSystemIds,
+    getSystemValueType:       getSystemValueType,
+    getCoverage:              getCoverage
+};

@@ -7,7 +7,7 @@ var pipeline = require('../helpers/bulkPipelineRunner');
 describe('Bulk data migration — Shipping Methods', function () {
     this.timeout(0);
 
-    it('generates synthetic CTP shipping methods (sanity)', function () {
+    it('generates synthetic CT shipping methods (sanity)', function () {
         var methods = fixtures.shippingMethods(50);
         expect(methods).to.have.length(50);
         expect(methods[0]).to.have.property('key');

@@ -1,0 +1,73 @@
+---
+description: Check Attributes remodel rules — map to SFCC system attrs or offer create
+alwaysApply: true
+---
+
+# Check Attributes (data object modules)
+
+Every data migration module has a **Check … Attributes** button (label varies by source: CT / Shopify / BigCommerce / SAP). When computing mapped / missing / skipped / create candidates, **always** apply these rules first. Do not invent hardcoded create lists or fuzzy token maps.
+
+## Object (remodel)
+
+| Rule | Meaning | UI / action |
+|------|---------|-------------|
+| **3.a** | Source **system** field maps to an SFCC **system** (OOTB) attribute | Do **not** create. Map to existing. Show as mapped. |
+| **3.b** | Source **custom** field maps to an SFCC **system** (OOTB) attribute | Do **not** create. Map to existing. Show as mapped. |
+| **3.c** | Source field (system or custom) has **no** SFCC system match | Offer **create** as custom attr and map export to that id. |
+
+All of 3.a–3.c must be evaluated against the **curated source↔target mapping** plus the shared SFCC OOTB catalog — not against ad-hoc detector guesses.
+
+## Mapping source of truth
+
+| Artifact | Role |
+|----------|------|
+| `nativeFieldMap.json` → `sfccSystem[task]` | SFCC OOTB system attribute IDs (from BM dumps only; do not invent) |
+| `nativeFieldMap.json` → `aliases[platform][task]` | Source field → SFCC system field (**1:1**) |
+| `nativeFieldMap.json` → `skipped[platform][task]` | Source fields that are **not** attributes (structural / migrate elsewhere) — never create |
+| `nativeFieldMap.json` → `coverage[platform][task]` | Informational: which SFCC system ids are mapped vs pending |
+| `nativeFieldMap.js` | Lookup: **alias → identity match on sfccSystem → null (3.c create)**; reverse via `getSourcesForSystemField` for writers |
+| `systemFieldResolver` | Session maps + curated aliases → SFCC system field values for XML/transform |
+| `attrPreflightRunner.classifyFields` | Shared classifier for all modules |
+| `attrMapSuggestor` + OpenAI | Optional suggestions for **3.c create candidates only** |
+
+**Product XML:** curated aliases + session maps drive CT product transform/XML (not hardcoded key-over-id). SFCC system field **`ID`** is written as the catalog **`product-id` attribute** (alias `id → ID` stays curated; XML shape is `product-id="..."`). Other platforms/objects reuse `systemFieldResolver` later.
+
+## Lookup order (mandatory)
+
+For each source field id:
+
+1. **Alias** in `aliases[platform][task]` whose target is in `sfccSystem[task]` → **3.a / 3.b mapped**
+2. **Identity** — source id equals an `sfccSystem[task]` id (case-insensitive) → **3.b mapped**
+3. **Explicit skip** in `skipped[platform][task]` → show in skipped section; **do not** create
+4. Else → **3.c** create candidate (propose SFCC custom id = **exact source name**, including hyphens; no silent hyphen→underscore rewrite for CT; **no** `ctp_` / platform prefix unless the source name itself has it)
+5. If the proposed/custom id **already exists** in SFCC (system or custom) → treat as exists (no create)
+6. **Optional AI suggest** (OpenAI, Site Prefs `rcMigOpenAi*`): after Check Attributes returns create candidates, the UI shows **Validating with AI…**, then calls `Accelerator-SuggestAttrMaps`. Allow-list = live/`sfccSystem` ids **minus** curated `aliases` targets (`getClaimedSystemFields`) **minus** SFCC fields already shown as mapped in Check Attributes (`excludeSfccFields`). Results show as **Validated with AI** with purple-highlighted suggestion rows — never auto-map, never auto-create, never write curated aliases. If AI disabled/fails, create list unchanged. Create candidates (including CT `key`) can also be mapped by the user to any **coverage-pending** (uncurated) SFCC system id whose type is compatible with the source from the Check Attributes dropdown — same session `SaveAttrIdMap` as AI accept; curated alias targets are not offered; 1:1 exclusive.
+
+Use `getRule` / `resolveSystemId` / `isExplicitSkip` — **not** fuzzy `getEffectiveRule` token matching for classify/create decisions. Do **not** add semantic aliases (e.g. `product-description` → `longDescription`) to `nativeFieldMap.json`; rely on AI suggestions instead.
+
+## Do / don’t
+
+- **Do** keep Check Attributes driven by: curated aliases + live source schema (CT Types / Product Types, Shopify options, etc.) + sfccSystem
+- **Do** keep product XML system fields driven by the same aliases + session maps (`systemFieldResolver`); SFCC `ID` ↔ catalog `product-id`
+- **Do** show and create CT source attribute ids exactly as on the source (e.g. `product-description`, not `product_description`)
+- **Do** keep platform normalize: `commercetools` / `ctp` → `ct`
+- **Do** call OpenAI only for create candidates when enabled + API key present
+- **Do** let the user map a 3.c create candidate to any uncurated/coverage-pending SFCC system field whose **value_type is compatible** with the source (string/text/html family, int/double, boolean, date, datetime — not cross-family). Same session `SaveAttrIdMap` as AI accept; curated alias targets are not offered; 1:1 exclusive.
+- **Don’t** hardcode migration “trace” attrs into the create table (`product_id`, `ctp_customer_id`, store trace ids, etc.)
+- **Don’t** invent SFCC system ids without a BM dump entry in `sfccSystem`
+- **Don’t** map `id` → `UUID` unless the source field is actually a UUID; prefer `id` → `ID` where applicable
+- **Don’t** map CT `key` to `ID` (key is a Check Attributes create/map candidate; catalog `product-id` stays `id → ID`)
+- **Don’t** prefer CT `key` over mapped `id` when writing catalog `product-id`
+- **Don’t** rewrite CT hyphens to underscores for Check Attributes / create / XML attribute ids
+- **Don’t** treat AI suggestions as curated aliases or silent maps
+
+## Key files
+
+- Config: `commerce-rc-b2c-migration-console-app/cartridges/bm_cartridges/bm_accelerator/cartridge/scripts/migration/config/nativeFieldMap.json`
+- API: `.../config/nativeFieldMap.js`
+- Resolver: `.../core/systemFieldResolver.js`
+- Runner: `.../core/attrPreflightRunner.js`
+- AI: `.../core/openAiClient.js`, `.../core/attrMapSuggestor.js`
+- UI: `.../client/default/js/attr-preflight.js`
+- Product XML: `.../productMigration/productTransformer.js`, `productXmlBuilder.js`
+- Per-module `*AttrChecker.js` under product/customer/orders/store/…

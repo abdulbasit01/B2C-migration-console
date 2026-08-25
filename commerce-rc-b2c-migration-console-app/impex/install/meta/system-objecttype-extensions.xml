@@ -1,0 +1,231 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<metadata xmlns="http://www.demandware.com/xml/impex/metadata/2006-10-31">
+    <type-extension type-id="SitePreferences">
+        <custom-attribute-definitions>
+            <attribute-definition attribute-id="rcMigShopifyStoreUrl">
+                <display-name xml:lang="x-default">Shopify Store URL</display-name>
+                <description xml:lang="x-default">e.g. https://your-store.myshopify.com</description>
+                <type>string</type>
+                <mandatory-flag>false</mandatory-flag>
+                <externally-managed-flag>false</externally-managed-flag>
+            </attribute-definition>
+            <attribute-definition attribute-id="rcMigShopifyClientId">
+                <display-name xml:lang="x-default">Shopify Client ID</display-name>
+                <type>string</type>
+                <mandatory-flag>false</mandatory-flag>
+                <externally-managed-flag>false</externally-managed-flag>
+            </attribute-definition>
+            <attribute-definition attribute-id="rcMigShopifyClientSecret">
+                <display-name xml:lang="x-default">Shopify Client Secret / Access Token</display-name>
+                <description xml:lang="x-default">Client secret (shpss_) or Admin API access token (shpat_)</description>
+                <type>password</type>
+                <mandatory-flag>false</mandatory-flag>
+                <externally-managed-flag>false</externally-managed-flag>
+            </attribute-definition>
+            <attribute-definition attribute-id="rcMigShopifyApiVersion">
+                <display-name xml:lang="x-default">Shopify API Version</display-name>
+                <type>string</type>
+                <mandatory-flag>false</mandatory-flag>
+                <externally-managed-flag>false</externally-managed-flag>
+                <default-value>2025-01</default-value>
+            </attribute-definition>
+
+            <attribute-definition attribute-id="rcMigBcStoreHash">
+                <display-name xml:lang="x-default">BigCommerce Store Hash</display-name>
+                <description xml:lang="x-default">Store hash from BigCommerce API account (e.g. abc123xyz)</description>
+                <type>string</type>
+                <mandatory-flag>false</mandatory-flag>
+                <externally-managed-flag>false</externally-managed-flag>
+            </attribute-definition>
+            <attribute-definition attribute-id="rcMigBcClientId">
+                <display-name xml:lang="x-default">BigCommerce Client ID</display-name>
+                <description xml:lang="x-default">Optional X-Auth-Client from API account</description>
+                <type>string</type>
+                <mandatory-flag>false</mandatory-flag>
+                <externally-managed-flag>false</externally-managed-flag>
+            </attribute-definition>
+            <attribute-definition attribute-id="rcMigBcAccessToken">
+                <display-name xml:lang="x-default">BigCommerce Access Token</display-name>
+                <description xml:lang="x-default">API account access token (X-Auth-Token)</description>
+                <type>password</type>
+                <mandatory-flag>false</mandatory-flag>
+                <externally-managed-flag>false</externally-managed-flag>
+            </attribute-definition>
+            <attribute-definition attribute-id="rcMigBcApiVersion">
+                <display-name xml:lang="x-default">BigCommerce API Version</display-name>
+                <description xml:lang="x-default">Default API path version for V3 calls (v3)</description>
+                <type>string</type>
+                <mandatory-flag>false</mandatory-flag>
+                <externally-managed-flag>false</externally-managed-flag>
+                <default-value>v3</default-value>
+            </attribute-definition>
+
+            <attribute-definition attribute-id="rcMigCtpProjectKey">
+                <display-name xml:lang="x-default">commercetools Project Key</display-name>
+                <type>string</type>
+                <mandatory-flag>false</mandatory-flag>
+                <externally-managed-flag>false</externally-managed-flag>
+            </attribute-definition>
+            <attribute-definition attribute-id="rcMigCtpClientId">
+                <display-name xml:lang="x-default">commercetools Client ID</display-name>
+                <type>string</type>
+                <mandatory-flag>false</mandatory-flag>
+                <externally-managed-flag>false</externally-managed-flag>
+            </attribute-definition>
+            <attribute-definition attribute-id="rcMigCtpClientSecret">
+                <display-name xml:lang="x-default">commercetools Client Secret</display-name>
+                <type>password</type>
+                <mandatory-flag>false</mandatory-flag>
+                <externally-managed-flag>false</externally-managed-flag>
+            </attribute-definition>
+            <attribute-definition attribute-id="rcMigCtpAuthUrl">
+                <display-name xml:lang="x-default">commercetools Auth URL</display-name>
+                <type>string</type>
+                <mandatory-flag>false</mandatory-flag>
+                <externally-managed-flag>false</externally-managed-flag>
+                <default-value>https://auth.us-central1.gcp.commercetools.com</default-value>
+            </attribute-definition>
+            <attribute-definition attribute-id="rcMigCtpApiUrl">
+                <display-name xml:lang="x-default">commercetools API URL</display-name>
+                <type>string</type>
+                <mandatory-flag>false</mandatory-flag>
+                <externally-managed-flag>false</externally-managed-flag>
+                <default-value>https://api.us-central1.gcp.commercetools.com</default-value>
+            </attribute-definition>
+
+            <attribute-definition attribute-id="rcMigSapBaseUrl">
+                <display-name xml:lang="x-default">SAP Commerce Base URL</display-name>
+                <description xml:lang="x-default">e.g. https://api.your-tenant.commerce.ondemand.com</description>
+                <type>string</type>
+                <mandatory-flag>false</mandatory-flag>
+                <externally-managed-flag>false</externally-managed-flag>
+            </attribute-definition>
+            <attribute-definition attribute-id="rcMigSapBaseSite">
+                <display-name xml:lang="x-default">SAP Commerce Base Site</display-name>
+                <description xml:lang="x-default">OCC baseSiteId, e.g. apparel-uk</description>
+                <type>string</type>
+                <mandatory-flag>false</mandatory-flag>
+                <externally-managed-flag>false</externally-managed-flag>
+            </attribute-definition>
+            <attribute-definition attribute-id="rcMigSapClientId">
+                <display-name xml:lang="x-default">SAP Commerce OAuth Client ID</display-name>
+                <type>string</type>
+                <mandatory-flag>false</mandatory-flag>
+                <externally-managed-flag>false</externally-managed-flag>
+            </attribute-definition>
+            <attribute-definition attribute-id="rcMigSapClientSecret">
+                <display-name xml:lang="x-default">SAP Commerce OAuth Client Secret</display-name>
+                <description xml:lang="x-default">client_credentials grant secret</description>
+                <type>password</type>
+                <mandatory-flag>false</mandatory-flag>
+                <externally-managed-flag>false</externally-managed-flag>
+            </attribute-definition>
+
+            <attribute-definition attribute-id="rcMigOcapiClientId">
+                <display-name xml:lang="x-default">OCAPI / BM API Client ID</display-name>
+                <description xml:lang="x-default">Account Manager API client ID used for OCAPI Data API calls</description>
+                <type>string</type>
+                <mandatory-flag>false</mandatory-flag>
+                <externally-managed-flag>false</externally-managed-flag>
+            </attribute-definition>
+            <attribute-definition attribute-id="rcMigBmUsername">
+                <display-name xml:lang="x-default">BM Username (OCAPI User Grant)</display-name>
+                <description xml:lang="x-default">Used for OCAPI user-grant and WebDAV uploads</description>
+                <type>string</type>
+                <mandatory-flag>false</mandatory-flag>
+                <externally-managed-flag>false</externally-managed-flag>
+            </attribute-definition>
+            <attribute-definition attribute-id="rcMigBmPassword">
+                <display-name xml:lang="x-default">BM Password (OCAPI User Grant)</display-name>
+                <type>password</type>
+                <mandatory-flag>false</mandatory-flag>
+                <externally-managed-flag>false</externally-managed-flag>
+            </attribute-definition>
+            <attribute-definition attribute-id="rcMigOcapiVersion">
+                <display-name xml:lang="x-default">OCAPI Data API Version</display-name>
+                <type>string</type>
+                <mandatory-flag>false</mandatory-flag>
+                <externally-managed-flag>false</externally-managed-flag>
+                <default-value>v25_6</default-value>
+            </attribute-definition>
+
+            <attribute-definition attribute-id="rcMigAmplienceHubName">
+                <display-name xml:lang="x-default">Amplience Hub Name</display-name>
+                <description xml:lang="x-default">Hub name from Dynamic Content → Settings → Properties</description>
+                <type>string</type>
+                <mandatory-flag>false</mandatory-flag>
+                <externally-managed-flag>false</externally-managed-flag>
+            </attribute-definition>
+            <attribute-definition attribute-id="rcMigAmpliencePersonalAccessToken">
+                <display-name xml:lang="x-default">Amplience Personal Access Token</display-name>
+                <description xml:lang="x-default">amp_pat_… token from Dynamic Content → Development → Personal Access Tokens</description>
+                <type>password</type>
+                <mandatory-flag>false</mandatory-flag>
+                <externally-managed-flag>false</externally-managed-flag>
+            </attribute-definition>
+            <attribute-definition attribute-id="rcMigAmplienceDefaultDeliveryKey">
+                <display-name xml:lang="x-default">Amplience Default Delivery Key</display-name>
+                <description xml:lang="x-default">Optional default for content preview (e.g. home-banner)</description>
+                <type>string</type>
+                <mandatory-flag>false</mandatory-flag>
+                <externally-managed-flag>false</externally-managed-flag>
+            </attribute-definition>
+
+            <attribute-definition attribute-id="rcMigOpenAiEnabled">
+                <display-name xml:lang="x-default">OpenAI Mapping Suggestions Enabled</display-name>
+                <description xml:lang="x-default">When enabled, Check Attributes asks OpenAI to suggest SFCC system mappings for create candidates only</description>
+                <type>boolean</type>
+                <mandatory-flag>false</mandatory-flag>
+                <externally-managed-flag>false</externally-managed-flag>
+                <default-value>false</default-value>
+            </attribute-definition>
+            <attribute-definition attribute-id="rcMigOpenAiApiKey">
+                <display-name xml:lang="x-default">OpenAI API Key</display-name>
+                <description xml:lang="x-default">Bearer token for api.openai.com (never commit; Site Preference only)</description>
+                <type>password</type>
+                <mandatory-flag>false</mandatory-flag>
+                <externally-managed-flag>false</externally-managed-flag>
+            </attribute-definition>
+            <attribute-definition attribute-id="rcMigOpenAiModel">
+                <display-name xml:lang="x-default">OpenAI Model</display-name>
+                <description xml:lang="x-default">Chat Completions model id (e.g. gpt-4o-mini)</description>
+                <type>string</type>
+                <mandatory-flag>false</mandatory-flag>
+                <externally-managed-flag>false</externally-managed-flag>
+                <default-value>gpt-4o-mini</default-value>
+            </attribute-definition>
+        </custom-attribute-definitions>
+        <group-definitions>
+            <attribute-group group-id="RCMigrationConsole">
+                <display-name xml:lang="x-default">B2C Migration Console</display-name>
+                <attribute attribute-id="rcMigShopifyStoreUrl"/>
+                <attribute attribute-id="rcMigShopifyClientId"/>
+                <attribute attribute-id="rcMigShopifyClientSecret"/>
+                <attribute attribute-id="rcMigShopifyApiVersion"/>
+                <attribute attribute-id="rcMigBcStoreHash"/>
+                <attribute attribute-id="rcMigBcClientId"/>
+                <attribute attribute-id="rcMigBcAccessToken"/>
+                <attribute attribute-id="rcMigBcApiVersion"/>
+                <attribute attribute-id="rcMigCtpProjectKey"/>
+                <attribute attribute-id="rcMigCtpClientId"/>
+                <attribute attribute-id="rcMigCtpClientSecret"/>
+                <attribute attribute-id="rcMigCtpAuthUrl"/>
+                <attribute attribute-id="rcMigCtpApiUrl"/>
+                <attribute attribute-id="rcMigSapBaseUrl"/>
+                <attribute attribute-id="rcMigSapBaseSite"/>
+                <attribute attribute-id="rcMigSapClientId"/>
+                <attribute attribute-id="rcMigSapClientSecret"/>
+                <attribute attribute-id="rcMigOcapiClientId"/>
+                <attribute attribute-id="rcMigBmUsername"/>
+                <attribute attribute-id="rcMigBmPassword"/>
+                <attribute attribute-id="rcMigOcapiVersion"/>
+                <attribute attribute-id="rcMigAmplienceHubName"/>
+                <attribute attribute-id="rcMigAmpliencePersonalAccessToken"/>
+                <attribute attribute-id="rcMigAmplienceDefaultDeliveryKey"/>
+                <attribute attribute-id="rcMigOpenAiEnabled"/>
+                <attribute attribute-id="rcMigOpenAiApiKey"/>
+                <attribute attribute-id="rcMigOpenAiModel"/>
+            </attribute-group>
+        </group-definitions>
+    </type-extension>
+</metadata>
