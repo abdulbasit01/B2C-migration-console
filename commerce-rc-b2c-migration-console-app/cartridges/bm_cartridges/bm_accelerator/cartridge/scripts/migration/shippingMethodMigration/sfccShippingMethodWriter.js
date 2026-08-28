@@ -3,30 +3,29 @@
 var sfccClient = require('*/cartridge/scripts/migration/sfccClient');
 
 /**
- * Create or update one shipping method on an SFCC site via OCAPI Data API.
- * @param {string} token
+ * PUT one currency variant of a shipping method to SFCC via OCAPI Data API.
+ * @param {string} tok
  * @param {string} siteId
- * @param {Object} method - from shippingMethodTransformer
+ * @param {Object} method
+ * @param {string} methodId - already currency-suffixed if this method has multiple variants
+ * @param {{price: number, currency: string}} variant
  * @returns {{ ok: boolean, skipped: boolean, error: string|null }}
  */
-function createShippingMethod(token, siteId, method) {
-    if (!siteId) return { ok: false, skipped: false, error: 'siteId is required' };
-    if (!method || !method.method_id) return { ok: false, skipped: false, error: 'method_id is required' };
-
-    var tok = token || sfccClient.getSFCCToken();
+function putOneVariant(tok, siteId, method, methodId, variant) {
     var s   = sfccClient.getSFCCSettings();
     var url = s.baseUrl + '/s/-/dw/data/' + s.metaVersion
         + '/sites/' + encodeURIComponent(siteId)
-        + '/shipping_methods/' + encodeURIComponent(method.method_id)
+        + '/shipping_methods/' + encodeURIComponent(methodId)
         + '?client_id=' + encodeURIComponent(s.bmClientId);
 
     var payload = {
-        id:           method.method_id,
-        name:         { default: method.display_name || method.method_id },
+        id:           methodId,
+        name:         { default: method.display_name || methodId },
         description:  { default: method.description || '' },
         enabled:      method.online_flag !== false,
         tax_class_id: method.tax_class_id || 'standard',
-        price:        method.price || 0
+        price:        variant.price || 0,
+        currency:     variant.currency
     };
 
     var customKeys = Object.keys(method);
@@ -55,6 +54,53 @@ function createShippingMethod(token, siteId, method) {
     }
 
     return { ok: false, skipped: false, error: 'OCAPI PUT failed (' + status + '): ' + text };
+}
+
+/**
+ * Create or update one shipping method on an SFCC site via OCAPI Data API.
+ * SFCC ties one currency to one shipping-method record, so a CT method with rates in
+ * multiple currencies is written as multiple SFCC methods — one PUT per currency, with
+ * the method-id suffixed by currency only when there's more than one variant.
+ * @param {string} token
+ * @param {string} siteId
+ * @param {Object} method - from shippingMethodTransformer
+ * @returns {{ ok: boolean, skipped: boolean, error: string|null }}
+ */
+function createShippingMethod(token, siteId, method) {
+    if (!siteId) return { ok: false, skipped: false, error: 'siteId is required' };
+    if (!method || !method.method_id) return { ok: false, skipped: false, error: 'method_id is required' };
+
+    var tok      = token || sfccClient.getSFCCToken();
+    var variants = (method.priceVariants && method.priceVariants.length)
+        ? method.priceVariants
+        : [{ price: method.price, currency: method.currency }];
+
+    var okCount = 0;
+    var skipCount = 0;
+    var errors = [];
+
+    for (var v = 0; v < variants.length; v++) {
+        var variant  = variants[v];
+        var methodId = variants.length > 1
+            ? (method.method_id + '-' + variant.currency)
+            : method.method_id;
+        var result = putOneVariant(tok, siteId, method, methodId, variant);
+        if (result.ok) {
+            okCount++;
+        } else if (result.skipped) {
+            skipCount++;
+        } else {
+            errors.push(methodId + ': ' + result.error);
+        }
+    }
+
+    if (errors.length) {
+        return { ok: false, skipped: false, error: errors.join('; ') };
+    }
+    if (okCount === 0 && skipCount > 0) {
+        return { ok: false, skipped: true, error: null };
+    }
+    return { ok: true, skipped: false, error: null };
 }
 
 module.exports = { createShippingMethod: createShippingMethod };

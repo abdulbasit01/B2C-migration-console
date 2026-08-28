@@ -1744,24 +1744,36 @@ exports.ListShippingMethods = function () {
 exports.ListShippingMethods.public = true;
 
 exports.FullShippingMethodBuildBatch = function () {
-    var offset      = parseInt(getParam('offset') || '0', 10);
-    var rawKeys     = getParam('keys');
-    var singleFile  = getParam('singleFile') !== 'false';
+    var offset           = parseInt(getParam('offset') || '0', 10);
+    var rawKeys          = getParam('keys');
+    var rawExportFormats = getParam('exportFormats');
 
     var keys = null;
+    var exportFormats = [];
     if (rawKeys) {
         try { keys = JSON.parse(rawKeys); } catch (e) {
             jsonResponse({ ok: false, error: 'Invalid keys JSON' });
             return;
         }
     }
+    if (rawExportFormats) {
+        try { exportFormats = JSON.parse(rawExportFormats); } catch (e) {
+            jsonResponse({ ok: false, error: 'Invalid exportFormats JSON' });
+            return;
+        }
+    }
+    if (!exportFormats || !exportFormats.length) {
+        jsonResponse({ ok: false, error: 'No export formats selected' });
+        return;
+    }
 
     try {
         var fullRunner = require('*/cartridge/scripts/migration/shippingMethodMigration/fullMigrationRunner');
+
         if (keys && keys.length) {
-            jsonResponse(fullRunner.runBatchForKeys(keys, offset, singleFile));
+            jsonResponse(fullRunner.runBatchWithExportFormats(keys, offset, exportFormats));
         } else {
-            jsonResponse(fullRunner.runBatch(offset, singleFile));
+            jsonResponse(fullRunner.runBatch(offset, exportFormats));
         }
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });

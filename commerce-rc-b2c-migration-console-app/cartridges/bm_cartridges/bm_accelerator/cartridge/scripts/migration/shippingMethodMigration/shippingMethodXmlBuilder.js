@@ -23,9 +23,24 @@ function xmlEsc(val) {
 function buildLocalizedElementsXml(tagName, entries, indent) {
     var xml = '';
     if (!entries || !entries.length) return xml;
+
+    var xdefaultValue = null;
+    for (var i = 0; i < entries.length; i++) {
+        if (entries[i] && entries[i].lang === 'x-default') {
+            xdefaultValue = entries[i].value;
+            break;
+        }
+    }
+
     for (var i = 0; i < entries.length; i++) {
         var entry = entries[i];
         if (!entry || !entry.value) continue;
+
+        var shouldSkip = entry.lang !== 'x-default' && xdefaultValue !== null && entry.value === xdefaultValue;
+        if (shouldSkip) {
+            continue;
+        }
+
         xml += indent + '<' + tagName + ' xml:lang="' + xmlEsc(entry.lang) + '">'
             + xmlEsc(entry.value) + '</' + tagName + '>\n';
     }
@@ -41,11 +56,26 @@ function buildCustomAttributesXml(method) {
     var localized = method.localized_custom || [];
     for (i = 0; i < localized.length; i++) {
         var item = localized[i];
+        var xdefaultValue = null;
         for (j = 0; j < item.entries.length; j++) {
+            if (item.entries[j] && item.entries[j].lang === 'x-default') {
+                xdefaultValue = item.entries[j].value;
+                break;
+            }
+        }
+        for (j = 0; j < item.entries.length; j++) {
+            var entry = item.entries[j];
+            if (!entry || !entry.value) continue;
+
+            var shouldSkip = entry.lang !== 'x-default' && xdefaultValue !== null && entry.value === xdefaultValue;
+            if (shouldSkip) {
+                continue;
+            }
+
             if (!has) { has = true; }
             xml += '            <custom-attribute attribute-id="' + xmlEsc(item.id)
-                + '" xml:lang="' + xmlEsc(item.entries[j].lang) + '">'
-                + xmlEsc(item.entries[j].value) + '</custom-attribute>\n';
+                + '" xml:lang="' + xmlEsc(entry.lang) + '">'
+                + xmlEsc(entry.value) + '</custom-attribute>\n';
         }
     }
 
@@ -67,23 +97,43 @@ function buildCustomAttributesXml(method) {
     return '        <custom-attributes>\n' + xml + '        </custom-attributes>\n';
 }
 
+/**
+ * SFCC ties one currency to one shipping-method record, so a CT method with rates in
+ * multiple currencies becomes multiple SFCC methods here — one per currency. The method-id
+ * is only suffixed with the currency when there's more than one variant, so single-currency
+ * methods keep their existing plain id.
+ * @param {Object} ctpMethod
+ * @returns {string}
+ */
 function buildShippingMethodXml(ctpMethod) {
-    var method = transformer.transformShippingMethod(ctpMethod);
-    var xml    = '    <shipping-method method-id="' + xmlEsc(method.method_id) + '"'
-        + ' default="' + (method.is_default ? 'true' : 'false') + '">\n';
+    var method   = transformer.transformShippingMethod(ctpMethod);
+    var variants = (method.priceVariants && method.priceVariants.length)
+        ? method.priceVariants
+        : [{ price: method.price, currency: method.currency }];
+    var xml = '';
 
-    xml += buildLocalizedElementsXml('display-name', method.display_names, '        ');
-    xml += buildLocalizedElementsXml('description', method.descriptions, '        ');
-    xml += '        <online-flag>' + (method.online_flag ? 'true' : 'false') + '</online-flag>\n';
-    xml += '        <tax-class-id>' + xmlEsc(method.tax_class_id || 'standard') + '</tax-class-id>\n';
-    xml += '        <price-table>\n';
-    xml += '            <amount order-value="0">' + xmlEsc(formatPrice(method.price)) + '</amount>\n';
-    xml += '        </price-table>\n';
-    xml += buildCustomAttributesXml(method);
-    if (method.currency) {
-        xml += '        <currency>' + xmlEsc(method.currency) + '</currency>\n';
+    for (var v = 0; v < variants.length; v++) {
+        var variant  = variants[v];
+        var methodId = variants.length > 1
+            ? (method.method_id + '-' + variant.currency)
+            : method.method_id;
+
+        xml += '    <shipping-method method-id="' + xmlEsc(methodId) + '"'
+            + ' default="' + (method.is_default ? 'true' : 'false') + '">\n';
+        xml += buildLocalizedElementsXml('display-name', method.display_names, '        ');
+        xml += buildLocalizedElementsXml('description', method.descriptions, '        ');
+        xml += '        <online-flag>' + (method.online_flag ? 'true' : 'false') + '</online-flag>\n';
+        xml += '        <tax-class-id>' + xmlEsc(method.tax_class_id || 'standard') + '</tax-class-id>\n';
+        xml += '        <price-table>\n';
+        xml += '            <amount order-value="0">' + xmlEsc(formatPrice(variant.price)) + '</amount>\n';
+        xml += '        </price-table>\n';
+        xml += buildCustomAttributesXml(method);
+        if (variant.currency) {
+            xml += '        <currency>' + xmlEsc(variant.currency) + '</currency>\n';
+        }
+        xml += '    </shipping-method>\n';
     }
-    xml += '    </shipping-method>\n';
+
     return xml;
 }
 

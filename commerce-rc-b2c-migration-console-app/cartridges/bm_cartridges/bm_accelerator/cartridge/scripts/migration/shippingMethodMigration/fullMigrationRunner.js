@@ -196,6 +196,145 @@ function runMultiFileBatch(offset) {
     };
 }
 
+function runByCurrency(keys) {
+    var impexPath = fileResolver.getRelativePath(MODULE_KEY);
+    var fileName = fileResolver.resolveXmlFileName(MODULE_KEY, 100000, BATCH_SIZE, 'webdav');
+    var dateStr = fileName.match(/(\d{8})/)[1];
+    var versionStr = fileName.match(/v(\d+)/)[1];
+
+    var dirResult = uploader.ensureDirectory();
+    if (!dirResult.ok) {
+        return { ok: false, error: 'WebDAV directory creation failed: ' + dirResult.error };
+    }
+
+    var methodsByCurrency = {};
+    var allErrors = [];
+    var totalBuilt = 0;
+    var totalFailed = 0;
+    var uploadedFiles = [];
+    var transformer = require('*/cartridge/scripts/migration/shippingMethodMigration/shippingMethodTransformer');
+
+    for (var i = 0; i < keys.length; i++) {
+        try {
+            var method = fetcher.fetchByKeyOrId(keys[i]);
+            if (!method) {
+                totalFailed++;
+                if (allErrors.length < 5) {
+                    allErrors.push(keys[i] + ': not found in CT');
+                }
+                continue;
+            }
+
+            var transformed = transformer.transformShippingMethod(method);
+            var variants = transformed.priceVariants || [{ currency: 'USD' }];
+
+            for (var v = 0; v < variants.length; v++) {
+                var currency = variants[v].currency || 'USD';
+                if (!methodsByCurrency[currency]) {
+                    methodsByCurrency[currency] = [];
+                }
+                methodsByCurrency[currency].push({
+                    method: method,
+                    currency: currency
+                });
+            }
+        } catch (e) {
+            totalFailed++;
+            if (allErrors.length < 5) {
+                allErrors.push(keys[i] + ': ' + (e.message || String(e)));
+            }
+        }
+    }
+
+    var currencies = Object.keys(methodsByCurrency);
+
+    for (var c = 0; c < currencies.length; c++) {
+        var currency = currencies[c];
+        var currencyMethodEntries = methodsByCurrency[currency];
+        var filteredMethods = [];
+
+        for (var m = 0; m < currencyMethodEntries.length; m++) {
+            var entry = currencyMethodEntries[m];
+            var originalMethod = entry.method;
+            var targetCurrency = entry.currency;
+
+            var methodCopy = JSON.parse(JSON.stringify(originalMethod));
+            var zoneRates = methodCopy.zoneRates || [];
+
+            var filteredZoneRates = [];
+            for (var zr = 0; zr < zoneRates.length; zr++) {
+                var zone = zoneRates[zr];
+                var shippingRates = zone.shippingRates || [];
+                var filteredRates = [];
+
+                for (var sr = 0; sr < shippingRates.length; sr++) {
+                    var shippingRate = shippingRates[sr];
+                    var rateCurrency = null;
+
+                    if (shippingRate.price && shippingRate.price.currencyCode) {
+                        rateCurrency = shippingRate.price.currencyCode;
+                    } else if (shippingRate.tiers && shippingRate.tiers.length && shippingRate.tiers[0].value) {
+                        rateCurrency = shippingRate.tiers[0].value.currencyCode;
+                    }
+
+                    if (rateCurrency === targetCurrency) {
+                        filteredRates.push(shippingRate);
+                    }
+                }
+
+                if (filteredRates.length > 0) {
+                    var filteredZone = JSON.parse(JSON.stringify(zone));
+                    filteredZone.shippingRates = filteredRates;
+                    filteredZoneRates.push(filteredZone);
+                }
+            }
+
+            if (filteredZoneRates.length > 0) {
+                methodCopy.zoneRates = filteredZoneRates;
+                filteredMethods.push(methodCopy);
+            }
+        }
+
+        if (filteredMethods.length === 0) continue;
+
+        var buildResult = xmlBuilder.buildXml(filteredMethods);
+        var fileName = 'shipping-method-' + currency + '-' + dateStr + '-' + versionStr + '.xml';
+
+        var putResult = uploader.uploadFile(fileName, buildResult.xml);
+
+        if (putResult.ok) {
+            totalBuilt += buildResult.built;
+            totalFailed += buildResult.failed;
+            uploadedFiles.push(fileName);
+            if (buildResult.errors && buildResult.errors.length) {
+                for (var e = 0; e < buildResult.errors.length && allErrors.length < 5; e++) {
+                    allErrors.push(buildResult.errors[e]);
+                }
+            }
+        } else {
+            totalFailed += filteredMethods.length;
+            if (allErrors.length < 5) {
+                allErrors.push(currency + ' upload failed: ' + putResult.error);
+            }
+        }
+    }
+
+    return {
+        ok:         true,
+        singleFile: false,
+        total:      keys.length,
+        nextOffset: keys.length,
+        done:       true,
+        built:      totalBuilt,
+        failed:     totalFailed,
+        errors:     allErrors,
+        fileName:   uploadedFiles.join(', '),
+        runDate:    dateStr + '-' + versionStr,
+        impexPath:  impexPath,
+        fileCount:  uploadedFiles.length
+    };
+}
+
 function runBatch(offset, singleFile) {
     var useSingleFile = singleFile !== false;
     if (useSingleFile) {
@@ -302,4 +441,175 @@ function runBatchForKeys(keys, offset, singleFile) {
     };
 }
 
-module.exports = { runBatch: runBatch, runBatchForKeys: runBatchForKeys };
+function runBatchWithExportFormats(keys, offset, exportFormats) {
+    if (!exportFormats || !exportFormats.length) {
+        return { ok: false, error: 'No export formats selected' };
+    }
+
+    try {
+        var impexPath = fileResolver.getRelativePath(MODULE_KEY);
+        var baseFileName = fileResolver.resolveXmlFileName(MODULE_KEY, 0, BATCH_SIZE, 'webdav');
+        var dateMatch = baseFileName.match(/(\d{8})/);
+        var versionMatch = baseFileName.match(/v(\d+)/);
+
+        if (!dateMatch || !versionMatch) {
+            return { ok: false, error: 'Failed to extract version information' };
+        }
+
+        var dateStr = dateMatch[1];
+        var versionStr = versionMatch[1];
+        var totalBuilt = 0;
+        var totalFailed = 0;
+        var uploadedFiles = [];
+        var allErrors = [];
+
+        for (var f = 0; f < exportFormats.length; f++) {
+            var format = exportFormats[f];
+
+            if (format === 'single') {
+                try {
+                    var singleResult = runBatchForKeys(keys, offset, true);
+                    if (singleResult.ok) {
+                        totalBuilt += (singleResult.built || 0);
+                        totalFailed += (singleResult.failed || 0);
+                        if (singleResult.fileName) uploadedFiles.push(singleResult.fileName);
+                        if (singleResult.errors) allErrors = allErrors.concat(singleResult.errors);
+                    } else {
+                        allErrors.push(singleResult.error || 'Single file build failed');
+                    }
+                } catch (e) {
+                    allErrors.push('Single file error: ' + (e.message || String(e)));
+                }
+            } else if (format.indexOf('currency-') === 0) {
+                try {
+                    var currency = format.substring('currency-'.length);
+                    var currencyResult = buildCurrencyFile(keys, currency, dateStr, versionStr);
+                    if (currencyResult.ok) {
+                        totalBuilt += (currencyResult.built || 0);
+                        totalFailed += (currencyResult.failed || 0);
+                        if (currencyResult.fileName) uploadedFiles.push(currencyResult.fileName);
+                        if (currencyResult.errors) allErrors = allErrors.concat(currencyResult.errors);
+                    } else {
+                        allErrors.push(currencyResult.error || ('Currency ' + currency + ' build failed'));
+                    }
+                } catch (e) {
+                    allErrors.push('Currency ' + currency + ' error: ' + (e.message || String(e)));
+                }
+            }
+        }
+
+        return {
+            ok:         uploadedFiles.length > 0,
+            total:      keys.length,
+            nextOffset: keys.length,
+            done:       true,
+            built:      totalBuilt,
+            failed:     totalFailed,
+            errors:     allErrors,
+            fileName:   uploadedFiles.join(', '),
+            runDate:    dateStr + '-' + versionStr,
+            impexPath:  impexPath,
+            fileCount:  uploadedFiles.length
+        };
+    } catch (e) {
+        return { ok: false, error: e.message || String(e) };
+    }
+}
+
+function buildCurrencyFile(keys, currency, dateStr, batchId) {
+    var transformer = require('*/cartridge/scripts/migration/shippingMethodMigration/shippingMethodTransformer');
+    var impexPath = fileResolver.getRelativePath(MODULE_KEY);
+
+    var filteredMethods = [];
+    var totalFailed = 0;
+    var allErrors = [];
+
+    for (var i = 0; i < keys.length; i++) {
+        try {
+            var method = fetcher.fetchByKeyOrId(keys[i]);
+            if (!method) {
+                totalFailed++;
+                if (allErrors.length < 5) {
+                    allErrors.push(keys[i] + ': not found in CT');
+                }
+                continue;
+            }
+
+            var transformed = transformer.transformShippingMethod(method);
+            var variants = transformed.priceVariants || [{ currency: 'USD' }];
+            var methodHasCurrency = false;
+
+            for (var v = 0; v < variants.length; v++) {
+                if (variants[v].currency === currency) {
+                    methodHasCurrency = true;
+                    break;
+                }
+            }
+
+            if (methodHasCurrency) {
+                var methodCopy = JSON.parse(JSON.stringify(method));
+                var zoneRates = methodCopy.zoneRates || [];
+                var filteredZoneRates = [];
+
+                for (var zr = 0; zr < zoneRates.length; zr++) {
+                    var zone = zoneRates[zr];
+                    var shippingRates = zone.shippingRates || [];
+                    var filteredRates = [];
+
+                    for (var sr = 0; sr < shippingRates.length; sr++) {
+                        var shippingRate = shippingRates[sr];
+                        var rateCurrency = null;
+
+                        if (shippingRate.price && shippingRate.price.currencyCode) {
+                            rateCurrency = shippingRate.price.currencyCode;
+                        } else if (shippingRate.tiers && shippingRate.tiers.length && shippingRate.tiers[0].value) {
+                            rateCurrency = shippingRate.tiers[0].value.currencyCode;
+                        }
+
+                        if (rateCurrency === currency) {
+                            filteredRates.push(shippingRate);
+                        }
+                    }
+
+                    if (filteredRates.length > 0) {
+                        var filteredZone = JSON.parse(JSON.stringify(zone));
+                        filteredZone.shippingRates = filteredRates;
+                        filteredZoneRates.push(filteredZone);
+                    }
+                }
+
+                if (filteredZoneRates.length > 0) {
+                    methodCopy.zoneRates = filteredZoneRates;
+                    filteredMethods.push(methodCopy);
+                }
+            }
+        } catch (e) {
+            totalFailed++;
+            if (allErrors.length < 5) {
+                allErrors.push(keys[i] + ': ' + (e.message || String(e)));
+            }
+        }
+    }
+
+    if (filteredMethods.length === 0) {
+        return { ok: true, built: 0, failed: totalFailed, errors: allErrors, fileName: null };
+    }
+
+    var buildResult = xmlBuilder.buildXml(filteredMethods);
+    var fileName = 'shipping-method-' + currency + '-' + dateStr + '-b' + batchId + '.xml';
+
+    var putResult = uploader.uploadFile(fileName, buildResult.xml);
+    if (!putResult.ok) {
+        return { ok: false, error: 'WebDAV upload failed: ' + putResult.error };
+    }
+
+    return {
+        ok:       true,
+        built:    buildResult.built,
+        failed:   buildResult.failed + totalFailed,
+        errors:   allErrors.concat(buildResult.errors || []),
+        fileName: fileName
+    };
+}
+
+module.exports = { runBatch: runBatch, runBatchForKeys: runBatchForKeys, runByCurrency: runByCurrency, runBatchWithExportFormats: runBatchWithExportFormats };

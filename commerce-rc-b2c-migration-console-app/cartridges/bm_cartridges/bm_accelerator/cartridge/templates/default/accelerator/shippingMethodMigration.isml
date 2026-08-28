@@ -27,6 +27,7 @@
         .sm-methods-table td { padding: 8px 12px; border-bottom: 1px solid #f0f2f8; vertical-align: middle; }
         .sm-methods-table code { background: #eaf0fb; padding: 2px 6px; border-radius: 3px; font-size: 11px; }
         .sm-methods-table tr.sm-methods-row--skipped { opacity: 0.55; }
+        .sm-file-format-note { font-size:12px; color:#54698d; margin:10px 0 0 0; font-style:italic; }
     </style>
 <div class="acc-page" id="acc-ship-root"
      data-migration-ui="<isprint value="${pdict.migrationUiJson}" encoding="htmldoublequote"/>"
@@ -123,6 +124,21 @@
             </li>
         </ul>
         <div id="full-move-status" class="acc-callout acc-callout--info" style="display:none;margin-bottom:20px;"></div>
+
+        <div style="margin-bottom:20px;padding:14px;background:#f8f9fb;border:1px solid #dddbda;border-radius:4px;">
+            <div style="font-weight:600;font-size:13px;color:#16325c;margin-bottom:12px;">Export Format:</div>
+            <p style="font-size:12px;color:#54698d;margin:0 0 12px 0;">Select one or more export formats.</p>
+            <div id="sm-export-options" style="display:none;">
+                <table style="width:100%;border-collapse:collapse;">
+                    <tbody id="sm-export-tbody"></tbody>
+                </table>
+            </div>
+            <div id="sm-export-loading" style="font-size:13px;color:#54698d;">Discovering available currencies...</div>
+            <p class="sm-file-format-note">
+                <strong>Note:</strong> Each shipping method in SFCC is tied to a single currency. To support multiple currencies on a site, you must create separate shipping methods for each currency. For importing, you have two options: (1) Separate files - create individual XML files per currency, or (2) Collective file - combine all shipping methods for all currencies into a single XML file.
+            </p>
+        </div>
+
         <div class="acc-move-actions">
             <button type="button" id="full-start-btn" class="acc-btn acc-btn--primary">Start Migration (Build XML)</button>
             <span id="full-move-overall" style="margin-left:14px;font-size:13px;color:#54698d;"></span>
@@ -181,6 +197,51 @@
         return refs;
     }
 
+    function discoverCurrencies(methods) {
+        var currencies = {};
+        for (var i = 0; i < (methods || []).length; i++) {
+            var m = methods[i];
+            if (m.currencies && Array.isArray(m.currencies)) {
+                for (var c = 0; c < m.currencies.length; c++) {
+                    currencies[m.currencies[c]] = true;
+                }
+            }
+        }
+        return Object.keys(currencies).sort();
+    }
+
+    function renderExportOptions(methods) {
+        var currencies = discoverCurrencies(methods);
+        var loadingEl = document.getElementById('sm-export-loading');
+        var optionsEl = document.getElementById('sm-export-options');
+        var tbody = document.getElementById('sm-export-tbody');
+
+        var html = '<tr style="background:#f8f9fb;border-bottom:2px solid #dddbda;">'
+            + '<th style="width:36px;text-align:center;padding:8px 12px;"></th>'
+            + '<th style="text-align:left;padding:8px 12px;font-size:11px;font-weight:700;color:#54698d;text-transform:uppercase;">Export Option</th>'
+            + '<th style="text-align:left;padding:8px 12px;font-size:11px;font-weight:700;color:#54698d;text-transform:uppercase;">Description</th>'
+            + '</tr>';
+
+        html += '<tr style="border-bottom:1px solid #f0f2f8;">'
+            + '<td style="text-align:center;padding:10px 12px;"><input type="checkbox" class="sm-export-cb" value="single" checked/></td>'
+            + '<td style="padding:10px 12px;font-weight:600;color:#16325c;">Single Collective File</td>'
+            + '<td style="padding:10px 12px;font-size:12px;color:#54698d;">All methods in one XML file</td>'
+            + '</tr>';
+
+        for (var c = 0; c < currencies.length; c++) {
+            var cur = currencies[c];
+            html += '<tr style="border-bottom:1px solid #f0f2f8;">'
+                + '<td style="text-align:center;padding:10px 12px;"><input type="checkbox" class="sm-export-cb" value="currency-' + escHtml(cur) + '"/></td>'
+                + '<td style="padding:10px 12px;font-weight:600;color:#16325c;">Separate File - ' + escHtml(cur) + '</td>'
+                + '<td style="padding:10px 12px;font-size:12px;color:#54698d;">Methods with ' + escHtml(cur) + ' rates only</td>'
+                + '</tr>';
+        }
+
+        tbody.innerHTML = html;
+        loadingEl.style.display = 'none';
+        optionsEl.style.display = 'block';
+    }
+
     function renderMethodsTable(methods) {
         ctpMethods = methods || [];
         var loadingEl = document.getElementById('acc-methods-loading');
@@ -216,6 +277,8 @@
         }
         tbody.innerHTML = html;
         wrapEl.style.display = 'block';
+
+        renderExportOptions(ctpMethods);
 
         var selectAll = document.getElementById('acc-methods-select-all');
         selectAll.checked = true;
@@ -460,31 +523,49 @@
     var fullBuilt = 0, fullFailed = 0, fullFiles = 0, fullRunning = false, fullFinished = false;
     var lastUploadedFile = '';
     var fullSelectedKeys = [];
+    var exportFormats = [];
+
+    function getSelectedExportFormats() {
+        var formats = [];
+        var cbs = document.querySelectorAll('.sm-export-cb');
+        for (var i = 0; i < cbs.length; i++) {
+            if (cbs[i].checked) {
+                formats.push(cbs[i].value);
+            }
+        }
+        return formats;
+    }
 
     function goToSelectData() {
         window.location.href = DATA_WIZARD_ENTRY_URL;
     }
 
-    function runFullBatch(offset, total) {
+    function runFullBatch(offset, total, exportFormats) {
         var pct = (total > 0) ? Math.round((offset / total) * 100) : 0;
         setPhase('full', 'build', 'active', offset + ' / ' + (total || '?') + ' processed', pct);
+
+        var params = 'offset=' + offset
+            + '&keys=' + encodeURIComponent(JSON.stringify(fullSelectedKeys))
+            + '&exportFormats=' + encodeURIComponent(JSON.stringify(exportFormats));
+
         post(
             FULL_BATCH_URL,
-            'offset=' + offset
-            + '&keys=' + encodeURIComponent(JSON.stringify(fullSelectedKeys))
-            + '&singleFile=true',            function (data) {
+            params,
+            function (data) {
             if (!data.ok) { setPhase('full', 'build', 'error', data.error || 'Failed', pct); finalizeFull(false); return; }
             fullBuilt += (data.built || 0);
             fullFailed += (data.failed || 0);
             if (data.fileName) {
                 lastUploadedFile = data.fileName;
-                fullFiles = 1;
+                fullFiles = data.fileCount || 1;
             }
-            fullOverallEl.textContent = '1 file, ' + fullBuilt + ' method(s) built'
+            var fileText = fullFiles === 1 ? '1 file' : (fullFiles + ' file(s)');
+            fullOverallEl.textContent = fileText + ', ' + fullBuilt + ' method(s) built'
                 + (lastUploadedFile ? ' — ' + lastUploadedFile : '');
-            if (!data.done && data.singleFile !== true) { runFullBatch(data.nextOffset, data.total); }
+            if (!data.done) { runFullBatch(data.nextOffset, data.total, exportFormats); }
             else {
-                setPhase('full', 'build', fullFailed ? 'warning' : 'done', '1 file uploaded', 100);
+                var doneMsg = fullFiles === 1 ? '1 file uploaded' : (fullFiles + ' file(s) uploaded');
+                setPhase('full', 'build', fullFailed ? 'warning' : 'done', doneMsg, 100);
                 finalizeFull(true);
             }
         });
@@ -517,7 +598,8 @@
         var keys   = getSelectedMethodRefs();
         var errEl  = document.getElementById('acc-ctp-keys-error');
 
-        if (!keys.length) {            errEl.textContent = 'Select at least one shipping method in the list above.';
+        if (!keys.length) {
+            errEl.textContent = 'Select at least one shipping method in the list above.';
             errEl.style.display = 'block';
             return;
         }
@@ -531,10 +613,18 @@
         fullRunning = true;
         fullBuilt = 0; fullFailed = 0; fullFiles = 0;
         fullSelectedKeys = keys;
+        exportFormats = getSelectedExportFormats();
+        if (!exportFormats.length) {
+            errEl.textContent = 'Select at least one export format.';
+            errEl.style.display = 'block';
+            startBtn.disabled = false;
+            startBtn.textContent = 'Start Migration (Build XML)';
+            return;
+        }
         fullPhaseList.style.display = 'block';
         setPhase('full', 'build', 'pending', '', 0);
         setPhase('full', 'import', 'pending', null, 0);
-        runFullBatch(0, keys.length);
+        runFullBatch(0, keys.length, exportFormats);
     });
 }());
 </script>

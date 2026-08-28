@@ -54,7 +54,7 @@ function getCount() {
 function fetchBatch(offset, limit) {
     var c   = cfg.ctp;
     var tok = getToken();
-    var qs  = '?limit=' + (limit || 50) + '&offset=' + (offset || 0) + '&sort=id+asc&withTotal=true';
+    var qs  = '?limit=' + (limit || 50) + '&offset=' + (offset || 0) + '&sort=id+asc&withTotal=true&expand=taxCategory';
 
     var res = http.get(
         c.apiUrl + '/' + c.projectKey + '/shipping-methods' + qs,
@@ -81,13 +81,13 @@ function fetchByKeyOrId(ctpKeyOrId) {
     if (!id) return null;
 
     var byKey = http.get(
-        c.apiUrl + '/' + c.projectKey + '/shipping-methods/key=' + encodeURIComponent(id),
+        c.apiUrl + '/' + c.projectKey + '/shipping-methods/key=' + encodeURIComponent(id) + '?expand=taxCategory',
         { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' }
     );
     if (byKey.status === 200 && byKey.data) return byKey.data;
 
     var byId = http.get(
-        c.apiUrl + '/' + c.projectKey + '/shipping-methods/' + encodeURIComponent(id),
+        c.apiUrl + '/' + c.projectKey + '/shipping-methods/' + encodeURIComponent(id) + '?expand=taxCategory',
         { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' }
     );
     if (byId.status === 404) return null;

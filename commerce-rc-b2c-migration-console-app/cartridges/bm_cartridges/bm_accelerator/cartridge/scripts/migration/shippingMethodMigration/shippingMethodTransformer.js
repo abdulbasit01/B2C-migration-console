@@ -2,16 +2,18 @@
 
 var X_DEFAULT_PRIORITY = ['en-US', 'en', 'en-GB', 'x-default'];
 
-/**
- * Map CT locale keys to SFCC IMPEX xml:lang values.
- * @param {string} ctpLocale
- * @returns {string}
- */
+// Normalize CT locale to SFCC format. Only generic "en" or "x-default" collapse to x-default.
 function normalizeSfccLocale(ctpLocale) {
     var loc = String(ctpLocale || '').trim();
-    if (!loc || loc === 'x-default') return 'x-default';
-    if (loc === 'en' || loc === 'en-US' || loc === 'en-GB') return 'x-default';
+    if (!loc || loc === 'x-default' || loc === 'en') return 'x-default';
     return loc;
+}
+
+// Rank locale for sorting: x-default first, then priority list, then alphabetical.
+function localeSortRank(lang) {
+    if (lang === 'x-default') return -1;
+    var idx = X_DEFAULT_PRIORITY.indexOf(lang);
+    return idx >= 0 ? idx : X_DEFAULT_PRIORITY.length;
 }
 
 /**
@@ -57,13 +59,20 @@ function collectLocalizedEntries(obj, fallback) {
     }
 
     entries.sort(function (a, b) {
-        if (a.lang === 'x-default') return -1;
-        if (b.lang === 'x-default') return 1;
+        var ra = localeSortRank(a.lang);
+        var rb = localeSortRank(b.lang);
+        if (ra !== rb) return ra - rb;
         return a.lang < b.lang ? -1 : (a.lang > b.lang ? 1 : 0);
     });
 
-    if (!entries.length && fallback) {
-        entries.push({ lang: 'x-default', value: String(fallback) });
+    // CT's plain name/description field is explicitly the fallback for locales the
+    // localized map doesn't cover (per CT's own "Used as the fallback..." UI text) —
+    // always surface it as x-default, alongside the real per-language entries above.
+    if (!byLang['x-default']) {
+        var xdefaultValue = fallback || (entries.length > 0 ? entries[0].value : '');
+        if (xdefaultValue) {
+            entries.unshift({ lang: 'x-default', value: String(xdefaultValue) });
+        }
     }
     return entries;
 }
@@ -107,27 +116,47 @@ function sanitizeMethodId(ctpMethod) {
     return String(ctpMethod.id || 'ctp-shipping').replace(/-/g, '').substring(0, 256);
 }
 
-function extractPriceInfo(ctpMethod) {
+// Resolve tax category reference to SFCC tax class ID. Prefers obj.key, falls back to key/id, defaults to "standard".
+function resolveTaxClassId(ctpMethod) {
+    var cat = ctpMethod.taxCategory;
+    if (cat && typeof cat === 'object') {
+        if (cat.obj && cat.obj.key) return String(cat.obj.key);
+        if (cat.key) return String(cat.key);
+        if (cat.id)  return String(cat.id);
+    }
+    return 'standard';
+}
+
+// Extract distinct currencies from CT method. SFCC ties one currency per method, so return array of {price, currency}.
+function extractPriceVariants(ctpMethod) {
+    var byCurrency = {};
+    var order = [];
     var zoneRates = ctpMethod.zoneRates || [];
+
     for (var z = 0; z < zoneRates.length; z++) {
         var rates = zoneRates[z].shippingRates || [];
         for (var r = 0; r < rates.length; r++) {
             var rate = rates[r];
+            var price = null;
+            var currency = null;
+
             if (rate.price) {
-                return {
-                    price:    moneyToDecimal(rate.price),
-                    currency: rate.price.currencyCode || 'USD'
-                };
+                price    = moneyToDecimal(rate.price);
+                currency = rate.price.currencyCode;
+            } else if (rate.tiers && rate.tiers.length && rate.tiers[0].value) {
+                price    = moneyToDecimal(rate.tiers[0].value);
+                currency = rate.tiers[0].value.currencyCode;
             }
-            if (rate.tiers && rate.tiers.length && rate.tiers[0].value) {
-                return {
-                    price:    moneyToDecimal(rate.tiers[0].value),
-                    currency: rate.tiers[0].value.currencyCode || 'USD'
-                };
+
+            if (currency && !Object.prototype.hasOwnProperty.call(byCurrency, currency)) {
+                byCurrency[currency] = price;
+                order.push(currency);
             }
         }
     }
-    return { price: 0, currency: 'USD' };
+
+    if (!order.length) return [{ price: 0, currency: 'USD' }];
+    return order.map(function (cur) { return { price: byCurrency[cur], currency: cur }; });
 }
 
 /**
@@ -140,7 +169,7 @@ function transformShippingMethod(ctpMethod) {
         throw new Error('CT shipping method missing id');
     }
 
-    var priceInfo      = extractPriceInfo(ctpMethod);
+    var priceVariants  = extractPriceVariants(ctpMethod);
     var displayNames   = collectLocalizedEntries(
         ctpMethod.localizedName,
         ctpMethod.name || ctpMethod.key || ctpMethod.id
@@ -157,9 +186,10 @@ function transformShippingMethod(ctpMethod) {
         description:     primaryLocalized(descriptions),
         online_flag:     ctpMethod.active !== false,
         is_default:      !!ctpMethod.isDefault,
-        tax_class_id:    'standard',
-        price:           priceInfo.price,
-        currency:        priceInfo.currency,
+        tax_class_id:    resolveTaxClassId(ctpMethod),
+        price:           priceVariants[0].price,
+        currency:        priceVariants[0].currency,
+        priceVariants:   priceVariants,
         localized_custom: []
     };
 
@@ -204,6 +234,15 @@ function toMigrationRef(ctpMethod) {
  */
 function toSummary(ctpMethod) {
     var method = transformShippingMethod(ctpMethod);
+    var currencies = [];
+    if (method.priceVariants && Array.isArray(method.priceVariants)) {
+        for (var i = 0; i < method.priceVariants.length; i++) {
+            var cur = method.priceVariants[i].currency;
+            if (cur && currencies.indexOf(cur) < 0) {
+                currencies.push(cur);
+            }
+        }
+    }
     return {
         ref:          toMigrationRef(ctpMethod),
         key:          ctpMethod.key || '',
@@ -211,7 +250,8 @@ function toSummary(ctpMethod) {
         name:         method.display_name,
         active:       method.online_flag,
         isDefault:    method.is_default,
-        sfccMethodId: method.method_id
+        sfccMethodId: method.method_id,
+        currencies:   currencies
     };
 }
 
