@@ -110,6 +110,7 @@ function fetchCategoriesPage(token, limit, offset) {
     var url = c.apiUrl + '/' + c.projectKey
         + '/categories?limit=' + limit
         + '&offset=' + offset
+        + '&sort=orderHint%20asc'
         + '&withTotal=true';
 
     var res = serviceHttp.get('ctp', url, {
@@ -130,8 +131,64 @@ function fetchCategoriesPage(token, limit, offset) {
     return { results: results, total: res.data.total || 0, idToKey: idToKey };
 }
 
+/**
+ * Fetch categories by parent, sorted by orderHint.
+ * @param {string} token - CT auth token
+ * @param {string} parentId - parent category ID, or null for root-level categories
+ * @returns {Array} sorted categories
+ */
+function fetchCategoriesByParent(token, parentId) {
+    var c = cfg.ctp;
+    var allResults = [];
+    var limit = 500;
+    var offset = 0;
+    var total = null;
+
+    var whereClause = parentId
+        ? 'parent(id%20%3D%20%22' + encodeURIComponent(parentId) + '%22)'
+        : 'parent%20is%20not%20defined';
+
+    do {
+        var url = c.apiUrl + '/' + c.projectKey
+            + '/categories?limit=' + limit
+            + '&offset=' + offset
+            + '&where=' + whereClause
+            + '&sort=orderHint%20asc'
+            + '&withTotal=true';
+
+        try {
+            var res = serviceHttp.get('ctp', url, {
+                Authorization:  'Bearer ' + token,
+                'Content-Type': 'application/json'
+            });
+
+            if (res.status !== 200) {
+                log.error('fetchCategoriesByParent failed at offset {0}: status={1}', offset, res.status);
+                break;
+            }
+
+            if (total === null) {
+                total = res.data.total || 0;
+            }
+
+            var results = res.data.results || [];
+            for (var i = 0; i < results.length; i++) {
+                allResults.push(results[i]);
+            }
+
+            offset += limit;
+        } catch (e) {
+            log.error('fetchCategoriesByParent exception: {0}', String(e));
+            break;
+        }
+    } while (total !== null && offset < total);
+
+    return allResults;
+}
+
 module.exports = {
     getCTAuthToken: getCTAuthToken,
     fetchAllCategories: fetchAllCategories,
-    fetchCategoriesPage: fetchCategoriesPage
+    fetchCategoriesPage: fetchCategoriesPage,
+    fetchCategoriesByParent: fetchCategoriesByParent
 };

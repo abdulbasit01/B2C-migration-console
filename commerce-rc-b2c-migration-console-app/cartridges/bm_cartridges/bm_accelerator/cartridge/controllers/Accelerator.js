@@ -3193,6 +3193,14 @@ function getCategoryMigrationJS() {
     L.push('  var Q=String.fromCharCode(34);');
     L.push('  if(!_APP.allCategories.length){tbody.innerHTML="<tr><td colspan="+Q+"7"+Q+" style="+Q+"text-align:center;padding:30px;color:#54698d;"+Q+">Click Load Categories from CT to begin.</td></tr>";return;}');
     L.push('  var sorted=_APP.buildSortedRows();');
+    L.push('  var positionByParent={};');
+    L.push('  var displayPositions={};');
+    L.push('  sorted.forEach(function(row){');
+    L.push('    var parentId=row.parentId;');
+    L.push('    if(!positionByParent[parentId])positionByParent[parentId]=0;');
+    L.push('    positionByParent[parentId]++;');
+    L.push('    displayPositions[row.id]=positionByParent[parentId];');
+    L.push('  });');
     L.push('  var rows=[];');
     L.push('  sorted.forEach(function(row,idx){');
     L.push('    var catId=row.id;');
@@ -3215,7 +3223,7 @@ function getCategoryMigrationJS() {
     L.push('      +" style="+Q+rb+Q+">";');
     L.push('    trHtml+="<td"+a("style",tdSt+"text-align:center;")+"><span class="+Q+"drag-handle-icon"+Q+a("data-catid",catId)+a("style","cursor:grab;color:#a8b7c7;font-size:20px;user-select:none;")+">&#8597;</span></td>";');
     L.push('    trHtml+="<td"+a("style",tdSt)+"><span"+a("style","display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;color:#fff;background:"+lvlColor+";")+">"+lvlLabel+"</span></td>";');
-    L.push('    trHtml+="<td"+a("style",tdSt)+"><span id="+Q+"pos-"+catId+Q+a("style","display:inline-block;background:#f4f6f9;border:1px solid #dddbda;border-radius:3px;padding:1px 6px;font-size:11px;font-family:monospace;"+pb)+">"+(idx+1)+"</span></td>";');
+    L.push('    trHtml+="<td"+a("style",tdSt)+"><span id="+Q+"pos-"+catId+Q+a("style","display:inline-block;background:#f4f6f9;border:1px solid #dddbda;border-radius:3px;padding:1px 6px;font-size:11px;font-family:monospace;"+pb)+">"+displayPositions[catId]+"</span></td>";');
     L.push('    trHtml+="<td"+a("style",tdSt+"font-family:monospace;font-size:11px;")+">"+catId+"</td>";');
     L.push('    var prodCt=(_APP.productCounts&&_APP.productCounts[row.name])||0;');
     L.push('    var hasProductData=Object.keys(_APP.productCounts||{}).length>0;');
@@ -4320,7 +4328,7 @@ exports.FetchCTCategories = function () {
 
         var list = page.results.map(function (cat) {
             var sfcc = transform.transformCategory(cat, defaultLocale, page.idToKey);
-            return { id: sfcc.id, name: sfcc.name['x-default'] || sfcc.id, parentId: sfcc.parentId };
+            return { id: sfcc.id, name: sfcc.name['x-default'] || sfcc.id, parentId: sfcc.parentId, position: sfcc.position };
         });
 
         response.writer.print(JSON.stringify({

@@ -209,7 +209,15 @@ _APP.renderTable = function () {
     tbody.innerHTML = '';
     if (!_APP.allCategories.length) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:#54698d;">Click Load Categories from CT to begin.</td></tr>'; return; }
     var sorted = _APP.buildSortedRows();
-    sorted.forEach(function (row, idx) {
+    var positionByParent = {};
+    var displayPositions = {};
+    sorted.forEach(function (row) {
+        var parentId = row.parentId;
+        if (!positionByParent[parentId]) positionByParent[parentId] = 0;
+        positionByParent[parentId]++;
+        displayPositions[row.id] = positionByParent[parentId];
+    });
+    sorted.forEach(function (row) {
         var catId = row.id;
         var isPC = _APP.pendingParent[catId] !== undefined || _APP.hierarchyOverrides[catId] !== undefined;
         var isOC = _APP.pendingOrder[catId] !== undefined || _APP.orderOverrides[catId] !== undefined;
@@ -226,7 +234,7 @@ _APP.renderTable = function () {
         tbody.innerHTML += '<tr data-catid="' + catId + '" data-depth="' + row.depth + '" data-parent="' + currentParent + '" data-changed="' + (isChanged ? '1' : '0') + '" style="' + rb + '">'
             + '<td style="padding:7px 8px;border-bottom:1px solid #f0f0f0;text-align:center;"><span class="drag-handle-icon" data-catid="' + catId + '" style="cursor:grab;color:#a8b7c7;font-size:20px;user-select:none;">&#8597;</span></td>'
             + '<td style="padding:7px 8px;border-bottom:1px solid #f0f0f0;"><span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;color:#fff;background:' + lvlColor + ';">' + lvlLabel + '</span></td>'
-            + '<td style="padding:7px 8px;border-bottom:1px solid #f0f0f0;"><span id="pos-' + catId + '" style="' + pb + '">' + (idx + 1) + '</span></td>'
+            + '<td style="padding:7px 8px;border-bottom:1px solid #f0f0f0;"><span id="pos-' + catId + '" style="' + pb + '">' + displayPositions[catId] + '</span></td>'
             + '<td style="padding:7px 8px;border-bottom:1px solid #f0f0f0;font-family:monospace;font-size:11px;">' + catId + '</td>'
             + '<td style="padding:7px 8px;border-bottom:1px solid #f0f0f0;font-weight:600;color:#16325c;">' + _APP.toCamelCase(row.name) + '</td>'
             + '<td style="padding:7px 8px;border-bottom:1px solid #f0f0f0;"><select data-catid="' + catId + '" data-orig="' + origParent + '" style="width:100%;font-size:12px;padding:4px 6px;border:1px solid ' + sb + ';border-radius:3px;background:' + sbg + ';">' + parentOpts + '</select></td>'
