@@ -257,7 +257,11 @@
                 "fulfillment_status": "shippingStatus",
                 "note": "externalOrderText",
                 "customer_locale": "customerLocaleID",
-                "source_name": "channelType"
+                "source_name": "channelType",
+                "created_at": "creationDate",
+                "confirmation_number": "customerOrderReference",
+                "confirmed": "confirmationStatus",
+                "cancel_reason": "cancelCode"
             },
             "Store": {
                 "id": "ID",
@@ -1009,8 +1013,8 @@
                         "source": null
                     },
                     "cancelCode": {
-                        "status": "pending",
-                        "source": null
+                        "status": "mapped",
+                        "source": "cancel_reason"
                     },
                     "cancelDescription": {
                         "status": "pending",
@@ -1021,16 +1025,16 @@
                         "source": "source_name"
                     },
                     "confirmationStatus": {
-                        "status": "pending",
-                        "source": null
+                        "status": "mapped",
+                        "source": "confirmed"
                     },
                     "createdBy": {
                         "status": "pending",
                         "source": null
                     },
                     "creationDate": {
-                        "status": "pending",
-                        "source": null
+                        "status": "mapped",
+                        "source": "created_at"
                     },
                     "currencyCode": {
                         "status": "mapped",
@@ -1053,8 +1057,8 @@
                         "source": null
                     },
                     "customerOrderReference": {
-                        "status": "pending",
-                        "source": null
+                        "status": "mapped",
+                        "source": "confirmation_number"
                     },
                     "exportAfter": {
                         "status": "pending",
@@ -1117,8 +1121,8 @@
                         "source": null
                     }
                 },
-                "mappedCount": 9,
-                "pendingCount": 22,
+                "mappedCount": 13,
+                "pendingCount": 18,
                 "sfccSystemCount": 31
             },
             "Store": {

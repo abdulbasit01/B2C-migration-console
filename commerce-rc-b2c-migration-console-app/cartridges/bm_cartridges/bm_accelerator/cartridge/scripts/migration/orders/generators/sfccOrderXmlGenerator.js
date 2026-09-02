@@ -301,13 +301,21 @@ function generateOrderInnerXml(order) {
         '        <customer-locale>' + escapeXml(prepared.customerLocale || 'en_US') + '</customer-locale>',
         '        <taxation>' + escapeXml(prepared.taxation || 'net') + '</taxation>',
         customerXml(prepared),
+        prepared.customerOrderReference
+            ? '        <customer-order-reference>' + escapeXml(prepared.customerOrderReference) + '</customer-order-reference>'
+            : '',
         '        <status>',
         '            <order-status>' + escapeXml(prepared.status || 'NEW') + '</order-status>',
         '            <shipping-status>' + orderShippingStatus.mapOrderShippingStatus(prepared.shipments[0] && prepared.shipments[0].status) + '</shipping-status>',
-        '            <confirmation-status>CONFIRMED</confirmation-status>',
+        '            <confirmation-status>' + escapeXml(prepared.confirmationStatus || 'CONFIRMED') + '</confirmation-status>',
         '            <payment-status>' + escapeXml(prepared.paymentStatus || 'NOT_PAID') + '</payment-status>',
         '        </status>',
+        prepared.channelType ? '        <channel-type>' + escapeXml(prepared.channelType) + '</channel-type>' : '',
         '        <current-order-no>' + orderNo + '</current-order-no>',
+        prepared.cancelCode ? '        <cancel-code>' + escapeXml(prepared.cancelCode) + '</cancel-code>' : '',
+        prepared.cancelDescription
+            ? '        <cancel-description>' + escapeXml(prepared.cancelDescription) + '</cancel-description>'
+            : '',
         productLineItemsXml(prepared.lineItems),
         shippingLineItemsXml(prepared.shippingLineItems),
         shipmentsXml(prepared.shipments),
@@ -316,6 +324,13 @@ function generateOrderInnerXml(order) {
     var paymentsBlock = paymentsXml(prepared.payments);
     if (paymentsBlock) {
         parts.push(paymentsBlock);
+    }
+
+    if (prepared.externalOrderNo) {
+        parts.push('        <external-order-no>' + escapeXml(prepared.externalOrderNo) + '</external-order-no>');
+    }
+    if (prepared.externalOrderText) {
+        parts.push('        <external-order-text>' + escapeXml(prepared.externalOrderText) + '</external-order-text>');
     }
 
     if (prepared.customAttributes && prepared.customAttributes.length) {

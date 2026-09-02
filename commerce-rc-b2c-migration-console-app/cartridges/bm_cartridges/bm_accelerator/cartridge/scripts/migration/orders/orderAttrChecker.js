@@ -62,12 +62,33 @@ function getCtpOrderFields() {
     return fields;
 }
 
+/**
+ * Fixed trace fields needed by source-specific order writers.
+ * Shopify is written in full so the resulting SFCC attribute IDs are unambiguous.
+ * @param {string} platformId - Active source platform.
+ * @returns {Object[]} Source-specific trace fields.
+ */
+function getTraceFields(platformId) {
+    if (platformId !== 'shopify') return [];
+    return [
+        { sfccId: 'shopifyOrderId', label: 'Shopify Order ID', sourceType: 'String' },
+        { sfccId: 'shopifyOrderGid', label: 'Shopify Order GraphQL ID', sourceType: 'String' },
+        { sfccId: 'shopifyCheckoutId', label: 'Shopify Checkout ID', sourceType: 'String' },
+        { sfccId: 'shopifyClosedAt', label: 'Shopify Closed At', sourceType: 'DateTime' },
+        { sfccId: 'shopifyCancelledAt', label: 'Shopify Cancelled At', sourceType: 'DateTime' },
+        { sfccId: 'shopifyProcessedAt', label: 'Shopify Processed At', sourceType: 'DateTime' },
+        { sfccId: 'shopifyTestOrder', label: 'Shopify Test Order', sourceType: 'Boolean' },
+        { sfccId: 'shopifyTags', label: 'Shopify Order Tags', sourceType: 'String' },
+        { sfccId: 'shopifyNoteAttributes', label: 'Shopify Note Attributes', sourceType: 'String' }
+    ];
+}
+
 function checkMissingAttributes() {
     var attrIdMapSession = require('*/cartridge/scripts/migration/core/attrIdMapSession');
     return runner.checkMissing(
         SFCC_OBJECT_TYPE,
         getCtpOrderFields,
-        null,
+        getTraceFields,
         attrIdMapSession.read('order'),
         'order',
         'Order'
@@ -80,5 +101,6 @@ function createAttributes(attrs) {
 
 module.exports = {
     checkMissingAttributes: checkMissingAttributes,
-    createAttributes:       createAttributes
+    createAttributes:       createAttributes,
+    getTraceFields:         getTraceFields
 };
