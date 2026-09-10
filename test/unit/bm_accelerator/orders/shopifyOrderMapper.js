@@ -85,7 +85,7 @@ describe('shopifyOrderMapper', function () {
         assert.equal(order.orderNumber, '1003');
         assert.equal(order.externalOrderNo, '#1003');
         assert.equal(order.externalOrderText, 'Handle carefully');
-        assert.equal(order.customerOrderReference, '58CT8FG6K');
+        assert.equal(order.customerOrderReference, '');
         assert.equal(order.customerLocale, 'en_PK');
         assert.equal(order.channelType, 'CustomerServiceCenter');
         assert.equal(order.confirmationStatus, 'CONFIRMED');
@@ -94,19 +94,9 @@ describe('shopifyOrderMapper', function () {
         assert.equal(order.shipments[0].status, 'SHIPPED');
     });
 
-    it('preserves only approved order-level Shopify custom attributes', function () {
+    it('does not create hard-coded custom attributes from standard Shopify fields', function () {
         var attributes = mapper.mapOrder(sampleOrder()).customAttributes;
-        var byId = {};
-        for (var i = 0; i < attributes.length; i++) byId[attributes[i].id] = attributes[i].value;
-
-        assert.equal(byId.shopifyOrderId, '7258678952247');
-        assert.equal(byId.shopifyOrderGid, 'gid://shopify/Order/7258678952247');
-        assert.equal(byId.shopifyCheckoutId, '40450715255095');
-        assert.strictEqual(byId.shopifyTestOrder, false);
-        assert.equal(byId.shopifyTags, 'vip, migrated');
-        assert.equal(byId.shopifyNoteAttributes, '[{"name":"delivery_window","value":"morning"}]');
-        assert.isUndefined(byId.checkout_token);
-        assert.isUndefined(byId.browser_ip);
+        assert.deepEqual(attributes, []);
     });
 
     it('uses valid SFCC enum values for partial payment and channels', function () {
@@ -122,6 +112,18 @@ describe('shopifyOrderMapper', function () {
         assert.equal(order.channelType, 'Store');
         assert.equal(order.confirmationStatus, 'NOT_CONFIRMED');
         assert.equal(order.status, 'OPEN');
+        assert.equal(order.cancelCode, '');
+        assert.equal(order.cancelDescription, '');
+    });
+
+    it('defaults missing or unexpected Shopify confirmation values safely', function () {
+        var missing = sampleOrder();
+        delete missing.confirmed;
+        assert.equal(mapper.mapOrder(missing).confirmationStatus, 'NOT_CONFIRMED');
+
+        var unexpected = sampleOrder();
+        unexpected.confirmed = 'true';
+        assert.equal(mapper.mapOrder(unexpected).confirmationStatus, 'NOT_CONFIRMED');
     });
 
     it('maps Shopify order metafields to SFCC custom attributes', function () {

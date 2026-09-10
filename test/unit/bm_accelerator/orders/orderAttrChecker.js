@@ -12,22 +12,28 @@ var checkerPath = path.join(
 );
 
 describe('orderAttrChecker', function () {
-    it('surfaces Shopify trace fields using explicit Shopify IDs', function () {
+    it('discovers dynamic fields without adding hard-coded Shopify attributes', function () {
+        var args;
         var checker = proxyquire(checkerPath, {
             '*/cartridge/scripts/migration/core/http': {},
             '*/cartridge/scripts/migration/configAccessor': {},
             'dw/crypto/Encoding': {},
             'dw/util/Bytes': function () {},
             '*/cartridge/scripts/migration/core/attrBuilder': {},
-            '*/cartridge/scripts/migration/core/attrPreflightRunner': {}
+            '*/cartridge/scripts/migration/core/attrPreflightRunner': {
+                checkMissing: function () {
+                    args = Array.prototype.slice.call(arguments);
+                    return { mapped: [], missing: [] };
+                }
+            },
+            '*/cartridge/scripts/migration/core/attrIdMapSession': {
+                read: function () { return {}; }
+            }
         });
-        var fields = checker.getTraceFields('shopify');
+        checker.checkMissingAttributes();
 
-        assert.equal(fields.length, 9);
-        assert.deepEqual(fields.map(function (field) { return field.sfccId; }), [
-            'shopifyOrderId', 'shopifyOrderGid', 'shopifyCheckoutId', 'shopifyClosedAt', 'shopifyCancelledAt',
-            'shopifyProcessedAt', 'shopifyTestOrder', 'shopifyTags', 'shopifyNoteAttributes'
-        ]);
-        assert.deepEqual(checker.getTraceFields('commercetools'), []);
+        assert.equal(args[0], 'Order');
+        assert.isNull(args[2]);
+        assert.deepEqual(args[3], {});
     });
 });

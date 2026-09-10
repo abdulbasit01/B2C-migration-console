@@ -60,7 +60,7 @@ function sampleOrder(no) {
         }],
         status: 'COMPLETED',
         paymentStatus: 'PAID',
-        confirmationStatus: 'CONFIRMED',
+        confirmationStatus: 'NOT_CONFIRMED',
         channelType: 'Storefront',
         externalOrderNo: '#1001',
         externalOrderText: 'Migrated order',
@@ -102,6 +102,7 @@ describe('sfccOrderXmlGenerator', function () {
         assert.ok(xml.indexOf('<customer-email>user@example.com</customer-email>') > 0);
         assert.ok(xml.indexOf('Product &amp; Co') > 0);
         assert.ok(xml.indexOf('<payment-status>PAID</payment-status>') > 0);
+        assert.include(xml, '<confirmation-status>NOT_CONFIRMED</confirmation-status>');
         assert.ok(xml.indexOf('<customer-locale>en_US</customer-locale>') > 0);
         assert.include(xml, '<customer-order-reference>CONF-1001</customer-order-reference>');
         assert.include(xml, '<channel-type>Storefront</channel-type>');

@@ -36,13 +36,14 @@ function mapChannelType(sourceName) {
 }
 
 /**
- * Serialize Shopify note attributes without creating dynamic Order fields.
- * @param {Object[]} noteAttributes
- * @returns {string}
+ * Convert Shopify's inventory-reservation flag to the requested SFCC
+ * confirmation-status policy. Only an explicit boolean true is confirmed;
+ * missing or unexpected values remain safely unconfirmed.
+ * @param {*} confirmed Shopify confirmed value.
+ * @returns {string} SFCC confirmation status.
  */
-function serializeNoteAttributes(noteAttributes) {
-    if (!noteAttributes || !noteAttributes.length) return '';
-    return JSON.stringify(noteAttributes);
+function mapConfirmationStatus(confirmed) {
+    return confirmed === true ? 'CONFIRMED' : 'NOT_CONFIRMED';
 }
 
 /**
@@ -58,21 +59,12 @@ function addCustomAttribute(attributes, id, value) {
 }
 
 /**
- * Preserve only stable, order-level Shopify fields that have no native SFCC home.
+ * Map dynamically discovered Shopify order metafields to SFCC custom attributes.
  * @param {Object} shopOrder
  * @returns {Object[]}
  */
 function mapCustomAttributes(shopOrder) {
     var attributes = [];
-    addCustomAttribute(attributes, 'shopifyOrderId', shopOrder.id == null ? '' : String(shopOrder.id));
-    addCustomAttribute(attributes, 'shopifyOrderGid', shopOrder.admin_graphql_api_id);
-    addCustomAttribute(attributes, 'shopifyCheckoutId', shopOrder.checkout_id == null ? '' : String(shopOrder.checkout_id));
-    addCustomAttribute(attributes, 'shopifyClosedAt', shopOrder.closed_at);
-    addCustomAttribute(attributes, 'shopifyCancelledAt', shopOrder.cancelled_at);
-    addCustomAttribute(attributes, 'shopifyProcessedAt', shopOrder.processed_at);
-    addCustomAttribute(attributes, 'shopifyTestOrder', shopOrder.test);
-    addCustomAttribute(attributes, 'shopifyTags', shopOrder.tags);
-    addCustomAttribute(attributes, 'shopifyNoteAttributes', serializeNoteAttributes(shopOrder.note_attributes));
 
     var metafields = shopOrder.metafields || [];
     var attrMap = attrIdMapSession.read('order');
@@ -283,15 +275,10 @@ function mapOrder(shopOrder) {
     order.customAttributes = mapCustomAttributes(shopOrder);
     order.status           = mapOrderStatus(shopOrder);
     order.paymentStatus    = mapPaymentStatus(shopOrder.financial_status);
-    order.confirmationStatus = shopOrder.confirmed === false ? 'NOT_CONFIRMED' : 'CONFIRMED';
+    order.confirmationStatus = mapConfirmationStatus(shopOrder.confirmed);
     order.channelType      = mapChannelType(shopOrder.source_name);
     order.externalOrderNo  = shopOrder.name || '';
     order.externalOrderText = shopOrder.note || '';
-    order.customerOrderReference = shopOrder.confirmation_number || shopOrder.po_number || shopOrder.reference || '';
-    order.cancelCode       = shopOrder.cancel_reason || '';
-    order.cancelDescription = shopOrder.cancel_reason
-        ? 'Cancelled in Shopify: ' + shopOrder.cancel_reason
-        : '';
 
     order.merchandiseTotal = parseMoney(shopOrder.subtotal_price);
     order.shippingTotal    = shopOrder.total_shipping_price_set && shopOrder.total_shipping_price_set.shop_money
@@ -324,5 +311,6 @@ module.exports = {
     mapAddress: mapAddress,
     mapLocale:  mapLocale,
     mapChannelType: mapChannelType,
+    mapConfirmationStatus: mapConfirmationStatus,
     mapCustomAttributes: mapCustomAttributes
 };

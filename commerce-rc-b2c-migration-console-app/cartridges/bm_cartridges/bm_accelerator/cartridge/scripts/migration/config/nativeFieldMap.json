@@ -259,9 +259,7 @@
                 "customer_locale": "customerLocaleID",
                 "source_name": "channelType",
                 "created_at": "creationDate",
-                "confirmation_number": "customerOrderReference",
-                "confirmed": "confirmationStatus",
-                "cancel_reason": "cancelCode"
+                "confirmed": "confirmationStatus"
             },
             "Store": {
                 "id": "ID",
@@ -1013,8 +1011,8 @@
                         "source": null
                     },
                     "cancelCode": {
-                        "status": "mapped",
-                        "source": "cancel_reason"
+                        "status": "pending",
+                        "source": null
                     },
                     "cancelDescription": {
                         "status": "pending",
@@ -1057,8 +1055,8 @@
                         "source": null
                     },
                     "customerOrderReference": {
-                        "status": "mapped",
-                        "source": "confirmation_number"
+                        "status": "pending",
+                        "source": null
                     },
                     "exportAfter": {
                         "status": "pending",
@@ -1121,8 +1119,8 @@
                         "source": null
                     }
                 },
-                "mappedCount": 13,
-                "pendingCount": 18,
+                "mappedCount": 11,
+                "pendingCount": 20,
                 "sfccSystemCount": 31
             },
             "Store": {

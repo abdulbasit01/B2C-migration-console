@@ -113,7 +113,7 @@ function createEmpty() {
         customAttributes: [],
         status:          '',
         paymentStatus:   '',
-        confirmationStatus: 'CONFIRMED',
+        confirmationStatus: 'NOT_CONFIRMED',
         channelType:     '',
         externalOrderNo: '',
         externalOrderText: '',

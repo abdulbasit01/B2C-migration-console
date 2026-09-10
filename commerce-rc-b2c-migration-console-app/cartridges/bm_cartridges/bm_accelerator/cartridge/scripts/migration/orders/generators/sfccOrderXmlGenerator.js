@@ -307,7 +307,7 @@ function generateOrderInnerXml(order) {
         '        <status>',
         '            <order-status>' + escapeXml(prepared.status || 'NEW') + '</order-status>',
         '            <shipping-status>' + orderShippingStatus.mapOrderShippingStatus(prepared.shipments[0] && prepared.shipments[0].status) + '</shipping-status>',
-        '            <confirmation-status>' + escapeXml(prepared.confirmationStatus || 'CONFIRMED') + '</confirmation-status>',
+        '            <confirmation-status>' + escapeXml(prepared.confirmationStatus || 'NOT_CONFIRMED') + '</confirmation-status>',
         '            <payment-status>' + escapeXml(prepared.paymentStatus || 'NOT_PAID') + '</payment-status>',
         '        </status>',
         prepared.channelType ? '        <channel-type>' + escapeXml(prepared.channelType) + '</channel-type>' : '',
