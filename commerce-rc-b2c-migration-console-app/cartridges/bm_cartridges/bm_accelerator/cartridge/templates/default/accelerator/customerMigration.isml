@@ -1,4 +1,4 @@
-<isdecorate template="application/MenuFrame">
+﻿<isdecorate template="application/MenuFrame">
 <iscontent type="text/html" charset="UTF-8"/>
 <link rel="stylesheet" href="${pdict.cssUrl}"/>
 <script src="${pdict.attrPreflightJsUrl}"></script>
@@ -182,6 +182,10 @@
                         <option value="">Loading customer lists...</option>
                     </select>
                     <span id="acc-list-id-error" class="acc-field-error">Customer List ID is required.</span>
+                    <p style="font-size:12px;color:#54698d;margin:6px 0 0;max-width:420px;">
+                        Used for <strong>customer groups</strong> and <strong>partial</strong> (live) import.
+                        Full XML generate does not use this &mdash; import each file on the matching SFCC site.
+                    </p>
                 </div>
             </div>
         </div>
@@ -312,13 +316,23 @@
 
             <div class="acc-info-box">
                 <strong>How Full Migration works:</strong><br/>
-                Phase 1 fetches customers from ${pdict.platformLabel} in batches, builds SFCC customer import XML,
-                and uploads each file to WebDAV at
-                <code>/Impex/${pdict.impexPath}/</code> (e.g. <code>customer-YYYYMMDD-v001.xml</code>).<br/>
+                Phase 1 fetches customers from ${pdict.platformLabel} in batches (keyset paging &mdash; no 10k offset cap)
+                and writes SFCC customer import XML. Files split every 20,000 customers.
+                <isif condition="${pdict.isShopify}">
+                One IMPEX series is written for the connected shop.
+                <iselseif condition="${pdict.isBigCommerce}">
+                One IMPEX series is written for the connected store.
+                <iselse/>
+                Each customer is routed from the <code>stores</code> field on their API record:
+                if <code>stores</code> has a value, that customer is written into that store&rsquo;s file
+                (<code>customers-uk_customer-*.xml</code>); if <code>stores</code> is empty, they go in the shared series
+                (<code>customer-*.xml</code>). A customer assigned to multiple stores is copied into each matching file.
+                Import each store file on the matching SFCC site.
+                </isif>
+                Files land under <code>/Impex/${pdict.impexPath}/</code>. Project size is unlimited.<br/>
                 Phase 2 is a manual BM step: run <strong>Administration &rarr; Site Development &rarr; Import &amp; Export
-                &rarr; Import Customers</strong> and point it at the uploaded files.
-                Customers receive a random temporary password generated at migration time.
-                They must reset their password on first login.
+                &rarr; Import Customers</strong> and import every uploaded part.
+                Customers receive a random temporary password generated at migration time;
                 they must use <em>Forgot Password</em> to set their own.
             </div>
 
@@ -741,14 +755,15 @@
     var allMappings     = [];
     var partialRunning  = false;
 
-    function runProfiles(offset, total) {
+    function runProfiles(offset, total, lastId) {
         var listId = listIdEl.value.trim();
         var pct    = (total > 0) ? Math.round((offset / total) * 100) : 0;
         setPhase('acc', 'profiles', 'active', offset + ' / ' + (total || '?') + ' processed...', pct);
 
         post(
             PROFILE_URL,
-            'offset=' + offset + '&listId=' + encodeURIComponent(listId),
+            'offset=' + offset + '&listId=' + encodeURIComponent(listId)
+            + (lastId ? '&lastId=' + encodeURIComponent(lastId) : ''),
             function (data) {
                 if (!data.ok) {
                     setPhase('acc', 'profiles', 'error', data.error || 'Failed', 0);
@@ -780,7 +795,7 @@
                 if (!data.done) {
                     setPhase('acc', 'profiles', 'active',
                         data.nextOffset + ' / ' + data.total + ' processed...', newPct);
-                    runProfiles(data.nextOffset, data.total);
+                    runProfiles(data.nextOffset, data.total || total, data.nextLastId || '');
                 } else {
                     var state1  = (profilesFailed > 0 && profilesCreated === 0) ? 'error'
                                 : (profilesFailed > 0) ? 'warning' : 'done';
@@ -916,7 +931,7 @@
         );
     }
 
-    // PARTIAL MIGRATION — start button
+    // PARTIAL MIGRATION - start button
 
     startBtn.addEventListener('click', function () {
         var listId = listIdEl.value.trim();
@@ -976,6 +991,8 @@
     var fullFailed     = 0;
     var fullBatches    = 0;
     var fullFileName   = '';
+    var fullFileCount  = 0;
+    var fullUploaded   = [];
     var fullRunning    = false;
     var fullFinished   = false;
 
@@ -984,14 +1001,13 @@
     }
 
     function runFullBatch(offset, total) {
-        var listId = listIdEl.value.trim();
-        var pct    = (total > 0) ? Math.round((offset / total) * 100) : 0;
+        var pct = (total > 0) ? Math.round((offset / total) * 100) : 0;
         setPhase('full', 'build', 'active',
-            offset + ' / ' + (total || '?') + ' processed... (writing 1 file)', pct);
+            offset + ' / ' + (total || '?') + ' processed...', pct);
 
         post(
             FULL_BATCH_URL,
-            'offset=' + offset + '&listId=' + encodeURIComponent(listId),
+            'offset=' + offset,
             function (data) {
                 if (!data.ok) {
                     setPhase('full', 'build', 'error', data.error || 'Failed', pct);
@@ -1002,36 +1018,60 @@
                 fullBuilt  += (data.built  || 0);
                 fullFailed += (data.failed || 0);
                 fullBatches++;
-                fullFileName = data.fileName || fullFileName;
+                fullFileName  = data.fileName || fullFileName;
+                if (data.files) {
+                    var parts = String(data.files).split(',');
+                    for (var f = 0; f < parts.length; f++) {
+                        if (parts[f] && fullUploaded.indexOf(parts[f]) === -1) fullUploaded.push(parts[f]);
+                    }
+                } else if (data.fileName && fullUploaded.indexOf(data.fileName) === -1) {
+                    fullUploaded.push(data.fileName);
+                }
+                fullFileCount = fullUploaded.length || data.fileCount || data.expectedFiles || fullFileCount;
+                var expected  = data.expectedFiles || 1;
+                var part      = data.filePart || 1;
+                var fileLabel = (fullFileCount || expected) + ' file(s)'
+                    + (fullFileName ? ' (part ' + part + ': ' + fullFileName + ')' : '');
+                if (data.storeBuckets) {
+                    fileLabel += ' - split by ' + data.storeBuckets + ' store(s)';
+                }
 
-                fullOverallEl.textContent = '1 file (' + fullFileName + '), '
+                fullOverallEl.textContent = fileLabel + ', '
                     + fullBuilt + ' customer(s) built'
                     + (fullFailed ? ', ' + fullFailed + ' failed' : '');
 
                 if (!data.done) {
-                    runFullBatch(data.nextOffset, data.total);
+                    runFullBatch(data.nextOffset, data.total || total);
                 } else {
                     var buildState = (fullFailed > 0 && fullBuilt === 0) ? 'error'
                                    : (fullFailed > 0) ? 'warning' : 'done';
+                    var doneLabel = (fullFileCount || 1) + ' file(s)'
+                        + (fullUploaded.length ? ' (' + fullUploaded.join(', ') + ')' : (fullFileName ? ' (' + fullFileName + ')' : ''));
                     setPhase('full', 'build', buildState,
-                        '1 file (' + fullFileName + '), ' + fullBuilt + ' customer(s) built'
+                        doneLabel + ', ' + fullBuilt + ' customer(s) built'
                         + (fullFailed ? ', ' + fullFailed + ' skipped due to errors' : ''),
                         100);
-                    finalizeFull(true);
+                    finalizeFull(true, fullFileCount || 1, data.storeBuckets);
                 }
             }
         );
     }
 
-    function finalizeFull(success) {
+    function finalizeFull(success, fileCount, storeBuckets) {
         fullRunning              = false;
         fullStartBtn.disabled    = false;
         if (success) {
             fullFinished             = true;
             fullStartBtn.textContent = 'Finish';
             fullStatusBox.style.display = 'none';
+            var n = fileCount || fullFileCount || 1;
+            var importHint = storeBuckets
+                ? ' Import each store file on the matching SFCC site.'
+                : '';
             setPhase('full', 'import', 'active',
-                'Run your import job in Business Manager to complete the migration.', null);
+                'Import all ' + n + ' customer XML file(s) in Business Manager'
+                + importHint
+                + ' to complete the migration.', null);
         } else {
             fullFinished             = false;
             fullStartBtn.textContent = 'Build Failed';
@@ -1047,12 +1087,6 @@
             return;
         }
 
-        var listId = listIdEl.value.trim();
-        if (!listId) {
-            showError('acc-list-id', 'acc-list-id-error', 'Customer List ID is required.');
-            return;
-        }
-        clearError('acc-list-id', 'acc-list-id-error');
         if (fullRunning) return;
         fullFinished = false;
 
@@ -1060,7 +1094,8 @@
         fullStartBtn.textContent = 'Building...';
 
         fullRunning   = true;
-        fullBuilt     = 0; fullFailed = 0; fullBatches = 0; fullFileName = '';
+        fullBuilt     = 0; fullFailed = 0; fullBatches = 0; fullFileName = ''; fullFileCount = 0;
+        fullUploaded  = [];
 
         fullStatusBox.style.display = 'none';
         fullOverallEl.textContent   = '';

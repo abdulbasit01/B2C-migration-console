@@ -1,134 +1,65 @@
 'use strict';
 
-var File         = require('dw/io/File');
-var FileWriter   = require('dw/io/FileWriter');
+/* global session */
+
 var fetcher      = require('*/cartridge/scripts/migration/customerMigration/ctpCustomerFetcher');
 var xmlBuilder   = require('*/cartridge/scripts/migration/customerMigration/customerXmlBuilder');
-var uploader     = require('*/cartridge/scripts/migration/customerMigration/webDavUploader');
-var fileResolver = require('*/cartridge/scripts/migration/core/migrationFileResolver');
+var splitRunner  = require('*/cartridge/scripts/migration/customerMigration/customerSplitMigration');
 
-var MODULE_KEY               = 'customer';
-var FETCH_BATCH_SIZE         = 500;
-var MAX_SINGLE_FILE_CUSTOMERS = 20000;
+var FETCH_BATCH_SIZE = 500;
+var IDMAP_KEY = 'migC_ctp_idmap';
 
-function ensureImpexDir(relativePath) {
-    var dir = new File(File.IMPEX + File.SEPARATOR + String(relativePath).replace(/\//g, File.SEPARATOR));
-    if (!dir.exists()) {
-        dir.mkdirs();
+function loadIdToKey(reset) {
+    if (reset) {
+        session.custom[IDMAP_KEY] = '';
     }
-    return dir;
-}
-
-/**
- * Stream every CT customer into one IMPEX file without ever holding the
- * full XML in memory as a single string (avoids the api.jsStringLength quota
- * that a read-back-and-concatenate approach hits once a file passes ~1MB).
- * @param {string} listId
- * @returns {Object}
- */
-function runSingleFile(listId) {
-    var impexPath = fileResolver.getRelativePath(MODULE_KEY);
-    var fileName  = fileResolver.resolveRunFileName(MODULE_KEY, 0, 'webdav');
-    var runDate   = fileResolver.getRunDate(MODULE_KEY, 0);
-    var dir       = ensureImpexDir(impexPath);
-    var outFile   = new File(dir, fileName);
-    var writer    = null;
-    var built     = 0;
-    var failed    = 0;
-    var errors    = [];
-    var offset    = 0;
-    var total     = 0;
-    var customers = [];
-
+    var cached = String(session.custom[IDMAP_KEY] || '');
+    if (cached) {
+        try { return JSON.parse(cached); } catch (e) { /* rebuild */ }
+    }
+    var map = {};
     try {
-        var dirResult = uploader.ensureDirectory();
-        if (!dirResult.ok) {
-            return { ok: false, error: 'WebDAV directory creation failed: ' + dirResult.error };
-        }
-
-        writer = new FileWriter(outFile, 'UTF-8');
-        writer.write(xmlBuilder.XML_HEADER);
-
-        do {
-            var batch = fetcher.fetchBatch(offset, FETCH_BATCH_SIZE);
-            customers = batch.results || [];
-            total     = batch.total || 0;
-
-            if (offset === 0 && total > MAX_SINGLE_FILE_CUSTOMERS) {
-                writer.close();
-                return {
-                    ok:    false,
-                    error: 'Too many customers (' + total + ') for a single XML file. '
-                        + 'Maximum is ' + MAX_SINGLE_FILE_CUSTOMERS + '.'
-                };
+        var storeFetcher = require('*/cartridge/scripts/migration/storeMigration/ctpStoreFetcher');
+        var stores = storeFetcher.fetchAllCtpStores() || [];
+        var i;
+        for (i = 0; i < stores.length; i++) {
+            if (stores[i] && stores[i].id && stores[i].key) {
+                map[String(stores[i].id)] = String(stores[i].key);
             }
-
-            for (var i = 0; i < customers.length; i++) {
-                var fragment = xmlBuilder.buildCustomerFragment([customers[i]]);
-                writer.write(fragment.body);
-                built  += fragment.built;
-                failed += fragment.failed;
-                if (fragment.errors.length && errors.length < 5) {
-                    errors = errors.concat(fragment.errors.slice(0, 5 - errors.length));
-                }
-            }
-
-            offset += customers.length;
-        } while (offset < total && customers.length > 0);
-
-        writer.write(xmlBuilder.XML_FOOTER);
-        writer.close();
-        writer = null;
-
-        if (!built && !failed) {
-            return {
-                ok: true, total: total, nextOffset: 0, done: true,
-                built: 0, failed: 0, errors: [], impexPath: impexPath
-            };
         }
-
-        var putResult = uploader.uploadLocalFile(fileName);
-        if (!putResult.ok) {
-            return { ok: false, error: putResult.error };
-        }
-
-        return {
-            ok:         true,
-            total:      total,
-            nextOffset: total,
-            done:       true,
-            built:      built,
-            failed:     failed,
-            errors:     errors,
-            fileName:   fileName,
-            runDate:    runDate,
-            impexPath:  impexPath
-        };
-    } catch (e) {
-        if (writer) {
-            try { writer.close(); } catch (ce) { /* ignore */ }
-        }
-        return { ok: false, error: e.message || String(e) };
-    }
+    } catch (fe) { /* filenames fall back to store id */ }
+    session.custom[IDMAP_KEY] = JSON.stringify(map);
+    return map;
 }
 
 /**
- * @param {number} offset - ignored beyond 0/non-0: the whole run completes in a single call
- * @param {string} listId
+ * Fetch all CT customers (no store filter). Route each payload into the
+ * matching IMPEX series from Customer.stores while writing.
+ *
+ * @param {number} offset - 0 starts a new run
  * @returns {Object}
  */
-function runBatch(offset, listId) {
-    if (!listId) return { ok: false, error: 'listId is required' };
-
-    if (offset > 0) {
-        return {
-            ok: true, total: offset, nextOffset: offset, done: true,
-            built: 0, failed: 0, errors: [],
-            impexPath: fileResolver.getRelativePath(MODULE_KEY)
-        };
-    }
-
-    return runSingleFile(listId);
+function runBatch(offset) {
+    var isFirst = !offset;
+    var idToKey = loadIdToKey(isFirst);
+    return splitRunner.runBatch({
+        offset:          offset,
+        platformId:      'ctp',
+        bucketCustomers: true,
+        idToKey:         idToKey,
+        xmlBuilder:      xmlBuilder,
+        fetchPage: function (cursor) {
+            return fetcher.fetchPage({
+                limit:     FETCH_BATCH_SIZE,
+                lastId:    cursor || '',
+                withTotal: !cursor
+            });
+        }
+    });
 }
 
-module.exports = { runBatch: runBatch };
+module.exports = {
+    runBatch:          runBatch,
+    MAX_PER_FILE:      splitRunner.MAX_PER_FILE,
+    FETCH_BATCH_SIZE:  FETCH_BATCH_SIZE
+};
