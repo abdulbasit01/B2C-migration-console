@@ -109,7 +109,10 @@ function transformCustomer(shopifyCustomer) {
     // Keep migration-only identifiers outside c_*; they are not SFCC attributes.
     profile.source_customer_id = String(shopifyCustomer.id);
     // Phone has a native SFCC Profile equivalent (phoneMobile).
-    if (shopifyCustomer.phone)             profile.phone                       = shopifyCustomer.phone;
+    if (shopifyCustomer.phone) {
+        profile.phone = shopifyCustomer.phone;
+        profile.phone_mobile = shopifyCustomer.phone;
+    }
     if (shopifyCustomer.tags) profile.shopify_tags = parseTags(shopifyCustomer.tags);
 
     mapMetafields(profile, shopifyCustomer.metafields);
