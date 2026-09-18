@@ -251,10 +251,10 @@
             </div>
         </div>
 
-        <!-- ── Variant Product Attribute Selection Panel ── -->
+        <!-- ── Product and Variant Attribute Selection Panel ── -->
         <div id="prod-variant-attr-panel" style="margin:0 0 28px;border:1px solid #dddbda;border-radius:6px;overflow:hidden;">
             <div style="background:#f4f6f9;border-bottom:1px solid #dddbda;padding:11px 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-                <span style="font-weight:700;font-size:14px;color:#16325c;">&#x26A1; Variant Product Attribute Selection</span>
+                <span style="font-weight:700;font-size:14px;color:#16325c;">&#x26A1; Product &amp; Variant Attribute Selection</span>
                 <button id="prod-load-var-attrs-btn" type="button" class="acc-btn acc-btn--ghost">Load Attributes</button>
                 <span id="prod-var-attrs-msg" style="font-size:13px;color:#54698d;font-weight:600;"></span>
             </div>
@@ -277,8 +277,10 @@
                     </p>
                 <iselse/>
                     <p style="font-size:13px;color:#54698d;margin:0;">
-                        Select which CT variant product attributes to include in the SFCC XML during migration.
-                        Unselected attributes will be excluded. By default all attributes are included.
+                        In <strong>Partial Migration</strong>, enter the CT Product IDs first and load only attributes
+                        present on those products. In <strong>Full Migration</strong>, load attributes from all CT
+                        Product Types. CT stores these values on the master variant and additional variants.
+                        Unselected attributes will be excluded.
                     </p>
                 </isif>
                 <div id="prod-var-attrs-results" style="display:none;margin-top:14px;"></div>
@@ -523,6 +525,8 @@
         tabFull.className          = 'acc-tab';
         panelPartial.style.display = '';
         panelFull.style.display    = 'none';
+        currentAttrMode            = 'partial';
+        resetVarAttrsUi();
     });
 
     tabFull.addEventListener('click', function () {
@@ -530,6 +534,8 @@
         tabPartial.className       = 'acc-tab';
         panelFull.style.display    = '';
         panelPartial.style.display = 'none';
+        currentAttrMode            = 'full';
+        resetVarAttrsUi();
     });
 
     // ── Shared helpers ───────────────────────────────────────────────────────
@@ -651,13 +657,14 @@
     });
 
     // ════════════════════════════════════════════════════════════════════════
-    // VARIANT PRODUCT ATTRIBUTE SELECTION
+    // PRODUCT AND VARIANT ATTRIBUTE SELECTION
     // ════════════════════════════════════════════════════════════════════════
 
     var loadVarAttrsBtn  = document.getElementById('prod-load-var-attrs-btn');
     var varAttrsMsg      = document.getElementById('prod-var-attrs-msg');
     var varAttrsResults  = document.getElementById('prod-var-attrs-results');
     var allVarAttrs      = [];
+    var currentAttrMode  = 'partial';
 
     function resetVarAttrsUi() {
         allVarAttrs = [];
@@ -671,7 +678,9 @@
         }
         if (loadVarAttrsBtn) {
             loadVarAttrsBtn.disabled = false;
-            loadVarAttrsBtn.textContent = 'Load Attributes';
+            loadVarAttrsBtn.textContent = currentAttrMode === 'partial'
+                ? 'Load Product Attributes'
+                : 'Load All Attributes';
         }
     }
 
@@ -692,7 +701,9 @@
                     ? 'No variant option attributes found in sampled BigCommerce products.'
                     : (PLATFORM_ID === 'sap'
                         ? 'No variant option attributes found in sampled SAP Commerce products.'
-                        : 'No variant attributes found in CT product types.'));
+                        : (currentAttrMode === 'partial'
+                            ? 'None of the current attributes on the requested CT product(s) are available for selection.'
+                            : 'No product or variant attributes found in CT Product Types.')))
             varAttrsResults.innerHTML = '<p style="color:#54698d;font-size:13px;margin:0;">' + emptyMsg + '</p>';
             varAttrsResults.style.display = 'block';
             return;
@@ -766,7 +777,9 @@
             saveBtn.textContent = 'Saving...';
             saveMsg.textContent = '';
             if (validErr) validErr.style.display = 'none';
-            post(SAVE_VARIANT_ATTRS_URL, 'attrs=' + encodeURIComponent(JSON.stringify(selected)), function (data) {
+            post(SAVE_VARIANT_ATTRS_URL,
+                'attrs=' + encodeURIComponent(JSON.stringify(selected))
+                    + '&mode=' + encodeURIComponent(currentAttrMode), function (data) {
                 saveBtn.disabled = false;
                 if (data.ok) {
                     saveBtn.innerHTML       = '&#10003; Saved';
@@ -793,13 +806,26 @@
 
     if (loadVarAttrsBtn) {
         loadVarAttrsBtn.addEventListener('click', function () {
+            currentAttrMode = panelFull.style.display === 'none' ? 'partial' : 'full';
+            var productIds = '';
+            if (PLATFORM_ID === 'commercetools' && currentAttrMode === 'partial') {
+                var productIdsEl = document.getElementById('prod-ctp-ids');
+                productIds = productIdsEl ? productIdsEl.value.trim() : '';
+                if (!productIds) {
+                    varAttrsMsg.textContent = 'Enter CT Product ID(s) in Partial Migration before loading attributes.';
+                    varAttrsMsg.style.color = '#c62828';
+                    return;
+                }
+            }
             loadVarAttrsBtn.disabled    = true;
             loadVarAttrsBtn.textContent = 'Loading...';
             varAttrsMsg.textContent     = '';
             varAttrsResults.style.display = 'none';
 
             var xhr = new XMLHttpRequest();
-            xhr.open('GET', VARIANT_ATTRS_URL, true);
+            var attrsUrl = VARIANT_ATTRS_URL + '?mode=' + encodeURIComponent(currentAttrMode);
+            if (productIds) attrsUrl += '&productIds=' + encodeURIComponent(productIds);
+            xhr.open('GET', attrsUrl, true);
             xhr.onreadystatechange = function () {
                 if (xhr.readyState !== 4) return;
                 loadVarAttrsBtn.disabled    = false;
@@ -812,7 +838,13 @@
                     return;
                 }
                 var attrCount = (data.attrs || []).length;
-                varAttrsMsg.textContent = attrCount + ' attribute(s) found';
+                if (PLATFORM_ID === 'commercetools') {
+                    varAttrsMsg.textContent = currentAttrMode === 'partial' && data.productCount
+                        ? attrCount + ' attribute(s) found on ' + data.productCount + ' requested product(s)'
+                        : attrCount + ' attribute definition(s) found across CT Product Types';
+                } else {
+                    varAttrsMsg.textContent = attrCount + ' attribute(s) found';
+                }
                 varAttrsMsg.style.color = '#54698d';
                 renderVarAttrsTable(data.attrs || [], data.savedSelection);
             };

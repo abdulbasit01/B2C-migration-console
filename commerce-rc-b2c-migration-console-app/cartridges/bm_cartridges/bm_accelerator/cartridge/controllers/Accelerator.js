@@ -1226,6 +1226,7 @@ exports.GetBundleProductsInfo.public = true;
 
 exports.GetVariantAttrs = function () {
     var platform = String(session.custom.migrationPlatformId || 'commercetools');
+    var selectionMode = getParam('mode') === 'partial' ? 'partial' : 'full';
     try {
         var sfccClient       = require('*/cartridge/scripts/migration/sfccClient');
         var attrIdMapSession = require('*/cartridge/scripts/migration/core/attrIdMapSession');
@@ -1246,6 +1247,38 @@ exports.GetVariantAttrs = function () {
         } else {
             var checker = require('*/cartridge/scripts/migration/productMigration/productAttrChecker');
             fields = checker.getCtpProductTypeFields();
+
+            if (selectionMode === 'partial') {
+                var productIdsRaw = getParam('productIds') || '';
+                var productIds = String(productIdsRaw).split(',').map(function (id) {
+                    return String(id || '').trim();
+                }).filter(function (id) {
+                    return !!id;
+                });
+
+                if (!productIds.length) {
+                    jsonResponse({
+                        ok: false,
+                        error: 'Enter at least one CT Product ID before loading product-specific attributes.'
+                    });
+                    return;
+                }
+                if (productIds.length > 20) {
+                    jsonResponse({
+                        ok: false,
+                        error: 'Product-specific attribute loading supports at most 20 CT Product IDs at a time.'
+                    });
+                    return;
+                }
+
+                var ctpProductFetcher = require('*/cartridge/scripts/migration/productMigration/ctpProductFetcher');
+                var requestedProducts = [];
+                for (var pi = 0; pi < productIds.length; pi++) {
+                    requestedProducts.push(ctpProductFetcher.fetchById(productIds[pi]));
+                }
+                var productAttributeScope = require('*/cartridge/scripts/migration/productMigration/productAttributeScope');
+                fields = productAttributeScope.filterFieldsForProducts(fields, requestedProducts);
+            }
         }
 
         var existingIds = {};
@@ -1271,7 +1304,11 @@ exports.GetVariantAttrs = function () {
             });
         }
 
-        var savedRaw       = String(session.custom.selectedVariantAttrs || '');
+        var selectionSessionKey = selectionMode === 'partial'
+            ? 'selectedVariantAttrsPartial'
+            : 'selectedVariantAttrsFull';
+        var savedRaw = String(session.custom[selectionSessionKey]
+            || session.custom.selectedVariantAttrs || '');
         var savedSelection = null;
         if (savedRaw) {
             try { savedSelection = JSON.parse(savedRaw); } catch (pe) {}
@@ -1280,6 +1317,12 @@ exports.GetVariantAttrs = function () {
             ok:             true,
             attrs:          enriched,
             savedSelection: savedSelection,
+            mode:           selectionMode,
+            productCount:   selectionMode === 'partial' && platform === 'commercetools'
+                ? String(getParam('productIds') || '').split(',').filter(function (id) {
+                    return !!String(id || '').trim();
+                }).length
+                : 0,
             shopify:        isShopify,
             bigcommerce:    isBigCommerce
         });
@@ -1372,8 +1415,12 @@ exports.SaveVariantAttrSelection = function () {
             }
         }
 
-        session.custom.selectedVariantAttrs = JSON.stringify(selected);
-        jsonResponse({ ok: true });
+        var selectionMode = getParam('mode') === 'partial' ? 'partial' : 'full';
+        var selectionSessionKey = selectionMode === 'partial'
+            ? 'selectedVariantAttrsPartial'
+            : 'selectedVariantAttrsFull';
+        session.custom[selectionSessionKey] = JSON.stringify(selected);
+        jsonResponse({ ok: true, mode: selectionMode });
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
     }
@@ -2548,7 +2595,9 @@ exports.ProductWizard = function () {
     // Visit-scoped remaps reset on full page load / refresh (same as other modules).
     clearModuleAttrIdMap('product');
     try { session.custom.selectedVariantAttrs = ''; } catch (e1) { /* ignore */ }
-    try { session.custom.preflightSelection = ''; } catch (e2) { /* ignore */ }
+    try { session.custom.selectedVariantAttrsPartial = ''; } catch (e2) { /* ignore */ }
+    try { session.custom.selectedVariantAttrsFull = ''; } catch (e3) { /* ignore */ }
+    try { session.custom.preflightSelection = ''; } catch (e4) { /* ignore */ }
 
     ISML.renderTemplate('accelerator/productMigration', withBmFrame({
         title:          Resource.msg('accelerator.title', 'accelerator', null),
@@ -2664,7 +2713,8 @@ exports.FullProductMigrationBuildBatch = function () {
     }
     var selectedVarAttrs = null;
     try {
-        var raw = String(session.custom.selectedVariantAttrs || '');
+        var raw = String(session.custom.selectedVariantAttrsFull
+            || session.custom.selectedVariantAttrs || '');
         if (raw) { selectedVarAttrs = JSON.parse(raw); }
     } catch (pe) {}
     try {
@@ -2697,7 +2747,8 @@ exports.MigrateProductById = function () {
     }
     var selectedVarAttrs = null;
     try {
-        var raw = String(session.custom.selectedVariantAttrs || '');
+        var raw = String(session.custom.selectedVariantAttrsPartial
+            || session.custom.selectedVariantAttrs || '');
         if (raw) { selectedVarAttrs = JSON.parse(raw); }
     } catch (pe) {}
     try {
