@@ -35,6 +35,16 @@ function normalize(valueType) {
 }
 
 /**
+ * Normalize an attribute id for deterministic cross-platform comparisons.
+ * productName, product_name and product-name all normalize to productname.
+ * @param {string} attrId
+ * @returns {string}
+ */
+function normalizeAttrId(attrId) {
+    return String(attrId || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+/**
  * @param {Object.<string, boolean>} set
  * @param {string} valueType
  */
@@ -102,6 +112,60 @@ function filterPendingByType(field, pending) {
 }
 
 /**
+ * Existing custom targets must be type compatible. A localized source cannot
+ * be mapped to an explicitly non-localizable target without losing locales.
+ * @param {Object} field
+ * @param {{valueType?: string, localizable?: boolean|null}} target
+ * @returns {boolean}
+ */
+function isCustomTargetCompatible(field, target) {
+    if (!field || !target || !isCompatible(field, target.valueType)) return false;
+    var sourceLocalized = !!(field.sourceLocalizable || field.localizable || field.scope === 'localized');
+    if (sourceLocalized && target.localizable === false) return false;
+    return true;
+}
+
+/**
+ * Attach compatible existing SFCC custom attributes to each create candidate.
+ * A normalized id match is marked as recommended but still requires user confirmation.
+ * @param {Array<Object>} missing
+ * @param {Array<{id: string, displayName?: string, valueType?: string, localizable?: boolean|null}>} customAttrs
+ */
+function attachMappableCustomFields(missing, customAttrs) {
+    var i;
+    var c;
+    for (i = 0; i < (missing || []).length; i++) {
+        var field = missing[i];
+        if (!field) continue;
+        var sourceNorm = normalizeAttrId(field.id);
+        var targets = [];
+        for (c = 0; c < (customAttrs || []).length; c++) {
+            var target = customAttrs[c];
+            if (!target || !target.id || target.id === field.id) continue;
+            if (!isCustomTargetCompatible(field, target)) continue;
+            targets.push({
+                id:              target.id,
+                displayName:     target.displayName || target.id,
+                valueType:       target.valueType || '',
+                localizable:     target.localizable,
+                normalizedMatch: !!sourceNorm && sourceNorm === normalizeAttrId(target.id)
+            });
+        }
+        targets.sort(function (a, b) {
+            if (a.normalizedMatch !== b.normalizedMatch) return a.normalizedMatch ? -1 : 1;
+            var aid = String(a.id).toLowerCase();
+            var bid = String(b.id).toLowerCase();
+            if (aid === bid) return 0;
+            return aid < bid ? -1 : 1;
+        });
+        field.mappableCustomFields = targets;
+        field.suggestedCustomField = targets.length && targets[0].normalizedMatch
+            ? targets[0].id
+            : '';
+    }
+}
+
+/**
  * @param {Array<{ sfccType?: string, sfccTypeOptions?: Array }>} missing
  * @param {Array<{ id: string, valueType?: string }>} pending
  * @param {boolean} anyTyped - false → do not filter (no live types available)
@@ -133,8 +197,11 @@ function attachMappableSystemFields(missing, pending, anyTyped) {
 }
 
 module.exports = {
+    normalizeAttrId:             normalizeAttrId,
     allowedTypesForField:        allowedTypesForField,
     isCompatible:                isCompatible,
     filterPendingByType:         filterPendingByType,
-    attachMappableSystemFields:  attachMappableSystemFields
+    isCustomTargetCompatible:    isCustomTargetCompatible,
+    attachMappableSystemFields:  attachMappableSystemFields,
+    attachMappableCustomFields:  attachMappableCustomFields
 };

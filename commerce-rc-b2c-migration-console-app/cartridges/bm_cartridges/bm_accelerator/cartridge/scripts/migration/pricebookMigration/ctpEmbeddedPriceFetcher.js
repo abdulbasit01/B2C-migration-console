@@ -192,7 +192,10 @@ function getPriceCount(currency, channelId, aggregate) {
             total += records.length;
         }
         offset += batch.results.length;
-    } while (batch.results.length === limit && offset < batch.total);
+    // The shared product fetcher can reduce a page to stay below SFCC's HTTP
+    // response-size limit, so completion must use the returned total rather
+    // than assume every non-final page has the requested length.
+    } while (batch.results.length > 0 && offset < batch.total);
 
     return total;
 }

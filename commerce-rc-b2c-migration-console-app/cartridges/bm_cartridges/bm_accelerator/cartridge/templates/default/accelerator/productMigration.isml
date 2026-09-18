@@ -290,7 +290,7 @@
         <!-- ── Mode tabs ── -->
         <div style="display:flex;gap:0;border-bottom:2px solid #dddbda;margin-bottom:24px;">
             <button id="tab-partial" class="acc-tab acc-tab--active" type="button">Partial Migration</button>
-            <button id="tab-full"    class="acc-tab"                 type="button">Full Migration (XML/WebDAV)</button>
+            <button id="tab-full"    class="acc-tab"                 type="button">Full Migration (XML/IMPEX)</button>
         </div>
 
         <!-- ══════════════════════════════════════════════════════════════
@@ -395,30 +395,30 @@
 
             <isif condition="${pdict.platformId === 'shopify'}">
                 <p style="font-size:13px;color:#54698d;margin:0 0 16px;">
-                    Fetches all products from Shopify in batches of 50 (via GraphQL cursor pagination), builds SFCC catalog XML,
-                    and uploads to WebDAV. After upload, import the XML files in Business Manager.
+                    Fetches all products from Shopify in batches of 10 (via GraphQL cursor pagination), builds SFCC catalog XML,
+                    and writes it to IMPEX. After generation, import the XML file in Business Manager.
                 </p>
             <iselseif condition="${pdict.platformId === 'bigcommerce'}">
                 <p style="font-size:13px;color:#54698d;margin:0 0 16px;">
                     Fetches all products from BigCommerce (V3 <code>/catalog/products</code>) in batches of 50,
-                    builds SFCC catalog XML, and uploads to WebDAV. After upload, import the XML files in Business Manager.
+                    builds SFCC catalog XML, and writes it to IMPEX. After generation, import the XML file in Business Manager.
                 </p>
             <iselseif condition="${pdict.platformId === 'sap'}">
                 <p style="font-size:13px;color:#54698d;margin:0 0 16px;">
                     Fetches all products from SAP Commerce (OCC <code>/products/search</code>) in batches of 100,
-                    builds SFCC catalog XML, and uploads to WebDAV. After upload, import the XML files in Business Manager.
+                    builds SFCC catalog XML, and writes it to IMPEX. After generation, import the XML file in Business Manager.
                 </p>
             <iselse/>
                 <p style="font-size:13px;color:#54698d;margin:0 0 16px;">
-                    Fetches all products from Commercetools in batches of 500, builds SFCC catalog XML,
-                    and uploads to WebDAV. After upload, import the XML files in Business Manager.
+                    Fetches all products from Commercetools in adaptive batches starting at 50, builds SFCC catalog XML,
+                    and writes it to IMPEX. After generation, import the XML file in Business Manager.
                 </p>
             </isif>
 
             <ul class="acc-phases" id="full-phase-list" style="display:none;margin-bottom:24px;">
                 <li class="acc-phases__item acc-phases__item--pending" id="full-phase-build">
                     <div class="acc-phases__head">
-                        <span>Phase 1 &mdash; Build &amp; Upload XML to WebDAV</span>
+                        <span>Phase 1 &mdash; Build XML in SFCC IMPEX</span>
                         <span class="acc-phases__status" id="full-status-build">pending</span>
                     </div>
                     <p class="acc-phases__detail" id="full-detail-build"></p>
@@ -434,7 +434,7 @@
                     <p class="acc-phases__detail" id="full-detail-import">Complete Phase 1 first.</p>
                     <div id="full-phase2-instructions" style="display:none;margin-top:12px;">
                         <div class="acc-info-box" style="margin:0;">
-                            XML files uploaded to <code>/Impex/${pdict.impexPath}/</code>
+                            XML file generated in <code>/Impex/${pdict.impexPath}/</code>
                             (e.g. <code>product-YYYYMMDD-v001.xml</code>)<br/><br/>
                             <strong>To import in BM:</strong><br/>
                             <strong>Administration &rarr; Operations &rarr; Import &amp; Export</strong><br/>

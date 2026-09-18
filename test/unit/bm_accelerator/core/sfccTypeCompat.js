@@ -75,4 +75,44 @@ describe('sfccTypeCompat', function () {
         compat.attachMappableSystemFields(untypedMissing, untypedPending, false);
         assert.deepEqual(untypedMissing[0].mappableSystemFields, ['EAN', 'searchable']);
     });
+
+    it('normalizes camel, snake, kebab, and spaced attribute ids equally', function () {
+        assert.equal(compat.normalizeAttrId('productName'), 'productname');
+        assert.equal(compat.normalizeAttrId('product_name'), 'productname');
+        assert.equal(compat.normalizeAttrId('product-name'), 'productname');
+        assert.equal(compat.normalizeAttrId('Product Name'), 'productname');
+    });
+
+    it('attaches compatible existing custom targets and recommends a normalized match', function () {
+        var missing = [{
+            id: 'productName',
+            sfccType: 'string',
+            sourceLocalizable: true,
+            localizable: true
+        }];
+        compat.attachMappableCustomFields(missing, [
+            { id: 'product_name', valueType: 'string', localizable: true },
+            { id: 'brandLabel', valueType: 'string', localizable: true },
+            { id: 'featured', valueType: 'boolean', localizable: false },
+            { id: 'nonLocalizedName', valueType: 'string', localizable: false }
+        ]);
+
+        assert.equal(missing[0].suggestedCustomField, 'product_name');
+        assert.deepEqual(missing[0].mappableCustomFields.map(function (f) { return f.id; }), [
+            'product_name',
+            'brandLabel'
+        ]);
+        assert.isTrue(missing[0].mappableCustomFields[0].normalizedMatch);
+    });
+
+    it('does not recommend incompatible existing custom targets', function () {
+        var missing = [{ id: 'isFeatured', sfccType: 'boolean' }];
+        compat.attachMappableCustomFields(missing, [
+            { id: 'is_featured', valueType: 'string', localizable: false },
+            { id: 'featuredFlag', valueType: 'boolean', localizable: false }
+        ]);
+
+        assert.deepEqual(missing[0].mappableCustomFields.map(function (f) { return f.id; }), ['featuredFlag']);
+        assert.equal(missing[0].suggestedCustomField, '');
+    });
 });

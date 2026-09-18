@@ -3,7 +3,7 @@
         Step <isprint value="${pdict.currentStep}" formatter="#"/> &mdash; <span class="acc-highlight">Configure</span>
     </h2>
     <p class="acc-step-panel__intro">
-        Set up your product migration options. Products will be exported as SFCC catalog XML and uploaded via WebDAV.
+        Set up your product migration options. Products will be exported as SFCC catalog XML in the IMPEX directory.
     </p>
 
     <!-- SFCC Catalog ID -->
@@ -66,11 +66,11 @@
 
     <!-- Info box -->
     <div style="background:#f4f6f9;border:1px solid #dddbda;border-radius:4px;padding:16px 20px;font-size:13px;line-height:1.7;margin-top:20px;">
-        <strong>What happens next (per batch of 500 products):</strong><br/>
+        <strong>What happens next (adaptive product batches starting at 50):</strong><br/>
         <strong>products-N.xml</strong> — SFCC catalog XML (product records, variants, images, category assignments, SEO page-url)<br/>
         <strong>pricebook-N.xml</strong> — SFCC pricebook XML (variant prices extracted from CT embedded prices)<br/>
         <strong>inventory-N.xml</strong> — SFCC inventory XML (stock levels from CT Inventory API)<br/>
-        All files are uploaded to
+        All files are written to
         <code style="background:#e0e5ee;padding:1px 5px;border-radius:3px;font-family:monospace;font-size:12px;">/Impex/src/instance/ctp-product-migration/</code>
         via WebDAV, then a BM import job processes them.
     </div>

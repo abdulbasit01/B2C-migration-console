@@ -4,11 +4,13 @@
 
 var ctpFetcher   = require('*/cartridge/scripts/migration/productMigration/ctpProductFetcher');
 var xmlBuilder   = require('*/cartridge/scripts/migration/productMigration/productXmlBuilder');
-var uploader     = require('*/cartridge/scripts/migration/productMigration/productWebDavUploader');
 var fileResolver = require('*/cartridge/scripts/migration/core/migrationFileResolver');
 
 var MODULE_KEY         = 'product';
-var BATCH_SIZE         = 500; // CT batch size
+// CT product payloads can be large (variants, attributes and expanded references).
+// Keep the initial page comfortably below SFCC's 10 MB in-memory HTTP limit;
+// ctpProductFetcher will reduce it further when an unusually large page requires it.
+var BATCH_SIZE         = 50;
 var SHOPIFY_BATCH_SIZE = 10;  // Shopify GraphQL cost limit: 10 × (50+5+5+10) = 700 pts < 1000
 
 var CTP_PREFIX     = 'ctp';
@@ -26,6 +28,7 @@ var SK_FAILED     = 'migProdFailed';
 var SK_SETS       = 'migProdSets';
 var SK_BUNDLES    = 'migProdBundles';
 var SK_FILENAME   = 'migProdFileName';
+var SK_CTP_LIMIT  = 'migProdCtpPageSize';
 
 // Temp file names written to local IMPEX during accumulation
 var TEMP_PRODS   = 'prod-run-body.xml';
@@ -43,10 +46,30 @@ function getLocalPath(fileName) {
         + File.SEPARATOR + fileName;
 }
 
+/**
+ * Create the product migration directory before any temporary or final file is written.
+ * @returns {dw.io.File} local IMPEX directory
+ */
+function ensureLocalDirectory() {
+    var File  = require('dw/io/File');
+    var paths = require('*/cartridge/scripts/migration/core/migrationPaths');
+    var relDir = paths.getRelativePath(MODULE_KEY).replace(/\//g, File.SEPARATOR);
+    var dir = new File(File.IMPEX + File.SEPARATOR + relDir);
+
+    if (!dir.exists()) {
+        dir.mkdirs();
+    }
+    if (!dir.exists()) {
+        throw new Error('Unable to create local IMPEX directory: ' + relDir);
+    }
+    return dir;
+}
+
 function appendLocal(fileName, content) {
     if (!content) return;
     var File       = require('dw/io/File');
     var FileWriter = require('dw/io/FileWriter');
+    ensureLocalDirectory();
     var f = new File(getLocalPath(fileName));
     var w = new FileWriter(f, 'UTF-8', true); // append=true
     try { w.write(content); } finally { w.close(); }
@@ -257,18 +280,24 @@ function runCtpBatch(offset, catalogId, selectedVarAttrs) {
         setNum(SK_FAILED, 0);
         setNum(SK_SETS, 0);
         setNum(SK_BUNDLES, 0);
+        setNum(SK_CTP_LIMIT, BATCH_SIZE);
         session.custom[SK_FILENAME] = '';
     }
 
-    var batch    = ctpFetcher.fetchBatch(offset, BATCH_SIZE);
+    // Reuse a reduced page size learned by the fetcher. This avoids triggering
+    // the same oversized HTTP response again on every subsequent request.
+    var requestedPageSize = getNum(SK_CTP_LIMIT) || BATCH_SIZE;
+    var batch = ctpFetcher.fetchBatch(offset, requestedPageSize);
+    if (batch.pageSize && batch.pageSize !== requestedPageSize) {
+        setNum(SK_CTP_LIMIT, batch.pageSize);
+    }
     var rawProds = batch.results;
     var total    = batch.total;
 
     if (isFirst) {
         setNum(SK_TOTAL, total);
         // Resolve the single target filename for the entire run
-        var runDate  = fileResolver.getRunDate(MODULE_KEY, 0, CTP_PREFIX);
-        var fileName = fileResolver.resolveXmlFileName(MODULE_KEY, 0, BATCH_SIZE, 'webdav', CTP_PREFIX);
+        var fileName = fileResolver.resolveXmlFileName(MODULE_KEY, 0, BATCH_SIZE, 'local', CTP_PREFIX);
         session.custom[SK_FILENAME] = fileName;
     } else {
         total = getNum(SK_TOTAL);
@@ -280,11 +309,6 @@ function runCtpBatch(offset, catalogId, selectedVarAttrs) {
     if (!rawProds || rawProds.length === 0) {
         // Nothing fetched — finalize immediately
         return finalizeCtp(catalogId, total, 0, impexPath, targetFileName);
-    }
-
-    var dirResult = uploader.ensureDirectory();
-    if (!dirResult.ok) {
-        return { ok: false, error: 'WebDAV directory creation failed: ' + dirResult.error };
     }
 
     // Build batch parts and append to temp files
@@ -329,9 +353,8 @@ function finalizeCtp(catalogId, total, nextOffset, impexPath, fileName) {
     var FileWriter = require('dw/io/FileWriter');
     var paths      = require('*/cartridge/scripts/migration/core/migrationPaths');
 
-    var relDir    = paths.getRelativePath(MODULE_KEY).replace(/\//g, File.SEPARATOR);
-    var dir       = new File(File.IMPEX + File.SEPARATOR + relDir);
-    if (!dir.exists()) { dir.mkdirs(); }
+    var relDir = paths.getRelativePath(MODULE_KEY).replace(/\//g, File.SEPARATOR);
+    ensureLocalDirectory();
 
     var finalFile = new File(File.IMPEX + File.SEPARATOR + relDir + File.SEPARATOR + fileName);
     var writer    = new FileWriter(finalFile, 'UTF-8', false);
@@ -406,7 +429,7 @@ function runShopifyBatch(cursor, catalogId, selectedVarAttrs) {
         try { total = shopifyFetcher.getCount(); } catch (ce) {}
         setNum(SK_SHOPIFY_TOTAL, total);
 
-        var fileName = fileResolver.resolveXmlFileName(MODULE_KEY, 0, SHOPIFY_BATCH_SIZE, 'webdav', SHOPIFY_PREFIX);
+        var fileName = fileResolver.resolveXmlFileName(MODULE_KEY, 0, SHOPIFY_BATCH_SIZE, 'local', SHOPIFY_PREFIX);
         session.custom[SK_SHOPIFY_FILE] = fileName;
     }
 
@@ -452,9 +475,8 @@ function finalizeShopify(catalogId, total, impexPath, fileName) {
     var FileWriter = require('dw/io/FileWriter');
     var paths      = require('*/cartridge/scripts/migration/core/migrationPaths');
 
-    var relDir    = paths.getRelativePath(MODULE_KEY).replace(/\//g, File.SEPARATOR);
-    var dir       = new File(File.IMPEX + File.SEPARATOR + relDir);
-    if (!dir.exists()) { dir.mkdirs(); }
+    var relDir = paths.getRelativePath(MODULE_KEY).replace(/\//g, File.SEPARATOR);
+    ensureLocalDirectory();
 
     var finalFile = new File(File.IMPEX + File.SEPARATOR + relDir + File.SEPARATOR + fileName);
     var writer    = new FileWriter(finalFile, 'UTF-8', false);
@@ -538,8 +560,7 @@ function runSapBatch(offset, catalogId) {
 
     if (isFirst) {
         setNum(SK_SAP_TOTAL, total);
-        var runDate  = fileResolver.getRunDate(MODULE_KEY, 0, SAP_PREFIX);
-        var fileName = fileResolver.resolveXmlFileName(MODULE_KEY, 0, SAP_BATCH_SIZE, 'webdav', SAP_PREFIX);
+        var fileName = fileResolver.resolveXmlFileName(MODULE_KEY, 0, SAP_BATCH_SIZE, 'local', SAP_PREFIX);
         session.custom[SK_SAP_FILE] = fileName;
     } else {
         total = getNum(SK_SAP_TOTAL);
@@ -550,11 +571,6 @@ function runSapBatch(offset, catalogId) {
 
     if (!rawProds || rawProds.length === 0) {
         return finalizeSap(catalogId, total, 0, impexPath, targetFileName);
-    }
-
-    var dirResult = uploader.ensureDirectory();
-    if (!dirResult.ok) {
-        return { ok: false, error: 'WebDAV directory creation failed: ' + dirResult.error };
     }
 
     var parts = xmlBuilder.buildXmlParts(rawProds, catalogId, null, sapTransformer.transformProduct);
@@ -591,9 +607,8 @@ function finalizeSap(catalogId, total, nextOffset, impexPath, fileName) {
     var FileWriter = require('dw/io/FileWriter');
     var paths      = require('*/cartridge/scripts/migration/core/migrationPaths');
 
-    var relDir    = paths.getRelativePath(MODULE_KEY).replace(/\//g, File.SEPARATOR);
-    var dir       = new File(File.IMPEX + File.SEPARATOR + relDir);
-    if (!dir.exists()) { dir.mkdirs(); }
+    var relDir = paths.getRelativePath(MODULE_KEY).replace(/\//g, File.SEPARATOR);
+    ensureLocalDirectory();
 
     var finalFile = new File(File.IMPEX + File.SEPARATOR + relDir + File.SEPARATOR + fileName);
     var writer    = new FileWriter(finalFile, 'UTF-8', false);
@@ -676,7 +691,7 @@ function runBcBatch(offset, catalogId, selectedVarAttrs) {
 
     if (isFirst) {
         setNum(SK_BC_TOTAL, total);
-        var fileName = fileResolver.resolveXmlFileName(MODULE_KEY, 0, BC_BATCH_SIZE, 'webdav', BC_PREFIX);
+        var fileName = fileResolver.resolveXmlFileName(MODULE_KEY, 0, BC_BATCH_SIZE, 'local', BC_PREFIX);
         session.custom[SK_BC_FILE] = fileName;
     } else {
         total = getNum(SK_BC_TOTAL);
@@ -687,11 +702,6 @@ function runBcBatch(offset, catalogId, selectedVarAttrs) {
 
     if (!rawProds || rawProds.length === 0) {
         return finalizeBc(catalogId, total, 0, impexPath, targetFileName);
-    }
-
-    var dirResult = uploader.ensureDirectory();
-    if (!dirResult.ok) {
-        return { ok: false, error: 'WebDAV directory creation failed: ' + dirResult.error };
     }
 
     var parts = xmlBuilder.buildXmlParts(rawProds, catalogId, selectedVarAttrs, bcTransformer.transformProduct);
@@ -729,8 +739,7 @@ function finalizeBc(catalogId, total, nextOffset, impexPath, fileName) {
     var paths      = require('*/cartridge/scripts/migration/core/migrationPaths');
 
     var relDir = paths.getRelativePath(MODULE_KEY).replace(/\//g, File.SEPARATOR);
-    var dir    = new File(File.IMPEX + File.SEPARATOR + relDir);
-    if (!dir.exists()) { dir.mkdirs(); }
+    ensureLocalDirectory();
 
     var finalFile = new File(File.IMPEX + File.SEPARATOR + relDir + File.SEPARATOR + fileName);
     var writer    = new FileWriter(finalFile, 'UTF-8', false);
@@ -847,20 +856,14 @@ function runById(prodId, catalogId, selectedVarAttrs, platform) {
         transformerFn = null;
     }
 
-    var dirResult = uploader.ensureDirectory();
-    if (!dirResult.ok) {
-        return { ok: false, error: 'WebDAV directory creation failed: ' + dirResult.error };
-    }
-
-    var fileName      = fileResolver.resolveXmlFileName(MODULE_KEY, 0, 1, 'webdav', prefix);
+    ensureLocalDirectory();
+    var fileName      = fileResolver.resolveXmlFileName(MODULE_KEY, 0, 1, 'local', prefix);
     var catalogResult = xmlBuilder.buildXml([product], catalogId, selectedVarAttrs, transformerFn, getCtpXmlOpts(catalogId));
 
     var File       = require('dw/io/File');
     var FileWriter = require('dw/io/FileWriter');
     var paths      = require('*/cartridge/scripts/migration/core/migrationPaths');
     var relDir     = paths.getRelativePath(MODULE_KEY).replace(/\//g, File.SEPARATOR);
-    var dir        = new File(File.IMPEX + File.SEPARATOR + relDir);
-    if (!dir.exists()) { dir.mkdirs(); }
     var singleFile = new File(File.IMPEX + File.SEPARATOR + relDir + File.SEPARATOR + fileName);
     var sw         = new FileWriter(singleFile, 'UTF-8', false);
     try { sw.write(catalogResult.xml); } finally { sw.close(); }

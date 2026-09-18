@@ -101,10 +101,11 @@ function normalizeField(field, platformId) {
 /**
  * Build system-attr list and id lookup from OCAPI definitions.
  * @param {Array} allAttrs
- * @returns {{ systemAttrs: Array, systemIds: Object, systemIdsLower: Object, systemTypes: Object, existingIds: Object, existingIdsLower: Object }}
+ * @returns {{ systemAttrs: Array, customAttrs: Array, systemIds: Object, systemIdsLower: Object, systemTypes: Object, existingIds: Object, existingIdsLower: Object }}
  */
 function indexAttrs(allAttrs) {
     var systemAttrs = [];
+    var customAttrs = [];
     var systemIds   = {};
     var systemIdsLower = {};
     var systemTypes = {};
@@ -128,10 +129,13 @@ function indexAttrs(allAttrs) {
             if (a.valueType) {
                 systemTypes[a.id] = String(a.valueType);
             }
+        } else {
+            customAttrs.push(a);
         }
     }
     return {
         systemAttrs: systemAttrs,
+        customAttrs: customAttrs,
         systemIds: systemIds,
         systemIdsLower: systemIdsLower,
         systemTypes: systemTypes,
@@ -457,6 +461,7 @@ function classifyFields(opts) {
         }
     }
     sfccTypeCompat.attachMappableSystemFields(missing, coveragePending, anyTypedPending);
+    sfccTypeCompat.attachMappableCustomFields(missing, indexed.customAttrs);
 
     // Source fields intentionally not created (structural / platform / migrate elsewhere)
     var skipped = nativeFieldMap.getSkippedFields(
