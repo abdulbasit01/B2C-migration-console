@@ -15,6 +15,52 @@ function xmlEsc(val) {
 }
 
 /**
+ * Canonical string for one CT collection item.
+ * Enum/reference values use their stable keys/IDs. Nested values are retained
+ * as JSON instead of degrading to "[object Object]".
+ *
+ * @param {*} item CT collection item
+ * @returns {string}
+ */
+function collectionItemValue(item) {
+    if (item === null || item === undefined) return '';
+    if (typeof item === 'string' || typeof item === 'number' || typeof item === 'boolean') {
+        return String(item);
+    }
+    if (item && typeof item === 'object' && !Array.isArray(item)) {
+        if (item.key != null) return String(item.key);
+        if (item.id != null) return String(item.id);
+    }
+    try {
+        return JSON.stringify(item);
+    } catch (e) {
+        return '';
+    }
+}
+
+/**
+ * SFCC catalog.xsd represents multi-value custom attributes with repeated
+ * <value> children inside one custom-attribute element.
+ *
+ * @param {string} indent indentation
+ * @param {string} attrId SFCC attribute ID
+ * @param {Array} values CT collection
+ * @returns {string} custom-attribute XML
+ */
+function collectionCustomAttributeXml(indent, attrId, values) {
+    var inner = '';
+    var i;
+    for (i = 0; i < (values || []).length; i++) {
+        var value = collectionItemValue(values[i]);
+        if (!value) continue;
+        inner += indent + '    <value>' + xmlEsc(value) + '</value>\n';
+    }
+    if (!inner) return '';
+    return indent + '<custom-attribute attribute-id="' + xmlEsc(attrId) + '">\n'
+        + inner + indent + '</custom-attribute>\n';
+}
+
+/**
  * Resolve SFCC product attribute ID, applying visit-scoped renames.
  * @param {string} canonicalSfccId
  * @returns {string}
@@ -41,9 +87,10 @@ function isProductSystemAttr(attrId) {
  * @param {Array|null} selectedVarAttrs
  * @param {Object} productAttrMap - session attr id map
  * @param {string} indent
+ * @param {Array<string>} [variationAttributeNames] genuine CT variation axes
  * @returns {string} inner custom-attribute elements (no wrapper)
  */
-function buildCtpCustomAttrInner(attributes, selectedVarAttrs, productAttrMap, indent) {
+function buildCtpCustomAttrInner(attributes, selectedVarAttrs, productAttrMap, indent, variationAttributeNames) {
     var hasVarSelection = selectedVarAttrs && selectedVarAttrs.length;
     var inner = '';
     var list = attributes || [];
@@ -60,8 +107,10 @@ function buildCtpCustomAttrInner(attributes, selectedVarAttrs, productAttrMap, i
         if (isProductSystemAttr(attrIdMapSession.resolve(a.name, productAttrMap))) continue;
         aId = resolveProductAttrId(aId);
         if (isProductSystemAttr(aId)) continue;
-        if (Array.isArray(val)) continue;
-        inner += customAttributeXml(indent, aId, val);
+        inner += customAttributeXml(indent, aId, val, {
+            forceVariationKey: variationAttributeNames
+                && variationAttributeNames.indexOf(a.name) !== -1
+        });
     }
     return inner;
 }
@@ -208,7 +257,7 @@ function copyLocaleMap(map) {
  * @returns {{ key: string, displayMap: Object, localizable: boolean }|null}
  */
 function parseVariationValue(val) {
-    if (val == null || val === '') return null;
+    if (val == null || val === '' || Array.isArray(val)) return null;
     var key = '';
     var displayMap = {};
     var localizable = false;
@@ -299,8 +348,10 @@ function unlocalizedCustomAttribute(indent, attrId, scalar) {
  * the SFCC attribute is localizable. Non-localizable defs omit xml:lang.
  * Unknown defs: locale maps (ltext) keep xml:lang; variation keys do not.
  */
-function customAttributeXml(indent, attrId, val) {
+function customAttributeXml(indent, attrId, val, opts) {
     if (val === null || val === undefined) return '';
+    if (Array.isArray(val)) return collectionCustomAttributeXml(indent, attrId, val);
+    opts = opts || {};
     var axis = parseVariationValue(val);
     var sourceMap = normalizeLocaleMap(val);
     var map = Object.keys(sourceMap).length ? copyLocaleMap(sourceMap) : {};
@@ -314,6 +365,11 @@ function customAttributeXml(indent, attrId, val) {
     if (!scalar) return '';
 
     var loc = sfccAttrLocalizable(attrId);
+    if (opts.forceVariationKey && axis) {
+        return indent + '<custom-attribute attribute-id="' + xmlEsc(attrId) + '"'
+            + (loc === true ? ' xml:lang="x-default"' : '') + '>'
+            + xmlEsc(axis.key) + '</custom-attribute>\n';
+    }
     var hasLangs = localeMapHasLangs(sourceMap);
     if (loc === true || (loc == null && hasLangs)) {
         if (!Object.keys(map).length) {
@@ -418,6 +474,8 @@ function buildVariationsXml(t, selectedVarAttrs, platform) {
     var isShopify = platform === 'shopify';
     var isBc      = platform === 'bigcommerce';
     var hasVarSelection = selectedVarAttrs && selectedVarAttrs.length;
+    var ctpVariationNames = Array.isArray(t.variationAttributeNames)
+        ? t.variationAttributeNames : null;
     var attrPrefix = platform === 'shopify' ? 'shopify_'
         : (platform === 'sap' ? 'sap_'
             : (platform === 'bigcommerce' ? 'bc_' : ''));
@@ -445,6 +503,7 @@ function buildVariationsXml(t, selectedVarAttrs, platform) {
             } else {
                 if (hasVarSelection && selectedVarAttrs.indexOf(a.name) === -1) continue;
                 if (!hasVarSelection) continue;
+                if (ctpVariationNames && ctpVariationNames.indexOf(a.name) === -1) continue;
             }
 
             var axisRule = nativeMap.getRule(
@@ -630,7 +689,8 @@ function buildProductXml(t, selectedVarAttrs, xmlOpts) {
             t.masterAttributes || [],
             selectedVarAttrs,
             productAttrMap,
-            '            '
+            '            ',
+            t.variationAttributeNames
         );
         masterInner += ctpProductKeyCustomXml(t, productAttrMap, selectedVarAttrs, '            ');
         if (masterInner) {
@@ -756,7 +816,8 @@ function buildProductXml(t, selectedVarAttrs, xmlOpts) {
                     v.attributes,
                     selectedVarAttrs,
                     productAttrMap,
-                    '            '
+                    '            ',
+                    t.variationAttributeNames
                 );
             }
 

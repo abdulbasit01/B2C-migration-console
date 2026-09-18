@@ -296,6 +296,52 @@ describe('product localized XML', function () {
         assert.notMatch(result.productXml, /variation-attribute attribute-id="productspec"/);
     });
 
+    it('serializes CT collections and limits axes to derived variation attributes', function () {
+        var xmlBuilder = loadXmlBuilder();
+        var masterId = 'b3b8332c-b7b0-4707-b84e-c367f5ea287c';
+        var selected = ['packCount', 'pricePerEachForUS', 'flavors', 'mediaReferences', 'predesignedLentils'];
+        var attrs = [
+            { name: 'packCount', value: { key: '1-count', label: { en: '1 count' } } },
+            { name: 'pricePerEachForUS', value: 449 },
+            { name: 'flavors', value: [{ key: 'milk-chocolate', label: 'Milk Chocolate' }] },
+            {
+                name: 'mediaReferences',
+                value: [[{ name: 'mediaType', value: { key: 'image', label: 'Image' } }]]
+            },
+            { name: 'predesignedLentils', value: ['yellow', 'blue'] }
+        ];
+        var result = xmlBuilder.buildProductXml(sampleTransformed({
+            productId: masterId,
+            hasVariants: true,
+            masterAttributes: attrs,
+            variationAttributeNames: ['packCount'],
+            variants: [{
+                productId: masterId + '-1',
+                sku: '2000843097',
+                isDefault: true,
+                attributes: attrs
+            }]
+        }), selected, {
+            localizableAttrIds: {
+                packCount: true,
+                pricePerEachForUS: false,
+                flavors: false,
+                mediaReferences: false,
+                predesignedLentils: false
+            }
+        });
+
+        var xml = result.productXml;
+        assert.match(xml, /variation-attribute attribute-id="packCount"/);
+        assert.notMatch(xml, /variation-attribute attribute-id="pricePerEachForUS"/);
+        assert.notMatch(xml, /variation-attribute attribute-id="flavors"/);
+        assert.match(xml, /packCount" xml:lang="x-default">1-count<\/custom-attribute>/);
+        assert.match(xml, /attribute-id="flavors">\s*<value>milk-chocolate<\/value>/);
+        assert.match(xml, /attribute-id="predesignedLentils">\s*<value>yellow<\/value>\s*<value>blue<\/value>/);
+        assert.match(xml, /attribute-id="mediaReferences">[\s\S]*&quot;mediaType&quot;/);
+        assert.notMatch(xml, /\[object Object\]/);
+    });
+
     it('puts xml:lang on localizable custom-attribute entries and on display-value', function () {
         var xmlBuilder = loadXmlBuilder();
         var result = xmlBuilder.buildProductXml(sampleTransformed({

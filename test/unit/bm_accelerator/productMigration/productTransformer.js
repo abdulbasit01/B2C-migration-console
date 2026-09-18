@@ -221,6 +221,57 @@ describe('productTransformer map-driven system fields', function () {
         assert.deepEqual(t.masterAttributes, [{ name: 'product-spec', value: 'spec-on-master' }]);
     });
 
+    it('falls back to CT searchKeywords when metaKeywords is empty', function () {
+        var transformer = loadTransformer({});
+        var p = sampleProduct();
+        p.masterData.current.metaKeywords = null;
+        p.masterData.current.searchKeywords = {
+            en: [{ text: 'milk chocolate' }, { text: 'baked snacks' }],
+            de: [{ text: 'Schokolade' }]
+        };
+
+        var t = transformer.transformProduct(p);
+        assert.deepEqual(t.metaKeywordsLocales, {
+            en: 'milk chocolate, baked snacks',
+            de: 'Schokolade'
+        });
+        assert.equal(t.metaKeywords, 'milk chocolate, baked snacks');
+    });
+
+    it('derives only genuine scalar or enum attributes that vary as variation axes', function () {
+        var transformer = loadTransformer({});
+        var p = sampleProduct({
+            attrs: [
+                { name: 'packCount', value: { key: '1-count', label: { en: '1 count' } } },
+                { name: 'pricePerEachForUS', value: 449 },
+                { name: 'pdpUrl', value: { en: '/p?sku=one' } },
+                { name: 'flavors', value: [{ key: 'milk-chocolate', label: 'Milk Chocolate' }] }
+            ]
+        });
+        p.productType = {
+            obj: {
+                attributes: [
+                    { name: 'packCount', type: { name: 'lenum' }, attributeConstraint: 'CombinationUnique' },
+                    { name: 'pricePerEachForUS', type: { name: 'number' }, attributeConstraint: 'None' },
+                    { name: 'pdpUrl', type: { name: 'ltext' }, attributeConstraint: 'None' },
+                    { name: 'flavors', type: { name: 'set' }, attributeConstraint: 'None' }
+                ]
+            }
+        };
+        p.masterData.current.variants = [{
+            sku: 'SKU-B',
+            attributes: [
+                { name: 'packCount', value: { key: '6-count', label: { en: '6 count' } } },
+                { name: 'pricePerEachForUS', value: 408.16 },
+                { name: 'pdpUrl', value: { en: '/p?sku=two' } },
+                { name: 'flavors', value: [{ key: 'milk-chocolate', label: 'Milk Chocolate' }] }
+            ]
+        }];
+
+        var t = transformer.transformProduct(p);
+        assert.deepEqual(t.variationAttributeNames, ['packCount']);
+    });
+
     it('reads only masterData.current and ignores staged', function () {
         var transformer = loadTransformer({});
         var p = sampleProduct({

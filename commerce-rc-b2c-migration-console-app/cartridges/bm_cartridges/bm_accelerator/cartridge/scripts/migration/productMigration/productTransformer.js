@@ -223,6 +223,32 @@ function toLocaleMap(val) {
     return out;
 }
 
+/**
+ * Convert CT ProductData.searchKeywords to the localized comma-separated
+ * strings expected by SFCC page-keywords.
+ *
+ * @param {Object} searchKeywords CT locale -> SearchKeyword[] map
+ * @returns {Object.<string, string>} locale -> keyword string
+ */
+function searchKeywordsToLocaleMap(searchKeywords) {
+    var out = {};
+    var locales = Object.keys(searchKeywords || {});
+    var i;
+    for (i = 0; i < locales.length; i++) {
+        var locale = locales[i];
+        var entries = searchKeywords[locale] || [];
+        var values = [];
+        var j;
+        for (j = 0; j < entries.length; j++) {
+            var text = entries[j] && entries[j].text != null
+                ? String(entries[j].text).trim() : '';
+            if (text) values.push(text);
+        }
+        if (values.length) out[locale] = values.join(', ');
+    }
+    return out;
+}
+
 function sanitizeId(str) {
     if (!str) return '';
     return String(str)
@@ -259,6 +285,103 @@ function getAttrRawValue(attributes, attrName) {
         return attributes[i].value;
     }
     return null;
+}
+
+/**
+ * Stable SFCC variation key for one CT value. Collections, localized text,
+ * references and nested objects are deliberately not valid variation axes.
+ *
+ * @param {*} val CT attribute value
+ * @param {boolean} allowNumeric whether numeric/boolean keys are supported
+ * @returns {string|null} variation key
+ */
+function variationKey(val, allowNumeric) {
+    if (val === null || val === undefined || Array.isArray(val)) return null;
+    if (typeof val === 'object') {
+        if (val.typeId !== undefined || val.id !== undefined) return null;
+        return val.key != null && String(val.key).trim()
+            ? String(val.key).trim() : null;
+    }
+    if (typeof val === 'string') return val.trim() || null;
+    if (allowNumeric && (typeof val === 'number' || typeof val === 'boolean')) {
+        return String(val);
+    }
+    return null;
+}
+
+/**
+ * Derive genuine CT variation axes. An axis must vary across variants, be a
+ * scalar/enum value, and be compatible with its expanded Product Type
+ * definition. This prevents descriptive, localized, set and nested fields
+ * from becoming SFCC variation attributes.
+ *
+ * @param {Object} ctpProduct CT Product
+ * @param {Object} data selected ProductData projection
+ * @returns {Array<string>} source attribute names
+ */
+function deriveVariationAttributeNames(ctpProduct, data) {
+    var variants = [];
+    if (data && data.masterVariant) variants.push(data.masterVariant);
+    variants = variants.concat((data && data.variants) || []);
+    if (variants.length < 2) return [];
+
+    var defs = {};
+    var productType = ctpProduct && ctpProduct.productType && ctpProduct.productType.obj;
+    var attrDefs = (productType && productType.attributes) || [];
+    var di;
+    for (di = 0; di < attrDefs.length; di++) {
+        if (attrDefs[di] && attrDefs[di].name) defs[attrDefs[di].name] = attrDefs[di];
+    }
+
+    var names = {};
+    var vi;
+    var ai;
+    for (vi = 0; vi < variants.length; vi++) {
+        var attrs = variants[vi].attributes || [];
+        for (ai = 0; ai < attrs.length; ai++) {
+            if (attrs[ai] && attrs[ai].name) names[attrs[ai].name] = true;
+        }
+    }
+
+    var result = [];
+    var sourceNames = Object.keys(names);
+    var ni;
+    for (ni = 0; ni < sourceNames.length; ni++) {
+        var name = sourceNames[ni];
+        var def = defs[name] || null;
+        var typeName = def && def.type && def.type.name ? String(def.type.name) : '';
+        var constraint = def && def.attributeConstraint ? String(def.attributeConstraint) : '';
+
+        if (constraint === 'SameForAll'
+            || typeName === 'set' || typeName === 'nested' || typeName === 'reference'
+            || typeName === 'ltext' || typeName === 'money') {
+            continue;
+        }
+
+        var allowNumeric = constraint === 'CombinationUnique';
+        var keys = {};
+        var valid = true;
+        for (vi = 0; vi < variants.length; vi++) {
+            var raw = getAttrRawValue(variants[vi].attributes || [], name);
+            var key = variationKey(raw, allowNumeric);
+            if (key === null) {
+                valid = false;
+                break;
+            }
+            keys[key] = true;
+        }
+        if (!valid || Object.keys(keys).length < 2) continue;
+
+        // Expanded definitions are authoritative. Without one, only enum-like
+        // objects or strings are safe fallbacks; numeric business data is not.
+        if (def && typeName
+            && typeName !== 'enum' && typeName !== 'lenum' && typeName !== 'text'
+            && constraint !== 'CombinationUnique') {
+            continue;
+        }
+        result.push(name);
+    }
+    return result;
 }
 
 /**
@@ -352,7 +475,8 @@ function makeCtpSourceGetter(ctpProduct, data, mv) {
             case 'metaDescription':
                 return getLocalized(data.metaDescription) || '';
             case 'metaKeywords':
-                return getLocalized(data.metaKeywords) || '';
+                return getLocalized(data.metaKeywords)
+                    || getLocalized(searchKeywordsToLocaleMap(data.searchKeywords)) || '';
             case 'sku':
                 return (mv && mv.sku) ? String(mv.sku) : '';
             case 'taxCategory':
@@ -394,7 +518,9 @@ function makeCtpLocaleGetter(ctpProduct, data, mv) {
             case 'metaDescription':
                 return toLocaleMap(data.metaDescription);
             case 'metaKeywords':
-                return toLocaleMap(data.metaKeywords);
+                return Object.keys(toLocaleMap(data.metaKeywords)).length
+                    ? toLocaleMap(data.metaKeywords)
+                    : searchKeywordsToLocaleMap(data.searchKeywords);
             case 'id':
             case 'key':
             case 'sku':
@@ -496,6 +622,7 @@ function transformProduct(ctpProduct) {
 
     var mv      = data.masterVariant || {};
     var ctpVars = data.variants || [];
+    var variationAttributeNames = deriveVariationAttributeNames(ctpProduct, data);
     var getSourceValue = makeCtpSourceGetter(ctpProduct, data, mv);
     var getSourceLocales = makeCtpLocaleGetter(ctpProduct, data, mv);
 
@@ -624,6 +751,7 @@ function transformProduct(ctpProduct) {
         categories:               categories,
         classificationCategory:   classificationCategory,
         variants:                 variants,
+        variationAttributeNames: variationAttributeNames,
         hasVariants:              variants.length > 0,
         productKind:              productKind,
         setProducts:              setProducts,
