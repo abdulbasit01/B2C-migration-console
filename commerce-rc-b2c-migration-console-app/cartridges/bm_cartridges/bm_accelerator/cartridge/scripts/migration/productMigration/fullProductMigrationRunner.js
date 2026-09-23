@@ -5,6 +5,7 @@
 var ctpFetcher   = require('*/cartridge/scripts/migration/productMigration/ctpProductFetcher');
 var xmlBuilder   = require('*/cartridge/scripts/migration/productMigration/productXmlBuilder');
 var fileResolver = require('*/cartridge/scripts/migration/core/migrationFileResolver');
+var splitUtils   = require('*/cartridge/scripts/migration/productMigration/productSplitUtils');
 
 var MODULE_KEY         = 'product';
 // CT product payloads can be large (variants, attributes and expanded references).
@@ -29,6 +30,9 @@ var SK_SETS       = 'migProdSets';
 var SK_BUNDLES    = 'migProdBundles';
 var SK_FILENAME   = 'migProdFileName';
 var SK_CTP_LIMIT  = 'migProdCtpPageSize';
+var SK_IMAGE_BASE = 'migProdImageBaseUrl';
+var SK_PART       = 'migProdPart';
+var SK_IN_FILE    = 'migProdInFile';
 
 // Temp file names written to local IMPEX during accumulation
 var TEMP_PRODS   = 'prod-run-body.xml';
@@ -96,6 +100,16 @@ function removeLocal(fileName) {
     var File = require('dw/io/File');
     var f    = new File(getLocalPath(fileName));
     if (f.exists()) f.remove();
+}
+
+function localFileLength(fileName) {
+    var File = require('dw/io/File');
+    var f = new File(getLocalPath(fileName));
+    return f.exists() && f.isFile() ? Number(f.length()) : 0;
+}
+
+function currentCtpBodyBytes() {
+    return localFileLength(TEMP_PRODS) + localFileLength(TEMP_CATS);
 }
 
 /**
@@ -236,6 +250,9 @@ function fetchProductLocalizableAttrIds() {
 
 function getCtpXmlOpts(catalogId) {
     var opts = { catalogId: catalogId || '' };
+    if (session.custom[SK_IMAGE_BASE]) {
+        opts.externalImageBaseUrl = String(session.custom[SK_IMAGE_BASE]);
+    }
     var cached = loadCategoryMapFromTsv();
     if (cached) {
         opts.categoryIdToSfcc = cached;
@@ -255,22 +272,107 @@ function getNum(key) { return parseInt(String(session.custom[key] || 0), 10); }
 function addNum(key, n) { session.custom[key] = String(getNum(key) + (n || 0)); }
 function setNum(key, n) { session.custom[key] = String(n || 0); }
 
-// ─── CT single-file batch accumulator ───────────────────────────────────────
+// ─── CT 20k-per-file batch accumulator ──────────────────────────────────────
 
-/**
- * Run one CT batch — accumulates products/categories in local IMPEX temp files
- * and uploads a SINGLE XML file only on the final batch.
- *
- * @param {number} offset
- * @param {string} catalogId
- * @param {Array}  selectedVarAttrs
- * @returns {{ ok, total, nextOffset, done, built, failed, errors, setCount, bundleCount }}
- */
+function getStr(key) { return String(session.custom[key] || ''); }
+function setStr(key, value) { session.custom[key] = value == null ? '' : String(value); }
+
+function completedCtpFiles() {
+    var files = [];
+    var stem = getStr(SK_FILENAME);
+    var completedParts = Math.max(0, (getNum(SK_PART) || 1) - 1);
+    if (!stem) return files;
+    for (var part = 1; part <= completedParts; part++) {
+        files.push(splitUtils.buildPartFileName(stem, part));
+    }
+    return files;
+}
+
+function resolveCtpStem() {
+    var offset = 0;
+    var stem = fileResolver.resolveXmlFileName(MODULE_KEY, offset, BATCH_SIZE, 'local', CTP_PREFIX);
+    var File = require('dw/io/File');
+    var firstPart = new File(getLocalPath(splitUtils.buildPartFileName(stem, 1)));
+
+    while (firstPart.exists() && firstPart.isFile()) {
+        offset += BATCH_SIZE;
+        stem = fileResolver.resolveXmlFileName(MODULE_KEY, offset, BATCH_SIZE, 'local', CTP_PREFIX);
+        firstPart = new File(getLocalPath(splitUtils.buildPartFileName(stem, 1)));
+    }
+    return stem;
+}
+
+function finalizeCtpPart(catalogId, stem, allowEmpty) {
+    if (!getNum(SK_IN_FILE) && !allowEmpty) return '';
+
+    var File       = require('dw/io/File');
+    var FileWriter = require('dw/io/FileWriter');
+    var part       = getNum(SK_PART) || 1;
+    var fileName   = splitUtils.buildPartFileName(stem, part);
+    var finalFile  = new File(getLocalPath(fileName));
+    var writer     = new FileWriter(finalFile, 'UTF-8', false);
+    var writeErr   = null;
+    try {
+        writer.write(xmlBuilder.xmlHeader(catalogId, getStr(SK_IMAGE_BASE)));
+        copyFileTo(getLocalPath(TEMP_PRODS), writer);
+        copyFileTo(getLocalPath(TEMP_CATS), writer);
+        writer.write(xmlBuilder.XML_FOOTER);
+    } catch (e) {
+        writeErr = e;
+    } finally {
+        writer.close();
+    }
+    if (writeErr) {
+        throw new Error('Local IMPEX write failed: ' + (writeErr.message || String(writeErr)));
+    }
+
+    removeLocal(TEMP_PRODS);
+    removeLocal(TEMP_CATS);
+    setNum(SK_PART, part + 1);
+    setNum(SK_IN_FILE, 0);
+    return fileName;
+}
+
+function appendCtpProducts(rawProducts, catalogId, selectedVarAttrs, state) {
+    var remaining = rawProducts.slice(0);
+    var xmlOpts = getCtpXmlOpts(catalogId);
+    var stem = getStr(SK_FILENAME) || 'ctp-product-run.xml';
+
+    while (remaining.length) {
+        var capacity = splitUtils.MAX_PER_FILE - getNum(SK_IN_FILE);
+        if (capacity < 1) {
+            state.completed.push(finalizeCtpPart(catalogId, stem, false));
+            capacity = splitUtils.MAX_PER_FILE;
+        }
+
+        var group = remaining.splice(0, capacity);
+        var parts = xmlBuilder.buildXmlParts(group, catalogId, selectedVarAttrs, null, xmlOpts);
+        if (!getStr(SK_IMAGE_BASE) && parts.imageBaseUrl) setStr(SK_IMAGE_BASE, parts.imageBaseUrl);
+        appendLocal(TEMP_PRODS, parts.productsXml);
+        appendLocal(TEMP_CATS, parts.categoriesXml);
+        setNum(SK_IN_FILE, getNum(SK_IN_FILE) + group.length);
+
+        addNum(SK_BUILT, parts.built);
+        addNum(SK_FAILED, parts.failed);
+        addNum(SK_SETS, parts.setCount);
+        addNum(SK_BUNDLES, parts.bundleCount);
+        state.built += parts.built;
+        state.failed += parts.failed;
+        state.setCount += parts.setCount;
+        state.bundleCount += parts.bundleCount;
+        if (parts.errors && state.errors.length < 10) {
+            state.errors = state.errors.concat(parts.errors.slice(0, 10 - state.errors.length));
+        }
+
+        if (splitUtils.shouldRotate(getNum(SK_IN_FILE), currentCtpBodyBytes())) {
+            state.completed.push(finalizeCtpPart(catalogId, stem, false));
+        }
+    }
+}
+
 function runCtpBatch(offset, catalogId, selectedVarAttrs) {
-    var isFirst = (offset === 0);
-
+    var isFirst = offset === 0;
     if (isFirst) {
-        // Clear any leftover temp files and reset all session counters
         removeLocal(TEMP_PRODS);
         removeLocal(TEMP_CATS);
         removeLocal(TEMP_CATMAP);
@@ -281,120 +383,59 @@ function runCtpBatch(offset, catalogId, selectedVarAttrs) {
         setNum(SK_SETS, 0);
         setNum(SK_BUNDLES, 0);
         setNum(SK_CTP_LIMIT, BATCH_SIZE);
-        session.custom[SK_FILENAME] = '';
+        setNum(SK_PART, 1);
+        setNum(SK_IN_FILE, 0);
+        setStr(SK_FILENAME, '');
+        setStr(SK_IMAGE_BASE, '');
     }
 
-    // Reuse a reduced page size learned by the fetcher. This avoids triggering
-    // the same oversized HTTP response again on every subsequent request.
     var requestedPageSize = getNum(SK_CTP_LIMIT) || BATCH_SIZE;
     var batch = ctpFetcher.fetchBatch(offset, requestedPageSize);
-    if (batch.pageSize && batch.pageSize !== requestedPageSize) {
-        setNum(SK_CTP_LIMIT, batch.pageSize);
-    }
-    var rawProds = batch.results;
-    var total    = batch.total;
+    if (batch.pageSize && batch.pageSize !== requestedPageSize) setNum(SK_CTP_LIMIT, batch.pageSize);
+    var rawProds = batch.results || [];
+    var total = batch.total || 0;
 
     if (isFirst) {
         setNum(SK_TOTAL, total);
-        // Resolve the single target filename for the entire run
-        var fileName = fileResolver.resolveXmlFileName(MODULE_KEY, 0, BATCH_SIZE, 'local', CTP_PREFIX);
-        session.custom[SK_FILENAME] = fileName;
+        setStr(SK_FILENAME, resolveCtpStem());
     } else {
         total = getNum(SK_TOTAL);
     }
 
-    var impexPath = fileResolver.getRelativePath(MODULE_KEY);
-    var targetFileName = String(session.custom[SK_FILENAME] || 'product-run.xml');
-
-    if (!rawProds || rawProds.length === 0) {
-        // Nothing fetched — finalize immediately
-        return finalizeCtp(catalogId, total, 0, impexPath, targetFileName);
-    }
-
-    // Build batch parts and append to temp files
-    var xmlOpts = getCtpXmlOpts(catalogId);
-    var parts = xmlBuilder.buildXmlParts(rawProds, catalogId, selectedVarAttrs, null, xmlOpts);
-    appendLocal(TEMP_PRODS, parts.productsXml);
-    appendLocal(TEMP_CATS,  parts.categoriesXml);
-
-    // Accumulate counters in session
-    addNum(SK_BUILT,   parts.built);
-    addNum(SK_FAILED,  parts.failed);
-    addNum(SK_SETS,    parts.setCount);
-    addNum(SK_BUNDLES, parts.bundleCount);
+    var state = { built: 0, failed: 0, setCount: 0, bundleCount: 0, errors: [], completed: [] };
+    if (rawProds.length) appendCtpProducts(rawProds, catalogId, selectedVarAttrs, state);
 
     var nextOffset = offset + rawProds.length;
-    var done       = nextOffset >= total || rawProds.length === 0;
-
+    var done = !rawProds.length || nextOffset >= total;
     if (done) {
-        return finalizeCtp(catalogId, total, nextOffset, impexPath, targetFileName);
+        if (getNum(SK_IN_FILE)) {
+            state.completed.push(finalizeCtpPart(catalogId, getStr(SK_FILENAME), false));
+        } else if (!completedCtpFiles().length) {
+            state.completed.push(finalizeCtpPart(catalogId, getStr(SK_FILENAME), true));
+        }
+        removeLocal(TEMP_CATMAP);
+        removeLocal(TEMP_LOCATTR);
     }
 
+    var files = completedCtpFiles();
     return {
-        ok:          true,
-        total:       total,
-        nextOffset:  nextOffset,
-        done:        false,
-        built:       parts.built,
-        failed:      parts.failed,
-        errors:      parts.errors || [],
-        setCount:    parts.setCount,
-        bundleCount: parts.bundleCount
-    };
-}
-
-/**
- * Assemble accumulated temp files into the final XML by piping line-by-line —
- * never loads the full XML into a JS string (avoids api.jsStringLength quota).
- * Writes directly to local IMPEX (same physical location as WebDAV PUT target).
- */
-function finalizeCtp(catalogId, total, nextOffset, impexPath, fileName) {
-    var File       = require('dw/io/File');
-    var FileWriter = require('dw/io/FileWriter');
-    var paths      = require('*/cartridge/scripts/migration/core/migrationPaths');
-
-    var relDir = paths.getRelativePath(MODULE_KEY).replace(/\//g, File.SEPARATOR);
-    ensureLocalDirectory();
-
-    var finalFile = new File(File.IMPEX + File.SEPARATOR + relDir + File.SEPARATOR + fileName);
-    var writer    = new FileWriter(finalFile, 'UTF-8', false);
-    var writeErr  = null;
-    try {
-        writer.write(xmlBuilder.xmlHeader(catalogId));
-        copyFileTo(getLocalPath(TEMP_PRODS), writer);
-        copyFileTo(getLocalPath(TEMP_CATS),  writer);
-        writer.write(xmlBuilder.XML_FOOTER);
-    } catch (we) {
-        writeErr = we;
-    } finally {
-        writer.close();
-    }
-
-    removeLocal(TEMP_PRODS);
-    removeLocal(TEMP_CATS);
-    removeLocal(TEMP_CATMAP);
-
-    if (writeErr) {
-        return { ok: false, error: 'Local IMPEX write failed: ' + (writeErr.message || String(writeErr)) };
-    }
-
-    var built   = getNum(SK_BUILT);
-    var failed  = getNum(SK_FAILED);
-    var sets    = getNum(SK_SETS);
-    var bundles = getNum(SK_BUNDLES);
-
-    return {
-        ok:          true,
-        total:       total,
-        nextOffset:  nextOffset,
-        done:        true,
-        built:       built,
-        failed:      failed,
-        errors:      [],
-        setCount:    sets,
-        bundleCount: bundles,
-        fileName:    fileName,
-        impexPath:   impexPath
+        ok:            true,
+        total:         total,
+        nextOffset:    nextOffset,
+        done:          done,
+        built:         done ? getNum(SK_BUILT) : state.built,
+        failed:        done ? getNum(SK_FAILED) : state.failed,
+        errors:        state.errors,
+        setCount:      done ? getNum(SK_SETS) : state.setCount,
+        bundleCount:   done ? getNum(SK_BUNDLES) : state.bundleCount,
+        fileName:      state.completed.length ? state.completed[state.completed.length - 1] : '',
+        fileNames:     state.completed,
+        files:         files,
+        fileCount:     files.length,
+        expectedFiles: splitUtils.expectedFileCount(total),
+        maxPerFile:    splitUtils.MAX_PER_FILE,
+        maxBytesPerFile: splitUtils.MAX_BYTES_PER_FILE,
+        impexPath:     fileResolver.getRelativePath(MODULE_KEY)
     };
 }
 

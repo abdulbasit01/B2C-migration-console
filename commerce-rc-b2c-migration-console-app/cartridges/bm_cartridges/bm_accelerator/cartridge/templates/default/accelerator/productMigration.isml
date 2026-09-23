@@ -413,7 +413,7 @@
             <iselse/>
                 <p style="font-size:13px;color:#54698d;margin:0 0 16px;">
                     Fetches all products from Commercetools in adaptive batches starting at 50, builds SFCC catalog XML,
-                    and writes it to IMPEX. After generation, import the XML file in Business Manager.
+                    and rotates XML files at 20,000 source product families or approximately 100 MiB in IMPEX.
                 </p>
             </isif>
 
@@ -436,11 +436,10 @@
                     <p class="acc-phases__detail" id="full-detail-import">Complete Phase 1 first.</p>
                     <div id="full-phase2-instructions" style="display:none;margin-top:12px;">
                         <div class="acc-info-box" style="margin:0;">
-                            XML file generated in <code>/Impex/${pdict.impexPath}/</code>
-                            (e.g. <code>product-YYYYMMDD-v001.xml</code>)<br/><br/>
+                            XML file(s) generated in <code>/Impex/${pdict.impexPath}/</code>.<br/><br/>
                             <strong>To import in BM:</strong><br/>
                             <strong>Administration &rarr; Operations &rarr; Import &amp; Export</strong><br/>
-                            &rarr; Select <strong>Catalog</strong> &rarr; choose the uploaded XML file &rarr; Import<br/><br/>
+                            &rarr; Select <strong>Catalog</strong> &rarr; import each generated XML file.<br/><br/>
                             <em>Or run a BM Job with step type <code>sfcc.catalog.catalog-import</code>
                             pointing to <code>/Impex/${pdict.impexPath}/</code>.</em>
                         </div>
@@ -690,6 +689,15 @@
         if (ev.persisted) resetVarAttrsUi();
     });
 
+    function escapeVarAttrHtml(value) {
+        return String(value == null ? '' : value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
     function renderVarAttrsTable(attrs, savedSelection) {
         allVarAttrs = attrs;
         varAttrsResults.innerHTML = '';
@@ -723,25 +731,36 @@
             + '<th>Label</th>'
             + '<th>' + typeCol + '</th>'
             + '<th>SFCC Attribute ID</th>'
-            + '<th style="width:90px;text-align:center;">In SFCC</th>'
+            + '<th style="width:150px;text-align:center;">SFCC Status</th>'
             + '</tr></thead><tbody>';
 
         for (var i = 0; i < attrs.length; i++) {
             var attr      = attrs[i];
             var inSfcc    = attr.existsInSfcc;
-            var isChecked = (!savedSelection) || (savedSelection.indexOf(attr.name) !== -1);
-            var rowStyle  = inSfcc ? '' : ' style="background:#fafafa;"';
-            var inSfccBadge = inSfcc
-                ? '<span style="color:#2e7d32;font-weight:700;">&#10003;</span>'
-                : '<span style="color:#c62828;font-size:11px;">&#10007;</span>';
+            var compatibilityChecked = attr.variationCompatibilityChecked === true;
+            var isCompatible = attr.variationCompatible !== false;
+            var isChecked = isCompatible && ((!savedSelection) || (savedSelection.indexOf(attr.name) !== -1));
+            var rowStyle  = !isCompatible
+                ? ' style="background:#fff4f4;"'
+                : (inSfcc ? '' : ' style="background:#fafafa;"');
+            var inSfccBadge = !inSfcc
+                ? '<span style="color:#c62828;font-size:11px;">&#10007; Missing</span>'
+                : (!isCompatible
+                    ? '<span style="color:#c62828;font-size:11px;" title="'
+                        + escapeVarAttrHtml(attr.variationIssue) + '">&#9888; Incompatible</span>'
+                    : '<span style="color:#2e7d32;font-weight:700;">&#10003; '
+                        + (compatibilityChecked ? 'Ready' : 'Exists') + '</span>');
             html += '<tr' + rowStyle + '>'
-                + '<td style="text-align:center;"><input type="checkbox" class="prod-var-attr-cb" data-name="' + attr.name + '" data-in-sfcc="' + (inSfcc ? '1' : '0') + '"' + (isChecked ? ' checked' : '') + '/></td>'
-                + '<td><code>' + attr.name + '</code></td>'
-                + '<td>' + (attr.label || attr.name) + '</td>'
-                + '<td style="color:#8a9ab8;">' + attr.ctpType + '</td>'
-                + '<td style="color:#0070d2;font-size:12px;font-family:monospace;">' + attr.sfccId
+                + '<td style="text-align:center;"><input type="checkbox" class="prod-var-attr-cb" data-name="' + escapeVarAttrHtml(attr.name) + '" data-in-sfcc="' + (inSfcc ? '1' : '0') + '"' + (isChecked ? ' checked' : '') + (!isCompatible ? ' disabled' : '') + '/></td>'
+                + '<td><code>' + escapeVarAttrHtml(attr.name) + '</code></td>'
+                + '<td>' + escapeVarAttrHtml(attr.label || attr.name) + '</td>'
+                + '<td style="color:#8a9ab8;">' + escapeVarAttrHtml(attr.ctpType) + '</td>'
+                + '<td style="color:#0070d2;font-size:12px;font-family:monospace;">' + escapeVarAttrHtml(attr.sfccId)
                 + (attr.remapped && attr.originalSfccId
-                    ? '<div style="margin-top:3px;font-size:11px;color:#54698d;font-family:sans-serif;">mapped from <code>' + attr.originalSfccId + '</code></div>'
+                    ? '<div style="margin-top:3px;font-size:11px;color:#54698d;font-family:sans-serif;">mapped from <code>' + escapeVarAttrHtml(attr.originalSfccId) + '</code></div>'
+                    : '')
+                + (!isCompatible
+                    ? '<div style="margin-top:3px;font-size:11px;color:#c62828;font-family:sans-serif;">' + escapeVarAttrHtml(attr.variationIssue) + '</div>'
                     : '')
                 + '</td>'
                 + '<td style="text-align:center;">' + inSfccBadge + '</td>'
@@ -761,14 +780,16 @@
 
         document.getElementById('prod-var-attr-select-all').addEventListener('change', function () {
             var cbs = document.querySelectorAll('.prod-var-attr-cb');
-            for (var c = 0; c < cbs.length; c++) { cbs[c].checked = this.checked; }
+            for (var c = 0; c < cbs.length; c++) {
+                if (!cbs[c].disabled) cbs[c].checked = this.checked;
+            }
         });
 
         document.getElementById('prod-save-var-attrs-btn').addEventListener('click', function () {
             var selected = [];
             var cbs = document.querySelectorAll('.prod-var-attr-cb');
             for (var c = 0; c < cbs.length; c++) {
-                if (cbs[c].checked) { selected.push(cbs[c].getAttribute('data-name')); }
+                if (!cbs[c].disabled && cbs[c].checked) { selected.push(cbs[c].getAttribute('data-name')); }
             }
             var saveBtn  = document.getElementById('prod-save-var-attrs-btn');
             var saveMsg  = document.getElementById('prod-save-var-attrs-msg');
@@ -790,9 +811,22 @@
                 } else if (data.validationError) {
                     saveBtn.textContent = 'Retry';
                     if (validErr) {
-                        validErr.innerHTML = '<strong>&#9888; These attribute(s) do not exist in SFCC yet:</strong> '
-                            + (data.notInSfcc || []).map(function (n) { return '<code>' + n + '</code>'; }).join(', ')
-                            + '<br/><span style="font-weight:400;">Create them first using <em>Attribute Pre-flight Check</em> above, then try saving again.</span>';
+                        var errorHtml = '';
+                        if (data.notInSfcc && data.notInSfcc.length) {
+                            errorHtml += '<strong>&#9888; These attribute(s) do not exist in SFCC yet:</strong> '
+                                + data.notInSfcc.map(function (n) { return '<code>' + escapeVarAttrHtml(n) + '</code>'; }).join(', ')
+                                + '<br/><span style="font-weight:400;">Create them first using <em>Attribute Pre-flight Check</em> above, then try saving again.</span>';
+                        }
+                        if (data.incompatibleVariationAttrs && data.incompatibleVariationAttrs.length) {
+                            if (errorHtml) errorHtml += '<br/><br/>';
+                            errorHtml += '<strong>&#9888; These SFCC attributes cannot be variation axes:</strong><br/>'
+                                + data.incompatibleVariationAttrs.map(function (item) {
+                                    return '<code>' + escapeVarAttrHtml(item.id || item.name) + '</code>: '
+                                        + escapeVarAttrHtml(item.message || 'incompatible definition');
+                                }).join('<br/>')
+                                + '<br/><span style="font-weight:400;">Use a non-localizable, non-site-specific String or Integer attribute.</span>';
+                        }
+                        validErr.innerHTML = errorHtml || 'The variation attribute selection is invalid.';
                         validErr.style.display = 'block';
                     }
                 } else {
@@ -1031,8 +1065,13 @@
             fullFailed      += (data.failed      || 0);
             fullSetCount    += (data.setCount    || 0);
             fullBundleCount += (data.bundleCount || 0);
-            if (data.fileName && fullXmlFiles.indexOf(data.fileName) === -1) {
-                fullXmlFiles.push(data.fileName);
+            var completedFiles = data.fileNames && data.fileNames.length
+                ? data.fileNames
+                : (data.fileName ? [data.fileName] : []);
+            for (var fi = 0; fi < completedFiles.length; fi++) {
+                if (fullXmlFiles.indexOf(completedFiles[fi]) === -1) {
+                    fullXmlFiles.push(completedFiles[fi]);
+                }
             }
             fullOverall.textContent = fullBuilt + ' migrated'
                 + (fullFailed ? ' — ' + fullFailed + ' failed' : '');
@@ -1040,7 +1079,10 @@
             if (!data.done) {
                 runFullBatch(data.nextOffset, data.total);
             } else {
-                // On done, the server returns accumulated totals (single-file mode)
+                if (data.files && data.files.length) {
+                    fullXmlFiles = data.files.slice(0);
+                }
+                // On done, the server returns accumulated totals and all generated files.
                 // Override local accumulators with server totals if provided
                 if (data.setCount    !== undefined) fullSetCount    = data.setCount;
                 if (data.bundleCount !== undefined) fullBundleCount = data.bundleCount;
@@ -1080,7 +1122,7 @@
             if (fullFailed > 0) {
                 lines.push('<span style="color:#b94a48;">&bull; <strong>' + fullFailed + '</strong> skipped (errors)</span>');
             }
-            lines.push('<em>Now import the XML file in BM &mdash; see Phase 2 below.</em>');
+            lines.push('<em>Now import the generated XML file(s) in BM &mdash; see Phase 2 below.</em>');
             fullStatus.innerHTML = lines.join('<br>');
             renderDownloadLinks(fullStatus, fullXmlFiles);
             setPhase('full', 'import', 'active', 'Ready — follow import instructions below.', null);

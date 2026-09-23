@@ -221,6 +221,48 @@ describe('productTransformer map-driven system fields', function () {
         assert.deepEqual(t.masterAttributes, [{ name: 'product-spec', value: 'spec-on-master' }]);
     });
 
+    it('projects native and custom CT media into deduplicated variant images', function () {
+        var transformer = loadTransformer({});
+        var fallbackUrl = 'https://cdn.media.amplience.net/i/marsmmsnonprod/product_fallback';
+        var p = sampleProduct({
+            attrs: [
+                { name: 'imageUrls', value: [fallbackUrl] },
+                {
+                    name: 'mediaReferences',
+                    value: [[
+                        { name: 'mediaType', value: { key: 'image', label: 'Image' } },
+                        { name: 'mediaUrl', value: fallbackUrl },
+                        { name: 'mediaAltText', value: 'Fallback pack shot' },
+                        { name: 'mediaAltTextLocalized', value: { en: 'Fallback pack shot', de: 'Packungsbild' } }
+                    ], [
+                        { name: 'mediaType', value: { key: 'video', label: 'Video' } },
+                        { name: 'mediaUrl', value: 'https://cdn.media.amplience.net/v/demo/video' }
+                    ]]
+                }
+            ]
+        });
+        p.masterData.current.masterVariant.images = [{
+            url: 'https://cdn.media.amplience.net/i/marsmmsnonprod/hero',
+            label: 'Hero image'
+        }];
+
+        var t = transformer.transformProduct(p);
+
+        assert.lengthOf(t.masterImages, 2);
+        assert.deepEqual(t.masterImages[0], {
+            url: 'https://cdn.media.amplience.net/i/marsmmsnonprod/hero',
+            alt: 'Hero image',
+            altLocales: {}
+        });
+        assert.deepEqual(t.masterImages[1], {
+            url: fallbackUrl,
+            alt: 'Fallback pack shot',
+            altLocales: { en: 'Fallback pack shot', de: 'Packungsbild' }
+        });
+        assert.deepEqual(t.variants[0].images, t.masterImages);
+        assert.deepEqual(t.masterAttributes, p.masterData.current.masterVariant.attributes);
+    });
+
     it('falls back to CT searchKeywords when metaKeywords is empty', function () {
         var transformer = loadTransformer({});
         var p = sampleProduct();

@@ -223,6 +223,97 @@ function toLocaleMap(val) {
     return out;
 }
 
+function attributeValue(attributes, name) {
+    var list = attributes || [];
+    var i;
+    for (i = 0; i < list.length; i++) {
+        if (list[i] && list[i].name === name) return list[i].value;
+    }
+    return null;
+}
+
+function nestedAttributeValue(item, name) {
+    if (!item) return null;
+    if (!Array.isArray(item)) {
+        return Object.prototype.hasOwnProperty.call(item, name) ? item[name] : null;
+    }
+    var i;
+    for (i = 0; i < item.length; i++) {
+        if (item[i] && item[i].name === name) return item[i].value;
+    }
+    return null;
+}
+
+function mediaTypeKey(value) {
+    if (value == null) return '';
+    if (typeof value === 'object' && value.key != null) return String(value.key).toLowerCase();
+    return String(value).toLowerCase();
+}
+
+/**
+ * Collect native CT images plus imageUrls/mediaReferences custom media.
+ * Source attributes remain untouched and are still exported separately.
+ *
+ * @param {Object} ctpVariant commercetools ProductVariant
+ * @returns {Array<{url: string, alt: string, altLocales: Object}>}
+ */
+function extractVariantImages(ctpVariant) {
+    var variant = ctpVariant || {};
+    var out = [];
+    var byUrl = {};
+
+    function add(url, alt, altLocales) {
+        var cleanUrl = url == null ? '' : String(url).trim();
+        if (!/^https?:\/\//i.test(cleanUrl)) return;
+        var localized = toLocaleMap(altLocales);
+        var cleanAlt = alt == null ? '' : String(alt).trim();
+        var existing = byUrl[cleanUrl];
+        if (existing != null) {
+            if (!out[existing].alt && cleanAlt) out[existing].alt = cleanAlt;
+            if (!Object.keys(out[existing].altLocales).length && Object.keys(localized).length) {
+                out[existing].altLocales = localized;
+            }
+            return;
+        }
+        byUrl[cleanUrl] = out.length;
+        out.push({ url: cleanUrl, alt: cleanAlt, altLocales: localized });
+    }
+
+    var nativeImages = variant.images || [];
+    var i;
+    for (i = 0; i < nativeImages.length; i++) {
+        var nativeImage = nativeImages[i] || {};
+        add(nativeImage.url, nativeImage.label, null);
+    }
+
+    var imageUrls = attributeValue(variant.attributes, 'imageUrls');
+    if (!Array.isArray(imageUrls)) imageUrls = imageUrls == null ? [] : [imageUrls];
+    for (i = 0; i < imageUrls.length; i++) {
+        var imageUrl = imageUrls[i];
+        if (imageUrl && typeof imageUrl === 'object') {
+            imageUrl = imageUrl.url || imageUrl.value || imageUrl.path;
+        }
+        add(imageUrl, '', null);
+    }
+
+    var mediaReferences = attributeValue(variant.attributes, 'mediaReferences');
+    if (!Array.isArray(mediaReferences)) {
+        mediaReferences = mediaReferences == null ? [] : [mediaReferences];
+    }
+    for (i = 0; i < mediaReferences.length; i++) {
+        var media = mediaReferences[i];
+        var mediaType = mediaTypeKey(nestedAttributeValue(media, 'mediaType'));
+        if (mediaType && mediaType !== 'image') continue;
+        add(
+            nestedAttributeValue(media, 'mediaUrl'),
+            nestedAttributeValue(media, 'mediaAltText'),
+            nestedAttributeValue(media, 'mediaAltTextLocalized')
+        );
+    }
+
+    return out;
+}
+
 /**
  * Convert CT ProductData.searchKeywords to the localized comma-separated
  * strings expected by SFCC page-keywords.
@@ -680,7 +771,7 @@ function transformProduct(ctpProduct) {
             productId:  masterId ? (String(masterId) + '-' + variantSeq) : ('variant-' + variantSeq),
             sku:        ctpVariant.sku || '',
             isDefault:  !!isDefault,
-            images:     ctpVariant.images || [],
+            images:     extractVariantImages(ctpVariant),
             attributes: ctpVariant.attributes || [],
             prices:     ctpVariant.prices || []
         });
@@ -745,7 +836,7 @@ function transformProduct(ctpProduct) {
         unitQuantity:     unitQuantity,
         unit:             unit,
         unitMeasure:      unitMeasure,
-        masterImages:             mv.images || [],
+        masterImages:             extractVariantImages(mv),
         // Master-owned CT attributes (SameForAll / product-level) for master <custom-attributes>
         masterAttributes:         mv.attributes || [],
         categories:               categories,

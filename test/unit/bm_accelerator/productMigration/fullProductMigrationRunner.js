@@ -10,7 +10,6 @@ var runnerPath = path.join(
     __dirname,
     '../../../../commerce-rc-b2c-migration-console-app/cartridges/bm_cartridges/bm_accelerator/cartridge/scripts/migration/productMigration/fullProductMigrationRunner.js'
 );
-
 describe('fullProductMigrationRunner local IMPEX accumulation', function () {
     var originalSession;
 
@@ -51,6 +50,10 @@ describe('fullProductMigrationRunner local IMPEX accumulation', function () {
         File.prototype.remove = function () {
             delete files[this.path];
             return true;
+        };
+        File.prototype.length = function () {
+            return Object.prototype.hasOwnProperty.call(files, this.path)
+                ? Buffer.byteLength(files[this.path], 'utf8') : 0;
         };
 
         /**
@@ -95,24 +98,44 @@ describe('fullProductMigrationRunner local IMPEX accumulation', function () {
         FileReader.prototype.close = function () {};
 
         var runner = proxyquire(runnerPath, {
+            '*/cartridge/scripts/migration/productMigration/productSplitUtils': {
+                MAX_PER_FILE: 2,
+                MAX_BYTES_PER_FILE: 100 * 1024 * 1024,
+                expectedFileCount: function (total) { return Math.ceil(total / 2); },
+                shouldRotate: function (count, bytes) {
+                    return count >= 2 || bytes >= 100 * 1024 * 1024;
+                },
+                buildPartFileName: function (stem, part) {
+                    return stem.replace(/\.xml$/, '-p' + (part < 10 ? '000' : '00') + part + '.xml');
+                }
+            },
             '*/cartridge/scripts/migration/productMigration/ctpProductFetcher': {
                 fetchBatch: function () {
-                    return { results: [{ id: 'p1' }], total: 1, pageSize: 50 };
+                    return { results: [{ id: 'p1' }, { id: 'p2' }, { id: 'p3' }], total: 3, pageSize: 50 };
                 },
                 fetchCategoryIdMap: function () { return null; }
             },
             '*/cartridge/scripts/migration/productMigration/productXmlBuilder': {
                 XML_FOOTER: '</catalog>\n',
-                xmlHeader: function () { return '<catalog>\n'; },
-                buildXmlParts: function () {
+                xmlHeader: function (catalogId, imageBaseUrl) {
+                    return '<catalog image-base="' + imageBaseUrl + '">\n';
+                },
+                buildXmlParts: function (rawProducts) {
+                    var productXml = '';
+                    var categoryXml = '';
+                    for (var i = 0; i < rawProducts.length; i++) {
+                        productXml += '<product product-id="' + rawProducts[i].id + '"/>\n';
+                        categoryXml += '<category-assignment product-id="' + rawProducts[i].id + '"/>\n';
+                    }
                     return {
-                        productsXml: '<product product-id="p1"/>\n',
-                        categoriesXml: '<category-assignment product-id="p1"/>\n',
-                        built: 1,
+                        productsXml: productXml,
+                        categoriesXml: categoryXml,
+                        built: rawProducts.length,
                         failed: 0,
                         errors: [],
                         setCount: 0,
-                        bundleCount: 0
+                        bundleCount: 0,
+                        imageBaseUrl: 'https://cdn.media.amplience.net'
                     };
                 }
             },
@@ -137,14 +160,25 @@ describe('fullProductMigrationRunner local IMPEX accumulation', function () {
         });
 
         var result = runner.runBatch(0, 'target-catalog', [], 'commercetools');
-        var finalPath = '/impex/src/migration/product/ctp-product-20260916-v001.xml';
+        var finalPath = '/impex/src/migration/product/ctp-product-20260916-v001-p0001.xml';
+        var secondPath = '/impex/src/migration/product/ctp-product-20260916-v001-p0002.xml';
 
         assert.isTrue(result.ok);
         assert.isTrue(result.done);
         assert.equal(resolvedStorage, 'local');
         assert.isTrue(directories['/impex/src/migration/product']);
+        assert.include(files[finalPath], '<catalog image-base="https://cdn.media.amplience.net">');
         assert.include(files[finalPath], '<product product-id="p1"/>');
         assert.include(files[finalPath], '<category-assignment product-id="p1"/>');
         assert.include(files[finalPath], '</catalog>');
+        assert.include(files[finalPath], '<product product-id="p2"/>');
+        assert.notInclude(files[finalPath], '<product product-id="p3"/>');
+        assert.include(files[secondPath], '<product product-id="p3"/>');
+        assert.deepEqual(result.files, [
+            'ctp-product-20260916-v001-p0001.xml',
+            'ctp-product-20260916-v001-p0002.xml'
+        ]);
+        assert.isUndefined(global.session.custom.migProdFiles);
+        assert.equal(global.session.custom.migProdPart, '3');
     });
 });
