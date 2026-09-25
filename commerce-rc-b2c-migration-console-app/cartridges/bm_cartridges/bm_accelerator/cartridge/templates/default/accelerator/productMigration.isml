@@ -664,6 +664,14 @@
     var varAttrsResults  = document.getElementById('prod-var-attrs-results');
     var allVarAttrs      = [];
     var currentAttrMode  = 'partial';
+    var selectedVarAttrsByMode = { partial: null, full: null };
+
+    function variantAttrsRequestParam(mode) {
+        var selected = selectedVarAttrsByMode[mode];
+        return selected === null
+            ? ''
+            : '&attrs=' + encodeURIComponent(JSON.stringify(selected));
+    }
 
     function resetVarAttrsUi() {
         allVarAttrs = [];
@@ -803,6 +811,10 @@
                     + '&mode=' + encodeURIComponent(currentAttrMode), function (data) {
                 saveBtn.disabled = false;
                 if (data.ok) {
+                    var savedMode = data.mode === 'full' ? 'full' : 'partial';
+                    selectedVarAttrsByMode[savedMode] = Array.isArray(data.selected)
+                        ? data.selected.slice(0)
+                        : selected.slice(0);
                     saveBtn.innerHTML       = '&#10003; Saved';
                     saveMsg.style.color     = '#2e7d32';
                     saveMsg.textContent     = selected.length + ' attribute(s) will be included in the XML.';
@@ -880,7 +892,9 @@
                     varAttrsMsg.textContent = attrCount + ' attribute(s) found';
                 }
                 varAttrsMsg.style.color = '#54698d';
-                renderVarAttrsTable(data.attrs || [], data.savedSelection);
+                var responseMode = data.mode === 'full' ? 'full' : 'partial';
+                var localSelection = selectedVarAttrsByMode[responseMode];
+                renderVarAttrsTable(data.attrs || [], localSelection === null ? data.savedSelection : localSelection);
             };
             xhr.send();
         });
@@ -964,7 +978,9 @@
         partialOverall.textContent = partialBuilt + ' imported'
             + (partialFailed ? ', ' + partialFailed + ' failed' : '');
 
-        post(PARTIAL_URL, 'prodId=' + encodeURIComponent(ctpId) + '&catalogId=' + encodeURIComponent(partialCatalogId), function (data) {
+        post(PARTIAL_URL, 'prodId=' + encodeURIComponent(ctpId)
+            + '&catalogId=' + encodeURIComponent(partialCatalogId)
+            + variantAttrsRequestParam('partial'), function (data) {
             if (!data.ok) {
                 partialFailed++;
             } else {
@@ -1055,7 +1071,9 @@
             offset + ' / ' + (total || '?') + ' — '
             + fullBuilt + ' migrated' + (fullFailed ? ', ' + fullFailed + ' failed' : ''), pct);
 
-        post(FULL_BATCH_URL, 'offset=' + offset + '&catalogId=' + encodeURIComponent(catalogSelect.value), function (data) {
+        post(FULL_BATCH_URL, 'offset=' + offset
+            + '&catalogId=' + encodeURIComponent(catalogSelect.value)
+            + variantAttrsRequestParam('full'), function (data) {
             if (!data.ok) {
                 setPhase('full', 'build', 'error', data.error || 'Failed', pct);
                 finalizeFull(false);
