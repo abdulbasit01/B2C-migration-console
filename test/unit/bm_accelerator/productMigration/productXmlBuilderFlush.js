@@ -102,3 +102,49 @@ describe('productXmlBuilder.buildXmlParts flushing (api.jsStringLength quota)', 
         assert.equal(calls, 0);
     });
 });
+
+describe('productXmlBuilder large variation masters (api.jsStringLength quota)', function () {
+    var LONG = new Array(2600).join('attribute text ');
+
+    /**
+     * @param {string} id - master product id
+     * @param {number} variantCount - number of variants
+     * @returns {Object} transformed master whose variants each carry a long custom attribute
+     */
+    function bigMaster(id, variantCount) {
+        var variants = [];
+        var i;
+        for (i = 1; i <= variantCount; i++) {
+            variants.push({ productId: id + '-' + i, sku: 'SKU-' + i, isDefault: i === 1,
+                attributes: [{ name: 'longText', value: LONG + i }] });
+        }
+        return { productId: id, nameLocales: { en: id }, onlineFlag: true, categories: [],
+            variants: variants, hasVariants: true, productKind: 'base' };
+    }
+
+    it('builds one piece per product element, joining to the same XML', function () {
+        var xmlBuilder = loadXmlBuilder();
+        var t = bigMaster('m1', 42);
+        var parts = xmlBuilder.buildProductXmlParts(t, ['longText']).productXmlParts;
+        var whole = xmlBuilder.buildProductXml(t, ['longText']).productXml;
+
+        assert.lengthOf(parts, 43, 'master plus 42 variants');
+        assert.isAbove(whole.length, SFCC_STRING_QUOTA, 'the product as a whole is over the quota');
+        assert.equal(parts.join(''), whole);
+        parts.forEach(function (p) { assert.isBelow(p.length, SFCC_STRING_QUOTA); });
+    });
+
+    it('never hands over a string near the quota when a huge product follows a partly full buffer', function () {
+        // Reproduces 2026-09-28: ~224K already buffered, then an ~830K product arrived.
+        var raws = [{ id: 'small' }, { id: 'huge' }];
+        var byId = { small: bigMaster('small', 8), huge: bigMaster('huge', 42) };
+        var handedOver = [];
+        var result = loadXmlBuilder().buildXmlParts(raws, 'cat', ['longText'],
+            function (raw) { return byId[raw.id]; },
+            { onFlush: function (p, c) { handedOver.push(p.length + c.length); } });
+
+        assert.equal(result.built, 2);
+        assert.isAbove(handedOver.length, 1);
+        handedOver.forEach(function (n) { assert.isBelow(n, SFCC_STRING_QUOTA); });
+    });
+});

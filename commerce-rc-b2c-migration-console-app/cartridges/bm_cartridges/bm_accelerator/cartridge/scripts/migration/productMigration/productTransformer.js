@@ -10,6 +10,21 @@ var systemFieldResolver = require('*/cartridge/scripts/migration/core/systemFiel
  *      - [{typeId:"product", id:"..."}]              → set (no quantity)
  *      - [{product:{typeId:"product",...}, quantity}] → bundle (has quantity)
  */
+/**
+ * Attributes that reference other products for merchandising, not set membership
+ * (e.g. recommendedProductsEU/US, accessories). They stay ordinary custom attributes
+ * and must never turn a product into a product set.
+ */
+var NON_SET_REFERENCE_ATTR_RE = /recommend|accessor|related|upsell|up-sell|cross-?sell|similar|alternative/i;
+
+/**
+ * @param {Object} attr - CT attribute { name, value }
+ * @returns {boolean} true when the attribute may hold product-set members
+ */
+function isSetMemberAttribute(attr) {
+    return !!(attr && attr.name && !NON_SET_REFERENCE_ATTR_RE.test(String(attr.name)));
+}
+
 function detectProductKind(ctpProduct, data) {
     var ptName = '';
     if (ctpProduct.productType && ctpProduct.productType.obj) {
@@ -20,15 +35,20 @@ function detectProductKind(ctpProduct, data) {
     if (ptName.indexOf('bundle') !== -1) return 'bundle';
     if (ptName.indexOf('set') !== -1)    return 'set';
 
-    // Fallback: detect by masterVariant attribute values
+    // Fallback: detect by masterVariant attribute values.
+    // A product with real variants is exported as a variation master; SFCC product sets
+    // cannot carry variations, so the set fallback never applies to it.
+    var hasRealVariants = !!(data.variants && data.variants.length);
     var mvAttrs = (data.masterVariant && data.masterVariant.attributes) || [];
     for (var i = 0; i < mvAttrs.length; i++) {
         var val = mvAttrs[i].value;
         if (val === null || val === undefined) continue;
+        var setCandidate = !hasRealVariants && isSetMemberAttribute(mvAttrs[i]);
 
-        // Single Reference<Product>: { typeId: "product", id: "..." } — set
+        // A single Reference<Product> (e.g. customizableAccessory) is one linked product,
+        // not a set — a set of one is never intended.
         if (!Array.isArray(val) && typeof val === 'object' && val.typeId === 'product' && val.id) {
-            return 'set';
+            continue;
         }
 
         if (!Array.isArray(val) || !val.length) continue;
@@ -40,11 +60,11 @@ function detectProductKind(ctpProduct, data) {
             return 'bundle';
         }
         // [{typeId:"product", id:"..."}] — set (direct product refs, no quantity)
-        if (first.typeId === 'product' && first.id) {
+        if (setCandidate && first.typeId === 'product' && first.id) {
             return 'set';
         }
         // [{value: {typeId:"product", id:"..."}}] — set (nested ref)
-        if (first.value && first.value.typeId === 'product' && first.value.id) {
+        if (setCandidate && first.value && first.value.typeId === 'product' && first.value.id) {
             return 'set';
         }
     }
@@ -61,6 +81,8 @@ var UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function extractSetProducts(data) {
     var mvAttrs = (data.masterVariant && data.masterVariant.attributes) || [];
     for (var i = 0; i < mvAttrs.length; i++) {
+        // Same filter as detectProductKind: recommendation lists are never set members.
+        if (!isSetMemberAttribute(mvAttrs[i])) continue;
         var val = mvAttrs[i].value;
         if (val === null || val === undefined) continue;
 

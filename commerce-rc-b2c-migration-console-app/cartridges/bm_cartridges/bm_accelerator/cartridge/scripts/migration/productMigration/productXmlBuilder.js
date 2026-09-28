@@ -943,9 +943,18 @@ function classificationCategoryXml(t) {
  *
  * @returns {{ productXml: string, categoryXml: string }}
  */
-function buildProductXml(t, selectedVarAttrs, xmlOpts) {
+/**
+ * Build product XML as separate pieces: the master/simple product first, then one piece
+ * per variant product. No single string ever holds a whole product with all its variants,
+ * so a large master (e.g. 42 variants with every attribute selected, ~830K chars) stays
+ * far below SFCC's 1,000,000-char script string quota (api.jsStringLength).
+ *
+ * @returns {{ productXmlParts: Array<string>, categoryXml: string }}
+ */
+function buildProductXmlParts(t, selectedVarAttrs, xmlOpts) {
     if (xmlOpts) _xmlOpts = xmlOpts;
     var pid        = xmlEsc(t.productId);
+    var parts      = [];
     var productXml = '';
     var catXml     = '';
 
@@ -1019,6 +1028,8 @@ function buildProductXml(t, selectedVarAttrs, xmlOpts) {
     productXml += '        <facebook-enabled-flag>false</facebook-enabled-flag>\n';
     productXml += STORE_ATTRS;
     productXml += '    </product>\n\n';
+    parts.push(productXml);
+    productXml = '';
 
     // ── Variant products (base products only — sets/bundles have no SFCC variants) ──
     if (t.productKind === 'base' && t.hasVariants) {
@@ -1135,6 +1146,8 @@ function buildProductXml(t, selectedVarAttrs, xmlOpts) {
             productXml += '        <facebook-enabled-flag>false</facebook-enabled-flag>\n';
             productXml += STORE_ATTRS;
             productXml += '    </product>\n\n';
+            parts.push(productXml);
+            productXml = '';
         }
     }
 
@@ -1147,7 +1160,20 @@ function buildProductXml(t, selectedVarAttrs, xmlOpts) {
         catXml += '    </category-assignment>\n';
     }
 
-    return { productXml: productXml, categoryXml: catXml };
+    if (productXml) parts.push(productXml);
+    return { productXmlParts: parts, categoryXml: catXml };
+}
+
+/**
+ * Build product XML + category-assignment XML for one transformed product as single strings.
+ * Kept for callers and tests that need the whole product; batch builds use
+ * buildProductXmlParts so large products never become one string.
+ *
+ * @returns {{ productXml: string, categoryXml: string }}
+ */
+function buildProductXml(t, selectedVarAttrs, xmlOpts) {
+    var built = buildProductXmlParts(t, selectedVarAttrs, xmlOpts);
+    return { productXml: built.productXmlParts.join(''), categoryXml: built.categoryXml };
 }
 
 // Well under the 1,000,000-char script string quota, leaving room for one large product.
@@ -1218,9 +1244,22 @@ function buildXmlParts(rawProducts, catalogId, selectedVarAttrs, transformerFn, 
     for (i = 0; i < transformed.length; i++) {
         var t = transformed[i].product;
         try {
-            var result = buildProductXml(t, selectedVarAttrs);
-            productsXml   += result.productXml;
-            categoriesXml += result.categoryXml;
+            var result = buildProductXmlParts(t, selectedVarAttrs);
+            var pieces = result.productXmlParts.concat([result.categoryXml]);
+            var pi;
+            for (pi = 0; pi < pieces.length; pi++) {
+                var isCategory = pi === pieces.length - 1;
+                // Flush what is buffered before this piece would push the buffer past the
+                // threshold (checking only after appending let one big product overflow it).
+                if (onFlush && (productsXml || categoriesXml) && pieces[pi]
+                        && productsXml.length + categoriesXml.length + pieces[pi].length >= FLUSH_CHARS) {
+                    onFlush(productsXml, categoriesXml);
+                    productsXml   = '';
+                    categoriesXml = '';
+                }
+                if (isCategory) categoriesXml += pieces[pi];
+                else productsXml += pieces[pi];
+            }
             if (t.productKind === 'set')    setCount++;
             else if (t.productKind === 'bundle') bundleCount++;
             built++;
@@ -1300,6 +1339,7 @@ module.exports = {
     buildXml:         buildXml,
     buildXmlParts:    buildXmlParts,
     buildProductXml:  buildProductXml,
+    buildProductXmlParts: buildProductXmlParts,
     xmlHeader:        xmlHeader,
     XML_FOOTER:       XML_FOOTER
 };
