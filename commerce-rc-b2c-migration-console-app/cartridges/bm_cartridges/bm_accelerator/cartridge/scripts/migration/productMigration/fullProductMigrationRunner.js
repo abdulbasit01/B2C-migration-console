@@ -69,6 +69,20 @@ function ensureLocalDirectory() {
     return dir;
 }
 
+/**
+ * Sink for productXmlBuilder.buildXmlParts: writes XML to the temp files piece by piece so no
+ * single string reaches SFCC's 1,000,000-char quota (api.jsStringLength).
+ * @param {string} prodsFile - temp file for product elements
+ * @param {string} catsFile - temp file for category-assignment elements
+ * @returns {Function} onFlush(productsPart, categoriesPart)
+ */
+function flushTo(prodsFile, catsFile) {
+    return function (productsPart, categoriesPart) {
+        appendLocal(prodsFile, productsPart);
+        appendLocal(catsFile, categoriesPart);
+    };
+}
+
 function appendLocal(fileName, content) {
     if (!content) return;
     var File       = require('dw/io/File');
@@ -336,6 +350,7 @@ function finalizeCtpPart(catalogId, stem, allowEmpty) {
 function appendCtpProducts(rawProducts, catalogId, selectedVarAttrs, state) {
     var remaining = rawProducts.slice(0);
     var xmlOpts = getCtpXmlOpts(catalogId);
+    xmlOpts.onFlush = flushTo(TEMP_PRODS, TEMP_CATS);
     var stem = getStr(SK_FILENAME) || 'ctp-product-run.xml';
 
     while (remaining.length) {
@@ -485,7 +500,8 @@ function runShopifyBatch(cursor, catalogId, selectedVarAttrs) {
         return finalizeShopify(catalogId, total, impexPath, fileName);
     }
 
-    var parts = xmlBuilder.buildXmlParts(rawProds, catalogId, selectedVarAttrs, shopifyTransformer.transformProduct);
+    var parts = xmlBuilder.buildXmlParts(rawProds, catalogId, selectedVarAttrs, shopifyTransformer.transformProduct,
+        { onFlush: flushTo(TEMP_SHOPIFY_PRODS, TEMP_SHOPIFY_CATS) });
     appendLocal(TEMP_SHOPIFY_PRODS, parts.productsXml);
     appendLocal(TEMP_SHOPIFY_CATS,  parts.categoriesXml);
 
@@ -614,7 +630,8 @@ function runSapBatch(offset, catalogId) {
         return finalizeSap(catalogId, total, 0, impexPath, targetFileName);
     }
 
-    var parts = xmlBuilder.buildXmlParts(rawProds, catalogId, null, sapTransformer.transformProduct);
+    var parts = xmlBuilder.buildXmlParts(rawProds, catalogId, null, sapTransformer.transformProduct,
+        { onFlush: flushTo(TEMP_SAP_PRODS, TEMP_SAP_CATS) });
     appendLocal(TEMP_SAP_PRODS, parts.productsXml);
     appendLocal(TEMP_SAP_CATS,  parts.categoriesXml);
 
@@ -745,7 +762,8 @@ function runBcBatch(offset, catalogId, selectedVarAttrs) {
         return finalizeBc(catalogId, total, 0, impexPath, targetFileName);
     }
 
-    var parts = xmlBuilder.buildXmlParts(rawProds, catalogId, selectedVarAttrs, bcTransformer.transformProduct);
+    var parts = xmlBuilder.buildXmlParts(rawProds, catalogId, selectedVarAttrs, bcTransformer.transformProduct,
+        { onFlush: flushTo(TEMP_BC_PRODS, TEMP_BC_CATS) });
     appendLocal(TEMP_BC_PRODS, parts.productsXml);
     appendLocal(TEMP_BC_CATS,  parts.categoriesXml);
 

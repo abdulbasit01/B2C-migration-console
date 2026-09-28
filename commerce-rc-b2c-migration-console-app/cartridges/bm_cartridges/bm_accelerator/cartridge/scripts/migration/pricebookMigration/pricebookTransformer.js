@@ -13,7 +13,8 @@ function toDecimal(value) {
  */
 function transformEntry(entry) {
     if (!entry || !entry.value) return null;
-    var productId = entry.productId || entry.sku;
+    // Trim here (not only in the XML builder) so aggregation dedupes on the clean key.
+    var productId = String(entry.productId || entry.sku || '').trim();
     if (!productId) return null;
     var amount = toDecimal(entry.value);
     if (!amount) return null;

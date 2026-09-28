@@ -914,23 +914,52 @@
     var partialCatalogId  = '';
     var partialXmlFiles   = [];
 
-    function triggerBlobDownload(url, fileName) {
-        var xhr = new XMLHttpRequest();
-        xhr.open('GET', url, true);
-        xhr.responseType = 'text';
-        xhr.onload = function () {
-            var content = xhr.responseText;
-            var blob = new Blob([content], { type: 'application/xml' });
-            var objUrl = URL.createObjectURL(blob);
-            var link = document.createElement('a');
-            link.href = objUrl;
-            link.download = fileName;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            setTimeout(function () { URL.revokeObjectURL(objUrl); }, 1000);
-        };
-        xhr.send();
+    // Files above SFCC's 10 MB page limit are fetched in parts and joined here.
+    // A failed or non-XML part (BM error page, expired session) aborts the download
+    // instead of saving an HTML page under the .xml name.
+    function triggerBlobDownload(url, fileName, onFinish, onProgress) {
+        var parts = [];
+        function fail(message) {
+            alert('Download of ' + fileName + ' failed: ' + message
+                + ' Refresh Business Manager (the session may have expired) and try again.');
+            if (onFinish) onFinish(false);
+        }
+        function fetchPart(n) {
+            var xhr = new XMLHttpRequest();
+            xhr.open('GET', url + '&part=' + n, true);
+            xhr.responseType = 'text';
+            xhr.onload = function () {
+                var doneHeader = xhr.getResponseHeader('X-Download-Done');
+                var text = xhr.responseText || '';
+                if (xhr.status !== 200 || doneHeader === null) {
+                    fail('the server returned an error for part ' + (n + 1) + '.');
+                    return;
+                }
+                if (n === 0 && text.indexOf('<?xml') !== 0) {
+                    fail('the file does not start with an XML declaration.');
+                    return;
+                }
+                parts.push(text);
+                if (onProgress) onProgress(n + 1);
+                if (doneHeader === 'false') {
+                    fetchPart(n + 1);
+                    return;
+                }
+                var blob = new Blob(parts, { type: 'application/xml' });
+                var objUrl = URL.createObjectURL(blob);
+                var link = document.createElement('a');
+                link.href = objUrl;
+                link.download = fileName;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                setTimeout(function () { URL.revokeObjectURL(objUrl); }, 1000);
+                if (onFinish) onFinish(true);
+            };
+            xhr.onerror = function () { fail('network error on part ' + (n + 1) + '.'); };
+            xhr.send();
+        }
+        fetchPart(0);
     }
 
     function renderDownloadLinks(container, fileNames) {
@@ -949,11 +978,14 @@
                 btn.addEventListener('click', function () {
                     btn.disabled = true;
                     btn.textContent = 'Downloading...';
-                    triggerBlobDownload(DOWNLOAD_XML_URL + '?fileName=' + encodeURIComponent(name), name);
-                    setTimeout(function () {
-                        btn.disabled = false;
-                        btn.innerHTML = '&#8681; ' + name;
-                    }, 2000);
+                    triggerBlobDownload(DOWNLOAD_XML_URL + '?fileName=' + encodeURIComponent(name), name,
+                        function () {
+                            btn.disabled = false;
+                            btn.innerHTML = '&#8681; ' + name;
+                        },
+                        function (partsDone) {
+                            btn.textContent = 'Downloading... (' + partsDone + ' part' + (partsDone > 1 ? 's' : '') + ')';
+                        });
                 });
                 wrap.appendChild(btn);
             }(fileNames[i]));

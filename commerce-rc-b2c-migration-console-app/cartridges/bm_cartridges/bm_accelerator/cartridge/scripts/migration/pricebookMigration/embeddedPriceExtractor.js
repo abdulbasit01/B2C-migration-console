@@ -26,20 +26,34 @@ function getProductView(ctpProduct) {
 }
 
 /**
+ * CT SKUs can carry stray whitespace (seen in real data: " aqa-701130-90014"),
+ * which pricebook.xsd rejects for product-id. Trim at the source so aggregation
+ * dedupes on the clean SKU and whitespace-only SKUs are skipped.
+ * @param {*} sku
+ * @returns {string}
+ */
+function cleanSku(sku) {
+    if (sku === null || sku === undefined) return '';
+    return String(sku).trim();
+}
+
+/**
  * @param {Object} data - CT product current/staged view
  * @returns {Array<{sku: string, prices: Array}>}
  */
 function collectVariants(data) {
     var out = [];
     var mv  = data.masterVariant;
-    if (mv && mv.sku) {
-        out.push({ sku: mv.sku, prices: mv.prices || [] });
+    var mvSku = mv ? cleanSku(mv.sku) : '';
+    if (mvSku) {
+        out.push({ sku: mvSku, prices: mv.prices || [] });
     }
     var vars = data.variants || [];
     var i;
     for (i = 0; i < vars.length; i++) {
-        if (vars[i].sku) {
-            out.push({ sku: vars[i].sku, prices: vars[i].prices || [] });
+        var vSku = cleanSku(vars[i].sku);
+        if (vSku) {
+            out.push({ sku: vSku, prices: vars[i].prices || [] });
         }
     }
     return out;
@@ -90,6 +104,7 @@ function priceMatchesChannel(priceEntry, currency, channelId) {
  * @returns {Object|null}
  */
 function toRecord(sku, priceEntry) {
+    sku = cleanSku(sku);
     if (!sku || !priceEntry || !priceEntry.value) return null;
     var amount = toDecimal(priceEntry.value);
     if (!amount) return null;

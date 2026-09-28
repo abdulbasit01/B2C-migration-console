@@ -1150,6 +1150,9 @@ function buildProductXml(t, selectedVarAttrs, xmlOpts) {
     return { productXml: productXml, categoryXml: catXml };
 }
 
+// Well under the 1,000,000-char script string quota, leaving room for one large product.
+var FLUSH_CHARS = 262144;
+
 /**
  * Build product and category XML parts for a batch — no XML declaration or catalog wrapper.
  * Returns the inner parts separately so callers can accumulate across multiple batches
@@ -1159,7 +1162,11 @@ function buildProductXml(t, selectedVarAttrs, xmlOpts) {
  * @param {string}   catalogId        - used only for UUID→SFCC-ID map key; not written here
  * @param {Array}    selectedVarAttrs
  * @param {Function} [transformerFn]
- * @param {Object}   [xmlOpts]          - { localizableAttrIds, categoryIdToSfcc, externalImageBaseUrl }
+ * @param {Object}   [xmlOpts]          - { localizableAttrIds, categoryIdToSfcc, externalImageBaseUrl, onFlush }
+ *     onFlush(productsPart, categoriesPart): when given, XML is handed over in pieces of about
+ *     FLUSH_CHARS and the returned productsXml/categoriesXml are empty. SFCC caps a single script
+ *     string at 1,000,000 chars (quota api.jsStringLength); a 50-product batch with every attribute
+ *     selected exceeds that, so callers that write to disk must pass onFlush.
  * @returns {{ productsXml, categoriesXml, built, failed, errors, setCount, bundleCount, imageBaseUrl }}
  */
 function buildXmlParts(rawProducts, catalogId, selectedVarAttrs, transformerFn, xmlOpts) {
@@ -1206,6 +1213,8 @@ function buildXmlParts(rawProducts, catalogId, selectedVarAttrs, transformerFn, 
         _xmlOpts.externalImageBaseUrl
     );
 
+    var onFlush = typeof _xmlOpts.onFlush === 'function' ? _xmlOpts.onFlush : null;
+
     for (i = 0; i < transformed.length; i++) {
         var t = transformed[i].product;
         try {
@@ -1222,6 +1231,17 @@ function buildXmlParts(rawProducts, catalogId, selectedVarAttrs, transformerFn, 
                 errors.push((raw.key || raw.handle || raw.id) + ': ' + (e.message || String(e)));
             }
         }
+        if (onFlush && productsXml.length + categoriesXml.length >= FLUSH_CHARS) {
+            onFlush(productsXml, categoriesXml);
+            productsXml   = '';
+            categoriesXml = '';
+        }
+    }
+
+    if (onFlush && (productsXml || categoriesXml)) {
+        onFlush(productsXml, categoriesXml);
+        productsXml   = '';
+        categoriesXml = '';
     }
 
     return {

@@ -1131,8 +1131,48 @@ exports.GetProductCatalogs = function () {
 };
 exports.GetProductCatalogs.public = true;
 
+// SFCC caps one BM response at 10 MB (PageSizeLimitExceeded) and one script string at
+// 1,000,000 chars (api.jsStringLength). A full catalog XML is ~27 MB, so it is served in
+// parts: each part is PRODUCT_XML_PART_READS reads of PRODUCT_XML_READ_CHARS characters.
+// Worst case 3 bytes per UTF-8 character keeps a part at ~8.1 MB.
+var PRODUCT_XML_READ_CHARS = 900000;
+var PRODUCT_XML_PART_READS = 3;
+
 /**
- * GET: fileName=<name> — streams XML file from IMPEX as a download.
+ * Write one part of a product XML file. Sets X-Download-Done: true on the last part.
+ * @param {dw.io.File} file - XML file under IMPEX
+ * @param {number} part - zero-based part index
+ */
+function writeProductXmlPart(file, part) {
+    var FileReader = require('dw/io/FileReader');
+    var partChars  = PRODUCT_XML_READ_CHARS * PRODUCT_XML_PART_READS;
+    var reader     = new FileReader(file, 'UTF-8');
+    var done       = false;
+    try {
+        var toSkip = part * partChars;
+        while (toSkip > 0) {
+            var skipped = reader.skip(Math.min(toSkip, PRODUCT_XML_READ_CHARS));
+            if (!skipped) { done = true; break; }
+            toSkip -= skipped;
+        }
+        var i;
+        for (i = 0; !done && i < PRODUCT_XML_PART_READS; i++) {
+            var chunk = reader.readN(PRODUCT_XML_READ_CHARS);
+            if (chunk) response.writer.print(chunk);
+            if (!chunk || chunk.length < PRODUCT_XML_READ_CHARS) done = true;
+        }
+        // Exactly at a part boundary the next read would be empty; peek so the page stops now.
+        if (!done && reader.read() === null) done = true;
+    } finally {
+        reader.close();
+    }
+    response.setHttpHeader('X-Download-Done', done ? 'true' : 'false');
+}
+
+/**
+ * GET: fileName=<name>[&part=<n>] — streams XML file from IMPEX as a download.
+ * With part: returns that part only (see writeProductXmlPart); the page joins the parts.
+ * Without part: whole file in one response (fails above 10 MB; kept for other callers).
  */
 exports.DownloadProductXml = function () {
     var fileName = getParam('fileName') || '';
@@ -1148,6 +1188,18 @@ exports.DownloadProductXml = function () {
     if (!file.exists()) {
         response.setContentType('text/plain');
         response.writer.print('File not found: ' + fileName);
+        return;
+    }
+    var partParam = getParam('part');
+    if (partParam !== null && partParam !== undefined && String(partParam) !== '') {
+        var part = parseInt(String(partParam), 10);
+        if (isNaN(part) || part < 0) {
+            response.setContentType('text/plain');
+            response.writer.print('Invalid part parameter.');
+            return;
+        }
+        response.setContentType('application/xml; charset=UTF-8');
+        writeProductXmlPart(file, part);
         return;
     }
     response.setContentType('application/xml');
