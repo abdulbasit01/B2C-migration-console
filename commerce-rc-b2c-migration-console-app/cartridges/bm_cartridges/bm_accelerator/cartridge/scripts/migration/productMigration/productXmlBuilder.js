@@ -166,6 +166,40 @@ function resolveCategorySfccId(ctRef) {
  * Never emits the legacy CT+nodash id when the member is a UUID (id → ID catalogs).
  */
 var _uuidToSfccId = {};
+
+/**
+ * CT product ID -> { sku: SFCC variant product ID } for the products of the current batch
+ * and any bundle members the runner fetched (xmlOpts.bundleMemberProducts).
+ * At most ~50 + members per batch, well under api.jsObjectSize.
+ */
+var _memberVariantIds = {};
+
+/**
+ * @param {Object} t - transformed product (ctpId, variants[{productId, sku}])
+ */
+function registerMemberVariants(t) {
+    // Only variation masters export variant products; a bundle or set member keeps its own ID.
+    if (!t || !t.ctpId || t.productKind !== 'base' || !t.hasVariants || !t.variants || !t.variants.length) return;
+    var bySku = {};
+    for (var i = 0; i < t.variants.length; i++) {
+        var v = t.variants[i];
+        var vSku = v && v.sku ? String(v.sku).trim() : '';
+        if (vSku && v.productId && !bySku[vSku]) bySku[vSku] = v.productId;
+    }
+    _memberVariantIds[t.ctpId] = bySku;
+}
+
+/**
+ * SFCC product ID for a bundle member: the exact variant its SKU names when that variant
+ * is known, otherwise the member's master (SFCC allows base products in bundles).
+ * @param {Object} member - { productId: CT id, sku? }
+ * @returns {string}
+ */
+function bundleMemberSfccId(member) {
+    var bySku = member && member.sku ? _memberVariantIds[member.productId] : null;
+    if (bySku && bySku[member.sku]) return bySku[member.sku];
+    return ctpMemberIdToSfcc(member.productId);
+}
 function ctpMemberIdToSfcc(ctpId) {
     if (!ctpId) return '';
     var s = String(ctpId);
@@ -891,7 +925,7 @@ function buildBundledProductsXml(bundleProducts) {
     var xml = '        <bundled-products>\n';
     for (var i = 0; i < bundleProducts.length; i++) {
         var qty = bundleProducts[i].quantity || 1;
-        xml += '            <bundled-product product-id="' + xmlEsc(ctpMemberIdToSfcc(bundleProducts[i].productId)) + '">\n';
+        xml += '            <bundled-product product-id="' + xmlEsc(bundleMemberSfccId(bundleProducts[i])) + '">\n';
         xml += '                <quantity>' + qty + '</quantity>\n';
         xml += '            </bundled-product>\n';
     }
@@ -987,9 +1021,15 @@ function buildProductXmlParts(t, selectedVarAttrs, xmlOpts) {
     if (t.taxClassId)       productXml += '        <tax-class-id>'       + xmlEsc(t.taxClassId)       + '</tax-class-id>\n';
     if (t.brand)            productXml += '        <brand>'              + xmlEsc(t.brand)            + '</brand>\n';
     if (t.manufacturerName) productXml += '        <manufacturer-name>'  + xmlEsc(t.manufacturerName) + '</manufacturer-name>\n';
-    // CT sku is unique per variant — manufacturer-sku belongs on variant products only.
-    if (t.manufacturerSku && !(sourcePlatform === 'ctp' && t.hasVariants)) {
-        productXml += '        <manufacturer-sku>' + xmlEsc(t.manufacturerSku) + '</manufacturer-sku>\n';
+    // CT sku is unique per variant: a variation master leaves it to its variant products.
+    // Every CT product has a master variant, so bundles and sets (which export no variant
+    // products) carry their master variant SKU themselves; otherwise they would have none.
+    var masterSku = String(t.manufacturerSku || '').trim();
+    if (sourcePlatform === 'ctp' && !isVariationMaster && !masterSku && t.variants && t.variants[0]) {
+        masterSku = String(t.variants[0].sku || '').trim();
+    }
+    if (masterSku && !(sourcePlatform === 'ctp' && isVariationMaster)) {
+        productXml += '        <manufacturer-sku>' + xmlEsc(masterSku) + '</manufacturer-sku>\n';
     }
 
     productXml += buildPageAttributes(t);
@@ -1054,7 +1094,9 @@ function buildProductXmlParts(t, selectedVarAttrs, xmlOpts) {
             // SFCC owns all variation image groups on the master product. Child
             // product <images> blocks are rejected during catalog import.
             if (t.taxClassId) productXml += '        <tax-class-id>' + xmlEsc(t.taxClassId) + '</tax-class-id>\n';
-            if (v.sku) productXml += '        <manufacturer-sku>' + xmlEsc(v.sku) + '</manufacturer-sku>\n';
+            // Trimmed like price book product IDs, so SKU-based lookups match.
+            var variantSku = v.sku ? String(v.sku).trim() : '';
+            if (variantSku) productXml += '        <manufacturer-sku>' + xmlEsc(variantSku) + '</manufacturer-sku>\n';
             productXml += '        <page-attributes/>\n';
 
             var varInner;
@@ -1201,6 +1243,7 @@ function buildXmlParts(rawProducts, catalogId, selectedVarAttrs, transformerFn, 
     if (catalogId && !_xmlOpts.catalogId) _xmlOpts.catalogId = catalogId;
 
     _uuidToSfccId = {};
+    _memberVariantIds = {};
     for (var mi = 0; mi < rawProducts.length; mi++) {
         var cp    = rawProducts[mi];
         var cpId  = cp.id  || '';
@@ -1232,6 +1275,14 @@ function buildXmlParts(rawProducts, catalogId, selectedVarAttrs, transformerFn, 
                     + ': ' + (transformError.message || String(transformError)));
             }
         }
+    }
+
+    // Exact-variant lookup for bundle members: this batch plus members fetched by the runner.
+    var ti;
+    for (ti = 0; ti < transformed.length; ti++) registerMemberVariants(transformed[ti].product);
+    var extraMembers = _xmlOpts.bundleMemberProducts || [];
+    for (ti = 0; ti < extraMembers.length; ti++) {
+        try { registerMemberVariants(transform(extraMembers[ti])); } catch (me) { /* falls back to master */ }
     }
 
     _xmlOpts.externalImageBaseUrl = firstCtpImageBaseUrl(

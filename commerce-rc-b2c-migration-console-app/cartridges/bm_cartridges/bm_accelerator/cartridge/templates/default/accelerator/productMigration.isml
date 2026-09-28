@@ -461,6 +461,7 @@
     </section>
 </div>
 
+<span id="prod-impex-folder-url" data-url="${pdict.impexUrl}" hidden></span>
 <script>
 (function () {
     var PLATFORM_ID      = '${pdict.platformId}';
@@ -971,25 +972,25 @@
         wrap.style.cssText = 'margin-top:10px;display:flex;flex-wrap:wrap;gap:8px;';
         for (var i = 0; i < fileNames.length; i++) {
             (function (name) {
+                // Full catalog files are ~30 MB; Business Manager caps one response at 10 MB and one
+                // file read at 50,000 chars, so files are downloaded from the IMPEX folder instead.
                 var btn = document.createElement('button');
                 btn.type = 'button';
-                btn.innerHTML = '&#8681; ' + name;
+                btn.innerHTML = '&#128194; ' + name;
+                btn.title = 'Opens the IMPEX folder. Download ' + name + ' from there.';
                 btn.style.cssText = 'padding:6px 12px;background:#1565c0;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:13px;';
                 btn.addEventListener('click', function () {
-                    btn.disabled = true;
-                    btn.textContent = 'Downloading...';
-                    triggerBlobDownload(DOWNLOAD_XML_URL + '?fileName=' + encodeURIComponent(name), name,
-                        function () {
-                            btn.disabled = false;
-                            btn.innerHTML = '&#8681; ' + name;
-                        },
-                        function (partsDone) {
-                            btn.textContent = 'Downloading... (' + partsDone + ' part' + (partsDone > 1 ? 's' : '') + ')';
-                        });
+                    var holder = document.getElementById('prod-impex-folder-url');
+                    var folderUrl = holder ? holder.getAttribute('data-url') : '';
+                    if (folderUrl) window.open(folderUrl, '_blank');
                 });
                 wrap.appendChild(btn);
             }(fileNames[i]));
         }
+        var hint = document.createElement('div');
+        hint.style.cssText = 'flex-basis:100%;font-size:12px;color:#54698d;';
+        hint.textContent = 'Each button opens the IMPEX folder (src/migration/product/) in a new tab. Download the file there.';
+        wrap.appendChild(hint);
         container.appendChild(wrap);
     }
 

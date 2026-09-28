@@ -347,10 +347,50 @@ function finalizeCtpPart(catalogId, stem, allowEmpty) {
     return fileName;
 }
 
+// Bundle members outside the batch are fetched read-only from CT so members can point at
+// the exact variant their SKU names. Capped per batch; beyond the cap members fall back to
+// their master product, which SFCC also accepts in a bundle.
+var MAX_BUNDLE_MEMBER_FETCH = 200;
+
+/**
+ * @param {Array} rawProducts - CT products of this batch
+ * @returns {Array} CT products of bundle members that are not in the batch
+ */
+function fetchBundleMembers(rawProducts) {
+    var ctpTransformer = require('*/cartridge/scripts/migration/productMigration/productTransformer');
+    var inBatch = {};
+    var wanted = [];
+    var seen = {};
+    var i;
+    var j;
+    for (i = 0; i < rawProducts.length; i++) {
+        if (rawProducts[i] && rawProducts[i].id) inBatch[rawProducts[i].id] = true;
+    }
+    for (i = 0; i < rawProducts.length; i++) {
+        var ids = ctpTransformer.bundleMemberIds(rawProducts[i]);
+        for (j = 0; j < ids.length; j++) {
+            if (!inBatch[ids[j]] && !seen[ids[j]]) {
+                seen[ids[j]] = true;
+                wanted.push(ids[j]);
+            }
+        }
+    }
+    var fetched = [];
+    for (i = 0; i < wanted.length && i < MAX_BUNDLE_MEMBER_FETCH; i++) {
+        try {
+            fetched.push(ctpFetcher.fetchById(wanted[i]));
+        } catch (e) {
+            // Deleted in CT or not reachable: the member keeps its master ID and SFCC reports it.
+        }
+    }
+    return fetched;
+}
+
 function appendCtpProducts(rawProducts, catalogId, selectedVarAttrs, state) {
     var remaining = rawProducts.slice(0);
     var xmlOpts = getCtpXmlOpts(catalogId);
     xmlOpts.onFlush = flushTo(TEMP_PRODS, TEMP_CATS);
+    xmlOpts.bundleMemberProducts = fetchBundleMembers(rawProducts);
     var stem = getStr(SK_FILENAME) || 'ctp-product-run.xml';
 
     while (remaining.length) {
