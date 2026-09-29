@@ -98,7 +98,10 @@ function getAttributeDefinitions(token, objectType) {
     var total    = null;
 
     do {
-        var url = metaUrl('/system_object_definitions/' + objectType + '/attribute_definitions') + '&count=' + pageSize + '&start=' + start;
+        // select=(**): the list endpoint otherwise returns only id/link, so localizable,
+        // value_type, site_specific and system would all be unknown to every caller.
+        var url = metaUrl('/system_object_definitions/' + objectType + '/attribute_definitions')
+            + '&count=' + pageSize + '&start=' + start + '&select=(**)';
         var res = doGet(url, token);
         if (res.status !== 200) break;
 
