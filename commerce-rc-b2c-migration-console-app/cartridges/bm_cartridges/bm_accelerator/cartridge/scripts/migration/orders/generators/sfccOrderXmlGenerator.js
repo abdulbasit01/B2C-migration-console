@@ -288,6 +288,35 @@ function prepareOrder(order) {
 }
 
 /**
+ * Render an SFCC custom attribute. Collection attributes require repeated
+ * <value> children; scalar attributes retain the compact text form.
+ * @param {Object} attr
+ * @returns {string}
+ */
+function customAttributeXml(attr) {
+    if (!attr || !attr.id || attr.value === '' || attr.value == null) return '';
+
+    var open = '            <custom-attribute attribute-id="' + escapeXml(attr.id) + '">';
+    if (!Array.isArray(attr.value)) {
+        return open + escapeXml(runtimeAttrMap.formatCustomAttrValue(attr.value)) + '</custom-attribute>';
+    }
+    if (!attr.value.length) return '';
+
+    var values = [];
+    for (var i = 0; i < attr.value.length; i++) {
+        var value = attr.value[i];
+        if (value === null || value === undefined || value === '') continue;
+        values.push('                <value>'
+            + escapeXml(runtimeAttrMap.formatCustomAttrValue(value)) + '</value>');
+    }
+    if (!values.length) return '';
+
+    var parts = [open].concat(values);
+    parts.push('            </custom-attribute>');
+    return parts.join('\n');
+}
+
+/**
  * Generate inner <order> XML block (no wrapper).
  * @param {Object} order - CanonicalOrder
  * @returns {string}
@@ -360,9 +389,8 @@ function generateOrderInnerXml(order) {
         parts.push('        <custom-attributes>');
         for (var c = 0; c < mapped.custom.length; c++) {
             var attr = mapped.custom[c];
-            if (!attr || !attr.id || attr.value === '' || attr.value == null) continue;
-            parts.push('            <custom-attribute attribute-id="' + escapeXml(attr.id) + '">'
-                + escapeXml(runtimeAttrMap.formatCustomAttrValue(attr.value)) + '</custom-attribute>');
+            var customXml = customAttributeXml(attr);
+            if (customXml) parts.push(customXml);
         }
         parts.push('        </custom-attributes>');
     }
@@ -445,6 +473,7 @@ module.exports = {
     fmtMoney:                fmtMoney,
     formatOrderDate:         formatOrderDate,
     prepareOrder:            prepareOrder,
+    customAttributeXml:      customAttributeXml,
     buildHeader:             buildHeader,
     buildFooter:             buildFooter,
     assertValidOrderDocument: assertValidOrderDocument,

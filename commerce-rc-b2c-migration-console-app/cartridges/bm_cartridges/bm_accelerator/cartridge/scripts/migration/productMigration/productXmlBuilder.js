@@ -15,6 +15,52 @@ function xmlEsc(val) {
 }
 
 /**
+ * Canonical string for one CT collection item.
+ * Enum/reference values use their stable keys/IDs. Nested values are retained
+ * as JSON instead of degrading to "[object Object]".
+ *
+ * @param {*} item CT collection item
+ * @returns {string}
+ */
+function collectionItemValue(item) {
+    if (item === null || item === undefined) return '';
+    if (typeof item === 'string' || typeof item === 'number' || typeof item === 'boolean') {
+        return String(item);
+    }
+    if (item && typeof item === 'object' && !Array.isArray(item)) {
+        if (item.key != null) return String(item.key);
+        if (item.id != null) return String(item.id);
+    }
+    try {
+        return JSON.stringify(item);
+    } catch (e) {
+        return '';
+    }
+}
+
+/**
+ * SFCC catalog.xsd represents multi-value custom attributes with repeated
+ * <value> children inside one custom-attribute element.
+ *
+ * @param {string} indent indentation
+ * @param {string} attrId SFCC attribute ID
+ * @param {Array} values CT collection
+ * @returns {string} custom-attribute XML
+ */
+function collectionCustomAttributeXml(indent, attrId, values) {
+    var inner = '';
+    var i;
+    for (i = 0; i < (values || []).length; i++) {
+        var value = collectionItemValue(values[i]);
+        if (!value) continue;
+        inner += indent + '    <value>' + xmlEsc(value) + '</value>\n';
+    }
+    if (!inner) return '';
+    return indent + '<custom-attribute attribute-id="' + xmlEsc(attrId) + '">\n'
+        + inner + indent + '</custom-attribute>\n';
+}
+
+/**
  * Resolve SFCC product attribute ID, applying visit-scoped renames.
  * @param {string} canonicalSfccId
  * @returns {string}
@@ -41,9 +87,10 @@ function isProductSystemAttr(attrId) {
  * @param {Array|null} selectedVarAttrs
  * @param {Object} productAttrMap - session attr id map
  * @param {string} indent
+ * @param {Array<string>} [variationAttributeNames] genuine CT variation axes
  * @returns {string} inner custom-attribute elements (no wrapper)
  */
-function buildCtpCustomAttrInner(attributes, selectedVarAttrs, productAttrMap, indent) {
+function buildCtpCustomAttrInner(attributes, selectedVarAttrs, productAttrMap, indent, variationAttributeNames) {
     var hasVarSelection = selectedVarAttrs && selectedVarAttrs.length;
     var inner = '';
     var list = attributes || [];
@@ -60,8 +107,10 @@ function buildCtpCustomAttrInner(attributes, selectedVarAttrs, productAttrMap, i
         if (isProductSystemAttr(attrIdMapSession.resolve(a.name, productAttrMap))) continue;
         aId = resolveProductAttrId(aId);
         if (isProductSystemAttr(aId)) continue;
-        if (Array.isArray(val)) continue;
-        inner += customAttributeXml(indent, aId, val);
+        inner += customAttributeXml(indent, aId, val, {
+            forceVariationKey: variationAttributeNames
+                && variationAttributeNames.indexOf(a.name) !== -1
+        });
     }
     return inner;
 }
@@ -208,7 +257,7 @@ function copyLocaleMap(map) {
  * @returns {{ key: string, displayMap: Object, localizable: boolean }|null}
  */
 function parseVariationValue(val) {
-    if (val == null || val === '') return null;
+    if (val == null || val === '' || Array.isArray(val)) return null;
     var key = '';
     var displayMap = {};
     var localizable = false;
@@ -299,8 +348,10 @@ function unlocalizedCustomAttribute(indent, attrId, scalar) {
  * the SFCC attribute is localizable. Non-localizable defs omit xml:lang.
  * Unknown defs: locale maps (ltext) keep xml:lang; variation keys do not.
  */
-function customAttributeXml(indent, attrId, val) {
+function customAttributeXml(indent, attrId, val, opts) {
     if (val === null || val === undefined) return '';
+    if (Array.isArray(val)) return collectionCustomAttributeXml(indent, attrId, val);
+    opts = opts || {};
     var axis = parseVariationValue(val);
     var sourceMap = normalizeLocaleMap(val);
     var map = Object.keys(sourceMap).length ? copyLocaleMap(sourceMap) : {};
@@ -314,6 +365,11 @@ function customAttributeXml(indent, attrId, val) {
     if (!scalar) return '';
 
     var loc = sfccAttrLocalizable(attrId);
+    if (opts.forceVariationKey && axis) {
+        return indent + '<custom-attribute attribute-id="' + xmlEsc(attrId) + '"'
+            + (loc === true ? ' xml:lang="x-default"' : '') + '>'
+            + xmlEsc(axis.key) + '</custom-attribute>\n';
+    }
     var hasLangs = localeMapHasLangs(sourceMap);
     if (loc === true || (loc == null && hasLangs)) {
         if (!Object.keys(map).length) {
@@ -387,48 +443,331 @@ function buildPageAttributes(t) {
     return '        <page-attributes>\n' + inner + '        </page-attributes>\n';
 }
 
+var IMAGE_VIEW_TYPES = ['large', 'medium', 'small'];
+
+function externalUrlParts(value) {
+    var match = /^(https?):\/\/([^/?#]+)(\/[^#]*)?$/i.exec(String(value || '').trim());
+    if (!match) return null;
+    return {
+        protocol: match[1].toLowerCase(),
+        authority: match[2].toLowerCase(),
+        path: String(match[3] || '').replace(/^\/+/, '')
+    };
+}
+
+function normalizeExternalImageBaseUrl(value) {
+    var parts = externalUrlParts(value);
+    return parts ? parts.protocol + '://' + parts.authority : '';
+}
+
+function imagePathForBase(value, baseUrl) {
+    var image = externalUrlParts(value);
+    var base = externalUrlParts(baseUrl);
+    if (!image || !base || image.authority !== base.authority || !image.path) return '';
+    return image.path;
+}
+
+function imageAltXml(image, indent) {
+    var locales = image && image.altLocales;
+    if (locales && Object.keys(locales).length) {
+        return localizedElementsXml(indent, 'alt', locales);
+    }
+    return image && image.alt ? localizedElementsXml(indent, 'alt', image.alt) : '';
+}
+
 /**
- * Build <images> block.
- * Reference uses large + medium + small image-group view-types.
+ * Normalize an image list into unique { path, image } entries relative to the
+ * catalog's single external image location. The catalog header owns the
+ * external origin; URLs from a different origin are intentionally skipped
+ * because a catalog supports only one external image location.
+ * @param {Array} images
+ * @returns {Array<{path: string, image: Object}>}
+ */
+function normalizeImagePaths(images) {
+    var out = [];
+    var baseUrl = _xmlOpts && _xmlOpts.externalImageBaseUrl;
+    if (!images || !images.length || !baseUrl) return out;
+    var seen = {};
+    var i;
+    for (i = 0; i < images.length; i++) {
+        var image = images[i] || {};
+        var path = imagePathForBase(image.url || image.path, baseUrl);
+        if (!path || seen[path]) continue;
+        seen[path] = true;
+        out.push({ path: path, image: image });
+    }
+    return out;
+}
+
+/** Order-sensitive identity of an image list (paths only). */
+function imageListSignature(normalized) {
+    var parts = [];
+    var i;
+    for (i = 0; i < normalized.length; i++) parts.push(normalized[i].path);
+    return parts.join('\n');
+}
+
+/**
+ * One <image-group>. variationPairs (catalog.xsd complexType.Product.ImageGroup
+ * <variation attribute-id value/>) come first and restrict the group to the
+ * variants carrying those values; no pairs = fallback group.
+ * @param {string} viewType
+ * @param {Array<{attributeId: string, value: string}>|null} variationPairs
+ * @param {Array<{path: string, image: Object}>} normalized
+ * @returns {string}
+ */
+function imageGroupXml(viewType, variationPairs, normalized) {
+    var xml = '            <image-group view-type="' + xmlEsc(viewType) + '">\n';
+    var i;
+    for (i = 0; i < (variationPairs || []).length; i++) {
+        xml += '                <variation attribute-id="' + xmlEsc(variationPairs[i].attributeId)
+            + '" value="' + xmlEsc(variationPairs[i].value) + '"/>\n';
+    }
+    for (i = 0; i < normalized.length; i++) {
+        var altXml = imageAltXml(normalized[i].image, '                    ');
+        if (altXml) {
+            xml += '                <image path="' + xmlEsc(normalized[i].path) + '">\n'
+                + altXml
+                + '                </image>\n';
+        } else {
+            xml += '                <image path="' + xmlEsc(normalized[i].path) + '"/>\n';
+        }
+    }
+    xml += '            </image-group>\n';
+    return xml;
+}
+
+/**
+ * <images> for simple products, sets and bundles: one fallback group per view type.
+ * @param {Array} images
+ * @returns {string}
  */
 function buildImagesXml(images) {
-    if (!images || !images.length) return '';
-    var viewTypes = ['large', 'medium', 'small'];
+    var normalized = normalizeImagePaths(images);
+    if (!normalized.length) return '';
     var xml = '        <images>\n';
-    for (var vi = 0; vi < viewTypes.length; vi++) {
-        xml += '            <image-group view-type="' + viewTypes[vi] + '">\n';
-        for (var i = 0; i < images.length; i++) {
-            var url = images[i].url || images[i].path || '';
-            if (url) xml += '                <image path="' + xmlEsc(url) + '"/>\n';
-        }
-        xml += '            </image-group>\n';
+    var vi;
+    for (vi = 0; vi < IMAGE_VIEW_TYPES.length; vi++) {
+        xml += imageGroupXml(IMAGE_VIEW_TYPES[vi], null, normalized);
     }
     xml += '        </images>\n';
     return xml;
 }
 
 /**
- * Build <variations> block with <attributes> (variation axes from variant attrs)
- * and <variants> list.
- * Reference: <attributes> first, then <variants>.
- * platform: 'shopify' | 'sap' | 'bigcommerce' | 'ctp' (default) — which transformer produced t.
+ * First `len` axis values of one variant as <variation> pairs, or null when the
+ * variant has no value for one of them (it then simply uses the fallback images).
  */
-function buildVariationsXml(t, selectedVarAttrs, platform) {
-    var xml = '        <variations>\n';
+function variationPrefixPairs(values, axisIds, len) {
+    var pairs = [];
+    var i;
+    for (i = 0; i < len; i++) {
+        var v = values ? values[axisIds[i]] : null;
+        if (v == null || v === '') return null;
+        pairs.push({ attributeId: axisIds[i], value: v });
+    }
+    return pairs;
+}
+
+function variationPairsKey(pairs) {
+    var parts = [];
+    var i;
+    for (i = 0; i < pairs.length; i++) parts.push(pairs[i].attributeId + '=' + pairs[i].value);
+    return parts.join('|');
+}
+
+/**
+ * Shortest axis prefix that still determines the image set, so images that only
+ * vary by the first axis (e.g. color on a color+size product) produce one group
+ * per color instead of one per variant. Falls back to the full combination.
+ * @param {Array<{sig: string, values: Object}>} entries
+ * @param {Array<string>} axisIds
+ * @returns {number}
+ */
+function variationImagePrefixLength(entries, axisIds) {
+    var len;
+    for (len = 1; len < axisIds.length; len++) {
+        var sigByKey = {};
+        var consistent = true;
+        var i;
+        for (i = 0; i < entries.length; i++) {
+            var pairs = variationPrefixPairs(entries[i].values, axisIds, len);
+            if (!pairs) continue;
+            var key = variationPairsKey(pairs);
+            if (!Object.prototype.hasOwnProperty.call(sigByKey, key)) {
+                sigByKey[key] = entries[i].sig;
+            } else if (sigByKey[key] !== entries[i].sig) {
+                consistent = false;
+                break;
+            }
+        }
+        if (consistent) return len;
+    }
+    return axisIds.length;
+}
+
+/**
+ * <images> for a variation master. SFCC catalog import rejects <images> on
+ * variation products ("Cannot add images to a variation product. Images can be
+ * added to master product only."), so every variant's images are written on the
+ * master inside image groups qualified by <variation attribute-id value/>
+ * elements; groups without <variation> are the master's fallback images.
+ * Within one master the same axis always sits at the same index, as the XSD
+ * requires. Groups identical to the fallback set are omitted (the fallback
+ * already applies). Without any variation axis nothing can qualify a group, so
+ * variant-only images are merged into the fallback set instead of being lost.
+ *
+ * @param {Object} t transformed product
+ * @param {{ axisIds: Array<string>, variantValues: Array<Object> }} model
+ * @returns {string}
+ */
+function buildMasterImagesXml(t, model) {
+    var fallback = normalizeImagePaths(t.masterImages);
+    var variants = t.variants || [];
+    var axisIds = (model && model.axisIds) || [];
+    var variantValues = (model && model.variantValues) || [];
+    var entries = [];
+    var i;
+    var j;
+    for (i = 0; i < variants.length; i++) {
+        var normalized = normalizeImagePaths(variants[i] && variants[i].images);
+        if (!normalized.length) continue;
+        entries.push({
+            normalized: normalized,
+            sig:        imageListSignature(normalized),
+            values:     variantValues[i] || {},
+            isDefault:  !!(variants[i] && variants[i].isDefault)
+        });
+    }
+
+    // No master-level images: the default variant's images become the fallback.
+    if (!fallback.length && entries.length) {
+        var def = null;
+        for (i = 0; i < entries.length; i++) {
+            if (entries[i].isDefault) { def = entries[i]; break; }
+        }
+        fallback = (def || entries[0]).normalized;
+    }
+
+    var groups = [];
+    if (axisIds.length) {
+        var prefixLen = variationImagePrefixLength(entries, axisIds);
+        var fallbackSig = imageListSignature(fallback);
+        var seenKey = {};
+        for (i = 0; i < entries.length; i++) {
+            var pairs = variationPrefixPairs(entries[i].values, axisIds, prefixLen);
+            if (!pairs) continue;
+            var key = variationPairsKey(pairs);
+            if (seenKey[key]) continue;
+            seenKey[key] = true;
+            if (entries[i].sig === fallbackSig) continue;
+            groups.push({ pairs: pairs, normalized: entries[i].normalized });
+        }
+    } else if (entries.length) {
+        var have = {};
+        var merged = [];
+        for (i = 0; i < fallback.length; i++) {
+            have[fallback[i].path] = true;
+            merged.push(fallback[i]);
+        }
+        for (i = 0; i < entries.length; i++) {
+            for (j = 0; j < entries[i].normalized.length; j++) {
+                var entry = entries[i].normalized[j];
+                if (have[entry.path]) continue;
+                have[entry.path] = true;
+                merged.push(entry);
+            }
+        }
+        fallback = merged;
+    }
+
+    if (!fallback.length && !groups.length) return '';
+    var xml = '        <images>\n';
+    var vi;
+    for (vi = 0; vi < IMAGE_VIEW_TYPES.length; vi++) {
+        if (fallback.length) xml += imageGroupXml(IMAGE_VIEW_TYPES[vi], null, fallback);
+        for (i = 0; i < groups.length; i++) {
+            xml += imageGroupXml(IMAGE_VIEW_TYPES[vi], groups[i].pairs, groups[i].normalized);
+        }
+    }
+    xml += '        </images>\n';
+    return xml;
+}
+
+function firstCtpImageBaseUrl(transformedProducts, configuredBaseUrl) {
+    var configured = normalizeExternalImageBaseUrl(configuredBaseUrl);
+    if (configured) return configured;
+    var products = transformedProducts || [];
+    var pi;
+    for (pi = 0; pi < products.length; pi++) {
+        var product = products[pi];
+        if (!product || !product.ctpId) continue;
+        var imageSets = [product.masterImages || []];
+        var variants = product.variants || [];
+        var vi;
+        for (vi = 0; vi < variants.length; vi++) imageSets.push(variants[vi].images || []);
+        var si;
+        for (si = 0; si < imageSets.length; si++) {
+            var ii;
+            for (ii = 0; ii < imageSets[si].length; ii++) {
+                var image = imageSets[si][ii] || {};
+                var origin = normalizeExternalImageBaseUrl(image.url || image.path);
+                if (origin) return origin;
+            }
+        }
+    }
+    return '';
+}
+
+function imageSettingsHeaderXml(externalImageBaseUrl) {
+    var base = externalUrlParts(externalImageBaseUrl);
+    if (!base) return '';
+    var xml = '    <header>\n'
+        + '        <image-settings>\n'
+        + '            <external-location>\n'
+        + '                <http-url>http://' + xmlEsc(base.authority) + '/</http-url>\n'
+        + '                <https-url>https://' + xmlEsc(base.authority) + '/</https-url>\n'
+        + '            </external-location>\n'
+        + '            <view-types>\n';
+    var i;
+    for (i = 0; i < IMAGE_VIEW_TYPES.length; i++) {
+        xml += '                <view-type>' + IMAGE_VIEW_TYPES[i] + '</view-type>\n';
+    }
+    return xml + '            </view-types>\n'
+        + '        </image-settings>\n'
+        + '    </header>\n\n';
+}
+
+/**
+ * Variation axes and per-variant axis values, shared by <variations> and the
+ * master <images> block.
+ * platform: 'shopify' | 'sap' | 'bigcommerce' | 'ctp' (default) — which transformer produced t.
+ * @returns {{ axisIds: Array<string>, attrMap: Object, variantValues: Array<Object> }}
+ */
+function collectVariationModel(t, selectedVarAttrs, platform) {
     var isShopify = platform === 'shopify';
     var isBc      = platform === 'bigcommerce';
     var hasVarSelection = selectedVarAttrs && selectedVarAttrs.length;
+    var ctpVariationNames = Array.isArray(t.variationAttributeNames)
+        ? t.variationAttributeNames : null;
     var attrPrefix = platform === 'shopify' ? 'shopify_'
         : (platform === 'sap' ? 'sap_'
             : (platform === 'bigcommerce' ? 'bc_' : ''));
+    var ruleSource = platform === 'shopify' ? 'shopify'
+        : (platform === 'sap' ? 'sap'
+            : (platform === 'bigcommerce' ? 'bigcommerce' : 'commercetools'));
 
     // Collect unique variation attribute names + values across all variants.
     // CT: value can be string, number, or { key, label } enum.
     // Shopify/BC: value is always a string (selectedOptions / option_values).
     // attrMap key = SFCC attr ID — must match both axis ID and variant custom attr ID.
-    var attrMap = {}; // { sfccAttrId: { key: displayVal } }
-    for (var vi = 0; vi < t.variants.length; vi++) {
-        var attrs = t.variants[vi].attributes || [];
+    var attrMap = {};       // { sfccAttrId: { key: displayMap } }
+    var variantValues = []; // per variant index: { sfccAttrId: key }
+    var variants = t.variants || [];
+    for (var vi = 0; vi < variants.length; vi++) {
+        var values = {};
+        variantValues.push(values);
+        var attrs = variants[vi].attributes || [];
         for (var ai = 0; ai < attrs.length; ai++) {
             var a   = attrs[ai];
             var val = a.value;
@@ -445,13 +784,10 @@ function buildVariationsXml(t, selectedVarAttrs, platform) {
             } else {
                 if (hasVarSelection && selectedVarAttrs.indexOf(a.name) === -1) continue;
                 if (!hasVarSelection) continue;
+                if (ctpVariationNames && ctpVariationNames.indexOf(a.name) === -1) continue;
             }
 
-            var axisRule = nativeMap.getRule(
-                platform === 'shopify' ? 'shopify'
-                    : (platform === 'sap' ? 'sap'
-                        : (platform === 'bigcommerce' ? 'bigcommerce' : 'commercetools')),
-                'Product', a.name);
+            var axisRule = nativeMap.getRule(ruleSource, 'Product', a.name);
             if (axisRule && nativeMap.isMapAction(axisRule.action)) continue;
             // Use same SFCC ID as variant custom attr so axis ID and value ID match.
             // custom_attr rules map to a native SFCC field (e.g. Shopify "Color" -> "color")
@@ -470,17 +806,37 @@ function buildVariationsXml(t, selectedVarAttrs, platform) {
             var parsed = parseVariationValue(val);
             if (!parsed) continue;
             var key = parsed.key;
-            var displayMap = parsed.displayMap;
             if (!attrMap[sfccAxisId]) attrMap[sfccAxisId] = {};
-            if (!attrMap[sfccAxisId][key]) attrMap[sfccAxisId][key] = displayMap;
+            if (!attrMap[sfccAxisId][key]) attrMap[sfccAxisId][key] = parsed.displayMap;
+            if (values[sfccAxisId] == null) values[sfccAxisId] = key;
         }
     }
+    return { axisIds: Object.keys(attrMap), attrMap: attrMap, variantValues: variantValues };
+}
 
-    var attrNames = Object.keys(attrMap);
+/**
+ * Build <variations> block with <attributes> (variation axes from variant attrs)
+ * and <variants> list.
+ * Reference: <attributes> first, then <variants>.
+ * @param {Object} t
+ * @param {Array} selectedVarAttrs
+ * @param {string} platform
+ * @param {Object} [model] - result of collectVariationModel (computed when omitted)
+ */
+function buildVariationsXml(t, selectedVarAttrs, platform, model) {
+    var m = model || collectVariationModel(t, selectedVarAttrs, platform);
+    var attrMap = m.attrMap;
+    var attrNames = m.axisIds;
+    var xml = '        <variations>\n';
+
     if (attrNames.length) {
         xml += '            <attributes>\n';
         for (var ni = 0; ni < attrNames.length; ni++) {
             var attrName = attrNames[ni]; // SFCC attr ID
+            if (sfccAttrLocalizable(attrName) === true) {
+                throw new Error('SFCC variation attribute "' + attrName
+                    + '" is localizable. Change it to a non-localizable String or Integer before migration.');
+            }
             xml += '                <variation-attribute attribute-id="' + xmlEsc(attrName)
                 + '" variation-attribute-id="' + xmlEsc(attrName) + '">\n';
             xml += '                    <display-name xml:lang="x-default">'
@@ -605,11 +961,19 @@ function buildProductXml(t, selectedVarAttrs, xmlOpts) {
     productXml += '        <available-flag>true</available-flag>\n';
     productXml += '        <searchable-flag>true</searchable-flag>\n';
 
-    // Images skipped — CT image URLs are external and incompatible with SFCC DIS path format
-
     var sourcePlatform = t.shopifyId ? 'shopify'
         : (t.sapId ? 'sap'
             : (t.bcId ? 'bigcommerce' : 'ctp'));
+
+    // A variation master owns every image (SFCC import rejects <images> on
+    // variation products); simple products, sets and bundles keep their own.
+    var isVariationMaster = t.productKind === 'base' && t.hasVariants;
+    var variationModel = isVariationMaster
+        ? collectVariationModel(t, selectedVarAttrs, sourcePlatform)
+        : null;
+    productXml += isVariationMaster
+        ? buildMasterImagesXml(t, variationModel)
+        : buildImagesXml(t.masterImages);
 
     if (t.taxClassId)       productXml += '        <tax-class-id>'       + xmlEsc(t.taxClassId)       + '</tax-class-id>\n';
     if (t.brand)            productXml += '        <brand>'              + xmlEsc(t.brand)            + '</brand>\n';
@@ -630,7 +994,8 @@ function buildProductXml(t, selectedVarAttrs, xmlOpts) {
             t.masterAttributes || [],
             selectedVarAttrs,
             productAttrMap,
-            '            '
+            '            ',
+            t.variationAttributeNames
         );
         masterInner += ctpProductKeyCustomXml(t, productAttrMap, selectedVarAttrs, '            ');
         if (masterInner) {
@@ -645,7 +1010,7 @@ function buildProductXml(t, selectedVarAttrs, xmlOpts) {
         productXml += buildProductSetProductsXml(t.setProducts);
     } else if (t.hasVariants) {
         // base product with variants
-        productXml += buildVariationsXml(t, selectedVarAttrs, sourcePlatform);
+        productXml += buildVariationsXml(t, selectedVarAttrs, sourcePlatform, variationModel);
     }
 
     productXml += classificationCategoryXml(t);
@@ -675,6 +1040,8 @@ function buildProductXml(t, selectedVarAttrs, xmlOpts) {
             productXml += '        <online-flag>' + (t.onlineFlag === false ? 'false' : 'true') + '</online-flag>\n';
             productXml += '        <available-flag>true</available-flag>\n';
             productXml += '        <searchable-flag>true</searchable-flag>\n';
+            // SFCC owns all variation image groups on the master product. Child
+            // product <images> blocks are rejected during catalog import.
             if (t.taxClassId) productXml += '        <tax-class-id>' + xmlEsc(t.taxClassId) + '</tax-class-id>\n';
             if (v.sku) productXml += '        <manufacturer-sku>' + xmlEsc(v.sku) + '</manufacturer-sku>\n';
             productXml += '        <page-attributes/>\n';
@@ -756,7 +1123,8 @@ function buildProductXml(t, selectedVarAttrs, xmlOpts) {
                     v.attributes,
                     selectedVarAttrs,
                     productAttrMap,
-                    '            '
+                    '            ',
+                    t.variationAttributeNames
                 );
             }
 
@@ -791,8 +1159,8 @@ function buildProductXml(t, selectedVarAttrs, xmlOpts) {
  * @param {string}   catalogId        - used only for UUID→SFCC-ID map key; not written here
  * @param {Array}    selectedVarAttrs
  * @param {Function} [transformerFn]
- * @param {Object}   [xmlOpts]          - { localizableAttrIds, categoryIdToSfcc }
- * @returns {{ productsXml, categoriesXml, built, failed, errors, setCount, bundleCount }}
+ * @param {Object}   [xmlOpts]          - { localizableAttrIds, categoryIdToSfcc, externalImageBaseUrl }
+ * @returns {{ productsXml, categoriesXml, built, failed, errors, setCount, bundleCount, imageBaseUrl }}
  */
 function buildXmlParts(rawProducts, catalogId, selectedVarAttrs, transformerFn, xmlOpts) {
     var transform = transformerFn || ctpTransformer.transformProduct;
@@ -818,10 +1186,29 @@ function buildXmlParts(rawProducts, catalogId, selectedVarAttrs, transformerFn, 
     var bundleCount   = 0;
     var productsXml   = '';
     var categoriesXml = '';
+    var transformed   = [];
 
-    for (var i = 0; i < rawProducts.length; i++) {
+    var i;
+    for (i = 0; i < rawProducts.length; i++) {
         try {
-            var t      = transform(rawProducts[i]);
+            transformed.push({ rawIndex: i, product: transform(rawProducts[i]) });
+        } catch (transformError) {
+            failed++;
+            if (errors.length < 10) {
+                errors.push((rawProducts[i].key || rawProducts[i].handle || rawProducts[i].id)
+                    + ': ' + (transformError.message || String(transformError)));
+            }
+        }
+    }
+
+    _xmlOpts.externalImageBaseUrl = firstCtpImageBaseUrl(
+        transformed.map(function (entry) { return entry.product; }),
+        _xmlOpts.externalImageBaseUrl
+    );
+
+    for (i = 0; i < transformed.length; i++) {
+        var t = transformed[i].product;
+        try {
             var result = buildProductXml(t, selectedVarAttrs);
             productsXml   += result.productXml;
             categoriesXml += result.categoryXml;
@@ -831,7 +1218,8 @@ function buildXmlParts(rawProducts, catalogId, selectedVarAttrs, transformerFn, 
         } catch (e) {
             failed++;
             if (errors.length < 10) {
-                errors.push((rawProducts[i].key || rawProducts[i].handle || rawProducts[i].id) + ': ' + (e.message || String(e)));
+                var raw = rawProducts[transformed[i].rawIndex];
+                errors.push((raw.key || raw.handle || raw.id) + ': ' + (e.message || String(e)));
             }
         }
     }
@@ -843,7 +1231,8 @@ function buildXmlParts(rawProducts, catalogId, selectedVarAttrs, transformerFn, 
         failed:        failed,
         errors:        errors,
         setCount:      setCount,
-        bundleCount:   bundleCount
+        bundleCount:   bundleCount,
+        imageBaseUrl:  _xmlOpts.externalImageBaseUrl || ''
     };
 }
 
@@ -862,9 +1251,7 @@ function buildXmlParts(rawProducts, catalogId, selectedVarAttrs, transformerFn, 
 function buildXml(rawProducts, catalogId, selectedVarAttrs, transformerFn, xmlOpts) {
     var parts = buildXmlParts(rawProducts, catalogId, selectedVarAttrs, transformerFn, xmlOpts);
 
-    var xml = '<?xml version="1.0" encoding="UTF-8"?>\n'
-            + '<catalog xmlns="http://www.demandware.com/xml/impex/catalog/2006-10-31"'
-            + ' catalog-id="' + xmlEsc(catalogId) + '">\n\n'
+    var xml = xmlHeader(catalogId, parts.imageBaseUrl)
             + parts.productsXml
             + parts.categoriesXml
             + '\n</catalog>\n';
@@ -875,14 +1262,16 @@ function buildXml(rawProducts, catalogId, selectedVarAttrs, transformerFn, xmlOp
         failed:      parts.failed,
         errors:      parts.errors,
         setCount:    parts.setCount,
-        bundleCount: parts.bundleCount
+        bundleCount: parts.bundleCount,
+        imageBaseUrl: parts.imageBaseUrl
     };
 }
 
-function xmlHeader(catalogId) {
+function xmlHeader(catalogId, externalImageBaseUrl) {
     return '<?xml version="1.0" encoding="UTF-8"?>\n'
         + '<catalog xmlns="http://www.demandware.com/xml/impex/catalog/2006-10-31"'
-        + ' catalog-id="' + xmlEsc(catalogId) + '">\n\n';
+        + ' catalog-id="' + xmlEsc(catalogId) + '">\n\n'
+        + imageSettingsHeaderXml(externalImageBaseUrl);
 }
 
 var XML_FOOTER = '\n</catalog>\n';

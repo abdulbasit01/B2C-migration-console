@@ -104,6 +104,7 @@
         var pendingCoverage = [];
         var pendingSkipped = [];
         var fullRunning    = false;
+        var fullFinished   = false;
         var lastCount      = 0;
 
         function setPhase(prefix, id, state, detail, pct) {
@@ -129,11 +130,17 @@
 
         function showCountIdle() {
             if (!countValueEl) return;
+            fullFinished = false;
             countValueEl.textContent = 'Set your filters, then check how many orders match.';
             countValueEl.className = 'acc-order-count__value acc-order-count__value--idle';
             if (countExportEl) countExportEl.style.display = 'none';
             lastCount = 0;
-            if (startBtn) startBtn.disabled = true;
+            if (startBtn) {
+                startBtn.disabled = true;
+                startBtn.textContent = 'Start Migration (Build XML)';
+            }
+            if (fullPhaseList) fullPhaseList.style.display = 'none';
+            if (fullOverallEl) fullOverallEl.textContent = '';
         }
 
         function showCountLoading() {
@@ -218,11 +225,13 @@
             fullRunning = false;
             if (startBtn) startBtn.disabled = false;
             if (success) {
+                fullFinished = true;
                 if (startBtn) startBtn.textContent = 'Finish';
                 var importDetail = (uploadedFile || 'Order XML') + ' is ready in IMPEX. Import via Site Development.';
                 setPhase('full', 'import', 'active', importDetail, null);
-            } else if (startBtn) {
-                startBtn.textContent = 'Start Migration (Build XML)';
+            } else {
+                fullFinished = false;
+                if (startBtn) startBtn.textContent = 'Start Migration (Build XML)';
             }
         }
 
@@ -284,8 +293,11 @@
         if (startBtn) {
             startBtn.disabled = true;
             startBtn.addEventListener('click', function () {
+                if (fullFinished) {
+                    if (cfg.dataWizardEntryUrl) window.location.href = cfg.dataWizardEntryUrl;
+                    return;
+                }
                 if (fullRunning) return;
-                if (startBtn.textContent === 'Finish') return;
                 beginMigration();
             });
         }

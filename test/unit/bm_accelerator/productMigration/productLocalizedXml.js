@@ -296,10 +296,367 @@ describe('product localized XML', function () {
         assert.notMatch(result.productXml, /variation-attribute attribute-id="productspec"/);
     });
 
+    it('serializes CT collections and limits axes to derived variation attributes', function () {
+        var xmlBuilder = loadXmlBuilder();
+        var masterId = 'b3b8332c-b7b0-4707-b84e-c367f5ea287c';
+        var selected = ['packCount', 'pricePerEachForUS', 'flavors', 'mediaReferences', 'predesignedLentils'];
+        var attrs = [
+            { name: 'packCount', value: { key: '1-count', label: { en: '1 count' } } },
+            { name: 'pricePerEachForUS', value: 449 },
+            { name: 'flavors', value: [{ key: 'milk-chocolate', label: 'Milk Chocolate' }] },
+            {
+                name: 'mediaReferences',
+                value: [[{ name: 'mediaType', value: { key: 'image', label: 'Image' } }]]
+            },
+            { name: 'predesignedLentils', value: ['yellow', 'blue'] }
+        ];
+        var result = xmlBuilder.buildProductXml(sampleTransformed({
+            productId: masterId,
+            hasVariants: true,
+            masterAttributes: attrs,
+            variationAttributeNames: ['packCount'],
+            variants: [{
+                productId: masterId + '-1',
+                sku: '2000843097',
+                isDefault: true,
+                attributes: attrs
+            }]
+        }), selected, {
+            localizableAttrIds: {
+                packCount: false,
+                pricePerEachForUS: false,
+                flavors: false,
+                mediaReferences: false,
+                predesignedLentils: false
+            }
+        });
+
+        var xml = result.productXml;
+        assert.match(xml, /variation-attribute attribute-id="packCount"/);
+        assert.notMatch(xml, /variation-attribute attribute-id="pricePerEachForUS"/);
+        assert.notMatch(xml, /variation-attribute attribute-id="flavors"/);
+        assert.match(xml, /packCount">1-count<\/custom-attribute>/);
+        assert.notMatch(xml, /packCount" xml:lang=/);
+        assert.match(xml, /attribute-id="flavors">\s*<value>milk-chocolate<\/value>/);
+        assert.match(xml, /attribute-id="predesignedLentils">\s*<value>yellow<\/value>\s*<value>blue<\/value>/);
+        assert.match(xml, /attribute-id="mediaReferences">[\s\S]*&quot;mediaType&quot;/);
+        assert.notMatch(xml, /\[object Object\]/);
+    });
+
+    it('writes CT media as external SFCC image groups with relative paths', function () {
+        var xmlBuilder = loadXmlBuilder();
+        var baseUrl = 'https://cdn.media.amplience.net/i/marsmmsnonprod/product_fallback';
+        var transformed = sampleTransformed({
+            ctpId: 'b3b8332c-b7b0-4707-b84e-c367f5ea287c',
+            masterImages: [{
+                url: baseUrl,
+                altLocales: { en: 'M&M pack', de: 'M&M Packung' }
+            }, {
+                url: 'https://other.example.com/not-compatible.jpg',
+                alt: 'Different origin'
+            }],
+            masterAttributes: [{ name: 'imageUrls', value: [baseUrl] }],
+            hasVariants: true,
+            variants: [{
+                productId: 'b3b8332c-b7b0-4707-b84e-c367f5ea287c-1',
+                sku: '2000843097',
+                isDefault: true,
+                images: [{ url: baseUrl, alt: 'Fallback pack shot' }],
+                attributes: [{ name: 'imageUrls', value: [baseUrl] }]
+            }]
+        });
+
+        var result = xmlBuilder.buildXml(
+            [{ id: transformed.ctpId }],
+            'mms-test-catalog',
+            ['imageUrls'],
+            function () { return transformed; },
+            { localizableAttrIds: { imageUrls: false } }
+        );
+        var xml = result.xml;
+
+        assert.include(xml, '<header>');
+        assert.include(xml, '<http-url>http://cdn.media.amplience.net/</http-url>');
+        assert.include(xml, '<https-url>https://cdn.media.amplience.net/</https-url>');
+        assert.include(xml, '<image path="i/marsmmsnonprod/product_fallback">');
+        assert.include(xml, '<alt xml:lang="x-default">M&amp;M pack</alt>');
+        assert.include(xml, '<alt xml:lang="de">M&amp;M Packung</alt>');
+        assert.notInclude(xml, 'path="https://');
+        assert.notInclude(xml, 'other.example.com/not-compatible.jpg');
+        assert.include(xml, '<custom-attribute attribute-id="imageUrls">');
+        assert.include(xml, '<value>https://cdn.media.amplience.net/i/marsmmsnonprod/product_fallback</value>');
+        assert.equal(result.imageBaseUrl, 'https://cdn.media.amplience.net');
+
+        // SFCC import rejects <images> on variation products: the master owns them all
+        var variantAt = xml.indexOf('product product-id="' + transformed.ctpId + '-1"');
+        assert.isTrue(variantAt > 0);
+        assert.include(xml.substring(0, variantAt), '<images>');
+        assert.notInclude(xml.substring(variantAt), '<images>');
+        // no variation axis is selected in this fixture (imageUrls is a collection), so no qualified group
+        assert.notInclude(xml, '<variation ');
+    });
+
+    it('rejects a localized SFCC attribute selected as a variation axis', function () {
+        var xmlBuilder = loadXmlBuilder();
+        var masterId = 'master-localized-axis';
+        var transformed = sampleTransformed({
+            productId: masterId,
+            hasVariants: true,
+            variationAttributeNames: ['packCount'],
+            variants: [{
+                productId: masterId + '-1',
+                isDefault: true,
+                attributes: [{ name: 'packCount', value: '6-count' }]
+            }]
+        });
+
+        assert.throws(function () {
+            xmlBuilder.buildProductXml(transformed, ['packCount'], {
+                localizableAttrIds: { packCount: true }
+            });
+        }, /packCount.*localizable/);
+    });
+
+    /**
+     * Split product XML into the master part and the variant products part.
+     * @param {string} xml - productXml returned by buildProductXml
+     * @param {string} firstVariantId - product-id of the first variant product
+     * @returns {{ master: string, variants: string }} master XML and everything after it
+     */
+    function splitMasterAndVariants(xml, firstVariantId) {
+        var at = xml.indexOf('product product-id="' + firstVariantId + '"');
+        assert.isTrue(at > 0, 'expected variant product ' + firstVariantId + ' after the master');
+        return { master: xml.substring(0, at), variants: xml.substring(at) };
+    }
+
+    /**
+     * Count regex matches in a string.
+     * @param {string} str - haystack
+     * @param {RegExp} re - global regex
+     * @returns {number} number of matches
+     */
+    function countMatches(str, re) {
+        return (str.match(re) || []).length;
+    }
+
+    it('moves variant images onto the master as variation image groups', function () {
+        var xmlBuilder = loadXmlBuilder();
+        var masterId = 'b3b8332c-b7b0-4707-b84e-c367f5ea287c';
+        var cdn = 'https://cdn.media.amplience.net/i/marsmmsnonprod/';
+        var makeVariant = function (n, count, img) {
+            return {
+                productId: masterId + '-' + n,
+                sku: 'SKU-' + n,
+                isDefault: n === 1,
+                images: [{ url: cdn + img, alt: img + ' shot' }],
+                attributes: [{ name: 'packCount', value: { key: count, label: { en: count } } }]
+            };
+        };
+        var result = xmlBuilder.buildProductXml(sampleTransformed({
+            productId: masterId,
+            ctpId: masterId,
+            masterImages: [{ url: cdn + 'pack_1' }],
+            hasVariants: true,
+            variationAttributeNames: ['packCount'],
+            variants: [
+                makeVariant(1, '1-count', 'pack_1'),
+                makeVariant(2, '6-count', 'pack_6'),
+                makeVariant(3, '12-count', 'pack_12')
+            ]
+        }), ['packCount'], {
+            externalImageBaseUrl: 'https://cdn.media.amplience.net',
+            localizableAttrIds: { packCount: false }
+        });
+        var parts = splitMasterAndVariants(result.productXml, masterId + '-1');
+
+        assert.notInclude(parts.variants, '<images>');
+        assert.notInclude(parts.variants, '<image ');
+        // fallback group first, then one qualified group per variant whose images differ
+        assert.match(parts.master, /<images>\s*<image-group view-type="large">\s*<image path="i\/marsmmsnonprod\/pack_1"\/>/);
+        assert.match(parts.master, /<image-group view-type="large">\s*<variation attribute-id="packCount" value="6-count"\/>\s*<image path="i\/marsmmsnonprod\/pack_6">\s*<alt xml:lang="x-default">pack_6 shot<\/alt>/);
+        assert.match(parts.master, /<variation attribute-id="packCount" value="12-count"\/>\s*<image path="i\/marsmmsnonprod\/pack_12">/);
+        assert.notMatch(parts.master, /<variation attribute-id="packCount" value="1-count"\/>/);
+        assert.notInclude(parts.master, 'variation-value=');
+        assert.equal(countMatches(parts.master, /<image-group view-type="medium">/g), 3);
+        assert.equal(countMatches(parts.master, /<image-group /g), 9);
+        // XSD order: images before tax/brand/page-attributes/variations
+        assert.isBelow(parts.master.indexOf('</images>'), parts.master.indexOf('<page-attributes'));
+        // the variation axis itself is unchanged
+        assert.match(parts.master, /variation-attribute attribute-id="packCount"/);
+        assert.match(parts.master, /variation-attribute-value value="1-count"/);
+        assert.match(parts.master, /variation-attribute-value value="12-count"/);
+    });
+
+    it('groups variation images by the shortest axis prefix that determines them', function () {
+        var xmlBuilder = loadXmlBuilder();
+        var masterId = 'shirt';
+        var base = 'https://cdn.example.com';
+        var makeVariant = function (n, color, size, img) {
+            return {
+                productId: masterId + '-' + n,
+                sku: 'SKU-' + n,
+                isDefault: n === 1,
+                images: [{ url: base + '/i/' + img }],
+                attributes: [{ name: 'color', value: color }, { name: 'size', value: size }]
+            };
+        };
+        var result = xmlBuilder.buildProductXml(sampleTransformed({
+            productId: masterId,
+            masterImages: [],
+            hasVariants: true,
+            variationAttributeNames: ['color', 'size'],
+            variants: [
+                makeVariant(1, 'red', 'S', 'red.jpg'),
+                makeVariant(2, 'red', 'M', 'red.jpg'),
+                makeVariant(3, 'blue', 'S', 'blue.jpg'),
+                makeVariant(4, 'blue', 'M', 'blue.jpg')
+            ]
+        }), ['color', 'size'], {
+            externalImageBaseUrl: base,
+            localizableAttrIds: { color: false, size: false }
+        });
+        var parts = splitMasterAndVariants(result.productXml, masterId + '-1');
+
+        // default variant supplies the fallback when the master has no images
+        assert.match(parts.master, /<image-group view-type="large">\s*<image path="i\/red\.jpg"\/>/);
+        // images only depend on color → one group per color, no size qualifier
+        assert.equal(countMatches(parts.master, /<variation attribute-id="color" value="blue"\/>/g), 3);
+        assert.notMatch(parts.master, /<variation attribute-id="color" value="red"\/>/);
+        assert.notMatch(parts.master, /<variation attribute-id="size"/);
+        assert.equal(countMatches(parts.master, /<image-group /g), 6);
+        assert.notInclude(parts.variants, '<images>');
+    });
+
+    it('falls back to full axis combinations when images vary by a later axis', function () {
+        var xmlBuilder = loadXmlBuilder();
+        var masterId = 'shirt';
+        var base = 'https://cdn.example.com';
+        var makeVariant = function (n, color, size, img) {
+            return {
+                productId: masterId + '-' + n,
+                sku: 'SKU-' + n,
+                isDefault: n === 1,
+                images: [{ url: base + '/i/' + img }],
+                attributes: [{ name: 'color', value: color }, { name: 'size', value: size }]
+            };
+        };
+        var result = xmlBuilder.buildProductXml(sampleTransformed({
+            productId: masterId,
+            masterImages: [],
+            hasVariants: true,
+            variationAttributeNames: ['color', 'size'],
+            variants: [
+                makeVariant(1, 'red', 'S', '1.jpg'),
+                makeVariant(2, 'red', 'M', '2.jpg'),
+                makeVariant(3, 'blue', 'S', '3.jpg'),
+                makeVariant(4, 'blue', 'M', '4.jpg')
+            ]
+        }), ['color', 'size'], {
+            externalImageBaseUrl: base,
+            localizableAttrIds: { color: false, size: false }
+        });
+        var parts = splitMasterAndVariants(result.productXml, masterId + '-1');
+
+        assert.match(parts.master, /<image-group view-type="large">\s*<image path="i\/1\.jpg"\/>/);
+        assert.match(parts.master, /<variation attribute-id="color" value="red"\/>\s*<variation attribute-id="size" value="M"\/>\s*<image path="i\/2\.jpg"\/>/);
+        assert.match(parts.master, /<variation attribute-id="color" value="blue"\/>\s*<variation attribute-id="size" value="S"\/>\s*<image path="i\/3\.jpg"\/>/);
+        assert.match(parts.master, /<variation attribute-id="color" value="blue"\/>\s*<variation attribute-id="size" value="M"\/>\s*<image path="i\/4\.jpg"\/>/);
+        // the default variant's combination equals the fallback → no group of its own
+        assert.notMatch(parts.master, /<variation attribute-id="color" value="red"\/>\s*<variation attribute-id="size" value="S"\/>/);
+        assert.equal(countMatches(parts.master, /<image-group view-type="small">/g), 4);
+    });
+
+    it('merges variant-only images into the fallback group when no variation axis is selected', function () {
+        var xmlBuilder = loadXmlBuilder();
+        var masterId = 'mug';
+        var base = 'https://cdn.example.com';
+        var result = xmlBuilder.buildProductXml(sampleTransformed({
+            productId: masterId,
+            masterImages: [{ url: base + '/i/a.jpg' }],
+            hasVariants: true,
+            variationAttributeNames: ['color'],
+            variants: [{
+                productId: masterId + '-1',
+                sku: 'SKU-1',
+                isDefault: true,
+                images: [{ url: base + '/i/a.jpg' }],
+                attributes: [{ name: 'color', value: 'red' }]
+            }, {
+                productId: masterId + '-2',
+                sku: 'SKU-2',
+                isDefault: false,
+                images: [{ url: base + '/i/b.jpg' }],
+                attributes: [{ name: 'color', value: 'blue' }]
+            }]
+        }), [], { externalImageBaseUrl: base });
+        var parts = splitMasterAndVariants(result.productXml, masterId + '-1');
+
+        assert.notInclude(result.productXml, '<variation ');
+        assert.notMatch(parts.master, /<attributes>/);
+        assert.match(parts.master, /<image-group view-type="large">\s*<image path="i\/a\.jpg"\/>\s*<image path="i\/b\.jpg"\/>\s*<\/image-group>/);
+        assert.notInclude(parts.variants, '<images>');
+    });
+
+    it('writes Shopify variant images as variation groups keyed by the option axis id', function () {
+        var xmlBuilder = loadXmlBuilder();
+        var result = xmlBuilder.buildProductXml(sampleTransformed({
+            productId: '7001',
+            shopifyId: 'gid://shopify/Product/7001',
+            masterImages: [{ url: 'https://cdn.shopify.com/s/files/main.jpg' }],
+            hasVariants: true,
+            variants: [{
+                productId: '41001',
+                sku: 'S-RED',
+                isDefault: true,
+                images: [{ url: 'https://cdn.shopify.com/s/files/red.jpg' }],
+                attributes: [{ name: 'Color', value: 'Red' }]
+            }, {
+                productId: '41002',
+                sku: 'S-BLUE',
+                isDefault: false,
+                images: [{ url: 'https://cdn.shopify.com/s/files/blue.jpg' }],
+                attributes: [{ name: 'Color', value: 'Blue' }]
+            }]
+        }), [], { externalImageBaseUrl: 'https://cdn.shopify.com' });
+        var parts = splitMasterAndVariants(result.productXml, '41001');
+
+        assert.match(parts.master, /<image-group view-type="large">\s*<image path="s\/files\/main\.jpg"\/>/);
+        assert.match(parts.master, /<variation attribute-id="shopify_Color" value="Red"\/>\s*<image path="s\/files\/red\.jpg"\/>/);
+        assert.match(parts.master, /<variation attribute-id="shopify_Color" value="Blue"\/>\s*<image path="s\/files\/blue\.jpg"\/>/);
+        assert.match(parts.master, /variation-attribute attribute-id="shopify_Color"/);
+        assert.notInclude(parts.variants, '<images>');
+    });
+
+    it('keeps plain fallback image groups on sets and on products without variants', function () {
+        var xmlBuilder = loadXmlBuilder();
+        var base = 'https://cdn.example.com';
+        var set = xmlBuilder.buildProductXml(sampleTransformed({
+            productId: 'gift-set',
+            productKind: 'set',
+            hasVariants: false,
+            setProducts: [{ productId: 'mug' }],
+            masterImages: [{ url: base + '/i/set.jpg', alt: 'Set shot' }]
+        }), [], { externalImageBaseUrl: base });
+        assert.equal(countMatches(set.productXml, /<image-group /g), 3);
+        assert.include(set.productXml, '<alt xml:lang="x-default">Set shot</alt>');
+        assert.notInclude(set.productXml, '<variation ');
+        assert.isBelow(set.productXml.indexOf('</images>'), set.productXml.indexOf('<product-set-products>'));
+
+        var simple = xmlBuilder.buildProductXml(sampleTransformed({
+            productId: 'plain',
+            hasVariants: false,
+            masterImages: [{ url: base + '/i/a.jpg' }, { url: base + '/i/b.jpg' }, { url: base + '/i/a.jpg' }]
+        }), [], { externalImageBaseUrl: base });
+        assert.equal(countMatches(simple.productXml, /<image-group /g), 3);
+        assert.equal(countMatches(simple.productXml, /<image-group view-type="small">\s*<image path="i\/a\.jpg"\/>\s*<image path="i\/b\.jpg"\/>\s*<\/image-group>/g), 1);
+        assert.notInclude(simple.productXml, '<variations>');
+    });
+
     it('puts xml:lang on localizable custom-attribute entries and on display-value', function () {
         var xmlBuilder = loadXmlBuilder();
         var result = xmlBuilder.buildProductXml(sampleTransformed({
             hasVariants: true,
+            variationAttributeNames: ['packCount'],
             variants: [{
                 productId: '882038c7-1fe6-4b0f-aec3-48fd2da9b106-1',
                 sku: 'SKU-1',
@@ -307,12 +664,17 @@ describe('product localized XML', function () {
                 attributes: [{
                     name: 'care-instructions',
                     value: { 'en-GB': 'Wash cold', 'de-DE': 'Kalt waschen' }
+                }, {
+                    name: 'packCount',
+                    value: { key: '6-count', label: { 'en-GB': '6 count', 'de-DE': '6 Packungen' } }
                 }]
             }]
-        }), ['care-instructions']);
+        }), ['care-instructions', 'packCount'], {
+            localizableAttrIds: { 'care-instructions': true, packCount: false }
+        });
         assert.match(result.productXml, /care-instructions" xml:lang="x-default">Wash cold/);
         assert.match(result.productXml, /care-instructions" xml:lang="de-DE">Kalt waschen/);
-        assert.match(result.productXml, /display-value xml:lang="de-DE">Kalt waschen/);
+        assert.match(result.productXml, /display-value xml:lang="de-DE">6 Packungen/);
     });
 
     it('rewrites classification and assignment UUIDs to category keys', function () {
@@ -430,6 +792,7 @@ describe('product localized XML', function () {
         var xmlBuilder = loadXmlBuilder();
         var result = xmlBuilder.buildProductXml(sampleTransformed({
             hasVariants: true,
+            variationAttributeNames: [],
             variants: [{
                 productId: 'fe8c92b1-c032-460e-8257-b29f2f482b38-1',
                 sku: 'SKU-1',
@@ -455,13 +818,14 @@ describe('product localized XML', function () {
         assert.match(result.productXml, /search-color" xml:lang="de-DE">purrrple/);
         assert.match(result.productXml, /productspec" xml:lang="x-default">- Machine washable/);
         assert.match(result.productXml, /productspec" xml:lang="de-DE">- Maschinenwaschbar/);
-        assert.match(result.productXml, /variation-attribute-value value="purple"/);
+        assert.notMatch(result.productXml, /variation-attribute attribute-id="search-color"/);
     });
 
     it('adds xml:lang on every entry when the SFCC def is localizable, even for a single value', function () {
         var xmlBuilder = loadXmlBuilder();
         var result = xmlBuilder.buildProductXml(sampleTransformed({
             hasVariants: true,
+            variationAttributeNames: [],
             variants: [{
                 productId: '882038c7-1fe6-4b0f-aec3-48fd2da9b106-1',
                 sku: 'SKU-1',

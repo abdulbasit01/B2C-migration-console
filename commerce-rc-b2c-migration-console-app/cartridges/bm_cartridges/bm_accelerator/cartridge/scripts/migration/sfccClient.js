@@ -89,7 +89,7 @@ function doGet(url, token) {
  * Get every attribute definition for an SFCC system object type.
  * @param {string} token
  * @param {string} objectType
- * @returns {Array<{ id: string, displayName: string, system: boolean, localizable: boolean|null, valueType: string }>}
+ * @returns {Array<{ id: string, displayName: string, system: boolean, localizable: boolean|null, siteSpecific: boolean|null, valueType: string }>}
  */
 function getAttributeDefinitions(token, objectType) {
     var attrs    = [];
@@ -110,11 +110,18 @@ function getAttributeDefinitions(token, objectType) {
             var locKnown = (locRaw === true || locRaw === false
                 || locRaw === 1 || locRaw === 0
                 || locRaw === 'true' || locRaw === 'false');
+            var siteRaw = a.site_specific;
+            if (siteRaw === undefined) siteRaw = a.siteSpecific;
+            if (siteRaw === undefined) siteRaw = a['site-specific'];
+            var siteKnown = (siteRaw === true || siteRaw === false
+                || siteRaw === 1 || siteRaw === 0
+                || siteRaw === 'true' || siteRaw === 'false');
             attrs.push({
                 id:           a.id,
                 displayName:  (a.display_name && a.display_name.default) || a.id,
                 system:       !!a.system,
                 localizable:  locKnown ? (locRaw === true || locRaw === 1 || locRaw === 'true') : null,
+                siteSpecific: siteKnown ? (siteRaw === true || siteRaw === 1 || siteRaw === 'true') : null,
                 valueType:    a.value_type || a.valueType || a['value-type'] || ''
             });
         }
