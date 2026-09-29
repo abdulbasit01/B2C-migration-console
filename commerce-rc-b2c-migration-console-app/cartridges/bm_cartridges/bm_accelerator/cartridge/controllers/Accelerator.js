@@ -484,27 +484,36 @@ exports.OrderMigration = function () {
         paymentStateFilters: migrationData.getPaymentStateFilters(platformId),
         cssUrl:              URLUtils.staticURL('/css/accelerator-migration.css').toString(),
         attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString() + '?v=12',
-        orderMigrationJsUrl: URLUtils.staticURL('/js/order-migration.js').toString() + '?v=6'
+        orderMigrationJsUrl: URLUtils.staticURL('/js/order-migration.js').toString() + '?v=7'
     }));
 };
 exports.OrderMigration.public = true;
 
 /**
- * Export orders from commercetools and generate IMPEX package.
- * POST: years=1|2|3&maxCount=optional&orderState=optional&paymentState=optional
+ * @param {string} raw - order date range from the request: 1, 2, 3 or 'all'
+ * @returns {number} years, 0 meaning all orders; NaN when not valid
+ */
+function parseOrderYears(raw) {
+    if (String(raw).toLowerCase() === 'all') return 0;
+    return parseInt(raw, 10);
+}
+
+/**
+ * Export the next batch of orders into IMPEX XML part files.
+ * POST: years=1|2|3|all&maxCount=optional&orderState=optional&paymentState=optional
+ *       &state=optional (JSON state from the previous response; omit to start a run)
  */
 exports.ExportOrders = function () {
     var platformId   = resolvePlatform();
-    var offset       = parseInt(getParam('offset') || '0', 10);
-    var singleFile   = getParam('singleFile') !== 'false';
-    var years        = parseInt(getParam('years') || String(session.custom.orderExportYears || '1'), 10);
+    var stateRaw     = getParam('state');
+    var years        = parseOrderYears(getParam('years') || String(session.custom.orderExportYears || '1'));
     var maxRaw       = getParam('maxCount') || String(session.custom.orderExportMaxCount || '');
     var maxCount     = maxRaw ? parseInt(maxRaw, 10) : null;
     var orderState   = getParam('orderState') || String(session.custom.orderExportOrderState || '');
     var paymentState = getParam('paymentState') || String(session.custom.orderExportPaymentState || '');
 
-    if ([1, 2, 3].indexOf(years) < 0) {
-        jsonResponse({ ok: false, error: 'Years must be 1, 2, or 3' });
+    if ([0, 1, 2, 3].indexOf(years) < 0) {
+        jsonResponse({ ok: false, error: 'Date range must be 1, 2 or 3 years, or all' });
         return;
     }
 
@@ -516,19 +525,19 @@ exports.ExportOrders = function () {
 
     try {
         var fullRunner = require('*/cartridge/scripts/migration/orders/fullMigrationRunner');
-        var result     = fullRunner.runBatch(offset, {
+        var result     = fullRunner.runChunk({
             years:        years,
             maxCount:     maxCount,
             orderState:   orderState,
             paymentState: paymentState
-        }, singleFile);
+        }, stateRaw ? JSON.parse(stateRaw) : null);
 
         if (!result.ok) {
             jsonResponse({ ok: false, error: result.error });
             return;
         }
 
-        if (result.done && offset === 0) {
+        if (result.done) {
             session.custom.orderMigrationReport = JSON.stringify({
                 ordersProcessed:   result.ordersProcessed,
                 ordersValidated:   result.ordersValidated,
@@ -540,21 +549,17 @@ exports.ExportOrders = function () {
             });
         }
 
-        var downloadFiles = [];
-        if (result.fileName && result.impexPath) {
-            downloadFiles.push({
-                name:         result.fileName,
-                relativePath: result.impexPath + '/' + result.fileName,
-                isZip:        false
-            });
-        }
+        var downloadFiles = (result.files || []).map(function (name) {
+            return { name: name, relativePath: result.impexPath + '/' + name, isZip: false };
+        });
 
         jsonResponse({
             ok:         true,
-            singleFile: result.singleFile,
             done:       result.done,
             total:      result.total,
-            nextOffset: result.nextOffset,
+            processed:  result.processed,
+            state:      result.state,
+            files:      result.files || [],
             built:      result.built,
             failed:     result.failed,
             errors:     result.errors || [],
@@ -577,7 +582,7 @@ exports.ExportOrders.public = true;
 
 /**
  * Count orders matching export filters (commercetools query total).
- * POST: years=1|2|3&maxCount=optional&orderState=optional&paymentState=optional
+ * POST: years=1|2|3|all&maxCount=optional&orderState=optional&paymentState=optional
  */
 exports.CountOrders = function () {
     var platformId = resolvePlatform();
@@ -587,14 +592,14 @@ exports.CountOrders = function () {
         return;
     }
 
-    var years        = parseInt(getParam('years') || '1', 10);
+    var years        = parseOrderYears(getParam('years') || '1');
     var maxRaw       = getParam('maxCount') || '';
     var maxCount     = maxRaw ? parseInt(maxRaw, 10) : null;
     var orderState   = getParam('orderState') || '';
     var paymentState = getParam('paymentState') || '';
 
-    if ([1, 2, 3].indexOf(years) < 0) {
-        jsonResponse({ ok: false, error: 'Years must be 1, 2, or 3' });
+    if ([0, 1, 2, 3].indexOf(years) < 0) {
+        jsonResponse({ ok: false, error: 'Date range must be 1, 2 or 3 years, or all' });
         return;
     }
 
