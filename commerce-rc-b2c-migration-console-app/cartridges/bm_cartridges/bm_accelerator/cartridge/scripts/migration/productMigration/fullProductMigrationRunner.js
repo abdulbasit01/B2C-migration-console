@@ -69,6 +69,20 @@ function ensureLocalDirectory() {
     return dir;
 }
 
+/**
+ * Sink for productXmlBuilder.buildXmlParts: writes XML to the temp files piece by piece so no
+ * single string reaches SFCC's 1,000,000-char quota (api.jsStringLength).
+ * @param {string} prodsFile - temp file for product elements
+ * @param {string} catsFile - temp file for category-assignment elements
+ * @returns {Function} onFlush(productsPart, categoriesPart)
+ */
+function flushTo(prodsFile, catsFile) {
+    return function (productsPart, categoriesPart) {
+        appendLocal(prodsFile, productsPart);
+        appendLocal(catsFile, categoriesPart);
+    };
+}
+
 function appendLocal(fileName, content) {
     if (!content) return;
     var File       = require('dw/io/File');
@@ -333,9 +347,50 @@ function finalizeCtpPart(catalogId, stem, allowEmpty) {
     return fileName;
 }
 
+// Bundle members outside the batch are fetched read-only from CT so members can point at
+// the exact variant their SKU names. Capped per batch; beyond the cap members fall back to
+// their master product, which SFCC also accepts in a bundle.
+var MAX_BUNDLE_MEMBER_FETCH = 200;
+
+/**
+ * @param {Array} rawProducts - CT products of this batch
+ * @returns {Array} CT products of bundle members that are not in the batch
+ */
+function fetchBundleMembers(rawProducts) {
+    var ctpTransformer = require('*/cartridge/scripts/migration/productMigration/productTransformer');
+    var inBatch = {};
+    var wanted = [];
+    var seen = {};
+    var i;
+    var j;
+    for (i = 0; i < rawProducts.length; i++) {
+        if (rawProducts[i] && rawProducts[i].id) inBatch[rawProducts[i].id] = true;
+    }
+    for (i = 0; i < rawProducts.length; i++) {
+        var ids = ctpTransformer.bundleMemberIds(rawProducts[i]);
+        for (j = 0; j < ids.length; j++) {
+            if (!inBatch[ids[j]] && !seen[ids[j]]) {
+                seen[ids[j]] = true;
+                wanted.push(ids[j]);
+            }
+        }
+    }
+    var fetched = [];
+    for (i = 0; i < wanted.length && i < MAX_BUNDLE_MEMBER_FETCH; i++) {
+        try {
+            fetched.push(ctpFetcher.fetchById(wanted[i]));
+        } catch (e) {
+            // Deleted in CT or not reachable: the member keeps its master ID and SFCC reports it.
+        }
+    }
+    return fetched;
+}
+
 function appendCtpProducts(rawProducts, catalogId, selectedVarAttrs, state) {
     var remaining = rawProducts.slice(0);
     var xmlOpts = getCtpXmlOpts(catalogId);
+    xmlOpts.onFlush = flushTo(TEMP_PRODS, TEMP_CATS);
+    xmlOpts.bundleMemberProducts = fetchBundleMembers(rawProducts);
     var stem = getStr(SK_FILENAME) || 'ctp-product-run.xml';
 
     while (remaining.length) {
@@ -485,7 +540,8 @@ function runShopifyBatch(cursor, catalogId, selectedVarAttrs) {
         return finalizeShopify(catalogId, total, impexPath, fileName);
     }
 
-    var parts = xmlBuilder.buildXmlParts(rawProds, catalogId, selectedVarAttrs, shopifyTransformer.transformProduct);
+    var parts = xmlBuilder.buildXmlParts(rawProds, catalogId, selectedVarAttrs, shopifyTransformer.transformProduct,
+        { onFlush: flushTo(TEMP_SHOPIFY_PRODS, TEMP_SHOPIFY_CATS) });
     appendLocal(TEMP_SHOPIFY_PRODS, parts.productsXml);
     appendLocal(TEMP_SHOPIFY_CATS,  parts.categoriesXml);
 
@@ -614,7 +670,8 @@ function runSapBatch(offset, catalogId) {
         return finalizeSap(catalogId, total, 0, impexPath, targetFileName);
     }
 
-    var parts = xmlBuilder.buildXmlParts(rawProds, catalogId, null, sapTransformer.transformProduct);
+    var parts = xmlBuilder.buildXmlParts(rawProds, catalogId, null, sapTransformer.transformProduct,
+        { onFlush: flushTo(TEMP_SAP_PRODS, TEMP_SAP_CATS) });
     appendLocal(TEMP_SAP_PRODS, parts.productsXml);
     appendLocal(TEMP_SAP_CATS,  parts.categoriesXml);
 
@@ -745,7 +802,8 @@ function runBcBatch(offset, catalogId, selectedVarAttrs) {
         return finalizeBc(catalogId, total, 0, impexPath, targetFileName);
     }
 
-    var parts = xmlBuilder.buildXmlParts(rawProds, catalogId, selectedVarAttrs, bcTransformer.transformProduct);
+    var parts = xmlBuilder.buildXmlParts(rawProds, catalogId, selectedVarAttrs, bcTransformer.transformProduct,
+        { onFlush: flushTo(TEMP_BC_PRODS, TEMP_BC_CATS) });
     appendLocal(TEMP_BC_PRODS, parts.productsXml);
     appendLocal(TEMP_BC_CATS,  parts.categoriesXml);
 

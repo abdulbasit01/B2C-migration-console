@@ -10,6 +10,21 @@ var systemFieldResolver = require('*/cartridge/scripts/migration/core/systemFiel
  *      - [{typeId:"product", id:"..."}]              → set (no quantity)
  *      - [{product:{typeId:"product",...}, quantity}] → bundle (has quantity)
  */
+/**
+ * Attributes that reference other products for merchandising, not set membership
+ * (e.g. recommendedProductsEU/US, accessories). They stay ordinary custom attributes
+ * and must never turn a product into a product set.
+ */
+var NON_SET_REFERENCE_ATTR_RE = /recommend|accessor|related|upsell|up-sell|cross-?sell|similar|alternative/i;
+
+/**
+ * @param {Object} attr - CT attribute { name, value }
+ * @returns {boolean} true when the attribute may hold product-set members
+ */
+function isSetMemberAttribute(attr) {
+    return !!(attr && attr.name && !NON_SET_REFERENCE_ATTR_RE.test(String(attr.name)));
+}
+
 function detectProductKind(ctpProduct, data) {
     var ptName = '';
     if (ctpProduct.productType && ctpProduct.productType.obj) {
@@ -20,15 +35,20 @@ function detectProductKind(ctpProduct, data) {
     if (ptName.indexOf('bundle') !== -1) return 'bundle';
     if (ptName.indexOf('set') !== -1)    return 'set';
 
-    // Fallback: detect by masterVariant attribute values
+    // Fallback: detect by masterVariant attribute values.
+    // A product with real variants is exported as a variation master; SFCC product sets
+    // cannot carry variations, so the set fallback never applies to it.
+    var hasRealVariants = !!(data.variants && data.variants.length);
     var mvAttrs = (data.masterVariant && data.masterVariant.attributes) || [];
     for (var i = 0; i < mvAttrs.length; i++) {
         var val = mvAttrs[i].value;
         if (val === null || val === undefined) continue;
+        var setCandidate = !hasRealVariants && isSetMemberAttribute(mvAttrs[i]);
 
-        // Single Reference<Product>: { typeId: "product", id: "..." } — set
+        // A single Reference<Product> (e.g. customizableAccessory) is one linked product,
+        // not a set — a set of one is never intended.
         if (!Array.isArray(val) && typeof val === 'object' && val.typeId === 'product' && val.id) {
-            return 'set';
+            continue;
         }
 
         if (!Array.isArray(val) || !val.length) continue;
@@ -40,11 +60,11 @@ function detectProductKind(ctpProduct, data) {
             return 'bundle';
         }
         // [{typeId:"product", id:"..."}] — set (direct product refs, no quantity)
-        if (first.typeId === 'product' && first.id) {
+        if (setCandidate && first.typeId === 'product' && first.id) {
             return 'set';
         }
         // [{value: {typeId:"product", id:"..."}}] — set (nested ref)
-        if (first.value && first.value.typeId === 'product' && first.value.id) {
+        if (setCandidate && first.value && first.value.typeId === 'product' && first.value.id) {
             return 'set';
         }
     }
@@ -61,6 +81,8 @@ var UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function extractSetProducts(data) {
     var mvAttrs = (data.masterVariant && data.masterVariant.attributes) || [];
     for (var i = 0; i < mvAttrs.length; i++) {
+        // Same filter as detectProductKind: recommendation lists are never set members.
+        if (!isSetMemberAttribute(mvAttrs[i])) continue;
         var val = mvAttrs[i].value;
         if (val === null || val === undefined) continue;
 
@@ -120,12 +142,48 @@ function extractSetProducts(data) {
 }
 
 /**
+ * Read one nested bundle line (a CT nested-type value: [{ name, value }, ...]).
+ * Fields are recognised by what they hold, so both the reference model
+ * (bundled-product / quantity) and project models such as
+ * bundleProductReference / bundleProductQuantity / bundleProductSku work:
+ *   - the product reference { typeId: "product", id } is the member
+ *   - a positive number in a field named like "quantity"/"qty" is the quantity
+ *   - a string in a field named like "sku" is the member SKU (exact variant)
+ * @param {Array} fields - nested attribute list
+ * @returns {{productId: string, quantity: number, sku: (string|undefined)}|null}
+ */
+function readBundleMemberFields(fields) {
+    var productId = null;
+    var quantity  = 1;
+    var sku       = '';
+    for (var f = 0; f < fields.length; f++) {
+        var field = fields[f];
+        if (!field || !field.name) continue;
+        var v = field.value;
+        if (!productId && v && typeof v === 'object' && v.typeId === 'product' && v.id) {
+            productId = String(v.id);
+        } else if (/quantity|qty/i.test(field.name) && v != null && Number(v) > 0) {
+            quantity = Number(v);
+        } else if (/sku/i.test(field.name) && typeof v === 'string' && v.trim()) {
+            sku = v.trim();
+        }
+    }
+    if (!productId) return null;
+    var member = { productId: productId, quantity: quantity };
+    if (sku) member.sku = sku;
+    return member;
+}
+
+/**
  * Extract bundled component product IDs + quantities from CT master-variant attributes.
- * Returns [{productId: string, quantity: number}]
+ * Recommendation-style lists (recommendedProducts*, accessories, ...) are never bundle
+ * contents — the same filter as product sets.
+ * Returns [{productId: string, quantity: number, sku?: string}]
  */
 function extractBundleProducts(data) {
     var mvAttrs = (data.masterVariant && data.masterVariant.attributes) || [];
     for (var i = 0; i < mvAttrs.length; i++) {
+        if (!isSetMemberAttribute(mvAttrs[i])) continue;
         var val = mvAttrs[i].value;
         if (!Array.isArray(val) || !val.length) continue;
         var first = val[0];
@@ -134,22 +192,12 @@ function extractBundleProducts(data) {
         var components = [];
 
         if (Array.isArray(first)) {
-            // Set<Nested(bundle-item)>: [[{name:"bundled-product",value:{...}},{name:"quantity",value:N}],...]
+            // Set<Nested(bundle-item)>: [[{name:"bundleProductReference",value:{...}},{name:"bundleProductQuantity",value:N}],...]
             for (var ni = 0; ni < val.length; ni++) {
                 var nestedItem = val[ni];
                 if (!Array.isArray(nestedItem)) continue;
-                var productId = null;
-                var quantity  = 1;
-                for (var nj = 0; nj < nestedItem.length; nj++) {
-                    var attr = nestedItem[nj];
-                    if (!attr || !attr.name) continue;
-                    if (attr.name === 'bundled-product' && attr.value && attr.value.id) {
-                        productId = attr.value.id;
-                    } else if (attr.name === 'quantity' && attr.value != null) {
-                        quantity = Number(attr.value) || 1;
-                    }
-                }
-                if (productId) components.push({ productId: productId, quantity: quantity });
+                var member = readBundleMemberFields(nestedItem);
+                if (member) components.push(member);
             }
         } else if (typeof first === 'object') {
             if (first.product && first.product.typeId === 'product' && first.quantity != null) {
@@ -173,6 +221,19 @@ function extractBundleProducts(data) {
         if (components.length) return components;
     }
     return [];
+}
+
+/**
+ * CT product IDs of the bundle members of one product (empty unless it is a bundle).
+ * Used by the runner to fetch members outside the current batch so members can point
+ * at the exact variant their SKU names.
+ * @param {Object} ctpProduct - raw CT product
+ * @returns {Array<string>} member CT product IDs
+ */
+function bundleMemberIds(ctpProduct) {
+    var data = (ctpProduct && ctpProduct.masterData && ctpProduct.masterData.current) || {};
+    if (detectProductKind(ctpProduct || {}, data) !== 'bundle') return [];
+    return extractBundleProducts(data).map(function (m) { return m.productId; });
 }
 
 function getLocalized(obj) {
@@ -852,6 +913,7 @@ function transformProduct(ctpProduct) {
 
 module.exports = {
     transformProduct:       transformProduct,
+    bundleMemberIds:        bundleMemberIds,
     resolveMasterProductId: resolveMasterProductId,
     sanitizeId:             sanitizeId,
     toLocaleMap:            toLocaleMap,

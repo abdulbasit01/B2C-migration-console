@@ -1131,8 +1131,48 @@ exports.GetProductCatalogs = function () {
 };
 exports.GetProductCatalogs.public = true;
 
+// SFCC caps one BM response at 10 MB (PageSizeLimitExceeded) and one script string at
+// 1,000,000 chars (api.jsStringLength). A full catalog XML is ~27 MB, so it is served in
+// parts: each part is PRODUCT_XML_PART_READS reads of PRODUCT_XML_READ_CHARS characters.
+// Worst case 3 bytes per UTF-8 character keeps a part at ~8.1 MB.
+var PRODUCT_XML_READ_CHARS = 900000;
+var PRODUCT_XML_PART_READS = 3;
+
 /**
- * GET: fileName=<name> — streams XML file from IMPEX as a download.
+ * Write one part of a product XML file. Sets X-Download-Done: true on the last part.
+ * @param {dw.io.File} file - XML file under IMPEX
+ * @param {number} part - zero-based part index
+ */
+function writeProductXmlPart(file, part) {
+    var FileReader = require('dw/io/FileReader');
+    var partChars  = PRODUCT_XML_READ_CHARS * PRODUCT_XML_PART_READS;
+    var reader     = new FileReader(file, 'UTF-8');
+    var done       = false;
+    try {
+        var toSkip = part * partChars;
+        while (toSkip > 0) {
+            var skipped = reader.skip(Math.min(toSkip, PRODUCT_XML_READ_CHARS));
+            if (!skipped) { done = true; break; }
+            toSkip -= skipped;
+        }
+        var i;
+        for (i = 0; !done && i < PRODUCT_XML_PART_READS; i++) {
+            var chunk = reader.readN(PRODUCT_XML_READ_CHARS);
+            if (chunk) response.writer.print(chunk);
+            if (!chunk || chunk.length < PRODUCT_XML_READ_CHARS) done = true;
+        }
+        // Exactly at a part boundary the next read would be empty; peek so the page stops now.
+        if (!done && reader.read() === null) done = true;
+    } finally {
+        reader.close();
+    }
+    response.setHttpHeader('X-Download-Done', done ? 'true' : 'false');
+}
+
+/**
+ * GET: fileName=<name>[&part=<n>] — streams XML file from IMPEX as a download.
+ * With part: returns that part only (see writeProductXmlPart); the page joins the parts.
+ * Without part: whole file in one response (fails above 10 MB; kept for other callers).
  */
 exports.DownloadProductXml = function () {
     var fileName = getParam('fileName') || '';
@@ -1150,6 +1190,18 @@ exports.DownloadProductXml = function () {
         response.writer.print('File not found: ' + fileName);
         return;
     }
+    var partParam = getParam('part');
+    if (partParam !== null && partParam !== undefined && String(partParam) !== '') {
+        var part = parseInt(String(partParam), 10);
+        if (isNaN(part) || part < 0) {
+            response.setContentType('text/plain');
+            response.writer.print('Invalid part parameter.');
+            return;
+        }
+        response.setContentType('application/xml; charset=UTF-8');
+        writeProductXmlPart(file, part);
+        return;
+    }
     response.setContentType('application/xml');
     response.addHttpHeader('Content-Disposition', 'attachment; filename="' + fileName + '"');
     var reader = new FileReader(file, 'UTF-8');
@@ -1165,7 +1217,7 @@ exports.DownloadProductXml = function () {
 exports.DownloadProductXml.public = true;
 
 /**
- * GET — Returns all CT variant product attributes plus the saved selection from session.
+ * GET — Returns all CT variant product attributes. Selection state is retained by the page.
  * Response: { ok, attrs: [{ name, sfccId, label, ctpType }], savedSelection: [string]|null }
  */
 /**
@@ -1338,19 +1390,10 @@ exports.GetVariantAttrs = function () {
             });
         }
 
-        var selectionSessionKey = selectionMode === 'partial'
-            ? 'selectedVariantAttrsPartial'
-            : 'selectedVariantAttrsFull';
-        var savedRaw = String(session.custom[selectionSessionKey]
-            || session.custom.selectedVariantAttrs || '');
-        var savedSelection = null;
-        if (savedRaw) {
-            try { savedSelection = JSON.parse(savedRaw); } catch (pe) {}
-        }
         jsonResponse({
             ok:             true,
             attrs:          enriched,
-            savedSelection: savedSelection,
+            savedSelection: null,
             mode:           selectionMode,
             productCount:   selectionMode === 'partial' && platform === 'commercetools'
                 ? String(getParam('productIds') || '').split(',').filter(function (id) {
@@ -1385,7 +1428,8 @@ exports.SavePreflightSelection.public = true;
 
 /**
  * POST: attrs=<JSON array of CT attr names to include in variant XML>
- * Validates, auto-creates missing SFCC attrs (if pre-flight authorized), then saves selection.
+ * Validates and returns the normalized selection to the page. The selection is
+ * sent with migration requests instead of being stored in the BM session.
  *
  * Rules:
  *  - Attr exists in SFCC → include directly, no pre-flight needed
@@ -1394,9 +1438,8 @@ exports.SavePreflightSelection.public = true;
  */
 exports.SaveVariantAttrSelection = function () {
     try {
-        var attrsJson = getParam('attrs');
-        var selected  = [];
-        if (attrsJson) { try { selected = JSON.parse(attrsJson); } catch (pe) {} }
+        var selectionParser = require('*/cartridge/scripts/migration/productMigration/variantAttributeSelection');
+        var selected = selectionParser.parse(getParam('attrs')) || [];
 
         var platform = String(session.custom.migrationPlatformId || 'commercetools');
         var selectionMode = getParam('mode') === 'partial' ? 'partial' : 'full';
@@ -1473,11 +1516,7 @@ exports.SaveVariantAttrSelection = function () {
             }
         }
 
-        var selectionSessionKey = selectionMode === 'partial'
-            ? 'selectedVariantAttrsPartial'
-            : 'selectedVariantAttrsFull';
-        session.custom[selectionSessionKey] = JSON.stringify(selected);
-        jsonResponse({ ok: true, mode: selectionMode });
+        jsonResponse({ ok: true, mode: selectionMode, selected: selected });
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
     }
@@ -2651,10 +2690,7 @@ exports.ProductWizard = function () {
 
     // Visit-scoped remaps reset on full page load / refresh (same as other modules).
     clearModuleAttrIdMap('product');
-    try { session.custom.selectedVariantAttrs = ''; } catch (e1) { /* ignore */ }
-    try { session.custom.selectedVariantAttrsPartial = ''; } catch (e2) { /* ignore */ }
-    try { session.custom.selectedVariantAttrsFull = ''; } catch (e3) { /* ignore */ }
-    try { session.custom.preflightSelection = ''; } catch (e4) { /* ignore */ }
+    try { session.custom.preflightSelection = ''; } catch (e1) { /* ignore */ }
 
     ISML.renderTemplate('accelerator/productMigration', withBmFrame({
         title:          Resource.msg('accelerator.title', 'accelerator', null),
@@ -2748,7 +2784,8 @@ exports.ProductMigrationCount.public = true;
 
 /**
  * Full Product Migration — fetch one batch of products, build catalog XML, upload via WebDAV.
- * POST: offset=<number> (CT) or offset=<cursor-string> (Shopify, empty/0 = first page)
+ * POST: offset=<number> (CT) or offset=<cursor-string> (Shopify, empty/0 = first page),
+ *       attrs=<optional JSON array of selected source attribute names>
  * catalogId is read from request param or Site Preferences / defaults (sfcc.catalogId).
  */
 exports.FullProductMigrationBuildBatch = function () {
@@ -2768,13 +2805,9 @@ exports.FullProductMigrationBuildBatch = function () {
         jsonResponse({ ok: false, error: 'sfcc.catalogId is not configured' });
         return;
     }
-    var selectedVarAttrs = null;
     try {
-        var raw = String(session.custom.selectedVariantAttrsFull
-            || session.custom.selectedVariantAttrs || '');
-        if (raw) { selectedVarAttrs = JSON.parse(raw); }
-    } catch (pe) {}
-    try {
+        var selectionParser = require('*/cartridge/scripts/migration/productMigration/variantAttributeSelection');
+        var selectedVarAttrs = selectionParser.parse(getParam('attrs'));
         var prodRunner = require('*/cartridge/scripts/migration/productMigration/fullProductMigrationRunner');
         jsonResponse(prodRunner.runBatch(offsetOrCursor, catalogId, selectedVarAttrs, platform));
     } catch (e) {
@@ -2785,7 +2818,8 @@ exports.FullProductMigrationBuildBatch.public = true;
 
 /**
  * Partial Product Migration — fetch one product by ID, build XML, upload via WebDAV.
- * POST: prodId=<id> (accepts ctpId or shopifyId as aliases)
+ * POST: prodId=<id> (accepts ctpId or shopifyId as aliases),
+ *       attrs=<optional JSON array of selected source attribute names>
  *       For CT: UUID. For Shopify: handle, numeric ID, or GID.
  */
 exports.MigrateProductById = function () {
@@ -2802,13 +2836,9 @@ exports.MigrateProductById = function () {
         jsonResponse({ ok: false, error: 'sfcc.catalogId is not configured' });
         return;
     }
-    var selectedVarAttrs = null;
     try {
-        var raw = String(session.custom.selectedVariantAttrsPartial
-            || session.custom.selectedVariantAttrs || '');
-        if (raw) { selectedVarAttrs = JSON.parse(raw); }
-    } catch (pe) {}
-    try {
+        var selectionParser = require('*/cartridge/scripts/migration/productMigration/variantAttributeSelection');
+        var selectedVarAttrs = selectionParser.parse(getParam('attrs'));
         var prodRunner = require('*/cartridge/scripts/migration/productMigration/fullProductMigrationRunner');
         jsonResponse(prodRunner.runById(prodId, catalogId, selectedVarAttrs, platform));
     } catch (e) {

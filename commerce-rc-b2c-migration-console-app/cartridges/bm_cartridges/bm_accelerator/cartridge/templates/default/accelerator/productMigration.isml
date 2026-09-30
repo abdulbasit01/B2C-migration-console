@@ -461,6 +461,7 @@
     </section>
 </div>
 
+<span id="prod-impex-folder-url" data-url="${pdict.impexUrl}" hidden></span>
 <script>
 (function () {
     var PLATFORM_ID      = '${pdict.platformId}';
@@ -664,6 +665,14 @@
     var varAttrsResults  = document.getElementById('prod-var-attrs-results');
     var allVarAttrs      = [];
     var currentAttrMode  = 'partial';
+    var selectedVarAttrsByMode = { partial: null, full: null };
+
+    function variantAttrsRequestParam(mode) {
+        var selected = selectedVarAttrsByMode[mode];
+        return selected === null
+            ? ''
+            : '&attrs=' + encodeURIComponent(JSON.stringify(selected));
+    }
 
     function resetVarAttrsUi() {
         allVarAttrs = [];
@@ -803,6 +812,10 @@
                     + '&mode=' + encodeURIComponent(currentAttrMode), function (data) {
                 saveBtn.disabled = false;
                 if (data.ok) {
+                    var savedMode = data.mode === 'full' ? 'full' : 'partial';
+                    selectedVarAttrsByMode[savedMode] = Array.isArray(data.selected)
+                        ? data.selected.slice(0)
+                        : selected.slice(0);
                     saveBtn.innerHTML       = '&#10003; Saved';
                     saveMsg.style.color     = '#2e7d32';
                     saveMsg.textContent     = selected.length + ' attribute(s) will be included in the XML.';
@@ -880,7 +893,9 @@
                     varAttrsMsg.textContent = attrCount + ' attribute(s) found';
                 }
                 varAttrsMsg.style.color = '#54698d';
-                renderVarAttrsTable(data.attrs || [], data.savedSelection);
+                var responseMode = data.mode === 'full' ? 'full' : 'partial';
+                var localSelection = selectedVarAttrsByMode[responseMode];
+                renderVarAttrsTable(data.attrs || [], localSelection === null ? data.savedSelection : localSelection);
             };
             xhr.send();
         });
@@ -900,23 +915,52 @@
     var partialCatalogId  = '';
     var partialXmlFiles   = [];
 
-    function triggerBlobDownload(url, fileName) {
-        var xhr = new XMLHttpRequest();
-        xhr.open('GET', url, true);
-        xhr.responseType = 'text';
-        xhr.onload = function () {
-            var content = xhr.responseText;
-            var blob = new Blob([content], { type: 'application/xml' });
-            var objUrl = URL.createObjectURL(blob);
-            var link = document.createElement('a');
-            link.href = objUrl;
-            link.download = fileName;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            setTimeout(function () { URL.revokeObjectURL(objUrl); }, 1000);
-        };
-        xhr.send();
+    // Files above SFCC's 10 MB page limit are fetched in parts and joined here.
+    // A failed or non-XML part (BM error page, expired session) aborts the download
+    // instead of saving an HTML page under the .xml name.
+    function triggerBlobDownload(url, fileName, onFinish, onProgress) {
+        var parts = [];
+        function fail(message) {
+            alert('Download of ' + fileName + ' failed: ' + message
+                + ' Refresh Business Manager (the session may have expired) and try again.');
+            if (onFinish) onFinish(false);
+        }
+        function fetchPart(n) {
+            var xhr = new XMLHttpRequest();
+            xhr.open('GET', url + '&part=' + n, true);
+            xhr.responseType = 'text';
+            xhr.onload = function () {
+                var doneHeader = xhr.getResponseHeader('X-Download-Done');
+                var text = xhr.responseText || '';
+                if (xhr.status !== 200 || doneHeader === null) {
+                    fail('the server returned an error for part ' + (n + 1) + '.');
+                    return;
+                }
+                if (n === 0 && text.indexOf('<?xml') !== 0) {
+                    fail('the file does not start with an XML declaration.');
+                    return;
+                }
+                parts.push(text);
+                if (onProgress) onProgress(n + 1);
+                if (doneHeader === 'false') {
+                    fetchPart(n + 1);
+                    return;
+                }
+                var blob = new Blob(parts, { type: 'application/xml' });
+                var objUrl = URL.createObjectURL(blob);
+                var link = document.createElement('a');
+                link.href = objUrl;
+                link.download = fileName;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                setTimeout(function () { URL.revokeObjectURL(objUrl); }, 1000);
+                if (onFinish) onFinish(true);
+            };
+            xhr.onerror = function () { fail('network error on part ' + (n + 1) + '.'); };
+            xhr.send();
+        }
+        fetchPart(0);
     }
 
     function renderDownloadLinks(container, fileNames) {
@@ -928,22 +972,25 @@
         wrap.style.cssText = 'margin-top:10px;display:flex;flex-wrap:wrap;gap:8px;';
         for (var i = 0; i < fileNames.length; i++) {
             (function (name) {
+                // Full catalog files are ~30 MB; Business Manager caps one response at 10 MB and one
+                // file read at 50,000 chars, so files are downloaded from the IMPEX folder instead.
                 var btn = document.createElement('button');
                 btn.type = 'button';
-                btn.innerHTML = '&#8681; ' + name;
+                btn.innerHTML = '&#128194; ' + name;
+                btn.title = 'Opens the IMPEX folder. Download ' + name + ' from there.';
                 btn.style.cssText = 'padding:6px 12px;background:#1565c0;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:13px;';
                 btn.addEventListener('click', function () {
-                    btn.disabled = true;
-                    btn.textContent = 'Downloading...';
-                    triggerBlobDownload(DOWNLOAD_XML_URL + '?fileName=' + encodeURIComponent(name), name);
-                    setTimeout(function () {
-                        btn.disabled = false;
-                        btn.innerHTML = '&#8681; ' + name;
-                    }, 2000);
+                    var holder = document.getElementById('prod-impex-folder-url');
+                    var folderUrl = holder ? holder.getAttribute('data-url') : '';
+                    if (folderUrl) window.open(folderUrl, '_blank');
                 });
                 wrap.appendChild(btn);
             }(fileNames[i]));
         }
+        var hint = document.createElement('div');
+        hint.style.cssText = 'flex-basis:100%;font-size:12px;color:#54698d;';
+        hint.textContent = 'Each button opens the IMPEX folder (src/migration/product/) in a new tab. Download the file there.';
+        wrap.appendChild(hint);
         container.appendChild(wrap);
     }
 
@@ -964,7 +1011,9 @@
         partialOverall.textContent = partialBuilt + ' imported'
             + (partialFailed ? ', ' + partialFailed + ' failed' : '');
 
-        post(PARTIAL_URL, 'prodId=' + encodeURIComponent(ctpId) + '&catalogId=' + encodeURIComponent(partialCatalogId), function (data) {
+        post(PARTIAL_URL, 'prodId=' + encodeURIComponent(ctpId)
+            + '&catalogId=' + encodeURIComponent(partialCatalogId)
+            + variantAttrsRequestParam('partial'), function (data) {
             if (!data.ok) {
                 partialFailed++;
             } else {
@@ -1055,7 +1104,9 @@
             offset + ' / ' + (total || '?') + ' — '
             + fullBuilt + ' migrated' + (fullFailed ? ', ' + fullFailed + ' failed' : ''), pct);
 
-        post(FULL_BATCH_URL, 'offset=' + offset + '&catalogId=' + encodeURIComponent(catalogSelect.value), function (data) {
+        post(FULL_BATCH_URL, 'offset=' + offset
+            + '&catalogId=' + encodeURIComponent(catalogSelect.value)
+            + variantAttrsRequestParam('full'), function (data) {
             if (!data.ok) {
                 setPhase('full', 'build', 'error', data.error || 'Failed', pct);
                 finalizeFull(false);

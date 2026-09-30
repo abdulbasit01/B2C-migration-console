@@ -71,4 +71,35 @@ describe('sfccClient attribute definitions', function () {
         assert.isTrue(definitions[1].siteSpecific);
         assert.equal(definitions[1].valueType, 'int');
     });
+    it('requests full definitions with select=(**) on every page', function () {
+        // Without select, the OCAPI list returns only id/link: localizable, value_type,
+        // site_specific and system would all be unknown (the mock above hides that).
+        var urls = [];
+        var client = proxyquire(clientPath, {
+            '*/cartridge/scripts/migration/core/serviceHttp': {
+                get: function (service, url) {
+                    urls.push(url);
+                    var start = Number((/[?&]start=(d+)/.exec(url) || [])[1] || 0);
+                    return { status: 200, data: { total: 250, data: start === 0 ? new Array(200).fill({ id: 'a' }) : [{ id: 'b' }] } };
+                }
+            },
+            '*/cartridge/scripts/migration/configAccessor': {
+                sfcc: { bmClientId: 'client', metaVersion: 'v25_6' }
+            },
+            '*/cartridge/scripts/migration/sfccCredentialsAccessor': {
+                bmUsername: 'user',
+                bmPassword: 'password'
+            },
+            'dw/crypto/Encoding': { toBase64: function () { return 'encoded'; } },
+            'dw/util/Bytes': function Bytes() {}
+        });
+
+        client.getAttributeDefinitions('token', 'Product');
+
+        assert.lengthOf(urls, 2, 'two pages for 250 definitions');
+        urls.forEach(function (url) {
+            assert.include(url, 'select=(**)');
+            assert.include(url, '/system_object_definitions/Product/attribute_definitions');
+        });
+    });
 });
