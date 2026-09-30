@@ -263,7 +263,8 @@
                         finalizeFull(false);
                         return;
                     }
-                    if (!data.done) {
+                    // continue only when the server hands back a state to resume from
+                    if (!data.done && data.state) {
                         var pct = data.total ? Math.min(99, Math.round(data.processed * 100 / data.total)) : 50;
                         setPhase('full', 'build', 'active', fmtNum(data.processed) + ' of ' + fmtNum(data.total)
                             + ' orders processed, ' + (data.files || []).length + ' file(s)', pct);
