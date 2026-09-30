@@ -5,6 +5,10 @@ var cfg      = require('*/cartridge/scripts/migration/configAccessor');
 var Encoding = require('dw/crypto/Encoding');
 var Bytes    = require('dw/util/Bytes');
 
+var DEFAULT_BATCH_SIZE = 50;
+var MAX_BATCH_SIZE     = 500;
+var RESPONSE_TOO_LARGE = /HTTP response maximum size for memory processing|10485760 bytes exceeded/i;
+
 function toBase64(str) {
     return Encoding.toBase64(new Bytes(str, 'UTF-8'));
 }
@@ -48,27 +52,62 @@ function getCount() {
 /**
  * Fetch one page of products from CT.
  * @param {number} offset
- * @param {number} limit  - max 500
- * @returns {{ results: Array, total: number }}
+ * If SFCC rejects a response at its 10 MB in-memory limit, retry the same offset
+ * with a smaller page. The caller advances by results.length, so no products are
+ * skipped when a page has to be reduced.
+ *
+ * @param {number} limit  - requested page size, max 500
+ * @returns {{ results: Array, total: number, pageSize: number }}
  */
 function fetchBatch(offset, limit) {
-    var c   = cfg.ctp;
-    var tok = getToken();
-    var qs  = '?limit=' + (limit || 500) + '&offset=' + (offset || 0)
-        + '&sort=id+asc&withTotal=true'
-        + '&expand=productType&expand=masterData.current.categories[*]';
+    var c         = cfg.ctp;
+    var tok       = getToken();
+    var requested = parseInt(limit, 10) || DEFAULT_BATCH_SIZE;
+    var pageSize  = Math.min(Math.max(requested, 1), MAX_BATCH_SIZE);
+    var start     = Math.max(parseInt(offset, 10) || 0, 0);
 
-    var res = http.get(
-        c.apiUrl + '/' + c.projectKey + '/products' + qs,
-        { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' }
-    );
-    if (res.status !== 200) {
-        throw new Error('CT products fetch failed (' + res.status + ')');
+    while (pageSize >= 1) {
+        var qs = '?limit=' + pageSize + '&offset=' + start
+            + '&sort=id+asc&withTotal=true'
+            + '&expand=productType&expand=masterData.current.categories[*]';
+        var res;
+        var responseTooLarge = false;
+
+        try {
+            res = http.get(
+                c.apiUrl + '/' + c.projectKey + '/products' + qs,
+                { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' }
+            );
+        } catch (e) {
+            if (!RESPONSE_TOO_LARGE.test(String(e && e.message ? e.message : e))) {
+                throw e;
+            }
+            responseTooLarge = true;
+        }
+
+        if (!responseTooLarge && res.status === 200) {
+            var data = res.data || {};
+            return {
+                results:  data.results || [],
+                total:    data.total   || 0,
+                pageSize: pageSize
+            };
+        }
+
+        var responseMessage = responseTooLarge ? '' : String(res.text || '');
+        responseTooLarge = responseTooLarge || RESPONSE_TOO_LARGE.test(responseMessage);
+        if (responseTooLarge) {
+            if (pageSize === 1) {
+                throw new Error('CT product response exceeds SFCC\'s 10 MB HTTP limit even with a one-product page at offset ' + start);
+            }
+            pageSize = Math.max(1, Math.floor(pageSize / 2));
+        } else {
+            var detail = responseMessage ? ': ' + responseMessage.substring(0, 300) : '';
+            throw new Error('CT products fetch failed (' + res.status + ')' + detail);
+        }
     }
-    return {
-        results: res.data.results || [],
-        total:   res.data.total   || 0
-    };
+
+    throw new Error('CT products fetch failed: no valid page size was available');
 }
 
 /**

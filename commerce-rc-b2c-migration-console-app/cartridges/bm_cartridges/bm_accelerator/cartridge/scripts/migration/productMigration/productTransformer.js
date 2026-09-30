@@ -10,6 +10,21 @@ var systemFieldResolver = require('*/cartridge/scripts/migration/core/systemFiel
  *      - [{typeId:"product", id:"..."}]              → set (no quantity)
  *      - [{product:{typeId:"product",...}, quantity}] → bundle (has quantity)
  */
+/**
+ * Attributes that reference other products for merchandising, not set membership
+ * (e.g. recommendedProductsEU/US, accessories). They stay ordinary custom attributes
+ * and must never turn a product into a product set.
+ */
+var NON_SET_REFERENCE_ATTR_RE = /recommend|accessor|related|upsell|up-sell|cross-?sell|similar|alternative/i;
+
+/**
+ * @param {Object} attr - CT attribute { name, value }
+ * @returns {boolean} true when the attribute may hold product-set members
+ */
+function isSetMemberAttribute(attr) {
+    return !!(attr && attr.name && !NON_SET_REFERENCE_ATTR_RE.test(String(attr.name)));
+}
+
 function detectProductKind(ctpProduct, data) {
     var ptName = '';
     if (ctpProduct.productType && ctpProduct.productType.obj) {
@@ -20,15 +35,20 @@ function detectProductKind(ctpProduct, data) {
     if (ptName.indexOf('bundle') !== -1) return 'bundle';
     if (ptName.indexOf('set') !== -1)    return 'set';
 
-    // Fallback: detect by masterVariant attribute values
+    // Fallback: detect by masterVariant attribute values.
+    // A product with real variants is exported as a variation master; SFCC product sets
+    // cannot carry variations, so the set fallback never applies to it.
+    var hasRealVariants = !!(data.variants && data.variants.length);
     var mvAttrs = (data.masterVariant && data.masterVariant.attributes) || [];
     for (var i = 0; i < mvAttrs.length; i++) {
         var val = mvAttrs[i].value;
         if (val === null || val === undefined) continue;
+        var setCandidate = !hasRealVariants && isSetMemberAttribute(mvAttrs[i]);
 
-        // Single Reference<Product>: { typeId: "product", id: "..." } — set
+        // A single Reference<Product> (e.g. customizableAccessory) is one linked product,
+        // not a set — a set of one is never intended.
         if (!Array.isArray(val) && typeof val === 'object' && val.typeId === 'product' && val.id) {
-            return 'set';
+            continue;
         }
 
         if (!Array.isArray(val) || !val.length) continue;
@@ -40,11 +60,11 @@ function detectProductKind(ctpProduct, data) {
             return 'bundle';
         }
         // [{typeId:"product", id:"..."}] — set (direct product refs, no quantity)
-        if (first.typeId === 'product' && first.id) {
+        if (setCandidate && first.typeId === 'product' && first.id) {
             return 'set';
         }
         // [{value: {typeId:"product", id:"..."}}] — set (nested ref)
-        if (first.value && first.value.typeId === 'product' && first.value.id) {
+        if (setCandidate && first.value && first.value.typeId === 'product' && first.value.id) {
             return 'set';
         }
     }
@@ -61,6 +81,8 @@ var UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function extractSetProducts(data) {
     var mvAttrs = (data.masterVariant && data.masterVariant.attributes) || [];
     for (var i = 0; i < mvAttrs.length; i++) {
+        // Same filter as detectProductKind: recommendation lists are never set members.
+        if (!isSetMemberAttribute(mvAttrs[i])) continue;
         var val = mvAttrs[i].value;
         if (val === null || val === undefined) continue;
 
@@ -120,12 +142,48 @@ function extractSetProducts(data) {
 }
 
 /**
+ * Read one nested bundle line (a CT nested-type value: [{ name, value }, ...]).
+ * Fields are recognised by what they hold, so both the reference model
+ * (bundled-product / quantity) and project models such as
+ * bundleProductReference / bundleProductQuantity / bundleProductSku work:
+ *   - the product reference { typeId: "product", id } is the member
+ *   - a positive number in a field named like "quantity"/"qty" is the quantity
+ *   - a string in a field named like "sku" is the member SKU (exact variant)
+ * @param {Array} fields - nested attribute list
+ * @returns {{productId: string, quantity: number, sku: (string|undefined)}|null}
+ */
+function readBundleMemberFields(fields) {
+    var productId = null;
+    var quantity  = 1;
+    var sku       = '';
+    for (var f = 0; f < fields.length; f++) {
+        var field = fields[f];
+        if (!field || !field.name) continue;
+        var v = field.value;
+        if (!productId && v && typeof v === 'object' && v.typeId === 'product' && v.id) {
+            productId = String(v.id);
+        } else if (/quantity|qty/i.test(field.name) && v != null && Number(v) > 0) {
+            quantity = Number(v);
+        } else if (/sku/i.test(field.name) && typeof v === 'string' && v.trim()) {
+            sku = v.trim();
+        }
+    }
+    if (!productId) return null;
+    var member = { productId: productId, quantity: quantity };
+    if (sku) member.sku = sku;
+    return member;
+}
+
+/**
  * Extract bundled component product IDs + quantities from CT master-variant attributes.
- * Returns [{productId: string, quantity: number}]
+ * Recommendation-style lists (recommendedProducts*, accessories, ...) are never bundle
+ * contents — the same filter as product sets.
+ * Returns [{productId: string, quantity: number, sku?: string}]
  */
 function extractBundleProducts(data) {
     var mvAttrs = (data.masterVariant && data.masterVariant.attributes) || [];
     for (var i = 0; i < mvAttrs.length; i++) {
+        if (!isSetMemberAttribute(mvAttrs[i])) continue;
         var val = mvAttrs[i].value;
         if (!Array.isArray(val) || !val.length) continue;
         var first = val[0];
@@ -134,22 +192,12 @@ function extractBundleProducts(data) {
         var components = [];
 
         if (Array.isArray(first)) {
-            // Set<Nested(bundle-item)>: [[{name:"bundled-product",value:{...}},{name:"quantity",value:N}],...]
+            // Set<Nested(bundle-item)>: [[{name:"bundleProductReference",value:{...}},{name:"bundleProductQuantity",value:N}],...]
             for (var ni = 0; ni < val.length; ni++) {
                 var nestedItem = val[ni];
                 if (!Array.isArray(nestedItem)) continue;
-                var productId = null;
-                var quantity  = 1;
-                for (var nj = 0; nj < nestedItem.length; nj++) {
-                    var attr = nestedItem[nj];
-                    if (!attr || !attr.name) continue;
-                    if (attr.name === 'bundled-product' && attr.value && attr.value.id) {
-                        productId = attr.value.id;
-                    } else if (attr.name === 'quantity' && attr.value != null) {
-                        quantity = Number(attr.value) || 1;
-                    }
-                }
-                if (productId) components.push({ productId: productId, quantity: quantity });
+                var member = readBundleMemberFields(nestedItem);
+                if (member) components.push(member);
             }
         } else if (typeof first === 'object') {
             if (first.product && first.product.typeId === 'product' && first.quantity != null) {
@@ -173,6 +221,19 @@ function extractBundleProducts(data) {
         if (components.length) return components;
     }
     return [];
+}
+
+/**
+ * CT product IDs of the bundle members of one product (empty unless it is a bundle).
+ * Used by the runner to fetch members outside the current batch so members can point
+ * at the exact variant their SKU names.
+ * @param {Object} ctpProduct - raw CT product
+ * @returns {Array<string>} member CT product IDs
+ */
+function bundleMemberIds(ctpProduct) {
+    var data = (ctpProduct && ctpProduct.masterData && ctpProduct.masterData.current) || {};
+    if (detectProductKind(ctpProduct || {}, data) !== 'bundle') return [];
+    return extractBundleProducts(data).map(function (m) { return m.productId; });
 }
 
 function getLocalized(obj) {
@@ -223,6 +284,123 @@ function toLocaleMap(val) {
     return out;
 }
 
+function attributeValue(attributes, name) {
+    var list = attributes || [];
+    var i;
+    for (i = 0; i < list.length; i++) {
+        if (list[i] && list[i].name === name) return list[i].value;
+    }
+    return null;
+}
+
+function nestedAttributeValue(item, name) {
+    if (!item) return null;
+    if (!Array.isArray(item)) {
+        return Object.prototype.hasOwnProperty.call(item, name) ? item[name] : null;
+    }
+    var i;
+    for (i = 0; i < item.length; i++) {
+        if (item[i] && item[i].name === name) return item[i].value;
+    }
+    return null;
+}
+
+function mediaTypeKey(value) {
+    if (value == null) return '';
+    if (typeof value === 'object' && value.key != null) return String(value.key).toLowerCase();
+    return String(value).toLowerCase();
+}
+
+/**
+ * Collect native CT images plus imageUrls/mediaReferences custom media.
+ * Source attributes remain untouched and are still exported separately.
+ *
+ * @param {Object} ctpVariant commercetools ProductVariant
+ * @returns {Array<{url: string, alt: string, altLocales: Object}>}
+ */
+function extractVariantImages(ctpVariant) {
+    var variant = ctpVariant || {};
+    var out = [];
+    var byUrl = {};
+
+    function add(url, alt, altLocales) {
+        var cleanUrl = url == null ? '' : String(url).trim();
+        if (!/^https?:\/\//i.test(cleanUrl)) return;
+        var localized = toLocaleMap(altLocales);
+        var cleanAlt = alt == null ? '' : String(alt).trim();
+        var existing = byUrl[cleanUrl];
+        if (existing != null) {
+            if (!out[existing].alt && cleanAlt) out[existing].alt = cleanAlt;
+            if (!Object.keys(out[existing].altLocales).length && Object.keys(localized).length) {
+                out[existing].altLocales = localized;
+            }
+            return;
+        }
+        byUrl[cleanUrl] = out.length;
+        out.push({ url: cleanUrl, alt: cleanAlt, altLocales: localized });
+    }
+
+    var nativeImages = variant.images || [];
+    var i;
+    for (i = 0; i < nativeImages.length; i++) {
+        var nativeImage = nativeImages[i] || {};
+        add(nativeImage.url, nativeImage.label, null);
+    }
+
+    var imageUrls = attributeValue(variant.attributes, 'imageUrls');
+    if (!Array.isArray(imageUrls)) imageUrls = imageUrls == null ? [] : [imageUrls];
+    for (i = 0; i < imageUrls.length; i++) {
+        var imageUrl = imageUrls[i];
+        if (imageUrl && typeof imageUrl === 'object') {
+            imageUrl = imageUrl.url || imageUrl.value || imageUrl.path;
+        }
+        add(imageUrl, '', null);
+    }
+
+    var mediaReferences = attributeValue(variant.attributes, 'mediaReferences');
+    if (!Array.isArray(mediaReferences)) {
+        mediaReferences = mediaReferences == null ? [] : [mediaReferences];
+    }
+    for (i = 0; i < mediaReferences.length; i++) {
+        var media = mediaReferences[i];
+        var mediaType = mediaTypeKey(nestedAttributeValue(media, 'mediaType'));
+        if (mediaType && mediaType !== 'image') continue;
+        add(
+            nestedAttributeValue(media, 'mediaUrl'),
+            nestedAttributeValue(media, 'mediaAltText'),
+            nestedAttributeValue(media, 'mediaAltTextLocalized')
+        );
+    }
+
+    return out;
+}
+
+/**
+ * Convert CT ProductData.searchKeywords to the localized comma-separated
+ * strings expected by SFCC page-keywords.
+ *
+ * @param {Object} searchKeywords CT locale -> SearchKeyword[] map
+ * @returns {Object.<string, string>} locale -> keyword string
+ */
+function searchKeywordsToLocaleMap(searchKeywords) {
+    var out = {};
+    var locales = Object.keys(searchKeywords || {});
+    var i;
+    for (i = 0; i < locales.length; i++) {
+        var locale = locales[i];
+        var entries = searchKeywords[locale] || [];
+        var values = [];
+        var j;
+        for (j = 0; j < entries.length; j++) {
+            var text = entries[j] && entries[j].text != null
+                ? String(entries[j].text).trim() : '';
+            if (text) values.push(text);
+        }
+        if (values.length) out[locale] = values.join(', ');
+    }
+    return out;
+}
+
 function sanitizeId(str) {
     if (!str) return '';
     return String(str)
@@ -259,6 +437,103 @@ function getAttrRawValue(attributes, attrName) {
         return attributes[i].value;
     }
     return null;
+}
+
+/**
+ * Stable SFCC variation key for one CT value. Collections, localized text,
+ * references and nested objects are deliberately not valid variation axes.
+ *
+ * @param {*} val CT attribute value
+ * @param {boolean} allowNumeric whether numeric/boolean keys are supported
+ * @returns {string|null} variation key
+ */
+function variationKey(val, allowNumeric) {
+    if (val === null || val === undefined || Array.isArray(val)) return null;
+    if (typeof val === 'object') {
+        if (val.typeId !== undefined || val.id !== undefined) return null;
+        return val.key != null && String(val.key).trim()
+            ? String(val.key).trim() : null;
+    }
+    if (typeof val === 'string') return val.trim() || null;
+    if (allowNumeric && (typeof val === 'number' || typeof val === 'boolean')) {
+        return String(val);
+    }
+    return null;
+}
+
+/**
+ * Derive genuine CT variation axes. An axis must vary across variants, be a
+ * scalar/enum value, and be compatible with its expanded Product Type
+ * definition. This prevents descriptive, localized, set and nested fields
+ * from becoming SFCC variation attributes.
+ *
+ * @param {Object} ctpProduct CT Product
+ * @param {Object} data selected ProductData projection
+ * @returns {Array<string>} source attribute names
+ */
+function deriveVariationAttributeNames(ctpProduct, data) {
+    var variants = [];
+    if (data && data.masterVariant) variants.push(data.masterVariant);
+    variants = variants.concat((data && data.variants) || []);
+    if (variants.length < 2) return [];
+
+    var defs = {};
+    var productType = ctpProduct && ctpProduct.productType && ctpProduct.productType.obj;
+    var attrDefs = (productType && productType.attributes) || [];
+    var di;
+    for (di = 0; di < attrDefs.length; di++) {
+        if (attrDefs[di] && attrDefs[di].name) defs[attrDefs[di].name] = attrDefs[di];
+    }
+
+    var names = {};
+    var vi;
+    var ai;
+    for (vi = 0; vi < variants.length; vi++) {
+        var attrs = variants[vi].attributes || [];
+        for (ai = 0; ai < attrs.length; ai++) {
+            if (attrs[ai] && attrs[ai].name) names[attrs[ai].name] = true;
+        }
+    }
+
+    var result = [];
+    var sourceNames = Object.keys(names);
+    var ni;
+    for (ni = 0; ni < sourceNames.length; ni++) {
+        var name = sourceNames[ni];
+        var def = defs[name] || null;
+        var typeName = def && def.type && def.type.name ? String(def.type.name) : '';
+        var constraint = def && def.attributeConstraint ? String(def.attributeConstraint) : '';
+
+        if (constraint === 'SameForAll'
+            || typeName === 'set' || typeName === 'nested' || typeName === 'reference'
+            || typeName === 'ltext' || typeName === 'money') {
+            continue;
+        }
+
+        var allowNumeric = constraint === 'CombinationUnique';
+        var keys = {};
+        var valid = true;
+        for (vi = 0; vi < variants.length; vi++) {
+            var raw = getAttrRawValue(variants[vi].attributes || [], name);
+            var key = variationKey(raw, allowNumeric);
+            if (key === null) {
+                valid = false;
+                break;
+            }
+            keys[key] = true;
+        }
+        if (!valid || Object.keys(keys).length < 2) continue;
+
+        // Expanded definitions are authoritative. Without one, only enum-like
+        // objects or strings are safe fallbacks; numeric business data is not.
+        if (def && typeName
+            && typeName !== 'enum' && typeName !== 'lenum' && typeName !== 'text'
+            && constraint !== 'CombinationUnique') {
+            continue;
+        }
+        result.push(name);
+    }
+    return result;
 }
 
 /**
@@ -352,7 +627,8 @@ function makeCtpSourceGetter(ctpProduct, data, mv) {
             case 'metaDescription':
                 return getLocalized(data.metaDescription) || '';
             case 'metaKeywords':
-                return getLocalized(data.metaKeywords) || '';
+                return getLocalized(data.metaKeywords)
+                    || getLocalized(searchKeywordsToLocaleMap(data.searchKeywords)) || '';
             case 'sku':
                 return (mv && mv.sku) ? String(mv.sku) : '';
             case 'taxCategory':
@@ -394,7 +670,9 @@ function makeCtpLocaleGetter(ctpProduct, data, mv) {
             case 'metaDescription':
                 return toLocaleMap(data.metaDescription);
             case 'metaKeywords':
-                return toLocaleMap(data.metaKeywords);
+                return Object.keys(toLocaleMap(data.metaKeywords)).length
+                    ? toLocaleMap(data.metaKeywords)
+                    : searchKeywordsToLocaleMap(data.searchKeywords);
             case 'id':
             case 'key':
             case 'sku':
@@ -496,6 +774,7 @@ function transformProduct(ctpProduct) {
 
     var mv      = data.masterVariant || {};
     var ctpVars = data.variants || [];
+    var variationAttributeNames = deriveVariationAttributeNames(ctpProduct, data);
     var getSourceValue = makeCtpSourceGetter(ctpProduct, data, mv);
     var getSourceLocales = makeCtpLocaleGetter(ctpProduct, data, mv);
 
@@ -553,7 +832,7 @@ function transformProduct(ctpProduct) {
             productId:  masterId ? (String(masterId) + '-' + variantSeq) : ('variant-' + variantSeq),
             sku:        ctpVariant.sku || '',
             isDefault:  !!isDefault,
-            images:     ctpVariant.images || [],
+            images:     extractVariantImages(ctpVariant),
             attributes: ctpVariant.attributes || [],
             prices:     ctpVariant.prices || []
         });
@@ -618,12 +897,13 @@ function transformProduct(ctpProduct) {
         unitQuantity:     unitQuantity,
         unit:             unit,
         unitMeasure:      unitMeasure,
-        masterImages:             mv.images || [],
+        masterImages:             extractVariantImages(mv),
         // Master-owned CT attributes (SameForAll / product-level) for master <custom-attributes>
         masterAttributes:         mv.attributes || [],
         categories:               categories,
         classificationCategory:   classificationCategory,
         variants:                 variants,
+        variationAttributeNames: variationAttributeNames,
         hasVariants:              variants.length > 0,
         productKind:              productKind,
         setProducts:              setProducts,
@@ -633,6 +913,7 @@ function transformProduct(ctpProduct) {
 
 module.exports = {
     transformProduct:       transformProduct,
+    bundleMemberIds:        bundleMemberIds,
     resolveMasterProductId: resolveMasterProductId,
     sanitizeId:             sanitizeId,
     toLocaleMap:            toLocaleMap,

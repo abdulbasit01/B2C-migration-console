@@ -13,11 +13,27 @@ function xmlEsc(val) {
 }
 
 /**
+ * pricebook.xsd types product-id as NonEmptyString.100, whose pattern requires a non-whitespace first and last character:
+ * leading/trailing whitespace fails BM validation and aborts the whole import,
+ * so IDs are trimmed here as a last line of defence for every source platform.
+ * @param {*} value
+ * @returns {string} trimmed ID, or '' when nothing usable is left
+ */
+function normalizeProductId(value) {
+    if (value === null || value === undefined) return '';
+    return String(value).trim();
+}
+
+/**
  * @param {Object} record
  * @returns {string}
+ * @throws {Error} when the record has no usable product ID after trimming
  */
 function buildPriceTableXml(record) {
-    var productId = record.productId || record.sku;
+    var productId = normalizeProductId(record.productId || record.sku);
+    if (!productId) {
+        throw new Error('Empty product-id after trimming whitespace');
+    }
     // SFCC's price-table schema only allows amount/percentage/price-info as children —
     // custom-attributes is not valid here (confirmed by a real BM import validation error),
     // so per-price custom fields cannot be represented in this XML at all. Quantity tiers,
@@ -56,7 +72,7 @@ function buildXml(records, pricebookId, currency, description) {
 
     for (i = 0; i < records.length; i++) {
         try {
-            if (!records[i] || !(records[i].productId || records[i].sku) || !records[i].amount) {
+            if (!records[i] || !normalizeProductId(records[i].productId || records[i].sku) || !records[i].amount) {
                 failed++;
                 continue;
             }
@@ -101,5 +117,6 @@ module.exports = {
     buildHeader:         buildHeader,
     buildFooter:         buildFooter,
     buildPriceTableXml:  buildPriceTableXml,
+    normalizeProductId:  normalizeProductId,
     NS_PRICEBOOK:        NS_PRICEBOOK
 };

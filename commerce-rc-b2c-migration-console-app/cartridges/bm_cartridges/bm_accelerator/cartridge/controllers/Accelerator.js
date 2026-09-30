@@ -483,8 +483,8 @@ exports.OrderMigration = function () {
         orderStateFilters:   migrationData.getOrderStateFilters(platformId),
         paymentStateFilters: migrationData.getPaymentStateFilters(platformId),
         cssUrl:              URLUtils.staticURL('/css/accelerator-migration.css').toString(),
-        attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString() + '?v=12',
-        orderMigrationJsUrl: URLUtils.staticURL('/js/order-migration.js').toString() + '?v=7'
+        attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString() + '?v=13',
+        orderMigrationJsUrl: URLUtils.staticURL('/js/order-migration.js').toString() + '?v=8'
     }));
 };
 exports.OrderMigration.public = true;
@@ -1032,7 +1032,7 @@ exports.CustomerMigration = function () {
         customerListsUrlJs:   toJsLiteral(listsUrl),
         presetListIdJs:       toJsLiteral(customerListId),
         cssUrl:              URLUtils.staticURL('/css/accelerator-migration.css').toString(),
-        attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString() + '?v=12',
+        attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString() + '?v=13',
         countUrl:       URLUtils.url('Accelerator-CustomerMigrationCount').toString(),
         profileUrl:     URLUtils.url('Accelerator-MigrateCustomerBatch').toString(),
         addressUrl:     URLUtils.url('Accelerator-MigrateCustomerAddresses').toString(),
@@ -1136,8 +1136,48 @@ exports.GetProductCatalogs = function () {
 };
 exports.GetProductCatalogs.public = true;
 
+// SFCC caps one BM response at 10 MB (PageSizeLimitExceeded) and one script string at
+// 1,000,000 chars (api.jsStringLength). A full catalog XML is ~27 MB, so it is served in
+// parts: each part is PRODUCT_XML_PART_READS reads of PRODUCT_XML_READ_CHARS characters.
+// Worst case 3 bytes per UTF-8 character keeps a part at ~8.1 MB.
+var PRODUCT_XML_READ_CHARS = 900000;
+var PRODUCT_XML_PART_READS = 3;
+
 /**
- * GET: fileName=<name> — streams XML file from IMPEX as a download.
+ * Write one part of a product XML file. Sets X-Download-Done: true on the last part.
+ * @param {dw.io.File} file - XML file under IMPEX
+ * @param {number} part - zero-based part index
+ */
+function writeProductXmlPart(file, part) {
+    var FileReader = require('dw/io/FileReader');
+    var partChars  = PRODUCT_XML_READ_CHARS * PRODUCT_XML_PART_READS;
+    var reader     = new FileReader(file, 'UTF-8');
+    var done       = false;
+    try {
+        var toSkip = part * partChars;
+        while (toSkip > 0) {
+            var skipped = reader.skip(Math.min(toSkip, PRODUCT_XML_READ_CHARS));
+            if (!skipped) { done = true; break; }
+            toSkip -= skipped;
+        }
+        var i;
+        for (i = 0; !done && i < PRODUCT_XML_PART_READS; i++) {
+            var chunk = reader.readN(PRODUCT_XML_READ_CHARS);
+            if (chunk) response.writer.print(chunk);
+            if (!chunk || chunk.length < PRODUCT_XML_READ_CHARS) done = true;
+        }
+        // Exactly at a part boundary the next read would be empty; peek so the page stops now.
+        if (!done && reader.read() === null) done = true;
+    } finally {
+        reader.close();
+    }
+    response.setHttpHeader('X-Download-Done', done ? 'true' : 'false');
+}
+
+/**
+ * GET: fileName=<name>[&part=<n>] — streams XML file from IMPEX as a download.
+ * With part: returns that part only (see writeProductXmlPart); the page joins the parts.
+ * Without part: whole file in one response (fails above 10 MB; kept for other callers).
  */
 exports.DownloadProductXml = function () {
     var fileName = getParam('fileName') || '';
@@ -1155,6 +1195,18 @@ exports.DownloadProductXml = function () {
         response.writer.print('File not found: ' + fileName);
         return;
     }
+    var partParam = getParam('part');
+    if (partParam !== null && partParam !== undefined && String(partParam) !== '') {
+        var part = parseInt(String(partParam), 10);
+        if (isNaN(part) || part < 0) {
+            response.setContentType('text/plain');
+            response.writer.print('Invalid part parameter.');
+            return;
+        }
+        response.setContentType('application/xml; charset=UTF-8');
+        writeProductXmlPart(file, part);
+        return;
+    }
     response.setContentType('application/xml');
     response.addHttpHeader('Content-Disposition', 'attachment; filename="' + fileName + '"');
     var reader = new FileReader(file, 'UTF-8');
@@ -1170,7 +1222,7 @@ exports.DownloadProductXml = function () {
 exports.DownloadProductXml.public = true;
 
 /**
- * GET — Returns all CT variant product attributes plus the saved selection from session.
+ * GET — Returns all CT variant product attributes. Selection state is retained by the page.
  * Response: { ok, attrs: [{ name, sfccId, label, ctpType }], savedSelection: [string]|null }
  */
 /**
@@ -1231,13 +1283,16 @@ exports.GetBundleProductsInfo.public = true;
 
 exports.GetVariantAttrs = function () {
     var platform = String(session.custom.migrationPlatformId || 'commercetools');
+    var selectionMode = getParam('mode') === 'partial' ? 'partial' : 'full';
     try {
         var sfccClient       = require('*/cartridge/scripts/migration/sfccClient');
         var attrIdMapSession = require('*/cartridge/scripts/migration/core/attrIdMapSession');
+        var variationValidator = require('*/cartridge/scripts/migration/productMigration/variationAttributeValidator');
         var attrMap          = attrIdMapSession.read('product');
         var fields           = [];
         var isShopify        = platform === 'shopify';
         var isBigCommerce    = platform === 'bigcommerce';
+        var variationAxisNames = {};
 
         if (isShopify) {
             var shopifyChecker = require('*/cartridge/scripts/migration/productMigration/shopifyProductAttrChecker');
@@ -1251,13 +1306,70 @@ exports.GetVariantAttrs = function () {
         } else {
             var checker = require('*/cartridge/scripts/migration/productMigration/productAttrChecker');
             fields = checker.getCtpProductTypeFields();
+
+            if (selectionMode === 'partial') {
+                var productIdsRaw = getParam('productIds') || '';
+                var productIds = String(productIdsRaw).split(',').map(function (id) {
+                    return String(id || '').trim();
+                }).filter(function (id) {
+                    return !!id;
+                });
+
+                if (!productIds.length) {
+                    jsonResponse({
+                        ok: false,
+                        error: 'Enter at least one CT Product ID before loading product-specific attributes.'
+                    });
+                    return;
+                }
+                if (productIds.length > 20) {
+                    jsonResponse({
+                        ok: false,
+                        error: 'Product-specific attribute loading supports at most 20 CT Product IDs at a time.'
+                    });
+                    return;
+                }
+
+                var ctpProductFetcher = require('*/cartridge/scripts/migration/productMigration/ctpProductFetcher');
+                var requestedProducts = [];
+                for (var pi = 0; pi < productIds.length; pi++) {
+                    requestedProducts.push(ctpProductFetcher.fetchById(productIds[pi]));
+                }
+                var productAttributeScope = require('*/cartridge/scripts/migration/productMigration/productAttributeScope');
+                fields = productAttributeScope.filterFieldsForProducts(fields, requestedProducts);
+
+                var productTransformer = require('*/cartridge/scripts/migration/productMigration/productTransformer');
+                for (var rpi = 0; rpi < requestedProducts.length; rpi++) {
+                    try {
+                        var transformedProduct = productTransformer.transformProduct(requestedProducts[rpi]);
+                        var derivedAxes = transformedProduct.variationAttributeNames || [];
+                        for (var dai = 0; dai < derivedAxes.length; dai++) {
+                            variationAxisNames[derivedAxes[dai]] = true;
+                        }
+                    } catch (te) { /* Attribute selection can still render when one product cannot transform. */ }
+                }
+                session.custom.variantAxisAttrsPartial = JSON.stringify(Object.keys(variationAxisNames));
+            }
+        }
+
+        if (isShopify || isBigCommerce || platform === 'sap') {
+            for (var vai = 0; vai < fields.length; vai++) {
+                variationAxisNames[fields[vai].name] = true;
+            }
         }
 
         var existingIds = {};
+        var definitionsById = {};
         try {
             var tok     = sfccClient.getSFCCToken();
-            existingIds = sfccClient.getExistingAttributeIds(tok, 'Product') || {};
-        } catch (se) {}
+            var definitions = sfccClient.getAttributeDefinitions(tok, 'Product') || [];
+            for (var di = 0; di < definitions.length; di++) {
+                if (definitions[di] && definitions[di].id) {
+                    existingIds[definitions[di].id] = true;
+                    definitionsById[definitions[di].id] = definitions[di];
+                }
+            }
+        } catch (se) { /* Show definitions as unavailable when OCAPI cannot be read. */ }
 
         var enriched = [];
         for (var i = 0; i < fields.length; i++) {
@@ -1265,6 +1377,10 @@ exports.GetVariantAttrs = function () {
             var canonicalId  = f.sfccId;
             var resolvedId   = attrIdMapSession.resolve(canonicalId, attrMap);
             var remapped     = !!(resolvedId && canonicalId && resolvedId !== canonicalId);
+            var isVariationAxis = !!variationAxisNames[f.name];
+            var incompatibility = isVariationAxis
+                ? variationValidator.incompatibilityReasons(definitionsById[resolvedId])
+                : [];
             enriched.push({
                 name:           f.name,
                 sfccId:         resolvedId,
@@ -1272,19 +1388,23 @@ exports.GetVariantAttrs = function () {
                 remapped:       remapped,
                 label:          f.label,
                 ctpType:        f.ctpType,
-                existsInSfcc:   !!existingIds[resolvedId]
+                existsInSfcc:   !!existingIds[resolvedId],
+                variationCompatibilityChecked: isVariationAxis,
+                variationCompatible: incompatibility.length === 0,
+                variationIssue: incompatibility.join('; ')
             });
         }
 
-        var savedRaw       = String(session.custom.selectedVariantAttrs || '');
-        var savedSelection = null;
-        if (savedRaw) {
-            try { savedSelection = JSON.parse(savedRaw); } catch (pe) {}
-        }
         jsonResponse({
             ok:             true,
             attrs:          enriched,
-            savedSelection: savedSelection,
+            savedSelection: null,
+            mode:           selectionMode,
+            productCount:   selectionMode === 'partial' && platform === 'commercetools'
+                ? String(getParam('productIds') || '').split(',').filter(function (id) {
+                    return !!String(id || '').trim();
+                }).length
+                : 0,
             shopify:        isShopify,
             bigcommerce:    isBigCommerce
         });
@@ -1313,7 +1433,8 @@ exports.SavePreflightSelection.public = true;
 
 /**
  * POST: attrs=<JSON array of CT attr names to include in variant XML>
- * Validates, auto-creates missing SFCC attrs (if pre-flight authorized), then saves selection.
+ * Validates and returns the normalized selection to the page. The selection is
+ * sent with migration requests instead of being stored in the BM session.
  *
  * Rules:
  *  - Attr exists in SFCC → include directly, no pre-flight needed
@@ -1322,13 +1443,14 @@ exports.SavePreflightSelection.public = true;
  */
 exports.SaveVariantAttrSelection = function () {
     try {
-        var attrsJson = getParam('attrs');
-        var selected  = [];
-        if (attrsJson) { try { selected = JSON.parse(attrsJson); } catch (pe) {} }
+        var selectionParser = require('*/cartridge/scripts/migration/productMigration/variantAttributeSelection');
+        var selected = selectionParser.parse(getParam('attrs')) || [];
 
         var platform = String(session.custom.migrationPlatformId || 'commercetools');
+        var selectionMode = getParam('mode') === 'partial' ? 'partial' : 'full';
         var sfccClient = require('*/cartridge/scripts/migration/sfccClient');
         var attrIdMapSession = require('*/cartridge/scripts/migration/core/attrIdMapSession');
+        var variationValidator = require('*/cartridge/scripts/migration/productMigration/variationAttributeValidator');
         var attrMap    = attrIdMapSession.read('product');
 
         // Build sourceName → field map
@@ -1354,31 +1476,52 @@ exports.SaveVariantAttrSelection = function () {
         }
 
         // Check which attrs currently exist in SFCC (best-effort — if OCAPI fails, skip validation)
-        var existingIds = null;
+        var definitions = null;
         try {
             var tok = sfccClient.getSFCCToken();
-            existingIds = sfccClient.getExistingAttributeIds(tok, 'Product') || {};
-        } catch (se) {}
+            definitions = sfccClient.getAttributeDefinitions(tok, 'Product') || [];
+        } catch (se) { /* Preserve the existing best-effort behavior when OCAPI is unavailable. */ }
 
-        // Validate only when OCAPI call succeeded (existingIds is not null)
-        if (existingIds !== null && Object.keys(existingIds).length > 0) {
-            var notInSfcc = [];
-            for (var si = 0; si < selected.length; si++) {
-                var field = ctpNameToField[selected[si]];
-                if (!field) continue;
-                var resolvedSfccId = attrIdMapSession.resolve(field.sfccId, attrMap);
-                if (!existingIds[resolvedSfccId]) {
-                    notInSfcc.push(selected[si]);
+        // Validate only when OCAPI returned definitions.
+        if (definitions !== null && definitions.length > 0) {
+            var targets = [];
+            var axisNames = null;
+            if (platform === 'commercetools') {
+                axisNames = {};
+                if (selectionMode === 'partial') {
+                    var savedAxisNames = [];
+                    try {
+                        savedAxisNames = JSON.parse(String(session.custom.variantAxisAttrsPartial || '[]'));
+                    } catch (ae) { /* An empty scope is safer than treating every custom field as an axis. */ }
+                    for (var ani = 0; ani < savedAxisNames.length; ani++) {
+                        axisNames[savedAxisNames[ani]] = true;
+                    }
                 }
             }
-            if (notInSfcc.length) {
-                jsonResponse({ ok: false, validationError: true, notInSfcc: notInSfcc });
+            for (var si = 0; si < selected.length; si++) {
+                var field = ctpNameToField[selected[si]];
+                if (field) {
+                    var resolvedSfccId = attrIdMapSession.resolve(field.sfccId, attrMap);
+                    targets.push({
+                        name: selected[si],
+                        id: resolvedSfccId,
+                        validateCompatibility: axisNames === null || !!axisNames[selected[si]]
+                    });
+                }
+            }
+            var validation = variationValidator.validateTargets(targets, definitions);
+            if (validation.notInSfcc.length || validation.incompatible.length) {
+                jsonResponse({
+                    ok: false,
+                    validationError: true,
+                    notInSfcc: validation.notInSfcc,
+                    incompatibleVariationAttrs: validation.incompatible
+                });
                 return;
             }
         }
 
-        session.custom.selectedVariantAttrs = JSON.stringify(selected);
-        jsonResponse({ ok: true });
+        jsonResponse({ ok: true, mode: selectionMode, selected: selected });
     } catch (e) {
         jsonResponse({ ok: false, error: e.message || String(e) });
     }
@@ -1648,7 +1791,7 @@ exports.ShippingMethodMigration = function () {
         migrationUiJson:     pageCtx.migrationUiJson,
         impexUrl:     pageCtx.impexUrl,
         cssUrl:       URLUtils.staticURL('/css/accelerator-migration.css').toString(),
-        attrPreflightJsUrl: URLUtils.staticURL('/js/attr-preflight.js').toString() + '?v=12',
+        attrPreflightJsUrl: URLUtils.staticURL('/js/attr-preflight.js').toString() + '?v=13',
         countUrl:          URLUtils.url('Accelerator-ShippingMethodMigrationCount').toString(),
         listMethodsUrl:    URLUtils.url('Accelerator-ListShippingMethods').toString(),
         fullBatchUrl:      URLUtils.url('Accelerator-FullShippingMethodBuildBatch').toString(),
@@ -1840,7 +1983,7 @@ exports.InventoryMigration = function () {
         clearAttrMapUrl:     clearAttrMapUrlFor('inventory'),
         impexUrl:            pageCtx.impexUrl,
         cssUrl:              URLUtils.staticURL('/css/accelerator-migration.css').toString(),
-        attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString() + '?v=12',
+        attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString() + '?v=13',
         inventoryMigrationJsUrl: URLUtils.staticURL('/js/inventory-migration.js').toString() + '?v=9',
         jobsUrl:             jobsUrl
     }));
@@ -1969,7 +2112,7 @@ exports.PricebookMigration = function () {
         clearAttrMapUrl:     clearAttrMapUrlFor('pricebook'),
         impexUrl:            pageCtx.impexUrl,
         cssUrl:              URLUtils.staticURL('/css/accelerator-migration.css').toString(),
-        attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString() + '?v=12',
+        attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString() + '?v=13',
         pricebookMigrationJsUrl: URLUtils.staticURL('/js/pricebook-migration.js').toString() + '?v=9',
         jobsUrl:             jobsUrl
     }));
@@ -2135,7 +2278,7 @@ exports.TaxMigration = function () {
         clearAttrMapUrl:     clearAttrMapUrlFor('tax'),
         impexUrl:            pageCtx.impexUrl,
         cssUrl:              URLUtils.staticURL('/css/accelerator-migration.css').toString(),
-        attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString() + '?v=12',
+        attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString() + '?v=13',
         taxMigrationJsUrl:   URLUtils.staticURL('/js/tax-migration.js').toString() + '?v=10',
         jobsUrl:             jobsUrl
     }));
@@ -2244,7 +2387,7 @@ exports.StoreMigration = function () {
         clearAttrMapUrl:     clearAttrMapUrlFor('store'),
         impexUrl:            pageCtx.impexUrl,
         cssUrl:              URLUtils.staticURL('/css/accelerator-migration.css').toString(),
-        attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString() + '?v=12',
+        attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString() + '?v=13',
         storeMigrationJsUrl: URLUtils.staticURL('/js/store-migration.js').toString() + '?v=11',
         jobsUrl:             jobsUrl
     }));
@@ -2552,8 +2695,7 @@ exports.ProductWizard = function () {
 
     // Visit-scoped remaps reset on full page load / refresh (same as other modules).
     clearModuleAttrIdMap('product');
-    try { session.custom.selectedVariantAttrs = ''; } catch (e1) { /* ignore */ }
-    try { session.custom.preflightSelection = ''; } catch (e2) { /* ignore */ }
+    try { session.custom.preflightSelection = ''; } catch (e1) { /* ignore */ }
 
     ISML.renderTemplate('accelerator/productMigration', withBmFrame({
         title:          Resource.msg('accelerator.title', 'accelerator', null),
@@ -2582,7 +2724,7 @@ exports.ProductWizard = function () {
         bundleProductsUrl:   URLUtils.url('Accelerator-GetBundleProductsInfo').toString(),
         dashboardUrl:        URLUtils.url('Accelerator-Start').toString(),
         cssUrl:              URLUtils.staticURL('/css/accelerator-migration.css').toString(),
-        attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString() + '?v=12'
+        attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString() + '?v=13'
     }, 'rc_accelerator_product_wizard'));
 };
 exports.ProductWizard.public = true;
@@ -2647,7 +2789,8 @@ exports.ProductMigrationCount.public = true;
 
 /**
  * Full Product Migration — fetch one batch of products, build catalog XML, upload via WebDAV.
- * POST: offset=<number> (CT) or offset=<cursor-string> (Shopify, empty/0 = first page)
+ * POST: offset=<number> (CT) or offset=<cursor-string> (Shopify, empty/0 = first page),
+ *       attrs=<optional JSON array of selected source attribute names>
  * catalogId is read from request param or Site Preferences / defaults (sfcc.catalogId).
  */
 exports.FullProductMigrationBuildBatch = function () {
@@ -2667,12 +2810,9 @@ exports.FullProductMigrationBuildBatch = function () {
         jsonResponse({ ok: false, error: 'sfcc.catalogId is not configured' });
         return;
     }
-    var selectedVarAttrs = null;
     try {
-        var raw = String(session.custom.selectedVariantAttrs || '');
-        if (raw) { selectedVarAttrs = JSON.parse(raw); }
-    } catch (pe) {}
-    try {
+        var selectionParser = require('*/cartridge/scripts/migration/productMigration/variantAttributeSelection');
+        var selectedVarAttrs = selectionParser.parse(getParam('attrs'));
         var prodRunner = require('*/cartridge/scripts/migration/productMigration/fullProductMigrationRunner');
         jsonResponse(prodRunner.runBatch(offsetOrCursor, catalogId, selectedVarAttrs, platform));
     } catch (e) {
@@ -2683,7 +2823,8 @@ exports.FullProductMigrationBuildBatch.public = true;
 
 /**
  * Partial Product Migration — fetch one product by ID, build XML, upload via WebDAV.
- * POST: prodId=<id> (accepts ctpId or shopifyId as aliases)
+ * POST: prodId=<id> (accepts ctpId or shopifyId as aliases),
+ *       attrs=<optional JSON array of selected source attribute names>
  *       For CT: UUID. For Shopify: handle, numeric ID, or GID.
  */
 exports.MigrateProductById = function () {
@@ -2700,12 +2841,9 @@ exports.MigrateProductById = function () {
         jsonResponse({ ok: false, error: 'sfcc.catalogId is not configured' });
         return;
     }
-    var selectedVarAttrs = null;
     try {
-        var raw = String(session.custom.selectedVariantAttrs || '');
-        if (raw) { selectedVarAttrs = JSON.parse(raw); }
-    } catch (pe) {}
-    try {
+        var selectionParser = require('*/cartridge/scripts/migration/productMigration/variantAttributeSelection');
+        var selectedVarAttrs = selectionParser.parse(getParam('attrs'));
         var prodRunner = require('*/cartridge/scripts/migration/productMigration/fullProductMigrationRunner');
         jsonResponse(prodRunner.runById(prodId, catalogId, selectedVarAttrs, platform));
     } catch (e) {
@@ -3847,7 +3985,7 @@ exports.CategoryMigration = function () {
         importUrl             : importPageUrl,
         createCtCategoryUrl   : URLUtils.url('Accelerator-CreateCTCategory').toString(),
         checkProductsUrl      : URLUtils.url('Accelerator-CheckCategoryProducts').toString(),
-        attrPreflightJsUrl    : URLUtils.staticURL('/js/attr-preflight.js').toString() + '?v=12',
+        attrPreflightJsUrl    : URLUtils.staticURL('/js/attr-preflight.js').toString() + '?v=13',
         createAttrsUrl        : URLUtils.url('Accelerator-CreateCategoryAttributes').toString(),
         deleteAttrUrl         : URLUtils.url('Accelerator-DeleteCategoryAttribute').toString(),
         clearAttrMapUrl       : clearAttrMapUrlFor('category'),

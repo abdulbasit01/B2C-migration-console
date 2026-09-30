@@ -24,7 +24,8 @@ function getCTAuthToken() {
 
     var tokenUrl = c.authUrl + '/oauth/token';
     var scope = 'manage_project:' + c.projectKey;
-    var body = 'grant_type=client_credentials&scope=' + encodeURIComponent(scope);
+    // TOOD: temp fix not to push 
+    var body = 'grant_type=client_credentials';
     var basicAuth = 'Basic ' + toBase64(c.clientId + ':' + c.clientSecret);
 
     log.info('getCTAuthToken: requesting token for project {0}', c.projectKey);

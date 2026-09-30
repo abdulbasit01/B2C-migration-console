@@ -221,6 +221,99 @@ describe('productTransformer map-driven system fields', function () {
         assert.deepEqual(t.masterAttributes, [{ name: 'product-spec', value: 'spec-on-master' }]);
     });
 
+    it('projects native and custom CT media into deduplicated variant images', function () {
+        var transformer = loadTransformer({});
+        var fallbackUrl = 'https://cdn.media.amplience.net/i/marsmmsnonprod/product_fallback';
+        var p = sampleProduct({
+            attrs: [
+                { name: 'imageUrls', value: [fallbackUrl] },
+                {
+                    name: 'mediaReferences',
+                    value: [[
+                        { name: 'mediaType', value: { key: 'image', label: 'Image' } },
+                        { name: 'mediaUrl', value: fallbackUrl },
+                        { name: 'mediaAltText', value: 'Fallback pack shot' },
+                        { name: 'mediaAltTextLocalized', value: { en: 'Fallback pack shot', de: 'Packungsbild' } }
+                    ], [
+                        { name: 'mediaType', value: { key: 'video', label: 'Video' } },
+                        { name: 'mediaUrl', value: 'https://cdn.media.amplience.net/v/demo/video' }
+                    ]]
+                }
+            ]
+        });
+        p.masterData.current.masterVariant.images = [{
+            url: 'https://cdn.media.amplience.net/i/marsmmsnonprod/hero',
+            label: 'Hero image'
+        }];
+
+        var t = transformer.transformProduct(p);
+
+        assert.lengthOf(t.masterImages, 2);
+        assert.deepEqual(t.masterImages[0], {
+            url: 'https://cdn.media.amplience.net/i/marsmmsnonprod/hero',
+            alt: 'Hero image',
+            altLocales: {}
+        });
+        assert.deepEqual(t.masterImages[1], {
+            url: fallbackUrl,
+            alt: 'Fallback pack shot',
+            altLocales: { en: 'Fallback pack shot', de: 'Packungsbild' }
+        });
+        assert.deepEqual(t.variants[0].images, t.masterImages);
+        assert.deepEqual(t.masterAttributes, p.masterData.current.masterVariant.attributes);
+    });
+
+    it('falls back to CT searchKeywords when metaKeywords is empty', function () {
+        var transformer = loadTransformer({});
+        var p = sampleProduct();
+        p.masterData.current.metaKeywords = null;
+        p.masterData.current.searchKeywords = {
+            en: [{ text: 'milk chocolate' }, { text: 'baked snacks' }],
+            de: [{ text: 'Schokolade' }]
+        };
+
+        var t = transformer.transformProduct(p);
+        assert.deepEqual(t.metaKeywordsLocales, {
+            en: 'milk chocolate, baked snacks',
+            de: 'Schokolade'
+        });
+        assert.equal(t.metaKeywords, 'milk chocolate, baked snacks');
+    });
+
+    it('derives only genuine scalar or enum attributes that vary as variation axes', function () {
+        var transformer = loadTransformer({});
+        var p = sampleProduct({
+            attrs: [
+                { name: 'packCount', value: { key: '1-count', label: { en: '1 count' } } },
+                { name: 'pricePerEachForUS', value: 449 },
+                { name: 'pdpUrl', value: { en: '/p?sku=one' } },
+                { name: 'flavors', value: [{ key: 'milk-chocolate', label: 'Milk Chocolate' }] }
+            ]
+        });
+        p.productType = {
+            obj: {
+                attributes: [
+                    { name: 'packCount', type: { name: 'lenum' }, attributeConstraint: 'CombinationUnique' },
+                    { name: 'pricePerEachForUS', type: { name: 'number' }, attributeConstraint: 'None' },
+                    { name: 'pdpUrl', type: { name: 'ltext' }, attributeConstraint: 'None' },
+                    { name: 'flavors', type: { name: 'set' }, attributeConstraint: 'None' }
+                ]
+            }
+        };
+        p.masterData.current.variants = [{
+            sku: 'SKU-B',
+            attributes: [
+                { name: 'packCount', value: { key: '6-count', label: { en: '6 count' } } },
+                { name: 'pricePerEachForUS', value: 408.16 },
+                { name: 'pdpUrl', value: { en: '/p?sku=two' } },
+                { name: 'flavors', value: [{ key: 'milk-chocolate', label: 'Milk Chocolate' }] }
+            ]
+        }];
+
+        var t = transformer.transformProduct(p);
+        assert.deepEqual(t.variationAttributeNames, ['packCount']);
+    });
+
     it('reads only masterData.current and ignores staged', function () {
         var transformer = loadTransformer({});
         var p = sampleProduct({

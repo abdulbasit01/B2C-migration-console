@@ -126,6 +126,32 @@ describe('sfccOrderXmlGenerator', function () {
         assert.ok(xml.indexOf('</orders>') > 0);
     });
 
+    it('serializes collection custom attributes with repeated value elements', function () {
+        var order = sampleOrder('1002');
+        order.customAttributes = [
+            { id: 'spy_migration__labels', value: ['vip', 'fragile & insured'] },
+            { id: 'spy_migration__empty_labels', value: ['', null] }
+        ];
+
+        var xml = generator.generateOrderXml(order);
+        assert.include(xml, '<custom-attribute attribute-id="spy_migration__labels">');
+        assert.include(xml, '<value>vip</value>');
+        assert.include(xml, '<value>fragile &amp; insured</value>');
+        assert.notInclude(xml, 'vip, fragile');
+        assert.notInclude(xml, 'spy_migration__empty_labels');
+    });
+
+    it('serializes free-form cancellation metadata', function () {
+        var order = sampleOrder('1003');
+        order.status = 'CANCELLED';
+        order.cancelCode = 'inventory';
+        order.cancelDescription = 'Shopify cancellation reason: inventory';
+
+        var xml = generator.generateOrderXml(order);
+        assert.include(xml, '<cancel-code>inventory</cancel-code>');
+        assert.include(xml, '<cancel-description>Shopify cancellation reason: inventory</cancel-description>');
+    });
+
     it('should chunk orders into multiple files', function () {
         var orders = [sampleOrder('1'), sampleOrder('2'), sampleOrder('3')];
         var chunks = generator.generateChunkedXml(orders, 2);

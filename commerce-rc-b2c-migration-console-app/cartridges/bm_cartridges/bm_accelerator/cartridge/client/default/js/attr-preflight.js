@@ -206,7 +206,24 @@
             if (!id || skip[id]) continue;
             if (allowedIds && !allowedIds[id]) continue;
             label = pendingOptionLabel(id, p && p.valueType);
-            html += '<option value="' + escHtml(id) + '" data-base-label="' + escHtml(label) + '">'
+            html += '<option value="' + escHtml(id) + '" data-target-kind="system" data-base-label="' + escHtml(label) + '">'
+                + escHtml(label) + '</option>';
+        }
+        return html;
+    }
+
+    function customFieldOptionsHtml(customFields, suggestedId) {
+        var html = '';
+        var i;
+        for (i = 0; i < (customFields || []).length; i++) {
+            var field = customFields[i];
+            if (!field || !field.id) continue;
+            var label = field.id
+                + (field.valueType ? (' (' + field.valueType + ')') : '')
+                + (field.localizable ? ' [localized]' : '')
+                + (field.normalizedMatch ? ' — normalized-name match' : '');
+            html += '<option value="' + escHtml(field.id) + '" data-target-kind="custom" data-base-label="'
+                + escHtml(label) + '"' + (field.id === suggestedId ? ' selected' : '') + '>'
                 + escHtml(label) + '</option>';
         }
         return html;
@@ -563,8 +580,8 @@
             + escHtml(String(missingCountLabel(ui, missing.length)).replace(/:\s*$/, ''))
             + '</summary>'
             + '<p style="font-size:12px;color:#8a9ab8;margin:0 0 10px;">'
-            + 'No curated SFCC system map. Select rows to create as custom attributes and map on export, '
-            + 'or map to an unmapped SFCC system field that is not already curated and whose type is compatible. '
+            + 'No curated SFCC system map. Select rows to create as custom attributes, '
+            + 'map to a compatible existing SFCC custom attribute, or map to an available system field. '
             + 'Rows highlighted in purple have AI suggestions above and start unchecked. '
             + 'A globe means the attribute will be created as <strong>localized</strong> (cannot change after create).'
             + '</p>'
@@ -576,10 +593,18 @@
         var i;
         for (i = 0; i < missing.length; i++) {
             var m = missing[i];
-            var hasSuggest = !!(suggestedIds[String(m.id)]);
+            var hasCustomSuggest = !!m.suggestedCustomField;
+            var hasSuggest = !!(suggestedIds[String(m.id)]) || hasCustomSuggest;
             var checked = hasSuggest ? '' : ' checked';
-            var statusText = hasSuggest ? 'AI suggestion' : 'Needs create';
-            var statusColor = hasSuggest ? '#6a1b9a' : '#8a9ab8';
+            var statusText = 'Needs create';
+            var statusColor = '#8a9ab8';
+            if (hasCustomSuggest) {
+                statusText = 'Existing custom match';
+                statusColor = '#1565c0';
+            } else if (hasSuggest) {
+                statusText = 'AI suggestion';
+                statusColor = '#6a1b9a';
+            }
             var rowStyle = hasSuggest
                 ? ' style="background:#f3e5f5;border-left:3px solid #ab47bc;"'
                 : '';
@@ -603,6 +628,14 @@
                 null,
                 idAllowSet(m.mappableSystemFields)
             );
+            var customOpts = customFieldOptionsHtml(m.mappableCustomFields, m.suggestedCustomField);
+            var mappingOpts = '';
+            if (customOpts) {
+                mappingOpts += '<optgroup label="Existing SFCC custom attributes">' + customOpts + '</optgroup>';
+            }
+            if (pendingOpts) {
+                mappingOpts += '<optgroup label="Available SFCC system attributes">' + pendingOpts + '</optgroup>';
+            }
             html += '<tr class="cm-attr-row' + (hasSuggest ? ' cm-attr-row--ai' : '') + '" data-idx="' + i
                 + '" data-id="' + escHtml(m.id) + '"'
                 + (willLocalize ? ' data-localizable="1"' : '')
@@ -613,15 +646,17 @@
                 + escHtml(m.id) + '" value="' + escHtml(m.id) + '"' + idStyle + '/>'
                 + globeHtml
                 + (hasSuggest
-                    ? '<div style="margin-top:4px;font-size:11px;color:#6a1b9a;font-weight:600;">Suggested by AI</div>'
+                    ? '<div style="margin-top:4px;font-size:11px;color:'
+                    + (hasCustomSuggest ? '#1565c0' : '#6a1b9a') + ';font-weight:600;">'
+                    + (hasCustomSuggest ? 'Existing custom attribute match' : 'Suggested by AI') + '</div>'
                     : '')
                 + sourceNote
-                + (pendingOpts
+                + (mappingOpts
                     ? '<div class="cm-pending-map-wrap" style="margin-top:8px;">'
                     + '<select class="cm-pending-map-select" data-idx="' + i + '" data-source-id="'
                     + escHtml(m.id) + '" style="width:100%;max-width:280px;font-size:12px;">'
-                    + '<option value="">— map to unmapped SFCC field —</option>'
-                    + pendingOpts
+                    + '<option value="">— select an existing SFCC attribute —</option>'
+                    + mappingOpts
                     + '</select>'
                     + '<div style="margin-top:4px;white-space:nowrap;">'
                     + '<button type="button" class="cm-btn cm-pending-use-map-btn" data-idx="' + i
@@ -1009,6 +1044,7 @@
         var saveUrl = opts.saveAttrMapUrl || '';
         var sourceId = opts.sourceId || '';
         var sfccField = opts.sfccField || '';
+        var targetKind = opts.targetKind || 'system';
         var idx = opts.idx;
         var post = opts.post;
         var statusEl = document.querySelector('.cm-attr-status[data-idx="' + idx + '"]');
@@ -1053,7 +1089,9 @@
                 if (prevField && prevField !== sfccField) {
                     moveSystemFieldToPending(sourceId, prevField);
                 }
-                moveSystemFieldToMapped(sourceId, sfccField, opts.sourceLabel || sourceId);
+                if (targetKind === 'system') {
+                    moveSystemFieldToMapped(sourceId, sfccField, opts.sourceLabel || sourceId);
+                }
                 if (opts.onAccepted) opts.onAccepted(sourceId, sfccField, data);
             } else if (statusEl) {
                 statusEl.textContent = (data && data.error) || 'Save failed';
@@ -1423,11 +1461,16 @@
                 var sourceId = this.getAttribute('data-source-id') || '';
                 var sel = document.querySelector('.cm-pending-map-select[data-idx="' + idx + '"]');
                 var target = sel ? sel.value : '';
+                var selectedOption = sel && sel.selectedIndex >= 0 ? sel.options[sel.selectedIndex] : null;
+                var targetKind = selectedOption
+                    ? (selectedOption.getAttribute('data-target-kind') || 'system')
+                    : 'system';
                 acceptManualPendingMap({
                     saveAttrMapUrl: saveAttrMapUrl,
                     sourceId: sourceId,
                     sourceLabel: sourceId,
                     sfccField: target,
+                    targetKind: targetKind,
                     idx: idx,
                     post: opts.post,
                     onAccepted: opts.onAiAccepted
@@ -1549,6 +1592,7 @@
         missingBriefLabel:    missingBriefLabel,
         mappedTableHtml:      mappedTableHtml,
         missingTableHtml:     missingTableHtml,
+        customFieldOptionsHtml: customFieldOptionsHtml,
         suggestedTableHtml:   suggestedTableHtml,
         aiStatusBarHtml:      aiStatusBarHtml,
         skippedTableHtml:     skippedTableHtml,

@@ -13,3 +13,4 @@ npm-debug.log
 # Compiled BM client assets (CMS static is source-controlled)
 commerce-rc-b2c-migration-console-app/cartridges/bm_cartridges/*/cartridge/static/
 !commerce-rc-b2c-migration-console-app/cartridges/bm_cartridges/app_custom_cms/cartridge/static/
+/commerce-rc-b2c-migration-console-app/ct-api-data
