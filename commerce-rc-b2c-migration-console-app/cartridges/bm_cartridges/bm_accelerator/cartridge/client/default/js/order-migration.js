@@ -288,6 +288,10 @@
             var files = data.files || [];
             var buildDetail = fmtNum(built) + ' order(s) written';
             if (failed > 0) buildDetail += ', ' + fmtNum(failed) + ' failed validation';
+            if (data.productsNotFound > 0) {
+                buildDetail += ', ' + fmtNum(data.productsNotFound)
+                    + ' line item(s) with no matching SFCC product (SKU kept)';
+            }
             if (files.length) buildDetail += ' — ' + files.length + ' file(s): ' + files.join(', ');
 
             setPhase('full', 'build', buildState, buildDetail, 100);

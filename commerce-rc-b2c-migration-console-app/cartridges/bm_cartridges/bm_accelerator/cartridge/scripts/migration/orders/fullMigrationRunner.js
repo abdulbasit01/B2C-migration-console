@@ -10,6 +10,7 @@ var xmlGen     = require('*/cartridge/scripts/migration/orders/generators/sfccOr
 var fileResolver = require('*/cartridge/scripts/migration/core/migrationFileResolver');
 var paths      = require('*/cartridge/scripts/migration/core/migrationPaths');
 var impexGen   = require('*/cartridge/scripts/migration/orders/generators/impexGenerator');
+var productIds = require('*/cartridge/scripts/migration/orders/productIdResolver');
 
 var MODULE_KEY         = 'order';
 var PAGE_LIMIT         = connector.DEFAULT_LIMIT;
@@ -95,6 +96,7 @@ function startState(fetchOpts, impexPath) {
         processed: 0,
         validated: 0,
         failed:    0,
+        productsNotFound: 0,
         offset:    0,
         after:     null,
         files:     []
@@ -124,6 +126,7 @@ function readState(s) {
         processed: parseInt(s.processed, 10) || 0,
         validated: parseInt(s.validated, 10) || 0,
         failed:    parseInt(s.failed, 10) || 0,
+        productsNotFound: parseInt(s.productsNotFound, 10) || 0,
         offset:    parseInt(s.offset, 10) || 0,
         after:     s.after && s.after.createdAt && s.after.id
             ? { createdAt: String(s.after.createdAt), id: String(s.after.id) } : null,
@@ -174,6 +177,7 @@ function runChunk(options, stateIn) {
         var footerLen = xmlGen.buildFooter().length;
         var done   = false;
         var readThisRequest = 0;
+        var products = productIds.createResolver();
 
         while (!done && readThisRequest < ORDERS_PER_REQUEST) {
             var page = connector.fetchOrdersPage(token, {
@@ -188,6 +192,7 @@ function runChunk(options, stateIn) {
             });
             var results = page.results || [];
             var i;
+            if (connector.addCustomerNumbers) connector.addCustomerNumbers(token, results);
 
             for (i = 0; i < results.length; i++) {
                 if (max && state.processed >= max) break;
@@ -199,6 +204,7 @@ function runChunk(options, stateIn) {
 
                 try {
                     var canonical = mapper.mapOrder(raw);
+                    state.productsNotFound += products.resolveOrder(canonical);
                     var vResult   = validator.validateOrder(canonical);
                     if (!vResult.valid) {
                         state.failed++;
@@ -257,6 +263,7 @@ function runChunk(options, stateIn) {
             ordersFailed:      state.failed,
             built:             state.validated,
             failed:            state.failed,
+            productsNotFound:  state.productsNotFound,
             errors:            errors,
             files:             state.files,
             xmlFilesGenerated: state.files.length,

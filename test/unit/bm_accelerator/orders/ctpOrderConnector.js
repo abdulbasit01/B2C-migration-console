@@ -250,3 +250,56 @@ describe('ctpOrderConnector', function () {
         });
     });
 });
+
+describe('ctpOrderConnector.addCustomerNumbers', function () {
+    /**
+     * @param {Object} reply - { status, data } for the customers request
+     * @returns {Object} { connector, calls }
+     */
+    function loadWith(reply) {
+        var calls = [];
+        var connector = proxyquire(connectorPath, {
+            '*/cartridge/scripts/migration/core/http': {
+                get: function (url) { calls.push(url); return reply; },
+                post: function () { return { status: 200, data: { access_token: 't' } }; }
+            },
+            '*/cartridge/scripts/migration/configAccessor': {
+                ctp: { projectKey: 'p', authUrl: 'https://auth', apiUrl: 'https://api' }
+            },
+            'dw/crypto/Encoding': { toBase64: function () { return 'x'; } },
+            'dw/util/Bytes': function Bytes() {}
+        });
+        return { connector: connector, calls: calls };
+    }
+
+    it('reads the customers of a page in one request and adds their customerNumber', function () {
+        var env = loadWith({ status: 200, data: { results: [
+            { id: 'c1', customerNumber: 'N-1' },
+            { id: 'c2' }
+        ] } });
+        var orders = [{ customerId: 'c1' }, { customerId: 'c2' }, { customerId: 'c1' }, {}];
+        env.connector.addCustomerNumbers('t', orders);
+
+        assert.lengthOf(env.calls, 1);
+        var where = decodeURIComponent(env.calls[0].split('where=')[1]);
+        assert.equal(where, 'id in ("c1", "c2")');
+        assert.include(env.calls[0], '/p/customers?limit=2');
+        assert.equal(orders[0].customerNumber, 'N-1');
+        assert.equal(orders[2].customerNumber, 'N-1');
+        assert.isUndefined(orders[1].customerNumber);
+        assert.isUndefined(orders[3].customerNumber);
+    });
+
+    it('makes no request for a page of guest orders', function () {
+        var env = loadWith({ status: 200, data: { results: [] } });
+        env.connector.addCustomerNumbers('t', [{}, { customerEmail: 'a@b.c' }]);
+        assert.lengthOf(env.calls, 0);
+    });
+
+    it('explains a missing view_customers scope', function () {
+        var env = loadWith({ status: 403, data: {} });
+        assert.throws(function () {
+            env.connector.addCustomerNumbers('t', [{ customerId: 'c1' }]);
+        }, /view_customers/);
+    });
+});

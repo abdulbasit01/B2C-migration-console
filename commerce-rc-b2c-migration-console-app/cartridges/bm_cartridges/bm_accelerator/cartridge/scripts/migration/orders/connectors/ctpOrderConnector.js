@@ -12,6 +12,12 @@ var DEFAULT_LIMIT   = 20;
 var CT_RESULT_CAP   = 10000;
 var MAX_RETRIES     = 3;
 var RETRY_DELAY_MS  = 500;
+// Payment method, workflow state key and channel keys for the XML; a page of 20 expanded
+// orders measured at most ~0.33M chars.
+var ORDER_EXPANDS   = ['paymentInfo.payments[*]', 'state', 'lineItems[*].supplyChannel',
+    'lineItems[*].distributionChannel'].map(function (e) {
+    return '&expand=' + encodeURIComponent(e);
+}).join('');
 
 function toBase64(str) {
     return Encoding.toBase64(new Bytes(str, 'UTF-8'));
@@ -153,7 +159,7 @@ function fetchOrdersPage(token, options) {
     var sort   = encodeURIComponent('createdAt asc') + '&sort=' + encodeURIComponent('id asc');
     var qs     = '?limit=' + limit + '&offset=' + offset
         + (where ? '&where=' + encodeURIComponent(where) : '') + '&sort=' + sort
-        + (options.withTotal === false ? '&withTotal=false' : '');
+        + (options.withTotal === false ? '&withTotal=false' : '') + ORDER_EXPANDS;
 
     var res = withRetry(function () {
         return http.get(
@@ -170,6 +176,53 @@ function fetchOrdersPage(token, options) {
         results: res.data.results || [],
         total:   res.data.total || 0
     };
+}
+
+/**
+ * Add each registered order's customerNumber (order.customerNumber), read in one request per
+ * page. The customer migration imports customers under customerNumber when it is set, so
+ * orders must reference the same number; orders whose customer has none keep the ID.
+ * Needs the view_customers scope on the commercetools API client.
+ * @param {string} token
+ * @param {Object[]} orders - raw commercetools orders of one page (changed in place)
+ */
+function addCustomerNumbers(token, orders) {
+    var c    = cfg.ctp;
+    var ids  = [];
+    var seen = {};
+    var i;
+    for (i = 0; i < orders.length; i++) {
+        var id = orders[i].customerId;
+        if (id && !seen[id]) {
+            seen[id] = true;
+            ids.push('"' + String(id).replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"');
+        }
+    }
+    if (!ids.length) return;
+
+    var qs = '?limit=' + ids.length + '&withTotal=false&where=' + encodeURIComponent('id in (' + ids.join(', ') + ')');
+    var res = withRetry(function () {
+        return http.get(
+            c.apiUrl + '/' + c.projectKey + '/customers' + qs,
+            { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }
+        );
+    });
+    if (res.status === 403) {
+        throw new Error('Cannot read customer numbers (403): the commercetools API client needs the view_customers scope');
+    }
+    if (res.status !== 200) {
+        throw new Error('Failed to fetch customers (' + res.status + ')');
+    }
+
+    var numbers = {};
+    var list = res.data.results || [];
+    for (i = 0; i < list.length; i++) {
+        if (list[i].customerNumber) numbers[list[i].id] = String(list[i].customerNumber);
+    }
+    for (i = 0; i < orders.length; i++) {
+        var no = numbers[orders[i].customerId];
+        if (no) orders[i].customerNumber = no;
+    }
 }
 
 /**
@@ -302,6 +355,7 @@ module.exports = {
     authenticate:            authenticate,
     fetchOrdersByDateRange:  fetchOrdersByDateRange,
     fetchOrdersPage:         fetchOrdersPage,
+    addCustomerNumbers:      addCustomerNumbers,
     countOrders:             countOrders,
     buildOrdersWhere:        buildOrdersWhere,
     dateYearsAgo:            dateYearsAgo,

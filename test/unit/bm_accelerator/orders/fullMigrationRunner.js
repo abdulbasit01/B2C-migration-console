@@ -35,6 +35,7 @@ function load(orders, opts) {
     var o = opts || {};
     var files = {};
     var fetches = [];
+    var enriched = [];
 
     /**
      * @param {Object} dir - parent directory stub
@@ -76,7 +77,9 @@ function load(orders, opts) {
         'dw/io/FileWriter': FileWriter,
         '*/cartridge/scripts/migration/core/dataSourceRegistry': {
             getFetcher: function () { return connector; },
-            getMapper:  function () { return { mapOrder: function (r) { return { orderNumber: r.orderNumber }; } }; }
+            getMapper:  function () {
+                return { mapOrder: function (r) { return { orderNumber: r.orderNumber, customerNo: r.customerNumber }; } };
+            }
         },
         '*/cartridge/scripts/migration/orders/validators/orderValidator': {
             validateOrder: function (c) {
@@ -86,7 +89,9 @@ function load(orders, opts) {
         '*/cartridge/scripts/migration/orders/generators/sfccOrderXmlGenerator': {
             buildHeader:              function () { return '<orders>\n'; },
             buildFooter:              function () { return '</orders>\n'; },
-            generateOrderInnerXml:    function (c) { return '<order no="' + c.orderNumber + '"/>'; },
+            generateOrderInnerXml:    function (c) {
+                return '<order no="' + c.orderNumber + '"' + (c.customerNo ? ' customer="' + c.customerNo + '"' : '') + '/>';
+            },
             assertValidOrderDocument: function () {}
         },
         '*/cartridge/scripts/migration/core/migrationFileResolver': {
@@ -99,9 +104,22 @@ function load(orders, opts) {
         },
         '*/cartridge/scripts/migration/orders/generators/impexGenerator': {
             ensureDir: function () { return {}; }
+        },
+        '*/cartridge/scripts/migration/orders/productIdResolver': {
+            createResolver: function () {
+                // one line item without an SFCC product for every order number ending in 7
+                return { resolveOrder: function (c) { return /7$/.test(c.orderNumber) ? 1 : 0; } };
+            }
         }
     });
-    return { runner: runner, files: files, fetches: fetches };
+    if (o.customerNumbers) {
+        connector.addCustomerNumbers = function (token, page) {
+            var rows = page;
+            enriched.push(rows.length);
+            for (var i = 0; i < rows.length; i++) rows[i].customerNumber = 'N-' + rows[i].id;
+        };
+    }
+    return { runner: runner, files: files, fetches: fetches, enriched: enriched };
 }
 
 /**
@@ -200,6 +218,21 @@ describe('order fullMigrationRunner (batched export)', function () {
         var env = load(makeOrders(5), { existingFiles: ['order-20260929-v001-p0001.xml'] });
         var run = runAll(env.runner, { years: 'all' });
         assert.deepEqual(run.last.files, ['order-20260929-v002-p0001.xml']);
+    });
+
+    it('adds customer numbers once per page before the orders are mapped', function () {
+        var env = load(makeOrders(45), { customerNumbers: true });
+        runAll(env.runner, { years: 'all' });
+        assert.deepEqual(env.enriched, [20, 20, 5]);
+        assert.include(env.files['order-20260929-v001-p0001.xml'], 'no="o0" customer="N-id-100000"');
+    });
+
+    it('counts line items with no SFCC product across requests', function () {
+        var env = load(makeOrders(2500));
+        var run = runAll(env.runner, { years: 'all' });
+        // order numbers o7, o17, ... o2497: 250 orders
+        assert.equal(run.last.productsNotFound, 250);
+        assert.equal(run.last.ordersValidated, 2500);
     });
 
     it('rejects a state whose file name was tampered with', function () {
