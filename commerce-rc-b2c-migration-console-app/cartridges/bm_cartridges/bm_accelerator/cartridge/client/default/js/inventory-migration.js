@@ -151,6 +151,7 @@
         var pendingSkipped = [];
         var fullBuilt = 0;
         var fullFailed = 0;
+        var fullNotFound = 0;
         var fullFiles = 0;
         var fullRunning = false;
         var fullFinished = false;
@@ -470,6 +471,7 @@
                     }
                     fullBuilt  += (data.built  || 0);
                     fullFailed += (data.failed || 0);
+                    fullNotFound += (data.productsNotFound || 0);
                     if (data.fileName) {
                         fullFiles++;
                         lastUploadedFile = data.fileName;
@@ -493,7 +495,8 @@
 
         function runNextExport() {
             if (currentExportIdx >= exportQueue.length) {
-                setPhase('full', 'build', fullFailed ? 'warning' : 'done', fullFiles + ' file(s) uploaded', 100);
+                setPhase('full', 'build', fullFailed ? 'warning' : 'done', fullFiles + ' file(s) uploaded'
+                    + (fullNotFound ? ', ' + fullNotFound + ' record(s) with no matching SFCC product (SKU kept)' : ''), 100);
                 finalizeFull(true);
                 return;
             }
@@ -517,6 +520,7 @@
             fullRunning = true;
             fullBuilt = 0;
             fullFailed = 0;
+            fullNotFound = 0;
             fullFiles = 0;
             uploadedFiles = [];
             currentExportIdx = 0;
