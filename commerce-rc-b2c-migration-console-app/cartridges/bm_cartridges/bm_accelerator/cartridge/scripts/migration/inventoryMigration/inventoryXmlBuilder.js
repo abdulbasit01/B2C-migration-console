@@ -22,7 +22,11 @@ function buildRecordXml(record, attrMap) {
     var mapped = runtimeAttrMap.apply(record.customAttributes || {}, 'inventory', attrMap);
     runtimeAttrMap.mergeIfEmpty(record, mapped.system, { allocation: 'allocation' });
 
-    var productId = record.productId || record.sku;
+    // inventory.xsd product-id: no leading/trailing whitespace (last line of defence for every source)
+    var productId = String(record.productId || record.sku || '').trim();
+    if (!productId) {
+        throw new Error('Empty product-id after trimming whitespace');
+    }
     var xml = '            <record product-id="' + xmlEsc(productId) + '">\n';
     xml += '                <allocation>' + record.allocation + '</allocation>\n';
     if (record.allocationTimestamp) {
@@ -31,6 +35,14 @@ function buildRecordXml(record, attrMap) {
     xml += '                <perpetual>' + (record.perpetual ? 'true' : 'false') + '</perpetual>\n';
     xml += '                <preorder-backorder-handling>' + xmlEsc(record.preorderBackorder || 'none')
         + '</preorder-backorder-handling>\n';
+    // inventory.xsd order: preorder-backorder-allocation, in-stock-date, in-stock-datetime
+    if (record.preorderBackorderAllocation != null) {
+        xml += '                <preorder-backorder-allocation>' + record.preorderBackorderAllocation
+            + '</preorder-backorder-allocation>\n';
+    }
+    if (record.inStockDateTime) {
+        xml += '                <in-stock-datetime>' + xmlEsc(record.inStockDateTime) + '</in-stock-datetime>\n';
+    }
     // ats / on-order / turnover are export-only (inventory.xsd); do not emit on import.
     if (mapped.custom && mapped.custom.length) {
         xml += '                <custom-attributes>\n';
@@ -94,7 +106,7 @@ function buildXml(records, listId, description) {
 
     for (var i = 0; i < records.length; i++) {
         try {
-            if (!records[i] || !(records[i].productId || records[i].sku)) {
+            if (!records[i] || !String(records[i].productId || records[i].sku || '').trim()) {
                 failed++;
                 continue;
             }
