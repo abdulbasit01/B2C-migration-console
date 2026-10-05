@@ -1985,7 +1985,7 @@ exports.InventoryMigration = function () {
         impexUrl:            pageCtx.impexUrl,
         cssUrl:              URLUtils.staticURL('/css/accelerator-migration.css').toString(),
         attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString() + '?v=14',
-        inventoryMigrationJsUrl: URLUtils.staticURL('/js/inventory-migration.js').toString() + '?v=9',
+        inventoryMigrationJsUrl: URLUtils.staticURL('/js/inventory-migration.js').toString() + '?v=10',
         jobsUrl:             jobsUrl
     }));
 };

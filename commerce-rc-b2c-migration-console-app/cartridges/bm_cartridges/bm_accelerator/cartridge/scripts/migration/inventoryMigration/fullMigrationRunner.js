@@ -107,6 +107,7 @@ function runSingleFile(listId, supplyChannelId, exportKey, fileName, aggregate) 
     var sortField = aggregate ? 'sku' : 'id';
     var headerWritten = false;
     var complete      = false;
+    var notFound      = 0;
     var description   = buildDescription(exportKey, channelId || null);
 
     function flushPending() {
@@ -114,6 +115,7 @@ function runSingleFile(listId, supplyChannelId, exportKey, fileName, aggregate) 
         try {
             writer.write(xmlBuilder.buildRecordXml(pending));
             built++;
+            if (pending.productNotFound) notFound++;
         } catch (e) {
             failed++;
             if (errors.length < 5) {
@@ -170,6 +172,7 @@ function runSingleFile(listId, supplyChannelId, exportKey, fileName, aggregate) 
                     } else {
                         writer.write(xmlBuilder.buildRecordXml(rec));
                         built++;
+                        if (rec.productNotFound) notFound++;
                     }
                 } catch (te) {
                     failed++;
@@ -223,6 +226,7 @@ function runSingleFile(listId, supplyChannelId, exportKey, fileName, aggregate) 
             done:       true,
             built:      built,
             failed:     failed,
+            productsNotFound: notFound,
             errors:     errors,
             fileName:   resolved,
             runDate:    runDate,
@@ -283,6 +287,7 @@ function runMultiFileBatch(offset, listId, supplyChannelId, exportKey, fileName,
         done:       nextOffset >= total || entries.length === 0,
         built:      upload.built,
         failed:     upload.failed,
+        productsNotFound: records.filter(function (r) { return r.productNotFound; }).length,
         errors:     upload.errors,
         fileName:   upload.fileName,
         runDate:    upload.runDate,

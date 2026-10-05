@@ -34,12 +34,28 @@ function getPreorderHandling(entry) {
 }
 
 /**
- * @param {Object} entry
+ * inventory.xsd allocation-timestamp: when the allocation was counted. The source quantity is
+ * the stock now, so this is the export time; a source change date would also be refused when
+ * a later import updates the record (quota maxReallocationTimeInPast: at most 48 hours back).
  * @returns {string}
  */
-function getTimestamp(entry) {
-    if (entry.lastModifiedAt) return entry.lastModifiedAt;
+function getTimestamp() {
     return new Date().toISOString();
+}
+
+/**
+ * inventory.xsd in-stock-datetime for preorders (expected delivery) and backorders (restockable
+ * in N days); SFCC warns about a preorder/backorder without an amount or a date.
+ * @param {Object} entry - source inventory entry
+ * @param {string} handling - none | preorder | backorder
+ * @returns {string} ISO date-time, or '' when there is none
+ */
+function getInStockDateTime(entry, handling) {
+    if (handling === 'preorder' && entry.expectedDelivery) return String(entry.expectedDelivery);
+    if (handling === 'backorder' && entry.restockableInDays > 0) {
+        return new Date(Date.now() + entry.restockableInDays * 86400000).toISOString();
+    }
+    return '';
 }
 
 function localizedFallback(obj) {
@@ -92,28 +108,40 @@ function formatCustomFieldValue(val) {
  */
 function transformEntry(entry) {
     if (!entry) return null;
-    var productId = entry.productId || entry.sku;
+    // inventory.xsd product-id must not start or end with whitespace (the whole file fails
+    // validation otherwise). sfccProductId is the SFCC product the commercetools fetcher found
+    // for the SKU; '' means none was found and the SKU is kept.
+    var productId = String(entry.sfccProductId || entry.productId || entry.sku || '').trim();
     if (!productId) return null;
 
     var record = {
         sku:                    productId,
         productId:              productId,
+        productNotFound:        entry.sfccProductId === '',
         allocation:             getStockOnHand(entry),
         ats:                    getAvailableToSell(entry),
         perpetual:              false,
         preorderBackorder:      getPreorderHandling(entry),
-        allocationTimestamp:    getTimestamp(entry),
+        allocationTimestamp:    getTimestamp(),
         onOrder:                0,
         turnover:               0,
         supplyChannelId:        entry.supplyChannel && entry.supplyChannel.id
             ? entry.supplyChannel.id : null
     };
 
+    var inStock = getInStockDateTime(entry, record.preorderBackorder);
+    if (inStock) record.inStockDateTime = inStock;
+    // commercetools maxBackorderQuantity has a native element: inventory.xsd preorder-backorder-allocation
+    var maxBackorder = entry.custom && entry.custom.fields ? entry.custom.fields.maxBackorderQuantity : null;
+    var nativeMaxBackorder = typeof maxBackorder === 'number' && maxBackorder >= 0;
+    if (nativeMaxBackorder) record.preorderBackorderAllocation = maxBackorder;
+
     if (entry.custom && entry.custom.fields) {
         var customAttrs = {};
         var keys = Object.keys(entry.custom.fields);
         var ci;
         for (ci = 0; ci < keys.length; ci++) {
+            if (nativeMaxBackorder && keys[ci] === 'maxBackorderQuantity') continue;
             var formatted = formatCustomFieldValue(entry.custom.fields[keys[ci]]);
             if (formatted !== '') customAttrs[keys[ci]] = formatted;
         }
@@ -137,11 +165,7 @@ function aggregateBySku(entries) {
         if (!rec) continue;
 
         if (map[rec.sku]) {
-            map[rec.sku].allocation += rec.allocation;
-            map[rec.sku].ats        += rec.ats;
-            if (rec.allocationTimestamp > map[rec.sku].allocationTimestamp) {
-                map[rec.sku].allocationTimestamp = rec.allocationTimestamp;
-            }
+            mergeRecords(map[rec.sku], rec);
         } else {
             map[rec.sku] = rec;
             out.push(rec);
@@ -159,6 +183,12 @@ function mergeRecords(target, source) {
     target.ats        += source.ats;
     if (source.allocationTimestamp > target.allocationTimestamp) {
         target.allocationTimestamp = source.allocationTimestamp;
+    }
+    if (source.preorderBackorderAllocation != null) {
+        target.preorderBackorderAllocation = (target.preorderBackorderAllocation || 0) + source.preorderBackorderAllocation;
+    }
+    if (!target.inStockDateTime && source.inStockDateTime) {
+        target.inStockDateTime = source.inStockDateTime;
     }
 }
 
