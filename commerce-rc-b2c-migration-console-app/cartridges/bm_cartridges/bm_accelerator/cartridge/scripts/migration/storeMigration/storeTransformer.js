@@ -27,6 +27,7 @@ var ADDRESS_FIELD_NAMES = {
 };
 var HOURS_FIELD_RE  = /hour|opening|opentime|closetime/i;
 var PICKUP_FIELD_RE = /pickup|pick_up|collect/i;
+var DAY_NAMES       = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 function getLocalized(obj) {
     return fetcher.getLocalized(obj);
@@ -305,6 +306,44 @@ function resolveInventoryList(store, channelById) {
     return out;
 }
 
+/**
+ * Weekly opening hours kept in a store custom field (for example storeWeeklyHours:
+ * [{ "dayOfTheWeek": 1, "openTime": "09:00:00.000+00:00", "closeTime": "18:00:00.000+00:00" }])
+ * as store-hours markup, one line per day from Monday. Day 0 or 7 is Sunday; times are shown as
+ * entered (HH:mm), without converting time zones. The raw field stays a custom attribute.
+ * @param {Object} fields - store custom fields
+ * @returns {string} '' when no field holds weekly hours
+ */
+function weeklyHoursFromCustomFields(fields) {
+    var names = Object.keys(fields || {});
+    var i;
+    var d;
+    for (i = 0; i < names.length; i++) {
+        if (!HOURS_FIELD_RE.test(names[i])) continue;
+        var days = fields[names[i]];
+        try {
+            if (typeof days === 'string') days = JSON.parse(days);
+        } catch (e) {
+            continue;
+        }
+        if (!Array.isArray(days)) continue;
+        var lines = [];
+        for (d = 0; d < days.length; d++) {
+            var day   = days[d] || {};
+            var num   = parseInt(day.dayOfTheWeek, 10);
+            var open  = String(day.openTime || '').substring(0, 5);
+            var close = String(day.closeTime || '').substring(0, 5);
+            if (!(num >= 0 && num <= 7) || !/^\d\d:\d\d$/.test(open) || !/^\d\d:\d\d$/.test(close)) continue;
+            lines.push({ order: (num + 6) % 7, text: '<p>' + DAY_NAMES[num % 7] + ': ' + open + ' - ' + close + '</p>' });
+        }
+        if (lines.length) {
+            lines.sort(function (a, b) { return a.order - b.order; });
+            return lines.map(function (l) { return l.text; }).join('');
+        }
+    }
+    return '';
+}
+
 function issue(level, code, message) {
     return { level: level, code: code, message: message };
 }
@@ -391,6 +430,7 @@ function transformStore(store, channelById, storeIdOverride, attrIdMap, options)
         latitude:             lat,
         longitude:            lng,
         inventoryListId:      inventory.listId,
+        storeHours:           weeklyHoursFromCustomFields(store.custom && store.custom.fields),
         posEnabled:           false,
         customAttributes:     buildCustomAttributes(store, loc.consumed),
         issues:               issues

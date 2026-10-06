@@ -184,4 +184,22 @@ describe('storeXmlBuilder', function () {
         assert.include(xml, '<store-locator-enabled-flag>true</store-locator-enabled-flag>');
         assert.notInclude(xml, 'attribute-id="streetName"');
     });
+
+    it('writes weekly opening hours as store-hours, one line per day from Monday, and keeps the raw field', function () {
+        loader.installCartridgeResolver();
+        var xmlBuilder = loader.requireCartridge('storeMigration/storeXmlBuilder');
+        var hours = JSON.stringify([
+            { dayOfTheWeek: 0, openTime: '11:00:00.000+00:00', closeTime: '16:00:00.000+00:00' },
+            { dayOfTheWeek: 1, openTime: '09:00:00.000+00:00', closeTime: '18:00:00.000+00:00' },
+            { dayOfTheWeek: 2, openTime: 'closed' }
+        ]);
+        var store = JSON.parse(JSON.stringify(nyStore));
+        store.custom.fields.storeWeeklyHours = hours;
+        var rec = loadTransformer().transformStore(store, channels);
+        assert.equal(rec.storeHours, '<p>Monday: 09:00 - 18:00</p><p>Sunday: 11:00 - 16:00</p>');
+        assert.equal(rec.customAttributes.storeWeeklyHours, hours);
+        assert.include(xmlBuilder.buildStoreXml(rec, {}),
+            '<store-hours xml:lang="x-default">&lt;p&gt;Monday: 09:00 - 18:00&lt;/p&gt;&lt;p&gt;Sunday: 11:00 - 16:00&lt;/p&gt;</store-hours>');
+        assert.equal(loadTransformer().transformStore(nyStore, channels).storeHours, '');
+    });
 });
