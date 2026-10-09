@@ -34,6 +34,30 @@ function normalize(valueType) {
     return String(valueType || '').trim().toLowerCase();
 }
 
+// value_types that hold exactly one value. Enums are left out: they can be multi-select.
+var SINGLE_VALUE_TYPES = ['string', 'text', 'html', 'email', 'password', 'image', 'int', 'double', 'boolean', 'date', 'datetime'];
+
+/**
+ * Why importing a source field into an existing SFCC attribute would lose or change its values, or ''
+ * when it would not. Only explicit list and true/false source types are judged, so a field whose type
+ * is unknown or free text never reports a mismatch.
+ * @param {string} expectedType - SFCC value_type the source field maps to (e.g. set_of_string)
+ * @param {string} actualType - value_type of the existing SFCC attribute
+ * @returns {string}
+ */
+function typeMismatchReason(expectedType, actualType) {
+    var expected = normalize(expectedType);
+    var actual = normalize(actualType);
+    if (!expected || !actual || expected === actual) return '';
+    if (expected.indexOf('set_of_') === 0 && SINGLE_VALUE_TYPES.indexOf(actual) !== -1) {
+        return 'only the first value of each list is kept';
+    }
+    if (expected === 'boolean' && actual !== 'boolean') {
+        return 'true/false is stored as ' + actual;
+    }
+    return '';
+}
+
 /**
  * Normalize an attribute id for deterministic cross-platform comparisons.
  * productName, product_name and product-name all normalize to productname.
@@ -203,5 +227,6 @@ module.exports = {
     filterPendingByType:         filterPendingByType,
     isCustomTargetCompatible:    isCustomTargetCompatible,
     attachMappableSystemFields:  attachMappableSystemFields,
-    attachMappableCustomFields:  attachMappableCustomFields
+    attachMappableCustomFields:  attachMappableCustomFields,
+    typeMismatchReason:          typeMismatchReason
 };

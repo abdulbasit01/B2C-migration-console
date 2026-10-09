@@ -296,6 +296,7 @@ Next steps: 1. Click Open IMPEX Folder. 2. Select the file and run the import jo
                 ui:              {},
                 createAttrsUrl:  CREATE_ATTRS_URL,
                 clearAttrMapUrl: CLEAR_ATTR_MAP_URL || '',
+                deleteAttrUrl: DELETE_ATTR_URL || '',
                 post:            post,
                 getPending:      function () { return pendingMissing; }
             });

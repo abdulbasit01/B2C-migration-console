@@ -483,7 +483,7 @@ exports.OrderMigration = function () {
         orderStateFilters:   migrationData.getOrderStateFilters(platformId),
         paymentStateFilters: migrationData.getPaymentStateFilters(platformId),
         cssUrl:              URLUtils.staticURL('/css/accelerator-migration.css').toString(),
-        attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString() + '?v=14',
+        attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString() + '?v=16',
         orderMigrationJsUrl: URLUtils.staticURL('/js/order-migration.js').toString() + '?v=10'
     }));
 };
@@ -1039,7 +1039,7 @@ exports.CustomerMigration = function () {
         customerListsUrlJs:   toJsLiteral(listsUrl),
         presetListIdJs:       toJsLiteral(customerListId),
         cssUrl:              URLUtils.staticURL('/css/accelerator-migration.css').toString(),
-        attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString() + '?v=14',
+        attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString() + '?v=16',
         countUrl:       URLUtils.url('Accelerator-CustomerMigrationCount').toString(),
         profileUrl:     URLUtils.url('Accelerator-MigrateCustomerBatch').toString(),
         addressUrl:     URLUtils.url('Accelerator-MigrateCustomerAddresses').toString(),
@@ -1798,7 +1798,7 @@ exports.ShippingMethodMigration = function () {
         migrationUiJson:     pageCtx.migrationUiJson,
         impexUrl:     pageCtx.impexUrl,
         cssUrl:       URLUtils.staticURL('/css/accelerator-migration.css').toString(),
-        attrPreflightJsUrl: URLUtils.staticURL('/js/attr-preflight.js').toString() + '?v=14',
+        attrPreflightJsUrl: URLUtils.staticURL('/js/attr-preflight.js').toString() + '?v=16',
         countUrl:          URLUtils.url('Accelerator-ShippingMethodMigrationCount').toString(),
         listMethodsUrl:    URLUtils.url('Accelerator-ListShippingMethods').toString(),
         fullBatchUrl:      URLUtils.url('Accelerator-FullShippingMethodBuildBatch').toString(),
@@ -1990,7 +1990,7 @@ exports.InventoryMigration = function () {
         clearAttrMapUrl:     clearAttrMapUrlFor('inventory'),
         impexUrl:            pageCtx.impexUrl,
         cssUrl:              URLUtils.staticURL('/css/accelerator-migration.css').toString(),
-        attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString() + '?v=14',
+        attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString() + '?v=16',
         inventoryMigrationJsUrl: URLUtils.staticURL('/js/inventory-migration.js').toString() + '?v=10',
         jobsUrl:             jobsUrl
     }));
@@ -2119,7 +2119,7 @@ exports.PricebookMigration = function () {
         clearAttrMapUrl:     clearAttrMapUrlFor('pricebook'),
         impexUrl:            pageCtx.impexUrl,
         cssUrl:              URLUtils.staticURL('/css/accelerator-migration.css').toString(),
-        attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString() + '?v=14',
+        attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString() + '?v=16',
         pricebookMigrationJsUrl: URLUtils.staticURL('/js/pricebook-migration.js').toString() + '?v=9',
         jobsUrl:             jobsUrl
     }));
@@ -2285,7 +2285,7 @@ exports.TaxMigration = function () {
         clearAttrMapUrl:     clearAttrMapUrlFor('tax'),
         impexUrl:            pageCtx.impexUrl,
         cssUrl:              URLUtils.staticURL('/css/accelerator-migration.css').toString(),
-        attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString() + '?v=14',
+        attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString() + '?v=16',
         taxMigrationJsUrl:   URLUtils.staticURL('/js/tax-migration.js').toString() + '?v=10',
         jobsUrl:             jobsUrl
     }));
@@ -2394,7 +2394,7 @@ exports.StoreMigration = function () {
         clearAttrMapUrl:     clearAttrMapUrlFor('store'),
         impexUrl:            pageCtx.impexUrl,
         cssUrl:              URLUtils.staticURL('/css/accelerator-migration.css').toString(),
-        attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString() + '?v=14',
+        attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString() + '?v=16',
         storeMigrationJsUrl: URLUtils.staticURL('/js/store-migration.js').toString() + '?v=11',
         jobsUrl:             jobsUrl
     }));
@@ -2731,7 +2731,7 @@ exports.ProductWizard = function () {
         bundleProductsUrl:   URLUtils.url('Accelerator-GetBundleProductsInfo').toString(),
         dashboardUrl:        URLUtils.url('Accelerator-Start').toString(),
         cssUrl:              URLUtils.staticURL('/css/accelerator-migration.css').toString(),
-        attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString() + '?v=14'
+        attrPreflightJsUrl:  URLUtils.staticURL('/js/attr-preflight.js').toString() + '?v=16'
     }, 'rc_accelerator_product_wizard'));
 };
 exports.ProductWizard.public = true;
@@ -3992,7 +3992,7 @@ exports.CategoryMigration = function () {
         importUrl             : importPageUrl,
         createCtCategoryUrl   : URLUtils.url('Accelerator-CreateCTCategory').toString(),
         checkProductsUrl      : URLUtils.url('Accelerator-CheckCategoryProducts').toString(),
-        attrPreflightJsUrl    : URLUtils.staticURL('/js/attr-preflight.js').toString() + '?v=14',
+        attrPreflightJsUrl    : URLUtils.staticURL('/js/attr-preflight.js').toString() + '?v=16',
         createAttrsUrl        : URLUtils.url('Accelerator-CreateCategoryAttributes').toString(),
         deleteAttrUrl         : URLUtils.url('Accelerator-DeleteCategoryAttribute').toString(),
         clearAttrMapUrl       : clearAttrMapUrlFor('category'),

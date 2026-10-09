@@ -375,6 +375,7 @@
             ui:              MIGRATION_UI,
             createAttrsUrl:  CREATE_ATTRS_URL,
             clearAttrMapUrl: CLEAR_ATTR_MAP_URL || '',
+            deleteAttrUrl: DELETE_ATTR_URL || '',
             post:            post,
             getPending:      function () { return pendingMissing; }
         });

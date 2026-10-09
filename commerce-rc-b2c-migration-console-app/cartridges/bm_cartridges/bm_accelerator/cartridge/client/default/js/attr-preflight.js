@@ -59,19 +59,180 @@
         return count + ((ui && ui.attrsMissingBrief) || ' attribute(s) to create.');
     }
 
-    function splitMapped(mapped) {
+    var TYPE_CHECK_KEY = 'accAttrTypeCheck';
+    var typeCheckExpanded = false;
+
+    /**
+     * The type check of existing attributes is off unless the user switched it on (kept per browser).
+     * @returns {boolean}
+     */
+    function typeCheckEnabled() {
+        try {
+            return !!(global.localStorage && global.localStorage.getItem(TYPE_CHECK_KEY) === '1');
+        } catch (e) {
+            return false;
+        }
+    }
+
+    /**
+     * @param {boolean} on
+     */
+    function setTypeCheckEnabled(on) {
+        try {
+            if (global.localStorage) global.localStorage.setItem(TYPE_CHECK_KEY, on ? '1' : '0');
+        } catch (e) { /* storage blocked: the switch only applies to this render */ }
+    }
+
+    /**
+     * @param {Array} mapped - mapped rows from the check
+     * @param {boolean} typeCheckOn - type check switched on
+     * @returns {{ systemMapped: Array, alreadyExists: Array, typeMismatch: Array }}
+     */
+    function splitMapped(mapped, typeCheckOn) {
         var systemMapped = [];
         var alreadyExists = [];
+        var typeMismatch = [];
         var i;
         for (i = 0; i < (mapped || []).length; i++) {
             var m = mapped[i];
             if (m && m.status === 'exists') {
                 alreadyExists.push(m);
+            } else if (m && m.status === 'type-mismatch') {
+                if (typeCheckOn) {
+                    typeMismatch.push(m);
+                } else {
+                    // Type check off: the row reads exactly as before the check existed.
+                    alreadyExists.push({
+                        id: m.id,
+                        label: m.label,
+                        sourceType: m.sourceType,
+                        ctpType: m.ctpType,
+                        sfccField: m.sfccField,
+                        note: 'Already exists in SFCC.',
+                        status: 'exists'
+                    });
+                }
             } else {
                 systemMapped.push(m);
             }
         }
-        return { systemMapped: systemMapped, alreadyExists: alreadyExists };
+        return { systemMapped: systemMapped, alreadyExists: alreadyExists, typeMismatch: typeMismatch };
+    }
+
+    /**
+     * Existing SFCC attributes whose type would lose or change the source values on import.
+     * @param {Array} rows - mapped rows with status type-mismatch
+     * @param {boolean} canDelete - the page has a delete action for this object type
+     * @returns {string}
+     */
+    function typeMismatchTableHtml(rows, canDelete) {
+        if (!rows || !rows.length) return '';
+        var html = '<details style="margin:0 0 16px;" open>'
+            + '<summary style="cursor:pointer;font-size:13px;font-weight:600;color:#c62828;margin:0 0 10px;">'
+            + rows.length + ' existing SFCC attribute(s) with the wrong type: values would be lost on import'
+            + '</summary>'
+            + '<div style="border:2px solid #e53935;border-radius:4px;overflow:hidden;margin-bottom:4px;background:#fff4f4;">'
+            + '<table class="cm-attr-table"><thead><tr>'
+            + '<th style="width:18%;">Source Attribute</th>'
+            + '<th style="width:15%;padding-left:20px;">SFCC Field</th>'
+            + '<th style="width:10%;padding-left:20px;">SFCC Type</th>'
+            + '<th style="width:12%;padding-left:20px;">Needed Type</th>'
+            + '<th>What to do</th>'
+            + (canDelete ? '<th style="width:14%;padding-left:12px;">Action</th>' : '')
+            + '</tr></thead><tbody>';
+        var i;
+        for (i = 0; i < rows.length; i++) {
+            var m = rows[i];
+            html += '<tr>'
+                + '<td><code>' + escHtml(m.id) + '</code></td>'
+                + '<td style="padding-left:20px;"><code>' + escHtml(m.sfccField || '') + '</code></td>'
+                + '<td style="padding-left:20px;color:#c62828;">' + escHtml(m.sfccType || '') + '</td>'
+                + '<td style="padding-left:20px;">' + escHtml(m.expectedType || '') + '</td>'
+                + '<td style="font-size:12px;color:#54698d;">' + escHtml(m.note || '') + '</td>'
+                + (canDelete
+                    ? '<td style="padding-left:12px;white-space:nowrap;">'
+                        + '<button type="button" class="cm-btn cm-btn--secondary acc-type-del-btn" data-attr-id="'
+                        + escHtml(m.sfccField || '') + '">Delete in SFCC</button>'
+                        + '<div class="acc-type-del-msg" style="font-size:11px;margin-top:4px;white-space:normal;"></div></td>'
+                    : '')
+                + '</tr>';
+        }
+        html += '</tbody></table></div></details>';
+        return html;
+    }
+
+    /**
+     * Bottom section of the results: the type-check switch, and the wrong-type table while it is on.
+     * @param {Array} rows - wrong-type rows
+     * @param {boolean} on - type check switched on
+     * @param {boolean} canDelete - the page has a delete action for this object type
+     * @param {boolean} expanded - render the section open (after the user used the switch)
+     * @returns {string}
+     */
+    function typeCheckSectionHtml(rows, on, canDelete, expanded) {
+        var body = '';
+        if (on) {
+            body = rows && rows.length
+                ? '<div style="margin-top:10px;">' + typeMismatchTableHtml(rows, canDelete) + '</div>'
+                : '<p style="font-size:12px;color:#2e7d32;margin:8px 0 0;">No existing attribute has a type that would lose values.</p>';
+        }
+        // Collapsed, low-key line at the very bottom: only someone who knows it opens it.
+        return '<details id="acc-type-check" style="margin:24px 0 0;"' + (expanded ? ' open' : '') + '>'
+            + '<summary style="cursor:pointer;font-size:11px;color:#a0aec0;">Advanced</summary>'
+            + '<div style="margin-top:8px;">'
+            + '<label style="font-size:12px;color:#54698d;cursor:pointer;">'
+            + '<input type="checkbox" id="acc-type-check-toggle"' + (on ? ' checked' : '') + ' style="margin-right:6px;vertical-align:middle;">'
+            + 'Check the types of existing SFCC attributes</label>'
+            + body
+            + '</div></details>';
+    }
+
+    /**
+     * Switch and delete buttons of the type-check section; the switch re-renders the results.
+     * @param {Object} opts - the renderMissingResults options (post, deleteAttrUrl)
+     */
+    function bindTypeCheck(opts) {
+        var toggle = document.getElementById('acc-type-check-toggle');
+        if (toggle) {
+            toggle.addEventListener('change', function () {
+                setTypeCheckEnabled(toggle.checked);
+                typeCheckExpanded = true;
+                renderMissingResults(opts);
+            });
+        }
+        var btns = document.querySelectorAll('.acc-type-del-btn');
+        var b;
+        for (b = 0; b < btns.length; b++) {
+            btns[b].addEventListener('click', function () {
+                var btn = this;
+                var attrId = btn.getAttribute('data-attr-id');
+                var msg = btn.parentNode.querySelector('.acc-type-del-msg');
+                if (!attrId || !opts.deleteAttrUrl || !opts.post) return;
+                if (!window.confirm('Delete the attribute "' + attrId + '" in SFCC?\n\n'
+                    + 'Its values are removed from every record. Then run Check Attributes again, '
+                    + 'create it with the needed type and import the data again.')) {
+                    return;
+                }
+                btn.disabled = true;
+                btn.textContent = 'Deleting...';
+                opts.post(opts.deleteAttrUrl, 'attrId=' + encodeURIComponent(attrId), function (data) {
+                    if (data && data.ok) {
+                        btn.textContent = 'Deleted';
+                        if (msg) {
+                            msg.style.color = '#2e7d32';
+                            msg.textContent = 'Run Check Attributes again to recreate it.';
+                        }
+                    } else {
+                        btn.disabled = false;
+                        btn.textContent = 'Delete in SFCC';
+                        if (msg) {
+                            msg.style.color = '#c62828';
+                            msg.textContent = (data && data.error) || 'Delete failed';
+                        }
+                    }
+                });
+            });
+        }
     }
 
     /**
@@ -86,12 +247,14 @@
         var sugN = counts.suggested || 0;
         var skipN = counts.skipped || 0;
         var pendN = counts.coveragePending || 0;
+        var badN = counts.typeMismatch || 0;
         return ''
             + '<div id="acc-attr-preview-summary" style="margin:0 0 16px;padding:12px 14px;background:#f4f6f9;border:1px solid #e0e5ee;border-radius:6px;">'
             + '<div style="font-size:13px;font-weight:600;color:#16325c;margin:0 0 8px;">Attribute check preview</div>'
             + '<div style="display:flex;flex-wrap:wrap;gap:8px 16px;font-size:12px;color:#54698d;">'
             + '<span><strong style="color:#1565c0;">' + mappedN + '</strong> mapped to SFCC system (no create)</span>'
             + '<span><strong style="color:#2e7d32;">' + existsN + '</strong> already in SFCC (no create)</span>'
+            + (badN ? '<span><strong style="color:#c62828;">' + badN + '</strong> in SFCC with the wrong type</span>' : '')
             + '<span><strong style="color:#6a1b9a;">' + sugN + '</strong> AI system-map suggestions</span>'
             + '<span><strong style="color:#e65100;">' + missN + '</strong> need create / map</span>'
             + '<span><strong style="color:#6d4c41;">' + skipN + '</strong> skipped (not attributes)</span>'
@@ -455,6 +618,7 @@
     var liveCoveragePending = [];
     var originalPendingById = {};
     var liveAlreadyExistsCount = 0;
+    var liveTypeMismatchCount = 0;
     var liveMissingCount = 0;
     var liveSuggestedCount = 0;
     var liveSkippedCount = 0;
@@ -478,6 +642,7 @@
             fresh.innerHTML = previewSummaryHtml({
                 systemMapped: liveSystemMapped.length,
                 alreadyExists: liveAlreadyExistsCount,
+                typeMismatch: liveTypeMismatchCount,
                 suggested: liveSuggestedCount,
                 missing: liveMissingCount,
                 skipped: liveSkippedCount,
@@ -1309,12 +1474,14 @@
         var taskName = opts.taskName || '';
         var sfccObjectType = opts.sfccObjectType || '';
         var sugIds = suggestedIdSet(suggested);
-        var split = splitMapped(mapped);
+        var typeCheckOn = typeCheckEnabled();
+        var split = splitMapped(mapped, typeCheckOn);
         if (!container) return;
 
         liveUi = ui;
         liveSystemMapped = split.systemMapped.slice();
         liveAlreadyExistsCount = split.alreadyExists.length;
+        liveTypeMismatchCount = split.typeMismatch.length;
         liveMissingCount = missing.length;
         liveSuggestedCount = suggested.length;
         liveSkippedCount = skipped.length;
@@ -1355,6 +1522,7 @@
         var html = previewSummaryHtml({
             systemMapped: split.systemMapped.length,
             alreadyExists: split.alreadyExists.length,
+            typeMismatch: split.typeMismatch.length,
             suggested: suggested.length,
             missing: missing.length,
             skipped: skipped.length,
@@ -1393,9 +1561,11 @@
         html += '<div id="acc-coverage-pending-wrap">'
             + coveragePendingTableHtml(coveragePending)
             + '</div>';
+        html += typeCheckSectionHtml(split.typeMismatch, typeCheckOn, !!(opts.deleteAttrUrl && opts.post), typeCheckExpanded);
 
         container.innerHTML = html;
         container.style.display = 'block';
+        bindTypeCheck(opts);
 
         var selectAllAttr = document.getElementById('acc-attr-select-all');
         var createBtn = document.getElementById('acc-create-attrs-btn');
@@ -1593,6 +1763,9 @@
         missingCountLabel:    missingCountLabel,
         missingBriefLabel:    missingBriefLabel,
         mappedTableHtml:      mappedTableHtml,
+        splitMapped:          splitMapped,
+        typeMismatchTableHtml: typeMismatchTableHtml,
+        typeCheckSectionHtml: typeCheckSectionHtml,
         missingTableHtml:     missingTableHtml,
         customFieldOptionsHtml: customFieldOptionsHtml,
         suggestedTableHtml:   suggestedTableHtml,

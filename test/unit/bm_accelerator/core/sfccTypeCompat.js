@@ -1,5 +1,7 @@
 'use strict';
 
+/* eslint-env mocha */
+
 var assert = require('chai').assert;
 var loader = require('../helpers/cartridgeLoader');
 
@@ -114,5 +116,33 @@ describe('sfccTypeCompat', function () {
 
         assert.deepEqual(missing[0].mappableCustomFields.map(function (f) { return f.id; }), ['featuredFlag']);
         assert.equal(missing[0].suggestedCustomField, '');
+    });
+});
+
+describe('sfccTypeCompat.typeMismatchReason', function () {
+    var compat;
+
+    before(function () {
+        compat = loader.requireCartridge('core/sfccTypeCompat');
+    });
+
+    it('reports a list stored in a single-value attribute and true/false stored as text', function () {
+        assert.include(compat.typeMismatchReason('set_of_string', 'string'), 'only the first value');
+        assert.include(compat.typeMismatchReason('set_of_string', 'text'), 'only the first value');
+        assert.include(compat.typeMismatchReason('boolean', 'string'), 'true/false is stored as string');
+    });
+
+    it('accepts matching types, other list types and multi-select enums', function () {
+        assert.equal(compat.typeMismatchReason('set_of_string', 'set_of_string'), '');
+        assert.equal(compat.typeMismatchReason('set_of_string', 'set_of_int'), '');
+        assert.equal(compat.typeMismatchReason('set_of_string', 'enum_of_string'), '');
+        assert.equal(compat.typeMismatchReason('boolean', 'boolean'), '');
+    });
+
+    it('never judges free-text or unknown source types', function () {
+        assert.equal(compat.typeMismatchReason('string', 'boolean'), '');
+        assert.equal(compat.typeMismatchReason('string', 'set_of_string'), '');
+        assert.equal(compat.typeMismatchReason('', 'string'), '');
+        assert.equal(compat.typeMismatchReason('set_of_string', ''), '');
     });
 });

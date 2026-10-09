@@ -352,17 +352,37 @@ function classifyFields(opts) {
         var existingCanon = resolveExistingId(resolvedId, existingIds, existingIdsLower);
         if (existingCanon) {
             // Same attribute id (or custom rename target) already on SFCC — not an AI system map
-            mapped.push({
+            var existingIsSystem = !!(systemIds[existingCanon] || systemIdsLower[String(existingCanon).toLowerCase()]);
+            // An existing custom attribute of the wrong type (e.g. a String for a list) imports without
+            // errors but loses values, so it is reported instead of passing as "already exists".
+            var expectedType = existingIsSystem ? '' : (enrich({
+                id:             id,
+                label:          norm.label,
+                sourceType:     norm.sourceType,
+                ctpType:        norm.sourceType,
+                sfccObjectType: sfccObjectType
+            }) || {}).sfccType;
+            var actualType = indexed.valueTypes[existingCanon] || '';
+            var mismatch = expectedType ? sfccTypeCompat.typeMismatchReason(expectedType, actualType) : '';
+            var existingRow = {
                 id:         id,
                 label:      norm.label,
                 sourceType: norm.sourceType,
                 ctpType:    norm.sourceType,
                 sfccField:  existingCanon,
-                note:       systemIds[existingCanon] || systemIdsLower[String(existingCanon).toLowerCase()]
+                note:       existingIsSystem
                     ? 'Already exists as SFCC system field.'
                     : 'Already exists in SFCC.',
                 status:     'exists'
-            });
+            };
+            if (mismatch) {
+                existingRow.status       = 'type-mismatch';
+                existingRow.sfccType     = actualType;
+                existingRow.expectedType = expectedType;
+                existingRow.note         = 'SFCC type is ' + actualType + ', the source needs ' + expectedType
+                    + ': ' + mismatch + '. Delete the attribute in SFCC and run Check Attributes again to recreate it.';
+            }
+            mapped.push(existingRow);
             if (id !== existingCanon) {
                 autoMapped.push({ id: existingCanon, canonicalId: id });
             }
